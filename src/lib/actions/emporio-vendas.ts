@@ -16,6 +16,7 @@ import type { EnderecoDoPedido } from "@/lib/emporio/cliente-cadastro";
 import {
   enderecoDasColunas,
   entradaHerdadaDoOrcamento,
+  linhaDoEndereco,
   resolverPedidoParaEntrega,
   type EscolhaDoEndereco,
   type PedidoParaEntregaColunas,
@@ -1494,6 +1495,130 @@ export async function cancelarVendaAction(
     throw err;
   }
   const v = await vendaPorId(db, id);
+  return v ? ok(v) : NAO_ACHADO("Venda");
+}
+
+// ---------------------------------------------------------------------------
+// Pedido para entrega depois de fechada (D5)
+// ---------------------------------------------------------------------------
+
+const VENDA_CANCELADA_NAO_MUDA = () => fail("VALIDATION_ERROR", "Venda cancelada não muda o pedido para entrega.", 422);
+const VENDA_TROCADA_NAO_MUDA = () =>
+  fail("VALIDATION_ERROR", "Venda trocada não muda o pedido para entrega: mude na venda da troca.", 422);
+
+const COLUNAS_DO_PEDIDO = [
+  "for_delivery",
+  "delivery_address_kind",
+  "delivery_zip",
+  "delivery_street",
+  "delivery_number",
+  "delivery_complement",
+  "delivery_district",
+  "delivery_city",
+  "delivery_state",
+] as const;
+
+/** Venda antiga sem cliente: para entrega, conta como o Consumidor final. */
+const SEM_CLIENTE = {
+  system_key: CONSUMIDOR_FINAL.system_key,
+  name: CONSUMIDOR_FINAL.name,
+  person_kind: null,
+  phone: null,
+  document: null,
+  address_zip: null,
+  address_street: null,
+  address_number: null,
+  address_complement: null,
+  address_district: null,
+  city: null,
+  address_state: null,
+};
+
+/**
+ * Quem fatura muda a marca e o endereço de uma venda fechada. Só as nove
+ * colunas e uma linha no Histórico: estoque, caixa e financeiro não mudam. O
+ * cliente da venda não muda aqui. A leitura é a de `lerVendaAction`, então quem
+ * não enxerga a venda (outra loja, o Caixa numa venda que não é de hoje) recebe
+ * 404 antes da permissão.
+ */
+export async function mudarPedidoParaEntregaAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  saleId: string,
+  input: PedidoParaEntregaInput,
+): Promise<ActionResult<VendaView>> {
+  const lida = await lerVendaAction(db, ator, saleId);
+  if (!lida.ok) return lida;
+  const venda = lida.data;
+  const neg = await exigir(db, ator, "fatura_na_loja", "mudar o pedido para entrega", venda.establishment_id);
+  if (neg) return neg;
+  if (venda.status === "cancelada") return VENDA_CANCELADA_NAO_MUDA();
+  if (venda.returns.some((r) => r.exchange_sale_id)) return VENDA_TROCADA_NAO_MUDA();
+  // Sem a marca no corpo, o pedido não vira retirada por omissão.
+  if (typeof input?.for_delivery !== "boolean") {
+    return fail("VALIDATION_ERROR", "Marque ou desmarque o pedido para entrega.", 422, "for_delivery");
+  }
+
+  const atual = await db.emporioSale.findFirst({
+    where: { id: venda.id },
+    select: {
+      for_delivery: true,
+      delivery_address_kind: true,
+      delivery_zip: true,
+      delivery_street: true,
+      delivery_number: true,
+      delivery_complement: true,
+      delivery_district: true,
+      delivery_city: true,
+      delivery_state: true,
+      customer: { select: CAMPOS_DO_CLIENTE_DA_VENDA },
+    },
+  });
+  if (!atual) return NAO_ACHADO("Venda");
+  const resolvido = resolverPedidoParaEntrega(atual.customer ?? SEM_CLIENTE, input);
+  if (!resolvido.ok) return resolvido;
+  const novo = resolvido.data;
+  if (COLUNAS_DO_PEDIDO.every((c) => atual[c] === novo[c])) return ok(venda);
+
+  const linhaAntes = linhaDoEndereco(enderecoDasColunas(atual));
+  const linhaDepois = linhaDoEndereco(enderecoDasColunas(novo));
+  const numero = formatarNumero(venda.number);
+  const summary = !novo.for_delivery
+    ? `Mudou a venda nº ${numero} para retirada no balcão`
+    : !atual.for_delivery
+      ? `Mudou a venda nº ${numero} para entrega (${linhaDepois})`
+      : `Mudou o endereço de entrega da venda nº ${numero} (${linhaDepois})`;
+  const changes = [
+    ...(atual.for_delivery !== novo.for_delivery
+      ? [{ campo: "for_delivery", antes: atual.for_delivery, depois: novo.for_delivery }]
+      : []),
+    ...(linhaAntes !== linhaDepois ? [{ campo: "delivery_address", antes: linhaAntes, depois: linhaDepois }] : []),
+  ];
+
+  try {
+    await runSerializableTenantTransaction(db, async (tx) => {
+      // Condicional: quem cancelou entre a leitura e aqui ganha, e esta recusa como cancelada.
+      const r = await tx.emporioSale.updateMany({ where: { id: venda.id, status: "concluida" }, data: novo });
+      if (r.count === 0) throw new AbortarVenda(VENDA_CANCELADA_NAO_MUDA());
+      const trocada = await tx.emporioSaleReturn.findFirst({
+        where: { sale_id: venda.id, exchange_sale: { isNot: null } },
+        select: { id: true },
+      });
+      if (trocada) throw new AbortarVenda(VENDA_TROCADA_NAO_MUDA());
+      await registrarNoHistorico(tx, ator, {
+        action: "venda.pedido_para_entrega",
+        establishment_id: venda.establishment_id,
+        target_type: "venda",
+        target_id: venda.id,
+        summary,
+        changes,
+      });
+    });
+  } catch (err) {
+    if (err instanceof AbortarVenda) return err.recusa;
+    throw err;
+  }
+  const v = await vendaPorId(db, venda.id);
   return v ? ok(v) : NAO_ACHADO("Venda");
 }
 

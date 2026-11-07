@@ -91,6 +91,8 @@ export type AcaoEmporio =
   | "vendedor_da_loja"
   /** Verdadeira para todo papel com Empório, menos o Caixa (que só vende, recebe fiado e opera o caixa). */
   | "fora_do_caixa"
+  /** Quem fatura: Dono e Gerente geral sempre; Gestor e Caixa nas lojas deles; Vendedor nunca. */
+  | "fatura_na_loja"
   | `chave:${EmporioKey}`;
 
 const noAlcance = (c: PapelContexto, lojaId?: string) => !lojaId || !c.lojas || c.lojas.has(lojaId);
@@ -107,6 +109,7 @@ export function pode(c: PapelContexto, acao: AcaoEmporio, lojaId?: string): bool
   if (conta) return true;
   if (acao === "gestor_da_loja") return c.papel === "gestor" && noAlcance(c, lojaId);
   if (acao === "vendedor_da_loja") return noAlcance(c, lojaId);
+  if (acao === "fatura_na_loja") return (c.papel === "gestor" || c.papel === "caixa") && noAlcance(c, lojaId);
   const chave = acao.slice("chave:".length);
   if (c.papel === "gestor") return noAlcance(c, lojaId);
   return c.papel === "vendedor" && c.chaves.has(chave) && noAlcance(c, lojaId);
@@ -128,6 +131,7 @@ const FRASES: Record<string, string> = {
   gestor_da_loja: "Só o gestor da loja, o gerente geral e o dono podem fazer isso.",
   vendedor_da_loja: "Seu acesso não permite fazer isso nessa loja.",
   fora_do_caixa: "O acesso de caixa não inclui isso.",
+  fatura_na_loja: "Só o caixa, o gestor da loja, o gerente geral e o dono podem fazer isso.",
 };
 
 /** Frase de recusa por papel (403). `oQue` complementa: "cancelar uma venda". */
@@ -142,6 +146,9 @@ export function recusaDe(acao: AcaoEmporio, oQue?: string) {
   if (oQue && acao === "conta") return fail("FORBIDDEN", `Só o dono e o gerente geral podem ${oQue}.`, 403);
   if (oQue && acao === "gestor_da_loja") {
     return fail("FORBIDDEN", `Só o gestor da loja pode ${oQue}.`, 403);
+  }
+  if (oQue && acao === "fatura_na_loja") {
+    return fail("FORBIDDEN", `Só o caixa, o gestor da loja, o gerente geral e o dono podem ${oQue}.`, 403);
   }
   return fail("FORBIDDEN", FRASES[acao] ?? "Você não tem permissão para isso.", 403);
 }

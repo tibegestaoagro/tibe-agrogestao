@@ -625,6 +625,32 @@ async function comBanco() {
       check("reativa o Gerente geral", (await chamar(EQ, "reativarMembroAction", db, owner, gg.id)).ok);
       check("reativado, o mesmo cookie volta a passar em Contatos", (await comCookie(cVend, rotaCon, "/api/v1/contacts")).status === 200);
     });
+
+    // ---------------------------------------------------------------- 9. fatura_na_loja
+    await rodar("9", async () => {
+      console.log("\n9. Quem fatura na loja (fatura_na_loja, plano 3 do Empório)");
+      const ctx = (papel: Dado, lojas: string[] | null): Dado => ({ papel, lojas: lojas ? new Set(lojas) : null, chaves: new Set(), soDaLoja: papel !== "dono" });
+      const tabela: [string, Dado, boolean, boolean][] = [
+        ["Dono", ctx("dono", null), true, true],
+        ["Gerente geral", ctx("gerente_geral", null), true, true],
+        ["Gestor da Loja 1", ctx("gestor", [L1]), true, false],
+        ["Caixa da Loja 1", ctx("caixa", [L1]), true, false],
+        ["Vendedor da Loja 1 (com todas as chaves)", { ...ctx("vendedor", [L1]), chaves: new Set(PAPEL.EMPORIO_KEY_IDS) }, false, false],
+      ];
+      for (const [nome, c, naL1, naL2] of tabela) {
+        check(`${nome}: fatura_na_loja na Loja 1 ${naL1 ? "pode" : "não pode"}`, PAPEL.pode(c, "fatura_na_loja" as Dado, L1) === naL1);
+        check(`${nome}: fatura_na_loja na Loja 2 ${naL2 ? "pode" : "não pode"}`, PAPEL.pode(c, "fatura_na_loja" as Dado, L2) === naL2);
+      }
+      check("sem papel: não pode", !PAPEL.pode(ctx(null, []), "fatura_na_loja" as Dado, L1));
+      const r = PAPEL.recusaDe("fatura_na_loja" as Dado, "mudar o pedido para entrega") as Dado;
+      check(
+        "a recusa com oQue",
+        r.status === 403 && r.message === "Só o caixa, o gestor da loja, o gerente geral e o dono podem mudar o pedido para entrega.",
+        j(r),
+      );
+      const r2 = PAPEL.recusaDe("fatura_na_loja" as Dado) as Dado;
+      check("a recusa sem oQue", r2.message === "Só o caixa, o gestor da loja, o gerente geral e o dono podem fazer isso.", j(r2));
+    });
   } finally {
     const modelos = [
       "emporioAuditLog", "cashMovement", "cardReceivable", "emporioCheck", "cashTransfer", "cashCount", "cardFeeRule", "stockMovement",

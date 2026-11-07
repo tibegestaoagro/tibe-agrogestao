@@ -40,6 +40,7 @@ export const ACOES_DO_HISTORICO = {
   "venda.cancelar": "Cancelou uma venda",
   "venda.devolver": "Registrou uma devolução",
   "venda.trocar": "Registrou uma troca",
+  "venda.pedido_para_entrega": "Mudou o pedido para entrega de uma venda",
   "orcamento.criar": "Salvou um orçamento",
   "fiado.receber": "Recebeu um fiado",
   "caixa.transferir": "Transferiu dinheiro",

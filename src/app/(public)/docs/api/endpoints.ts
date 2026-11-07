@@ -929,6 +929,15 @@ export const GROUPS: Group[] = [
 { "data": { "devolucao": { "id": "cl...", "refund_kind": "troca", "amount": 12.5 }, "venda": { "id": "cl...", "exchange_return_id": "cl..." } }, "meta": {} }`,
       },
       {
+        method: "PATCH",
+        path: "/api/v1/emporio/sales/:id/delivery",
+        auth: "Sessão · emporio:write · quem fatura (Dono, Gerente geral, Gestor e Caixa nas lojas dele; o Vendedor não)",
+        description: "Muda o pedido para entrega de uma venda fechada: só as nove colunas (`for_delivery`, `delivery_address_kind` e a cópia `delivery_*`) e uma linha `venda.pedido_para_entrega` no Histórico; estoque, caixa e financeiro não mudam, e o cliente da venda também não. `for_delivery` obrigatório (422 `for_delivery`); `true` pede `delivery_address_kind` (`principal`, `cadastro_entrega` ou `outro`, este com os campos `delivery_*`), com as recusas da venda (422 em `customer_id`, `delivery_address_kind` ou no campo `delivery_*`). O mesmo valor de hoje devolve a venda sem gravar nem registrar. A leitura é a de `GET /sales/:id`: venda de outra loja, de outra conta ou, para o Caixa, que não é de hoje: 404. Vendedor: 403. Venda cancelada ou trocada: 422 sem campo (a da troca muda na venda nova).",
+        request: `{ "for_delivery": true, "delivery_address_kind": "outro", "delivery_zip": "38400-200", "delivery_street": "Rua B", "delivery_number": "20", "delivery_district": "Bairro Novo", "delivery_city": "Uberlândia", "delivery_state": "MG" }`,
+        response: `200
+{ "data": { "id": "cl...", "for_delivery": true, "delivery_address_kind": "outro", "delivery_address": { "zip": "38400200", "street": "Rua B", "number": "20", "complement": null, "district": "Bairro Novo", "city": "Uberlândia", "state": "MG" } }, "meta": {} }`,
+      },
+      {
         method: "POST",
         path: "/api/v1/emporio/quotes",
         auth: "Sessão · emporio:write · quem vende na loja (Dono, Gerente geral, Gestor, Vendedor e Caixa nas lojas dele)",

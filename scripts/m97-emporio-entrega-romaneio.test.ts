@@ -11,6 +11,7 @@ exigirBancoLocal();
  * Seção 2: as colunas do pedido para entrega no orçamento e na venda (banco).
  * Seção 3: o orçamento para entrega e as opções de endereço do cliente (rotas).
  * Seção 4: a venda para entrega e o faturamento que herda do orçamento (rotas).
+ * Seção 5: mudar o pedido para entrega da venda fechada (action e rota).
  */
 
 let falhas = 0;
@@ -689,6 +690,298 @@ async function secao4() {
   );
 }
 
+async function secao5() {
+  console.log("\nSeção 5: mudar o pedido para entrega depois de fechada (D5)");
+  const { prisma, prismaForTenant, scoped } = await import("@/lib/prisma");
+  const { papelDeFixture, vincularTodas } = await import("./_emporio-papel");
+  const { withBearer } = await import("./_escopo-de-requisicao");
+  const { abrirTurnoDeTeste } = await import("./_emporio-turno");
+  const bcrypt = (await import("bcryptjs")).default;
+  const C = await import("@/lib/actions/emporio-clientes");
+  const Cat = await import("@/lib/actions/emporio-catalogo");
+  const Est = await import("@/lib/actions/emporio-estoque");
+  const V = (await import("@/lib/actions/emporio-vendas")) as Dado;
+  const { formatarNumero } = await import("@/lib/emporio/numeracao");
+  const SENHA = "SenhaForte#2026";
+  const hash = await bcrypt.hash(SENHA, 4);
+  const stamp = Date.now().toString(36);
+
+  const mkTenant = async (rotulo: string) => {
+    const t = await prisma.tenant.create({
+      data: { name: `M97e ${rotulo} ${stamp}`, document: `M97e${rotulo}${stamp}`.slice(0, 14), plan: "grupo", status: "trial", trial_ends_at: new Date(Date.now() + 86_400_000) },
+    });
+    tenantIds.push(t.id);
+    await prisma.tenantProfile.create({ data: { tenant_id: t.id, profile_type: "emporio", active: true } });
+    await prisma.tenantFeature.create({ data: { tenant_id: t.id, feature_key: "emporio", enabled: true } });
+    return t;
+  };
+  const t = await mkTenant("A");
+  const tB = await mkTenant("B");
+  const mk = async (tenantId: string, suf: string, role: "OWNER" | "OPERADOR", extra: Dado = {}) => {
+    const u = await prisma.user.create({
+      data: { tenant_id: tenantId, name: `M97e ${suf}`, email: `m97e-${suf}-${stamp}@teste.local`, password_hash: hash, role, ...papelDeFixture(role), ...extra },
+    });
+    return { id: u.id, role, email: u.email };
+  };
+  const owner = await mk(t.id, "own", "OWNER");
+  const gestor = await mk(t.id, "gestor", "OPERADOR", { emporio_role: "gestor", emporio_keys: [] });
+  const caixa = await mk(t.id, "caixa", "OPERADOR", { emporio_role: "caixa", emporio_keys: [] });
+  const vend = await mk(t.id, "vend", "OPERADOR");
+  const gestor2 = await mk(t.id, "gestor2", "OPERADOR", { emporio_role: "gestor", emporio_keys: [] });
+  const caixa2 = await mk(t.id, "caixa2", "OPERADOR", { emporio_role: "caixa", emporio_keys: [] });
+  const ownerB = await mk(tB.id, "ownb", "OWNER");
+  const db = prismaForTenant(t.id) as Dado;
+  const dbB = prismaForTenant(tB.id) as Dado;
+  const lojaR = await Cat.criarEstabelecimentoAction(db, owner, { name: "M97e Loja" });
+  const loja2R = await Cat.criarEstabelecimentoAction(db, owner, { name: "M97e Loja 2" });
+  if (!lojaR.ok || !loja2R.ok) throw new Error(`lojas: ${j([lojaR, loja2R])}`);
+  const L = lojaR.data.id;
+  const L2 = loja2R.data.id;
+  await vincularTodas(prisma, t.id, [gestor.id, caixa.id, vend.id], [L]);
+  await vincularTodas(prisma, t.id, [gestor2.id, caixa2.id], [L2]);
+
+  const categoria = await db.productCategory.create({ data: scoped({ name: "M97e categoria" }) });
+  const prod = await Cat.criarProdutoEmporioAction(db, owner, { name: `M97e Ração ${stamp}`, category_id: categoria.id, base_unit: "quilograma" });
+  if (!prod.ok) throw new Error(`produto: ${j(prod)}`);
+  const pres = await Cat.criarApresentacaoAction(db, owner, prod.data.id, { name: "Quilo", base_qty: 1, is_sealed_package: false });
+  if (!pres.ok) throw new Error(`apresentação: ${j(pres)}`);
+  const preco = await Cat.definirPrecoAction(db, owner, { establishment_id: L, presentation_id: pres.data.id, price: 10 });
+  if (!preco.ok) throw new Error(`preço: ${j(preco)}`);
+  const imp = await Est.implantarEstoqueAction(db, owner, { establishment_id: L, emporio_product_id: prod.data.id, sealed: [], loose_qty: 100, unit_cost: 4 });
+  if (!imp.ok) throw new Error(`implantar: ${j(imp)}`);
+  const itens = [{ emporio_product_id: prod.data.id, presentation_id: pres.data.id, quantity: 1 }];
+  const turno = await abrirTurnoDeTeste(db, owner, L);
+
+  const cf = await C.garantirConsumidorFinal(db);
+  const pfA = await C.cadastrarClienteAction(db, owner, {
+    name: "M97e PF A", person_kind: "pf", phone: "34 99999-2001", document: "529.982.247-25",
+    address_zip: "38400-000", address_street: "Rua A", address_number: "10", address_district: "Centro", city: "Uberlândia", address_state: "MG",
+  });
+  if (!pfA.ok) throw new Error(`cliente: ${j(pfA)}`);
+  const cli = pfA.data.id;
+  const OUTRO = {
+    delivery_zip: "38400-200", delivery_street: "Rua B", delivery_number: "20",
+    delivery_district: "Bairro Novo", delivery_city: "Uberlândia", delivery_state: "MG",
+  };
+  const LINHA_OUTRO = "Rua B, 20, Bairro Novo, Uberlândia/MG, CEP 38400-200";
+  const LINHA_PRINCIPAL = "Rua A, 10, Centro, Uberlândia/MG, CEP 38400-000";
+  const MSG_CANCELADA = "Venda cancelada não muda o pedido para entrega.";
+  const MSG_TROCADA = "Venda trocada não muda o pedido para entrega: mude na venda da troca.";
+  const MSG_VENDEDOR = "Só o caixa, o gestor da loja, o gerente geral e o dono podem mudar o pedido para entrega.";
+
+  let seq = 0;
+  const vender = async (customerId: string) => {
+    const r = await V.venderAction(db, owner, {
+      operation_key: `m97e-${stamp}-${(seq += 1)}`, establishment_id: L, cash_register_id: turno.cash_register_id,
+      customer_id: customerId, items: itens, payments: [{ kind: "dinheiro", amount: 10 }],
+    });
+    if (!r.ok) throw new Error(`venda: ${j(r)}`);
+    return r.data as Dado;
+  };
+  const mudar = async (dbx: Dado, ator: Dado, saleId: string, input: Dado): Promise<Dado> => {
+    if (typeof V.mudarPedidoParaEntregaAction !== "function") return { ok: false, code: "AUSENTE", status: 0, message: "mudarPedidoParaEntregaAction ausente" };
+    return V.mudarPedidoParaEntregaAction(dbx, ator, saleId, input);
+  };
+  const linhas = (saleId: string) =>
+    prisma.emporioAuditLog.findMany({ where: { tenant_id: t.id, action: "venda.pedido_para_entrega", target_id: saleId }, orderBy: { created_at: "asc" } });
+  const contagens = async () =>
+    j([
+      await prisma.stockMovement.count({ where: { tenant_id: t.id } }),
+      await prisma.cashMovement.count({ where: { tenant_id: t.id } }),
+      await prisma.financialEntry.count({ where: { tenant_id: t.id } }),
+      await prisma.emporioSalePayment.count({ where: { tenant_id: t.id } }),
+    ]);
+  // O jsonb reordena as chaves: compara na ordem campo, antes, depois.
+  const mudancas = (c: Dado) => (Array.isArray(c) ? c.map((m: Dado) => ({ campo: m.campo, antes: m.antes, depois: m.depois })) : c);
+  const bruta = (id: string) => prisma.emporioSale.findUnique({ where: { id } }) as Promise<Dado>;
+  const recusa = (r: Dado, status: number, message: string, field?: string) =>
+    r?.ok === false && r.status === status && r.message === message && r.field === field;
+
+  console.log("  quem fatura muda, e o Histórico conta");
+  const s1 = await vender(cli);
+  const n1 = formatarNumero(s1.number);
+  const antes1 = await contagens();
+  const b0 = await bruta(s1.id);
+
+  const m1 = await mudar(db, caixa, s1.id, { for_delivery: true, delivery_address_kind: "outro", ...OUTRO });
+  const lida1 = await V.lerVendaAction(db, owner, s1.id);
+  check(
+    "o Caixa da loja muda de retirada para entrega com outro: ok e a venda lida tem a cópia",
+    m1?.ok === true && lida1.ok && lida1.data.for_delivery === true && lida1.data.delivery_address_kind === "outro"
+      && lida1.data.delivery_address?.street === "Rua B" && lida1.data.delivery_address?.zip === "38400200",
+    j(m1),
+  );
+  let h = await linhas(s1.id);
+  check(
+    "uma linha venda.pedido_para_entrega com o resumo para entrega (linha)",
+    h.length === 1 && h[0].summary === `Mudou a venda nº ${n1} para entrega (${LINHA_OUTRO})` && h[0].target_type === "venda" && h[0].establishment_id === L,
+    j(h.map((x) => x.summary)),
+  );
+  check(
+    "changes: for_delivery false -> true e delivery_address null -> linha",
+    h.length === 1 && j(mudancas(h[0].changes)) === j([
+      { campo: "for_delivery", antes: false, depois: true },
+      { campo: "delivery_address", antes: null, depois: LINHA_OUTRO },
+    ]),
+    j(h[0]?.changes),
+  );
+
+  const m2 = await mudar(db, gestor, s1.id, { for_delivery: true, delivery_address_kind: "principal" });
+  h = await linhas(s1.id);
+  check(
+    "o Gestor da loja muda para principal: ok, resumo Mudou o endereço de entrega",
+    m2?.ok === true && m2.data.delivery_address_kind === "principal" && m2.data.delivery_address?.street === "Rua A"
+      && h.length === 2 && h[1].summary === `Mudou o endereço de entrega da venda nº ${n1} (${LINHA_PRINCIPAL})`,
+    `${j(m2)} ${j(h.map((x) => x.summary))}`,
+  );
+  check(
+    "changes: só delivery_address, da linha antiga para a nova",
+    h.length === 2 && j(mudancas(h[1].changes)) === j([{ campo: "delivery_address", antes: LINHA_OUTRO, depois: LINHA_PRINCIPAL }]),
+    j(h[1]?.changes),
+  );
+
+  const m3 = await mudar(db, owner, s1.id, { for_delivery: false });
+  h = await linhas(s1.id);
+  const b3 = await bruta(s1.id);
+  const nulas9 = ["delivery_address_kind", "delivery_zip", "delivery_street", "delivery_number", "delivery_complement", "delivery_district", "delivery_city", "delivery_state"];
+  check(
+    "o Dono muda para retirada: ok, colunas nulas, resumo para retirada no balcão",
+    m3?.ok === true && b3.for_delivery === false && nulas9.every((c) => b3[c] === null)
+      && h.length === 3 && h[2].summary === `Mudou a venda nº ${n1} para retirada no balcão`,
+    `${j(m3)} ${j(h.map((x) => x.summary))}`,
+  );
+  check(
+    "não mexe em nada mais: estoque, caixa, financeiro e pagamentos iguais",
+    (await contagens()) === antes1,
+    `${antes1} -> ${await contagens()}`,
+  );
+  check(
+    "net_amount e status iguais",
+    String(b3.net_amount) === String(b0.net_amount) && b3.status === b0.status && b3.status === "concluida",
+    j([b0.net_amount, b3.net_amount, b0.status, b3.status]),
+  );
+
+  console.log("  sem mudança, não grava");
+  const m4 = await mudar(db, owner, s1.id, { for_delivery: false });
+  check("mandar a retirada de novo: ok e nenhuma linha nova", m4?.ok === true && (await linhas(s1.id)).length === 3, j(m4));
+  await mudar(db, gestor, s1.id, { for_delivery: true, delivery_address_kind: "principal" });
+  const m5 = await mudar(db, caixa, s1.id, { for_delivery: true, delivery_address_kind: "principal" });
+  check("mandar o mesmo principal de novo: ok e nenhuma linha nova", m5?.ok === true && (await linhas(s1.id)).length === 4, `${j(m5)} ${(await linhas(s1.id)).length}`);
+  const mSem = await mudar(db, owner, s1.id, {});
+  const bSem = await bruta(s1.id);
+  check(
+    "sem for_delivery no corpo: 422 for_delivery, e a venda segue para entrega",
+    mSem?.ok === false && mSem.status === 422 && mSem.field === "for_delivery" && bSem.for_delivery === true,
+    j(mSem),
+  );
+
+  console.log("  quem pode, e o alcance");
+  const rv = await mudar(db, vend, s1.id, { for_delivery: false });
+  check("o Vendedor da loja: 403 com a frase", recusa(rv, 403, MSG_VENDEDOR) && rv.code === "FORBIDDEN", j(rv));
+  const rg2 = await mudar(db, gestor2, s1.id, { for_delivery: false });
+  check("o Gestor de outra loja: 404", rg2?.ok === false && rg2.status === 404, j(rg2));
+  const rc2 = await mudar(db, caixa2, s1.id, { for_delivery: false });
+  check("o Caixa de outra loja: 404", rc2?.ok === false && rc2.status === 404, j(rc2));
+  const rB = await mudar(dbB, ownerB, s1.id, { for_delivery: false });
+  check("outro tenant: 404", rB?.ok === false && rB.status === 404, j(rB));
+  check("as recusas não gravaram linha", (await linhas(s1.id)).length === 4);
+
+  const sOntem = await vender(cli);
+  const ymd = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+  await prisma.emporioSale.update({ where: { id: sOntem.id }, data: { sold_at: new Date(new Date(`${ymd}T00:00:00-03:00`).getTime() - 3_600_000) } });
+  const rcOntem = await mudar(db, caixa, sOntem.id, { for_delivery: true, delivery_address_kind: "principal" });
+  check("o Caixa da loja numa venda de ontem: 404", rcOntem?.ok === false && rcOntem.status === 404, j(rcOntem));
+  const rgOntem = await mudar(db, gestor, sOntem.id, { for_delivery: true, delivery_address_kind: "principal" });
+  check("o Gestor da loja muda a mesma venda: ok", rgOntem?.ok === true && rgOntem.data.for_delivery === true, j(rgOntem));
+
+  console.log("  cancelada, trocada e Consumidor final");
+  const sCanc = await vender(cli);
+  const canc = await V.cancelarVendaAction(db, gestor, sCanc.id, { reason: "teste", cash_register_id: turno.cash_register_id });
+  if (!canc.ok) throw new Error(`cancelar: ${j(canc)}`);
+  const rCanc = await mudar(db, caixa, sCanc.id, { for_delivery: true, delivery_address_kind: "principal" });
+  check("venda cancelada: 422 com a frase, sem campo", recusa(rCanc, 422, MSG_CANCELADA) && rCanc.code === "VALIDATION_ERROR", j(rCanc));
+
+  const sTroca = await vender(cli);
+  const tr = await V.trocarAction(db, owner, sTroca.id, {
+    operation_key: `m97e-troca-${stamp}`,
+    cash_register_id: turno.cash_register_id,
+    items_devolvidos: [{ sale_item_id: sTroca.items[0].id, quantity: 1 }],
+    venda: { customer_id: cli, items: itens, payments: [] },
+  });
+  if (!tr.ok) throw new Error(`troca: ${j(tr)}`);
+  const rTroc = await mudar(db, owner, sTroca.id, { for_delivery: true, delivery_address_kind: "principal" });
+  check("venda trocada: 422 com a frase da trocada", recusa(rTroc, 422, MSG_TROCADA) && rTroc.code === "VALIDATION_ERROR", j(rTroc));
+  const rNova = await mudar(db, owner, tr.data.venda.id, { for_delivery: true, delivery_address_kind: "principal" });
+  check("a venda nova da troca aceita a mudança: ok", rNova?.ok === true && rNova.data.for_delivery === true, j(rNova));
+
+  const sCf = await vender(cf.id);
+  const rCf = await mudar(db, owner, sCf.id, { for_delivery: true, delivery_address_kind: "principal" });
+  check("Consumidor final marcado: 422 customer_id", rCf?.ok === false && rCf.status === 422 && rCf.field === "customer_id", j(rCf));
+
+  console.log("  Review Focus 3: mudar enquanto outro cancela");
+  // A mudança sai com um atraso diferente a cada rodada, para a corrida cair em pontos diferentes do cancelamento.
+  const ATRASOS = [0, 10, 20, 40, 80];
+  const esperar = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  for (let i = 1; i <= ATRASOS.length; i += 1) {
+    const s = await vender(cli);
+    let rCancela: Dado;
+    let rMuda: Dado;
+    try {
+      [rCancela, rMuda] = await Promise.all([
+        V.cancelarVendaAction(db, gestor, s.id, { reason: `corrida ${i}`, cash_register_id: turno.cash_register_id }),
+        esperar(ATRASOS[i - 1]).then(() =>
+          V.mudarPedidoParaEntregaAction(db, caixa, s.id, { for_delivery: true, delivery_address_kind: "principal" })),
+      ]);
+    } catch (e) {
+      check(`rodada ${i}: nenhuma exceção (500)`, false, e instanceof Error ? e.message : String(e));
+      continue;
+    }
+    const final = await bruta(s.id);
+    // "Antes" de verdade: a linha da mudança é de uma transação que começou antes da do cancelamento.
+    // Numa corrida, a transação que perde é refeita, então o now() da linha dela é posterior ao commit da outra.
+    const hCancela = await prisma.emporioAuditLog.findFirst({ where: { tenant_id: t.id, action: "venda.cancelar", target_id: s.id } });
+    const hMuda = await prisma.emporioAuditLog.findFirst({ where: { tenant_id: t.id, action: "venda.pedido_para_entrega", target_id: s.id } });
+    const mudouPrimeiro = !!hCancela && !!hMuda && hMuda.created_at.getTime() < hCancela.created_at.getTime();
+    const antes = rMuda?.ok === true && mudouPrimeiro && final.status === "cancelada" && final.for_delivery === true && final.delivery_street === "Rua A";
+    const depois = recusa(rMuda, 422, MSG_CANCELADA) && !hMuda && final.status === "cancelada" && final.for_delivery === false;
+    console.log(`    rodada ${i}: ${antes ? "a mudança veio antes" : depois ? "a mudança recusou como cancelada" : "nenhum dos dois"}`);
+    check(
+      `rodada ${i}: o cancelamento passou e a mudança veio antes ou recusou como cancelada`,
+      rCancela?.ok === true && (antes || depois),
+      `${j({ cancela: rCancela?.ok ? "ok" : rCancela, muda: rMuda?.ok ? "ok" : rMuda })} status=${final.status} for_delivery=${final.for_delivery}`,
+    );
+  }
+
+  console.log("  a rota");
+  const rotaTok = await import("@/app/api/v1/auth/token/route");
+  let rotaD: Dado = null;
+  try {
+    rotaD = await import("@/app/api/v1/emporio/sales/[id]/delivery/route");
+  } catch (e) {
+    check("a rota PATCH /sales/:id/delivery carrega", false, e instanceof Error ? e.message.split("\n")[0] : String(e));
+  }
+  if (rotaD) {
+    const tok = String(
+      ((await (await rotaTok.POST(new Request("http://localhost/api/v1/auth/token", {
+        method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: caixa.email, password: SENHA }),
+      }))).json()) as Dado)?.data?.access_token ?? "",
+    );
+    const patch = async (id: string, corpo: Dado) => {
+      const res = await withBearer(tok, (): Promise<Response> =>
+        rotaD.PATCH(new Request(`http://localhost/api/v1/emporio/sales/${id}/delivery`, {
+          method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(corpo),
+        }), { params: Promise.resolve({ id }) }),
+      );
+      return { status: res.status, corpo: (await res.json().catch(() => ({}))) as Dado };
+    };
+    const sRota = await vender(cli);
+    const p1 = await patch(sRota.id, { for_delivery: true, delivery_address_kind: "outro", ...OUTRO, delivery_zip: null });
+    check("PATCH outro sem CEP: 422 field delivery_zip", p1.status === 422 && p1.corpo?.error?.field === "delivery_zip", `${p1.status} ${j(p1.corpo)}`);
+    const p2 = await patch(sRota.id, { for_delivery: true, delivery_address_kind: "outro", ...OUTRO });
+    check("PATCH outro completo pelo Caixa: 200 com a cópia", p2.status === 200 && p2.corpo?.data?.delivery_address?.street === "Rua B", `${p2.status} ${j(p2.corpo)}`);
+  }
+}
+
 async function limpar() {
   if (tenantIds.length === 0) return;
   const { prisma } = await import("@/lib/prisma");
@@ -723,6 +1016,7 @@ async function main() {
     await comBanco(secao2);
     await comBanco(secao3);
     await comBanco(secao4);
+    await comBanco(secao5);
   } finally {
     await limpar();
   }
