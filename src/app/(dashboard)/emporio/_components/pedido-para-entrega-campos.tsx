@@ -225,8 +225,17 @@ export function PedidoParaEntregaCampos({
 
   const escolhas: { valor: EscolhaDoEndereco; rotulo: string }[] = [
     { valor: "principal", rotulo: opcoes ? `Endereço principal: ${rotuloDaOpcao(opcoes.principal)}` : "Endereço principal" },
-    ...(opcoes?.cadastro_entrega
-      ? [{ valor: "cadastro_entrega" as const, rotulo: `Endereço de entrega do cadastro: ${rotuloDaOpcao(opcoes.cadastro_entrega)}` }]
+    // Também enquanto as opções carregam ou a leitura falha: um orçamento já
+    // gravado com essa escolha precisa mostrar o botão marcado.
+    ...(opcoes?.cadastro_entrega || valor.delivery_address_kind === "cadastro_entrega"
+      ? [
+          {
+            valor: "cadastro_entrega" as const,
+            rotulo: opcoes?.cadastro_entrega
+              ? `Endereço de entrega do cadastro: ${rotuloDaOpcao(opcoes.cadastro_entrega)}`
+              : "Endereço de entrega do cadastro",
+          },
+        ]
       : []),
     { valor: "outro", rotulo: "Outro endereço (só para este pedido)" },
   ];
@@ -256,9 +265,12 @@ export function PedidoParaEntregaCampos({
           )}
           {carregando && <p className="text-sm text-texto-secundario">Lendo os endereços do cliente...</p>}
           {atuais && !opcoes && (
-            <p className="rounded-md bg-atencao-suave px-3 py-2 text-sm text-atencao-tinta">
-              Não foi possível ler os endereços do cliente. Escolha &quot;Outro endereço&quot; ou tente de novo.
-            </p>
+            <div className="flex flex-wrap items-center gap-2 rounded-md bg-atencao-suave px-3 py-2 text-sm text-atencao-tinta">
+              <span>Não foi possível ler os endereços do cliente. Escolha &quot;Outro endereço&quot; ou tente de novo.</span>
+              <Button type="button" variant="outline" size="sm" onClick={() => setRecarga((n) => n + 1)}>
+                Tentar de novo
+              </Button>
+            </div>
           )}
           {falta && !aoVerFalta && customerId && (
             <div className="flex flex-wrap items-center gap-2 rounded-md bg-atencao-suave px-3 py-2 text-sm text-atencao-tinta">

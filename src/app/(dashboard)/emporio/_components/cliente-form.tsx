@@ -205,13 +205,18 @@ export function ClienteForm({
       focarCampoId={err.focarCampoId}
       tentativa={err.tentativa}
     >
-      <CamposDoCadastro
-        valores={valores}
-        aoMudar={mudar}
-        erros={err.erros}
-        idDe={err.idDe}
-        obrigatorios
-      />
+      {/* Enquanto o cadastro guardado carrega, os campos ficam travados: a carga
+          substitui os valores, e o que fosse digitado antes dela se perderia. */}
+      {carregando && <p className="text-sm text-texto-secundario">Carregando o cadastro...</p>}
+      <fieldset disabled={carregando} className="m-0 min-w-0 border-0 p-0">
+        <CamposDoCadastro
+          valores={valores}
+          aoMudar={mudar}
+          erros={err.erros}
+          idDe={err.idDe}
+          obrigatorios
+        />
+      </fieldset>
     </FormSheet>
   );
 }

@@ -39,7 +39,8 @@ def ir(caminho, espera=240):
         try:
             # `main` presente: a casca do painel ja montou (a pagina de 404 e a
             # da Plataforma tambem tem). Sem ele, a leitura pegava body nulo.
-            estado = js("(window.__tibe_ir ? 'velha' : (document.readyState === 'complete' && document.querySelector('main') ? 'pronta' : 'carregando')) + '|' + location.pathname")
+            # O /login nao tem `main`: la basta o formulario, senao esperava os 240 s.
+            estado = js("(window.__tibe_ir ? 'velha' : (document.readyState === 'complete' && (document.querySelector('main') || (location.pathname === '/login' && document.querySelector('form'))) ? 'pronta' : 'carregando')) + '|' + location.pathname")
             if estado and estado.startswith("pronta|"):
                 time.sleep(2.5)
                 return estado.split("|", 1)[1]
