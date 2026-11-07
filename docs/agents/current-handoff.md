@@ -110,16 +110,31 @@ Três planos, um por frente, a executar NESTA ordem, cada um com contexto limpo
    `test:m96`; Q199 a Q204).
 3. `docs/superpowers/plans/2026-11-06-emporio-frente3-entrega-e-romaneio.md`
    (10 tarefas; pedido para entrega e romaneio; `test:m97`).
-**Plano 1 (Tasks 1 a 9) implementado na branch, NÃO em produção.**
-Roteiro `npm run navegador -- emporio-clientes` verde; decisões Q191 a Q198 na
-spec do módulo 39; o que ficou para depois em [dividas.md](dividas.md) 5.20.
-As migrações `20261106120000_emporio_clientes_fornecedores` e
-`20261106180000_emporio_clientes_saem_de_contatos` **NÃO estão no Neon**. Falta
-a Task 10 (passo PARADO). Ordem do deploy, cada passo com autorização do usuário
-na conversa: (1) `scripts/conferir-clientes-emporio.ts antes` contra o Neon;
-(2) migração no Neon (URL Direct), **fora do horário das lojas**, porque a
-segunda apaga colunas que o código da `main` lê; (3) merge e push logo em
-seguida; (4) `conferir-clientes-emporio.ts depois`. Planos 2 e 3 não começaram.
+**Plano 1 completo na branch (Tasks 1 a 10 e revisão final, HEAD `4ac17b5`),
+NÃO em produção.** Roteiro `npm run navegador -- emporio-clientes` verde;
+decisões Q191 a Q198 na spec do módulo 39; o que ficou para depois em
+[dividas.md](dividas.md) 5.20. Ensaio numa cópia fresca da produção (06/11):
+contagens iguais antes e depois em 6 contas, 10 contatos saem de Contatos (6 da
+Max Dias Agromax, o Consumidor final das outras 4), telas sem erro;
+`test:all -- --sem-redis` 94/95, e a m92 (asserção velha do menu do Caixa)
+corrigida e verde sozinha. A migração tem
+`lock_timeout` de 5 s (provado nos dois sentidos). As migrações
+`20261106120000_emporio_clientes_fornecedores` e
+`20261106180000_emporio_clientes_saem_de_contatos` **NÃO estão no Neon**.
+Ordem do deploy, cada passo com autorização do usuário na conversa, **fora do
+horário das lojas** (a segunda apaga colunas que o código da `main` lê, e trava
+as tabelas por alguns segundos):
+1. push da branch (livre) e build dela verde na Vercel;
+2. `conferir-clientes-emporio.ts antes --saida` contra o Neon (só leitura);
+3. as duas migrações no Neon pela URL Direct inline; se o `lock_timeout`
+   disparar, `migrate resolve --rolled-back` e repetir;
+4. `migrate status` em dia, merge e push na `main` logo em seguida;
+5. `conferir ... depois` com a MESMA URL do `antes` (Pooled e Direct têm hosts
+   diferentes e o `depois` recusa), e de novo depois do deploy da Vercel (o
+   código velho, se alguém abrir o balcão na janela, recria o Consumidor final
+   em `Contact`);
+6. apagar o banco `tibe_ensaio` do Docker (tem dados reais da produção).
+Planos 2 e 3 não começaram.
 Roteiro preso em recarga (página e `/login` em laço no log do `next dev`) é aba
 sobrando no Chrome de testes, não defeito: ver o cofre,
 `a-aba-oculta-e-a-leitura-cedo-imitam-defeito-no-navegador`.
