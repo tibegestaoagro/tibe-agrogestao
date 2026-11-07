@@ -335,7 +335,7 @@ export function ParteDeEntrega() {
         problemas={[
           {
             quando: "O romaneio diz RETIRADA NO BALCÃO e não tem endereço",
-            fazer: <>A venda não tem a marca de entrega. Se o cliente vai receber em casa, use <strong>Mudar pedido para entrega</strong> na venda.</>,
+            fazer: <>A venda não tem a marca de entrega. Se o cliente vai receber em casa, abra a venda e clique em <strong>Mudar</strong>, no quadro <strong>Retirada no balcão</strong>.</>,
           },
           {
             quando: "O aviso grande diz VENDA CANCELADA: NÃO SEPARAR (ou VENDA TROCADA: NÃO SEPARAR)",
