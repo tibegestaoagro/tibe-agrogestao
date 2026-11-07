@@ -96,7 +96,7 @@ O detalhe de 29/09 (seis defeitos do canário, roteiro do aparelho com passos
 [historico/2026-09.md](historico/2026-09.md). Faltam os passos 9 e 10 do
 roteiro (foto de recibo e o "não" final).
 
-### Empório: clientes, fornecedores, escolha do cliente e romaneio (06/11), planos 1 e 2 EM PRODUÇÃO (07/11), plano 3 pronto na branch
+### Empório: clientes, fornecedores, escolha do cliente e romaneio (06/11), os três planos EM PRODUÇÃO (07/11)
 
 Design aprovado pelo usuário em 06/11:
 `docs/superpowers/specs/2026-11-06-emporio-clientes-fornecedores-romaneio-design.md`.
@@ -141,15 +141,11 @@ o roteiro `emporio-escolha` verde no código final.
   dois sentidos. `manual-emporio` verde, com a figura nova
   `balcao-escolher-cliente`.
 
-**Plano 3 (pedido para entrega e romaneio) COMPLETO na branch
-`emporio-entrega-e-romaneio`** (saída da `main` `ad2a42e`): Tasks 1 a 10 e
-revisão final (opus, pronta para merge); `test:all -- --sem-redis` 97/97
-(07/11). Falta só o deploy, com autorização do usuário na conversa: a migração
-no Neon (URL Direct), depois merge e push.
-- **Produção:** a migração `20261107120000_emporio_pedido_para_entrega` **NÃO
-  está no Neon**. É só acréscimo e pode ir a qualquer hora antes do push (a das
-  lojas, as do plano 1, já foram). Merge, push e Neon pedem autorização na
-  conversa.
+**Plano 3 (pedido para entrega e romaneio) EM PRODUÇÃO desde 07/11**: Tasks 1
+a 10 e revisão final (opus); `test:all -- --sem-redis` 97/97. Deploy autorizado
+pelo usuário na conversa: a migração `20261107120000_emporio_pedido_para_entrega`
+no Neon (`migrate status` em dia), merge e push da `main` até `c3b2606`, Vercel
+verde.
 - Entregue: marca "Pedido para entrega" com endereço copiado (principal, do
   cadastro ou outro) no orçamento e na venda, faturar herda, "Mudar" na venda
   fechada (`fatura_na_loja`, Histórico), romaneio A4 e bobina sem preço
