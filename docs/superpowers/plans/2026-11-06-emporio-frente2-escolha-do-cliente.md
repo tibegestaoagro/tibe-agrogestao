@@ -44,7 +44,7 @@ export function EscolherCliente(props: {
 
 Com `aviso`, o quadro do cliente escolhido mostra `aviso.message` e o botão "Completar cadastro", que abre o `ClienteForm` em modo `completar` com `faltaInicial={aviso}`. No Consumidor final o aviso aparece sem o botão (não há o que completar: é trocar de cliente). Neste plano ninguém passa `aviso`.
 
-**Formulário do cliente (`cliente-form.tsx`, acréscimos da Task 5):** `open?: boolean`, `onOpenChange?: (a: boolean) => void` (controlado quando vêm), `inicial?: { name?: string; phone?: string }` (só no `novo`), `faltaInicial?: Falta | null` (só no `completar`: a mensagem aparece embaixo do campo `faltaInicial.field`, se ele estiver no `ORDEM` do formulário, e o foco vai para ele), `onSalvo: (c: ClienteView) => void`.
+**Formulário do cliente (`cliente-form.tsx`, acréscimos da Task 5):** `open?: boolean`, `onOpenChange?: (a: boolean) => void` (controlado quando vêm), `inicial?: { name?: string; phone?: string }` (só no `novo`), `faltaInicial?: Falta | null` (só no `completar`: a mensagem aparece embaixo do campo `faltaInicial.field`, se ele estiver no `ORDEM` do formulário, e o foco vai para ele), `onSalvo?: (c: ClienteView) => void` (opcional no código; quem usa `EscolherCliente` sempre o passa).
 
 **Busca (Task 3):** `buscarClientesAction(db, ator, f: { q?: string; id?: string; pagina?: number; por_pagina?: number }): Promise<ActionResult<ResultadoDaBusca<ClienteDaBusca>>>` e `GET /api/v1/emporio/customers/search?q=&id=&page=&per_page=`.
 
