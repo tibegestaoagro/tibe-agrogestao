@@ -250,6 +250,11 @@ Nenhum bloqueia; cada um vale na próxima vez que o arquivo for tocado.
   (os seletores dele leem o texto "F1 Loja" de outro cenário; sem ele a ordem
   dos cartões muda). Conserto: o `f1` achar o operador pela equipe do Empório,
   e o `f2a` não depender do cenário vizinho.
+- Cada busca lê o papel do ator duas vezes (`exigir` e `lojasDoAtor`).
+- O aviso "Cadastro incompleto" ao carregar um orçamento no balcão, o foco da
+  recusa nos campos Cliente e Fornecedor (`role="group"`) e o telefone mascarado
+  no cadastro aberto pela busca foram corrigidos na revisão final sem roteiro de
+  navegador próprio: conferir na próxima vez que o balcão for tocado.
 
 ### 5.18 Empório, manual e cenário de demonstração: o que a revisão deixou para depois
 

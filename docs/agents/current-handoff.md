@@ -136,10 +136,12 @@ as tabelas por alguns segundos):
 6. apagar o banco `tibe_ensaio` do Docker (tem dados reais da produção).
 O plano 3 não começou.
 
-**Plano 2 (a escolha do cliente e do fornecedor) implementado na branch
+**Plano 2 (a escolha do cliente e do fornecedor) COMPLETO na branch
 `emporio-escolha-do-cliente`, saída do fim do plano 1** (`aa93edd`), NÃO em
-produção (as Tasks 1 a 7 estão commitadas ou aguardam o commit da sessão
-principal; o último commit conferido na hora da Task 7 era `d7c499b`):
+produção. Tasks 1 a 8 e revisão final (opus, pronta para merge, minors
+corrigidos em `79bf02b`); `test:all -- --sem-redis` 96/96 e o roteiro
+`emporio-escolha` verde no código final (07/11). `migrate status` no Neon
+(07/11, leitura): as duas do plano 1 e a do plano 2 pendentes.
 - busca no servidor de clientes e de fornecedores (`busca-de-cadastro.ts`,
   `telefone.ts`, coluna gerada `phone_busca`), a janela `JanelaDeEscolha` sobre
   a regra pura `sequencia-da-busca.ts`, `EscolherCliente` (Venda, Orçamento e
