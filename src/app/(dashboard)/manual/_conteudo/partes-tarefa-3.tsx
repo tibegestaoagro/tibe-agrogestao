@@ -305,7 +305,7 @@ export function ParteDeEntrega() {
       <Tarefa
         paraQueServe="Marcar, desmarcar ou trocar o endereço de entrega de uma venda que já foi fechada, sem mexer em estoque, caixa nem Financeiro."
         passos={[
-          <>Abra a venda em <strong>Vendas</strong>. Na seção <strong>Pedido para entrega</strong>, clique em <strong>Mudar</strong>. O botão aparece para o Dono, o Gerente geral, o Gestor da loja e o Caixa. O Vendedor não vê o botão.</>,
+          <>Abra a venda em <strong>Vendas</strong>. Na seção <strong>Pedido para entrega</strong>, clique em <strong>Mudar</strong>. O botão aparece para o Dono e o Gerente geral, e para o Gestor, o Caixa e o Vendedor nas vendas da loja deles.</>,
           <>Marque ou desmarque <strong>Pedido para entrega</strong> e escolha o endereço, como no balcão.</>,
           <>Clique em <strong>Salvar</strong>. A venda guarda só a marca e o endereço. O <strong>Histórico</strong> ganha a linha “Mudou a venda nº ... para entrega”.</>,
         ]}

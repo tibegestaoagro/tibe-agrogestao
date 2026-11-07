@@ -263,8 +263,9 @@ Registrado em 07/11/2026, na branch `emporio-entrega-e-romaneio` (plano 3 de 3).
   saiu, entregue, quem recebeu, frete e data agendada. Hoje a entrega fica com a
   logística da loja e o sistema só marca o pedido e imprime o romaneio.
 - O orçamento não muda a entrega depois de salvo (não há edição de orçamento):
-  quem corrige é o caixa ao faturar, ou quem fatura, na venda fechada.
-- A venda da troca nasce como retirada (Q211): quem fatura precisa marcá-la
+  quem corrige é o caixa ao faturar, ou qualquer função da loja (o Vendedor
+  inclusive, decisão de 07/11), na venda fechada.
+- A venda da troca nasce como retirada (Q211): quem atende na loja precisa marcá-la
   para entrega depois, em "Mudar".
 - O romaneio não conta volumes (caixas, sacos): o que for preciso dizer vai na
   Observação da venda.

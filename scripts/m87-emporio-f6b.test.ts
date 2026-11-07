@@ -635,7 +635,7 @@ async function comBanco() {
         ["Gerente geral", ctx("gerente_geral", null), true, true],
         ["Gestor da Loja 1", ctx("gestor", [L1]), true, false],
         ["Caixa da Loja 1", ctx("caixa", [L1]), true, false],
-        ["Vendedor da Loja 1 (com todas as chaves)", { ...ctx("vendedor", [L1]), chaves: new Set(PAPEL.EMPORIO_KEY_IDS) }, false, false],
+        ["Vendedor da Loja 1 (com todas as chaves)", { ...ctx("vendedor", [L1]), chaves: new Set(PAPEL.EMPORIO_KEY_IDS) }, true, false],
       ];
       for (const [nome, c, naL1, naL2] of tabela) {
         check(`${nome}: fatura_na_loja na Loja 1 ${naL1 ? "pode" : "não pode"}`, PAPEL.pode(c, "fatura_na_loja" as Dado, L1) === naL1);
@@ -645,11 +645,11 @@ async function comBanco() {
       const r = PAPEL.recusaDe("fatura_na_loja" as Dado, "mudar o pedido para entrega") as Dado;
       check(
         "a recusa com oQue",
-        r.status === 403 && r.message === "Só o caixa, o gestor da loja, o gerente geral e o dono podem mudar o pedido para entrega.",
+        r.status === 403 && r.message === "Seu acesso não permite mudar o pedido para entrega nessa loja.",
         j(r),
       );
       const r2 = PAPEL.recusaDe("fatura_na_loja" as Dado) as Dado;
-      check("a recusa sem oQue", r2.message === "Só o caixa, o gestor da loja, o gerente geral e o dono podem fazer isso.", j(r2));
+      check("a recusa sem oQue", r2.message === "Seu acesso não permite fazer isso nessa loja.", j(r2));
     });
   } finally {
     const modelos = [

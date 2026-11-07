@@ -19,7 +19,7 @@
 #      estourar a largura com o nome longo (Review Focus 4).
 #   7. Venda direta ao Consumidor final: a entrega é recusada embaixo do
 #      cliente; desmarcada, o romaneio diz RETIRADA e não tem endereço.
-#   8. Venda da PJ (retirada): o Vendedor não vê "Mudar"; o Caixa muda para
+#   8. Venda da PJ (retirada): o Vendedor da loja vê "Mudar"; o Caixa muda para
 #      entrega com o endereço do cadastro; o Gestor vê a linha no Histórico.
 #      8b: o "Completar cadastro" de DENTRO do painel Mudar.
 #   9. O Gestor cancela: o romaneio avisa e a venda não oferece mais "Mudar".
@@ -410,7 +410,7 @@ pagina = texto_da_pagina()
 confere("a bobina diz RETIRADA e não tem Entregar em", "RETIRADA NO BALCÃO" in pagina and "Entregar em" not in pagina, pagina[:400])
 
 # --- 8 ---------------------------------------------------------------------------------
-passo("8. Venda da PJ como retirada: o Vendedor não vê Mudar; o Caixa muda para entrega")
+passo("8. Venda da PJ como retirada: o Vendedor da loja vê Mudar; o Caixa muda para entrega")
 abrir_balcao()
 adicionar(SAL, "Rom Sal", "2", 1)
 confere("escolhe o vendedor que atendeu", escolher("Vendedor", VENDEDOR) is True)
@@ -424,7 +424,7 @@ confere("o resumo tem o link da venda", venda_pj != "")
 entrar("vendedor")
 ir("/emporio/vendas/" + venda_pj)
 confere("o Vendedor abre a venda da loja dele", caminho() == "/emporio/vendas/" + venda_pj and tem("Venda nº"), texto_principal(200))
-confere("o Vendedor não vê Mudar", not botao_existe("Mudar"))
+confere("o Vendedor da loja vê Mudar", esperar(lambda: botao_existe("Mudar"), 15))
 
 entrar("caixa")
 ir("/emporio/vendas/" + venda_pj)

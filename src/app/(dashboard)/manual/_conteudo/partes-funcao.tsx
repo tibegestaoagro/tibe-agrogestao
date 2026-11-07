@@ -272,7 +272,6 @@ export function ParteVendedor() {
       <Lista
         itens={[
           "Cancelar venda, mudar preço ou dar desconto acima do limite. Chame o Gestor.",
-          "Mudar o pedido para entrega de uma venda já fechada. Marque a entrega na hora de vender; depois, chame quem fatura (o Caixa ou o Gestor).",
           "Confirmar a sangria e o malote que chegam ao gerente.",
           "Ver Financeiro, despesas, resultado, Relatórios, Configurações e Histórico.",
           "Enviar transferência ou resolver uma que chegou a menos.",
@@ -359,7 +358,7 @@ export function ParteCaixa() {
       <p>
         Se o cliente muda de ideia depois do pagamento, abra a venda de hoje em <strong>Vendas</strong>, clique em{" "}
         <strong>Mudar</strong>, na seção <strong>Pedido para entrega</strong>, e marque, desmarque ou troque o endereço. O
-        Vendedor não faz isso: ele não vê o botão. O passo a passo, o romaneio e as recusas estão em{" "}
+        botão aparece nas vendas da sua loja. O passo a passo, o romaneio e as recusas estão em{" "}
         <Link className="underline" href={`${B}/entrega`}>Pedido para entrega e romaneio</Link>.
       </p>
 

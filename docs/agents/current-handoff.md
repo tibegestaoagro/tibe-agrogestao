@@ -157,9 +157,11 @@ no Neon (URL Direct), depois merge e push.
   romaneio", figuras `balcao-entrega` e `romaneio-impresso`), cenário de
   demonstração com um orçamento para entrega faturado. Decisões Q205 a Q213 na
   spec do módulo 39; dívidas em [dividas.md](dividas.md) 5.22.
-- **Para o usuário confirmar:** a linha "PEDIDO PARA ENTREGA" nos papéis do
-  orçamento e da venda (D8, extensão não pedida) e a permissão `fatura_na_loja`,
-  que deixa o Vendedor de fora da mudança de venda fechada.
+- **Decidido pelo usuário em 07/11 (Q210):** a linha "PEDIDO PARA ENTREGA" nos
+  papéis do orçamento e da venda (D8) fica como está, e o Vendedor também muda o
+  pedido para entrega de venda fechada, só nas lojas dele (`fatura_na_loja`:
+  Dono e Gerente geral sempre; Gestor, Caixa e Vendedor em suas lojas). Venda de
+  outra loja segue 404 na leitura.
 - **Defeito de produção achado e corrigido nesta branch:** no "Completar
   cadastro" (`ClienteForm` em modo `completar`), o que se digitava antes de o
   cadastro salvo terminar de carregar era sobrescrito. Os campos agora ficam

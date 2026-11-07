@@ -730,6 +730,7 @@ async function secao5() {
   const vend = await mk(t.id, "vend", "OPERADOR");
   const gestor2 = await mk(t.id, "gestor2", "OPERADOR", { emporio_role: "gestor", emporio_keys: [] });
   const caixa2 = await mk(t.id, "caixa2", "OPERADOR", { emporio_role: "caixa", emporio_keys: [] });
+  const vendOutra = await mk(t.id, "vendo", "OPERADOR", { emporio_role: "vendedor", emporio_keys: [] });
   const ownerB = await mk(tB.id, "ownb", "OWNER");
   const db = prismaForTenant(t.id) as Dado;
   const dbB = prismaForTenant(tB.id) as Dado;
@@ -739,7 +740,7 @@ async function secao5() {
   const L = lojaR.data.id;
   const L2 = loja2R.data.id;
   await vincularTodas(prisma, t.id, [gestor.id, caixa.id, vend.id], [L]);
-  await vincularTodas(prisma, t.id, [gestor2.id, caixa2.id], [L2]);
+  await vincularTodas(prisma, t.id, [gestor2.id, caixa2.id, vendOutra.id], [L2]);
 
   const categoria = await db.productCategory.create({ data: scoped({ name: "M97e categoria" }) });
   const prod = await Cat.criarProdutoEmporioAction(db, owner, { name: `M97e Ração ${stamp}`, category_id: categoria.id, base_unit: "quilograma" });
@@ -768,7 +769,6 @@ async function secao5() {
   const LINHA_PRINCIPAL = "Rua A, 10, Centro, Uberlândia/MG, CEP 38400-000";
   const MSG_CANCELADA = "Venda cancelada não muda o pedido para entrega.";
   const MSG_TROCADA = "Venda trocada não muda o pedido para entrega: mude na venda da troca.";
-  const MSG_VENDEDOR = "Só o caixa, o gestor da loja, o gerente geral e o dono podem mudar o pedido para entrega.";
 
   let seq = 0;
   const vender = async (customerId: string) => {
@@ -877,15 +877,20 @@ async function secao5() {
   );
 
   console.log("  quem pode, e o alcance");
+  const rvOutra = await mudar(db, vendOutra, s1.id, { for_delivery: false });
+  check("o Vendedor de outra loja: 404", rvOutra?.ok === false && rvOutra.status === 404, j(rvOutra));
+  check("a recusa dele não gravou linha", (await linhas(s1.id)).length === 4);
   const rv = await mudar(db, vend, s1.id, { for_delivery: false });
-  check("o Vendedor da loja: 403 com a frase", recusa(rv, 403, MSG_VENDEDOR) && rv.code === "FORBIDDEN", j(rv));
+  check("o Vendedor da loja muda: ok", rv?.ok === true && rv.data.for_delivery === false, j(rv));
+  const rvVolta = await mudar(db, vend, s1.id, { for_delivery: true, delivery_address_kind: "principal" });
+  check("o Vendedor da loja muda de volta: ok, e cada mudança gravou uma linha", rvVolta?.ok === true && (await linhas(s1.id)).length === 6, `${j(rvVolta)} ${(await linhas(s1.id)).length}`);
   const rg2 = await mudar(db, gestor2, s1.id, { for_delivery: false });
   check("o Gestor de outra loja: 404", rg2?.ok === false && rg2.status === 404, j(rg2));
   const rc2 = await mudar(db, caixa2, s1.id, { for_delivery: false });
   check("o Caixa de outra loja: 404", rc2?.ok === false && rc2.status === 404, j(rc2));
   const rB = await mudar(dbB, ownerB, s1.id, { for_delivery: false });
   check("outro tenant: 404", rB?.ok === false && rB.status === 404, j(rB));
-  check("as recusas não gravaram linha", (await linhas(s1.id)).length === 4);
+  check("as recusas não gravaram linha", (await linhas(s1.id)).length === 6);
 
   const sOntem = await vender(cli);
   const ymd = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());

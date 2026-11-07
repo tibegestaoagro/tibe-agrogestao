@@ -114,7 +114,7 @@ const PERGUNTAS: { pergunta: string; resposta: React.ReactNode }[] = [
   },
   {
     pergunta: "Posso mudar o endereço depois de fechar a venda?",
-    resposta: <>Pode, se você é o Caixa, o Gestor da loja, o Gerente geral ou o Dono. Abra a venda, e na seção <strong>Pedido para entrega</strong> clique em <strong>Mudar</strong>. Estoque, caixa e Financeiro não mudam, e o Histórico guarda quem mudou. Venda cancelada ou trocada não se muda. O Vendedor não vê o botão. O Caixa só muda venda de hoje.</>,
+    resposta: <>Pode, em qualquer função do Empório, nas vendas da sua loja (o Dono e o Gerente geral, em todas). Abra a venda, e na seção <strong>Pedido para entrega</strong> clique em <strong>Mudar</strong>. Estoque, caixa e Financeiro não mudam, e o Histórico guarda quem mudou. Venda cancelada ou trocada não se muda. O Caixa só muda venda de hoje.</>,
   },
   {
     pergunta: "Por que o romaneio não tem preço?",
