@@ -677,9 +677,17 @@ export const GROUPS: Group[] = [
         method: "GET",
         path: "/api/v1/emporio/customers",
         auth: "Sessão · emporio:read · dono, gerente geral, gestor, vendedor e caixa da loja · perfil emporio · recurso `emporio` liberado",
-        description: "A lista de clientes do Empório: o Consumidor final primeiro, depois por nome. Query: `q` (nome, sem acento), `archived=1` (inclui os arquivados; sem ele, só os ativos), `page` e `per_page` (padrão 50, máximo 100). `meta` traz `total`, `page` e `per_page`.",
+        description: "A lista de clientes do Empório: o Consumidor final primeiro, depois por nome. Query: `q` (nome sem acento, CPF/CNPJ ou telefone, por pedaço; com só números, a busca começa em 3), `archived=1` (inclui os arquivados; sem ele, só os ativos), `page` e `per_page` (padrão 50, máximo 100). `meta` traz `total`, `page`, `per_page` e `poucos_digitos` (verdadeiro quando `q` tem só 1 ou 2 números: `data` vem vazio).",
         response: `200
-{ "data": [{ "id": "cl...", "name": "Maria Souza", "person_kind": "pf", "document": null, "phone": "34 99999-0000", "incomplete": false, "fixed": false, "archived": false }], "meta": { "total": 1, "page": 1, "per_page": 50 } }`,
+{ "data": [{ "id": "cl...", "name": "Maria Souza", "person_kind": "pf", "document": null, "phone": "34 99999-0000", "incomplete": false, "fixed": false, "archived": false }], "meta": { "total": 1, "page": 1, "per_page": 50, "poucos_digitos": false } }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/emporio/customers/search",
+        auth: "Sessão · emporio:read · dono, gerente geral, gestor, vendedor e caixa da loja · perfil emporio · recurso `emporio` liberado",
+        description: "A busca de cliente do balcão (a janela \"Escolher cliente\"). Query: `q` (nome sem acento, ou pedaço do CPF/CNPJ ou do telefone sem DDD e sem DDI; só números começam a buscar com 3, e com 1 ou 2 `data` vem vazio e `meta.poucos_digitos` é verdadeiro), `id` (ignora `q` e devolve 0 ou 1 cliente ativo, o Consumidor final inclusive, com `fixed` verdadeiro), `page` e `per_page` (padrão 20, máximo 50; valor inválido vira o padrão). Só clientes ativos; o Consumidor final fica fora da busca por texto. Ordem por nome. Cada item traz o cadastro inteiro (documento, telefone, endereço principal e de entrega, `system_key`, `incomplete`, `fixed`) e `ultima_compra`: a venda concluída mais recente do cliente nas lojas que o usuário enxerga (`em` e `valor`), ou `null` sem venda. `meta`: `total`, `page`, `per_page`, `poucos_digitos`.",
+        response: `200
+{ "data": [{ "id": "cl...", "name": "Maria Souza", "person_kind": "pf", "document": "52998224725", "phone": "34 99876-1234", "address_zip": null, "address_street": null, "address_number": null, "address_complement": null, "address_district": null, "city": null, "address_state": null, "delivery_zip": null, "delivery_street": null, "delivery_number": null, "delivery_complement": null, "delivery_district": null, "delivery_city": null, "delivery_state": null, "system_key": null, "incomplete": false, "fixed": false, "ultima_compra": { "em": "2026-11-06T14:00:00.000Z", "valor": 80 } }], "meta": { "total": 1, "page": 1, "per_page": 20, "poucos_digitos": false } }`,
       },
       {
         method: "GET",

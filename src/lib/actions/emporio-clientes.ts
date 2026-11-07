@@ -4,7 +4,8 @@ import type { EmporioCustomer, Prisma } from "@/generated/prisma/client";
 import { lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
 import { formatarNumero } from "@/lib/emporio/numeracao";
 import { hojeEmBrasilia } from "@/lib/emporio/cartao";
-import { normalizarTermo } from "@/lib/actions/whatsapp-handlers/shared";
+import { lerTermo, ondeBuscaCliente, type ResultadoDaBusca } from "@/lib/emporio/busca-de-cadastro";
+import { clienteEscolhidoDe, type ClienteDaBusca } from "@/lib/emporio/cliente-escolhido";
 import { CONSUMIDOR_FINAL, conferirCadastro, type CadastroDoContato } from "@/lib/contatos/cadastro";
 import { faltaNoCadastro, recusaDocumentoRepetido } from "@/lib/emporio/cliente-cadastro";
 import { exigir } from "@/lib/emporio/papel";
@@ -307,16 +308,17 @@ export async function listarClientesAction(
   db: TenantPrismaClient,
   ator: Ator,
   f: { q?: string; arquivados?: boolean; pagina?: number; por_pagina?: number },
-): Promise<ActionResult<{ itens: ClienteLinha[]; total: number; pagina: number; por_pagina: number }>> {
+): Promise<ActionResult<{ itens: ClienteLinha[]; total: number; pagina: number; por_pagina: number; poucos_digitos: boolean }>> {
   const neg = await exigir(db, ator, "vendedor_da_loja", "ver os clientes");
   if (neg) return neg;
 
   const porPagina = Math.min(POR_PAGINA_MAXIMO, Math.max(1, Math.floor(Number(f.por_pagina) || POR_PAGINA_PADRAO)));
   const pagina = Math.max(1, Math.floor(Number(f.pagina) || 1));
-  const termo = typeof f.q === "string" ? normalizarTermo(f.q) : "";
+  const termo = lerTermo(f.q);
+  if (termo.modo === "poucos_digitos") return ok({ itens: [], total: 0, pagina, por_pagina: porPagina, poucos_digitos: true });
   const where: Prisma.EmporioCustomerWhereInput = {
     ...(f.arquivados ? {} : { archived_at: null }),
-    ...(termo ? { name_busca: { contains: termo } } : {}),
+    ...ondeBuscaCliente(termo),
   };
 
   const total = await db.emporioCustomer.count({ where });
@@ -337,7 +339,84 @@ export async function listarClientesAction(
       incomplete: v.incomplete, fixed: v.fixed, archived: v.archived,
     };
   });
-  return ok({ itens, total, pagina, por_pagina: porPagina });
+  return ok({ itens, total, pagina, por_pagina: porPagina, poucos_digitos: false });
+}
+
+const BUSCA_POR_PAGINA_PADRAO = 20;
+const BUSCA_POR_PAGINA_MAXIMO = 50;
+
+/**
+ * A busca do balcão: ativos, sem o Consumidor final (a tela o fixa no topo), por nome, CPF/CNPJ ou
+ * telefone, com a última compra de cada um nas lojas do ator. Por `id`, ignora `q` e devolve 0 ou 1
+ * ativo, o Consumidor final inclusive.
+ */
+export async function buscarClientesAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  f: { q?: string; id?: string; pagina?: number; por_pagina?: number },
+): Promise<ActionResult<ResultadoDaBusca<ClienteDaBusca>>> {
+  const neg = await exigir(db, ator, "vendedor_da_loja", "buscar um cliente");
+  if (neg) return neg;
+
+  const porPagina = Math.min(BUSCA_POR_PAGINA_MAXIMO, Math.max(1, Math.floor(Number(f.por_pagina) || BUSCA_POR_PAGINA_PADRAO)));
+  const pagina = Math.max(1, Math.floor(Number(f.pagina) || 1));
+
+  let linhas: EmporioCustomer[];
+  let total: number;
+  if (f.id) {
+    linhas = await db.emporioCustomer.findMany({ where: { id: f.id, archived_at: null } });
+    total = linhas.length;
+  } else {
+    const termo = lerTermo(f.q);
+    if (termo.modo === "poucos_digitos") return ok({ itens: [], total: 0, pagina, por_pagina: porPagina, poucos_digitos: true });
+    const where: Prisma.EmporioCustomerWhereInput = { archived_at: null, system_key: null, ...ondeBuscaCliente(termo) };
+    total = await db.emporioCustomer.count({ where });
+    linhas = await db.emporioCustomer.findMany({
+      where,
+      orderBy: [{ name_busca: "asc" }, { id: "asc" }],
+      skip: (pagina - 1) * porPagina,
+      take: porPagina,
+    });
+  }
+
+  const ultimas = await ultimaCompraDosClientes(db, ator, linhas.map((c) => c.id));
+  const itens: ClienteDaBusca[] = linhas.map((c) => ({
+    ...clienteEscolhidoDe(serializarCliente(c)),
+    ultima_compra: ultimas.get(c.id) ?? null,
+  }));
+  return ok({ itens, total, pagina: f.id ? 1 : pagina, por_pagina: porPagina, poucos_digitos: false });
+}
+
+/** Duas consultas para a página inteira: a data mais recente de cada cliente, depois as vendas desses pares. */
+async function ultimaCompraDosClientes(
+  db: TenantPrismaClient,
+  ator: Ator,
+  ids: string[],
+): Promise<Map<string, { em: string; valor: number }>> {
+  const resultado = new Map<string, { em: string; valor: number }>();
+  if (ids.length === 0) return resultado;
+  const visiveis = await lojasDoAtor(db, ator);
+  const base = { status: "concluida" as const, ...(visiveis ? { establishment_id: { in: [...visiveis] } } : {}) };
+  const maximas = await db.emporioSale.groupBy({
+    by: ["customer_id"],
+    where: { customer_id: { in: ids }, ...base },
+    _max: { sold_at: true },
+  });
+  const pares = maximas.flatMap((m: { customer_id: string | null; _max: { sold_at: Date | null } }) =>
+    m.customer_id && m._max.sold_at ? [{ customer_id: m.customer_id, sold_at: m._max.sold_at }] : [],
+  );
+  if (pares.length === 0) return resultado;
+  const vendas = await db.emporioSale.findMany({
+    where: { ...base, OR: pares },
+    select: { customer_id: true, sold_at: true, net_amount: true },
+    orderBy: { id: "desc" },
+  });
+  for (const v of vendas) {
+    if (v.customer_id && !resultado.has(v.customer_id)) {
+      resultado.set(v.customer_id, { em: v.sold_at.toISOString(), valor: Number(v.net_amount) });
+    }
+  }
+  return resultado;
 }
 
 /** Lê um cliente: o cadastro e o histórico de compras (vendas e orçamentos das lojas do ator). */

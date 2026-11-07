@@ -1362,6 +1362,7 @@ function conferirOpacidadeDosTokens() {
  */
 const PREFIXOS_DE_LEITURA = [
   "listar",
+  "buscar",
   "ler",
   "saldoDa",
   "saldoDo",

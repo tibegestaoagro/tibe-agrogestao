@@ -51,8 +51,8 @@ async function GETHandler(request: Request) {
     por_pagina: Number(p.get("per_page")) || undefined,
   });
   if (!res.ok) return apiError(res.code, res.message, res.status, res.field);
-  const { itens, total, pagina, por_pagina } = res.data;
-  return apiOk(itens, { total, page: pagina, per_page: por_pagina });
+  const { itens, total, pagina, por_pagina, poucos_digitos } = res.data;
+  return apiOk(itens, { total, page: pagina, per_page: por_pagina, poucos_digitos });
 }
 
 async function POSTHandler(request: Request) {

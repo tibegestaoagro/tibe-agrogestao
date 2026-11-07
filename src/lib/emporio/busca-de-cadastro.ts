@@ -10,7 +10,7 @@ import { telefoneLocal } from "@/lib/emporio/telefone";
 export type TermoDeBusca =
   | { modo: "vazio" }
   | { modo: "poucos_digitos" }
-  | { modo: "digitos"; digitos: string; telefone: string }
+  | { modo: "digitos"; digitos: string; telefone: string; semDdd?: string }
   | { modo: "nome"; nome: string; documento: string | null };
 
 export type ResultadoDaBusca<T> = { itens: T[]; total: number; pagina: number; por_pagina: number; poucos_digitos: boolean };
@@ -22,7 +22,13 @@ export function lerTermo(q: string | null | undefined): TermoDeBusca {
     const digitos = texto.replace(/\D/g, "");
     if (digitos === "") return { modo: "vazio" };
     if (digitos.length < 3) return { modo: "poucos_digitos" };
-    return { modo: "digitos", digitos, telefone: digitos.length >= 10 ? (telefoneLocal(digitos) ?? digitos) : digitos };
+    const telefone = digitos.length >= 10 ? (telefoneLocal(digitos) ?? digitos) : digitos;
+    // "(34) 9987": o DDD digitado com máscara e o resto pela metade. O telefone guardado não tem DDD,
+    // então o pedaço que vale é o que vem depois dele.
+    const comDddMascarado = digitos.length >= 5 && digitos.length < 10 && /^\+?\s*(55\s*)?\(?\d{2}\)?[\s-]/.test(texto);
+    return comDddMascarado
+      ? { modo: "digitos", digitos, telefone, semDdd: digitos.slice(2) }
+      : { modo: "digitos", digitos, telefone };
   }
   const nome = normalizarTermo(texto);
   const semEspaco = !/\s/.test(texto);
@@ -32,11 +38,17 @@ export function lerTermo(q: string | null | undefined): TermoDeBusca {
 
 type OndeDaBusca = Prisma.EmporioCustomerWhereInput & Prisma.EmporioSupplierWhereInput;
 
+/** O `contains` do Prisma não escapa: `%` e `_` do termo viravam curinga do LIKE ("_é" achava "zé"). */
+const literal = (s: string): string => s.replace(/[\\%_]/g, "\\$&");
+
 function onde(t: TermoDeBusca): OndeDaBusca {
-  if (t.modo === "digitos") return { OR: [{ document: { contains: t.digitos } }, { phone_busca: { contains: t.telefone } }] };
+  if (t.modo === "digitos") {
+    const porTelefone = [{ phone_busca: { contains: t.telefone } }, ...(t.semDdd ? [{ phone_busca: { contains: t.semDdd } }] : [])];
+    return { OR: [{ document: { contains: t.digitos } }, ...porTelefone] };
+  }
   if (t.modo === "nome") {
-    const porNome = { name_busca: { contains: t.nome } };
-    return t.documento ? { OR: [porNome, { document: { contains: t.documento } }] } : porNome;
+    const porNome = { name_busca: { contains: literal(t.nome) } };
+    return t.documento ? { OR: [porNome, { document: { contains: literal(t.documento) } }] } : porNome;
   }
   return {};
 }
