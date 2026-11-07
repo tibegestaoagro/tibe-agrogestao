@@ -551,7 +551,7 @@ export const GROUPS: Group[] = [
         auth: "Sessão · emporio:read · perfil emporio · recurso `emporio` liberado",
         description: "Lista as compras das lojas visíveis ao usuário, da mais recente. Filtros: `establishment_id` (loja fora do vínculo: 404), `status` (`pendente`, `recebida`, `cancelada`), `supplier_id` (era `contact_id`). Cada compra traz `supplier_id`, `supplier_name`, `supplier_kind` (`propriedade` ou `externo`), itens, total e os lançamentos financeiros.",
         response: `200
-{ "data": [{ "id": "cl...", "establishment_id": "cl...", "establishment_name": "Loja Centro", "status": "recebida", "freight": 20, "items_total": 200, "total": 220, "payment_kind": "a_vista", "items": [], "entries": [] }], "meta": {} }`,
+{ "data": [{ "id": "cl...", "establishment_id": "cl...", "establishment_name": "Loja Centro", "supplier_id": "cl...", "supplier_name": "Distribuidora Boa Safra", "supplier_kind": "externo", "status": "recebida", "freight": 20, "items_total": 200, "total": 220, "payment_kind": "a_vista", "items": [], "entries": [] }], "meta": {} }`,
       },
       {
         method: "POST",

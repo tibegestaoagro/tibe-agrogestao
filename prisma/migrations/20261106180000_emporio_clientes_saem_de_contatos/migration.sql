@@ -19,6 +19,12 @@
 -- pega ROW SHARE em "Contact" (a checagem da FK), que esse modo não bloqueia, e
 -- a linha nova escaparia da conferência do passo 7. Por isso entram as tabelas
 -- que apontam para "Contact" e as do Empório que a migração lê e reponta.
+-- Se a trava esperar mais de 5 segundos (alguém gravando numa dessas tabelas),
+-- a migração falha em vez de parar loja, fazenda, WhatsApp e worker na fila.
+-- Nesse caso: migrate resolve --rolled-back com esta migração e repetir. É SET
+-- de sessão, e não LOCAL, porque o Prisma manda o script num bloco implícito.
+SET lock_timeout = '5s';
+
 LOCK TABLE
   "Contact", "Negotiation", "MilkMovement", "MilkCharge", "ServiceJob", "MachineMaintenance", "FinancialEntry",
   "EmporioSale", "EmporioQuote", "EmporioCheck", "EmporioPurchase", "EmporioAuditLog",
@@ -242,3 +248,6 @@ WHERE (
   AND NOT EXISTS (SELECT 1 FROM "ServiceJob" x WHERE x."contact_id" = c."id")
   AND NOT EXISTS (SELECT 1 FROM "MachineMaintenance" x WHERE x."contact_id" = c."id")
   AND NOT EXISTS (SELECT 1 FROM "FinancialEntry" x WHERE x."contact_id" = c."id");
+
+-- Volta o limite de espera ao padrão da sessão.
+RESET lock_timeout;
