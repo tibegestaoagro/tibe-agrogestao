@@ -242,6 +242,7 @@ aberto.
 | 30 | Rebanho como livro-razão | fases 1 e 2 completas, em produção |
 | 31 | Negociações: as **quatro** missões (gado, estoque, leilão/evento, permuta) | em produção, **módulo fechado** |
 | - | Identidade e sistema de design: as cinco frentes | em produção desde 2026-08-31 |
+| 39 | Meu Empório: F0 a F5, entregas 1 a 4, clientes e fornecedores, escolha do cliente, pedido para entrega e romaneio | em produção desde 2026-10-29; usado pela Agromax na conta Da Mata desde 2026-11-01 |
 
 ⚠️ **O agente do WhatsApp ainda NÃO emite as intenções das missões 3 e 4**
 (`registrar_remessa_evento`, `encerrar_remessa_evento`, `registrar_permuta`).
