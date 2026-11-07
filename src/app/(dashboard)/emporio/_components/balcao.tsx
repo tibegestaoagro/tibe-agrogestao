@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import type { CaixaRegistradoView } from "@/lib/actions/emporio-caixa";
 import type { OrcamentoView } from "@/lib/actions/emporio-orcamentos";
+import type { Falta } from "@/lib/emporio/cliente-cadastro";
 import { AbrirTurnoForm } from "./abrir-turno-form";
 import {
   cargaDoOrcamento,
@@ -26,6 +27,13 @@ import {
   type ModoDoBalcao,
 } from "./balcao-orcamento";
 import { CaixaDaOperacao } from "./caixa-da-operacao";
+import {
+  AVISO_SEM_ESCOLHA,
+  corpoDoPedidoParaEntrega,
+  PEDIDO_RETIRADA,
+  PedidoParaEntregaCampos,
+  type PedidoParaEntregaValor,
+} from "./pedido-para-entrega-campos";
 import { abertosDaLoja, caixaInicial, fechadosDaLoja, paraCaixasDaLoja, type CaixaDaLoja } from "./caixas-da-loja";
 import { VendaCampos } from "./venda-campos";
 import { numeroBr, numeroDaVenda } from "./formato";
@@ -51,6 +59,10 @@ import { useVenda, type PrecosVenda, type ProdutoVenda, type RegraCartaoVenda } 
  * `?orcamento=<id>`). O orçamento carregado nunca atravessa de um atendimento
  * para o outro: trocar de loja, gravar a venda ou "Novo atendimento" o tiram,
  * como já tiram o vendedor escolhido.
+ *
+ * Plano 3: o "Pedido para entrega" fica logo abaixo do cliente, nos dois modos.
+ * Ele vai explícito no corpo (faturando, pré-preenchido com o do orçamento) e
+ * entra na assinatura da chave: mudar a marca ou o endereço é outra operação.
  */
 
 const ORDEM = [
@@ -59,6 +71,15 @@ const ORDEM = [
   "quote_id",
   "items",
   "customer_id",
+  "for_delivery",
+  "delivery_address_kind",
+  "delivery_zip",
+  "delivery_street",
+  "delivery_number",
+  "delivery_complement",
+  "delivery_district",
+  "delivery_city",
+  "delivery_state",
   "payments",
   "notes",
   "seller_user_id",
@@ -80,6 +101,7 @@ type VendaGravada = {
   customer_name: string | null;
   seller_name: string | null;
   quote: { id: string; numero: string } | null;
+  for_delivery: boolean;
   items: { product_name: string; presentation_name: string; quantity: number }[];
   payments: { kind: string; amount: number }[];
 };
@@ -126,6 +148,11 @@ export function Balcao({
   const [orcamento, setOrcamento] = useState<OrcamentoView | null>(orcamentoInicial);
   const [notas, setNotas] = useState("");
   const [orcamentoSalvo, setOrcamentoSalvo] = useState<OrcamentoView | null>(null);
+  const [pedido, setPedido] = useState<PedidoParaEntregaValor>(() => cargaInicial?.pedido ?? PEDIDO_RETIRADA);
+  // O que falta no cliente para entrega: o quadro do cliente mostra, com "Completar cadastro".
+  const [faltaDoPedido, setFaltaDoPedido] = useState<Falta | null>(null);
+  // Cada escolha do cliente (também a de "Completar cadastro", com o mesmo id) relê os endereços dele.
+  const [escolhaDoCliente, setEscolhaDoCliente] = useState(0);
   const chave = useRef<{ assinatura: string; key: string } | null>(null);
 
   // Os caixas da loja escolhida, lidos do servidor: mudam entre uma venda e outra.
@@ -218,6 +245,7 @@ export function Balcao({
 
   function lembrarLoja(id: string) {
     setVendedorEscolhido("");
+    setPedido(PEDIDO_RETIRADA);
     // O orçamento só se fatura na loja dele: trocar de loja o tira (o `setLoja` já tirou o preço dele).
     setOrcamento(null);
     try {
@@ -238,7 +266,9 @@ export function Balcao({
       v.setLoja(q.establishment_id);
       lembrarLoja(q.establishment_id);
     }
-    v.carregarOrcamento(cargaDoOrcamento(q, consumidorFinal));
+    const carga = cargaDoOrcamento(q, consumidorFinal);
+    v.carregarOrcamento(carga);
+    setPedido(carga.pedido);
     setOrcamento(q);
     setVendedorEscolhido("");
     setModo("venda");
@@ -262,6 +292,7 @@ export function Balcao({
     setOrcamento(null);
     setVendedorEscolhido("");
     setNotas("");
+    setPedido(PEDIDO_RETIRADA);
     chave.current = null;
     err.limparTudo();
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -269,9 +300,10 @@ export function Balcao({
 
   async function salvarOrcamento() {
     const m = v.montar(true, { orcamento: true });
-    const novos: typeof m.novos & { seller_user_id?: string } = { ...m.novos };
+    const novos: typeof m.novos & { seller_user_id?: string; delivery_address_kind?: string } = { ...m.novos };
     if (ehCaixa && !vendedor) novos.seller_user_id = AVISO_SEM_VENDEDOR;
-    if (!m.corpo || novos.seller_user_id) {
+    if (pedido.for_delivery && !pedido.delivery_address_kind) novos.delivery_address_kind = AVISO_SEM_ESCOLHA;
+    if (!m.corpo || novos.seller_user_id || novos.delivery_address_kind) {
       err.setGlobal(null);
       err.reprovar(novos);
       return;
@@ -279,7 +311,8 @@ export function Balcao({
 
     err.limparTudo();
     const observacao = notas.trim();
-    const assinatura = JSON.stringify([m.assinatura, vendedor, observacao]);
+    const corpoDoPedido = corpoDoPedidoParaEntrega(pedido);
+    const assinatura = JSON.stringify([m.assinatura, vendedor, observacao, corpoDoPedido]);
     if (chave.current?.assinatura !== assinatura) {
       chave.current = { assinatura, key: crypto.randomUUID() };
     }
@@ -289,6 +322,7 @@ export function Balcao({
       establishment_id: m.corpo.establishment_id,
       customer_id: m.corpo.customer_id,
       items: m.corpo.items,
+      ...corpoDoPedido,
       ...(vendedor ? { seller_user_id: vendedor } : {}),
       notes: observacao || null,
     });
@@ -302,6 +336,7 @@ export function Balcao({
     setResumo(null);
     v.reiniciar();
     setNotas("");
+    setPedido(PEDIDO_RETIRADA);
     // Como na venda: a escolha do vendedor não passa para o próximo atendimento.
     setVendedorEscolhido("");
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -313,13 +348,16 @@ export function Balcao({
       return;
     }
     const m = v.montar(true);
-    const novos: typeof m.novos & { seller_user_id?: string; quote_id?: string } = { ...m.novos };
+    const novos: typeof m.novos & { seller_user_id?: string; quote_id?: string; delivery_address_kind?: string } = {
+      ...m.novos,
+    };
     if (ehCaixa && !vendedor && !orcamento) novos.seller_user_id = AVISO_SEM_VENDEDOR;
+    if (pedido.for_delivery && !pedido.delivery_address_kind) novos.delivery_address_kind = AVISO_SEM_ESCOLHA;
     // O orçamento já faturado (aberto por `?orcamento=`): a mesma frase da faixa e do servidor.
     if (orcamento?.situacao === "faturado" && orcamento.sale) {
       novos.quote_id = `Este orçamento já foi faturado na venda nº ${orcamento.sale.numero}.`;
     }
-    if (!m.corpo || novos.seller_user_id || novos.quote_id) {
+    if (!m.corpo || novos.seller_user_id || novos.quote_id || novos.delivery_address_kind) {
       err.setGlobal(null);
       err.reprovar(novos);
       return;
@@ -348,7 +386,8 @@ export function Balcao({
       }
     }
 
-    const assinatura = JSON.stringify([m.assinatura, escolhido, vendedor, orcamento?.id ?? null]);
+    const corpoDoPedido = corpoDoPedidoParaEntrega(pedido);
+    const assinatura = JSON.stringify([m.assinatura, escolhido, vendedor, orcamento?.id ?? null, corpoDoPedido]);
     if (chave.current?.assinatura !== assinatura) {
       chave.current = { assinatura, key: crypto.randomUUID() };
     }
@@ -356,6 +395,7 @@ export function Balcao({
     const res = await apiPost<VendaGravada>("/api/v1/emporio/sales", {
       operation_key: chave.current.key,
       ...m.corpo,
+      ...corpoDoPedido,
       // Faturando, o vendedor é o do orçamento: o servidor o herda, e a tela não manda outro.
       ...(orcamento ? { quote_id: orcamento.id } : vendedor ? { seller_user_id: vendedor } : {}),
       cash_register_id: escolhido || null,
@@ -378,9 +418,10 @@ export function Balcao({
     setResumo({ venda: res.data, trocoCent });
     setOrcamentoSalvo(null);
     v.reiniciar();
-    // O Caixa escolhe o vendedor a cada venda: a escolha anterior não passa para a próxima. O orçamento, idem.
+    // O Caixa escolhe o vendedor a cada venda: a escolha anterior não passa para a próxima. O orçamento e o pedido, idem.
     setVendedorEscolhido("");
     setOrcamento(null);
+    setPedido(PEDIDO_RETIRADA);
     // Tira o `?orcamento=` do endereço, para recarregar a página não trazer de volta o
     // orçamento faturado. Sem `router.replace`: a página relida remontaria o balcão
     // (a `key` dele é o orçamento) e o resumo da venda sumiria.
@@ -409,7 +450,10 @@ export function Balcao({
         >
           <p className="font-semibold">
             Venda registrada: {reaisBr(resumo.venda.net_amount)}
-            <span className="ml-2 font-normal">Venda nº {numeroDaVenda(resumo.venda.number)}</span>
+            <span className="ml-2 font-normal">
+              Venda nº {numeroDaVenda(resumo.venda.number)}
+              {resumo.venda.for_delivery ? ", para entrega" : ""}
+            </span>
           </p>
           <p>
             {resumo.venda.items
@@ -445,6 +489,22 @@ export function Balcao({
             >
               Imprimir cupom
             </a>
+            <a
+              href={`/emporio/imprimir/romaneio/${resumo.venda.id}?formato=a4`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block font-medium underline"
+            >
+              Romaneio A4
+            </a>
+            <a
+              href={`/emporio/imprimir/romaneio/${resumo.venda.id}?formato=cupom`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block font-medium underline"
+            >
+              Romaneio cupom
+            </a>
           </div>
         </section>
       )}
@@ -473,6 +533,27 @@ export function Balcao({
             permitirCadastro
             aoEscolherLoja={lembrarLoja}
             semPagamento={modo === "orcamento"}
+            avisoDoCliente={pedido.for_delivery ? faltaDoPedido : null}
+            aoEscolherCliente={(c) => {
+              // Trocar o cliente limpa a escolha do endereço e mantém a marca.
+              if (c.id !== v.cliente?.id) {
+                setPedido((p) => ({ ...p, delivery_address_kind: "" }));
+                err.limparCampo("delivery_address_kind");
+              }
+              setEscolhaDoCliente((n) => n + 1);
+            }}
+            depoisDoCliente={
+              <PedidoParaEntregaCampos
+                key={escolhaDoCliente}
+                valor={pedido}
+                aoMudar={setPedido}
+                customerId={v.cliente?.id ?? null}
+                erros={err.erros}
+                idDe={err.idDe}
+                limpar={err.limparCampo}
+                aoVerFalta={setFaltaDoPedido}
+              />
+            }
             depoisDaLoja={
               modo === "venda" ? (
                 <OrcamentoNaVenda

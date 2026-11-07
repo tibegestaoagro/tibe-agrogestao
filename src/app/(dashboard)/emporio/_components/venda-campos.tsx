@@ -13,6 +13,8 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { lerNumeroBr, reaisBr } from "@/lib/numero-br";
+import type { Falta } from "@/lib/emporio/cliente-cadastro";
+import type { ClienteEscolhido } from "@/lib/emporio/cliente-escolhido";
 import { EscolherCliente } from "./escolher-cliente";
 import { numeroBr, pctBr } from "./formato";
 import { FORMA_ROTULO } from "./venda-rotulos";
@@ -98,11 +100,20 @@ export function VendaCampos({
   aoEscolherLoja,
   semPagamento,
   depoisDaLoja,
+  depoisDoCliente,
+  avisoDoCliente,
+  aoEscolherCliente,
 }: {
   /** Orçamento (entrega 4): não há pagamento a escolher. */
   semPagamento?: boolean;
   /** O que o balcão põe logo abaixo da loja (o orçamento a faturar), na ordem visual do `ORDEM`. */
   depoisDaLoja?: ReactNode;
+  /** O que o balcão põe logo abaixo do cliente (o pedido para entrega), na ordem visual do `ORDEM`. */
+  depoisDoCliente?: ReactNode;
+  /** O que falta no cliente para o pedido para entrega: o quadro do cliente mostra, com "Completar cadastro". */
+  avisoDoCliente?: Falta | null;
+  /** Chamado a cada escolha (também depois de completar o cadastro), antes de `setCliente`. */
+  aoEscolherCliente?: (c: ClienteEscolhido) => void;
   v: EstadoDaVenda;
   produtos: ProdutoVenda[];
   lojas: { id: string; name: string }[];
@@ -296,13 +307,17 @@ export function VendaCampos({
             consumidorFinal={consumidorFinal}
             valor={v.cliente}
             onEscolher={(c) => {
+              aoEscolherCliente?.(c);
               v.setCliente(c);
               limpar("customer_id");
             }}
             permitirCadastro={!!permitirCadastro}
+            aviso={avisoDoCliente ?? null}
           />
         )}
       </Field>
+
+      {depoisDoCliente}
 
       {!semPagamento && (
         <Field label="Pagamento" required={v.aPagarCent > 0} id={idDe("payments")} error={erros.payments}>

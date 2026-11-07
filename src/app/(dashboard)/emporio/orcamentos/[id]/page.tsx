@@ -5,6 +5,7 @@ import { getTenantDb } from "@/lib/tenant-context";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { lerOrcamentoAction } from "@/lib/actions/emporio-orcamentos";
 import { reaisBr } from "@/lib/numero-br";
+import { linhaDoEndereco } from "@/lib/emporio/pedido-para-entrega";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -57,6 +58,16 @@ export default async function OrcamentoPage({ params }: { params: Promise<{ id: 
               {o.created_by_name && o.created_by_name !== o.seller_name ? `. Feito por ${o.created_by_name}` : ""}
             </p>
           )}
+          <p className="break-words text-sm text-texto-secundario">
+            {o.for_delivery ? (
+              <>
+                <span className="font-medium text-texto">Pedido para entrega:</span>{" "}
+                {linhaDoEndereco(o.delivery_address) ?? "sem endereço"}
+              </>
+            ) : (
+              "Retirada no balcão"
+            )}
+          </p>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             {o.situacao === "faturado" ? (
               <Badge variant="green">Faturado{o.sale ? ` (venda nº ${o.sale.numero})` : ""}</Badge>

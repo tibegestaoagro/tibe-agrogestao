@@ -8,6 +8,7 @@ import { buscarClientesAction } from "@/lib/actions/emporio-clientes";
 import { viewsDosCaixas } from "@/lib/actions/emporio-caixa";
 import { paraCaixasDaLoja } from "../../_components/caixas-da-loja";
 import { formatarNumero } from "@/lib/emporio/numeracao";
+import { linhaDoEndereco } from "@/lib/emporio/pedido-para-entrega";
 import { reaisBr } from "@/lib/numero-br";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +21,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { CancelarVendaForm } from "../../_components/cancelar-venda-form";
+import { MudarPedidoParaEntregaForm } from "../../_components/mudar-pedido-para-entrega-form";
 import { DevolverForm } from "../../_components/devolver-form";
 import { TrocarForm } from "../../_components/trocar-form";
 import { carregarCatalogoDeVenda } from "../../_components/catalogo-venda";
@@ -56,6 +58,9 @@ export default async function VendaPage({ params }: { params: Promise<{ id: stri
   const devolviveis = venda.items.filter((i) => i.returnable_qty > 0);
   const podeDevolver = podeEscrever && ativa && devolviveis.length > 0;
   const podeCancelar = ehAdmin && ativa && venda.returns.length === 0 && !venda.exchange_return_id;
+  // D5: quem fatura muda o pedido para entrega, menos na venda cancelada e na trocada (muda-se na venda da troca).
+  const trocada = venda.returns.some((r) => r.exchange_sale_id);
+  const podeMudarPedido = pode(papel, "fatura_na_loja", venda.establishment_id) && ativa && !trocada;
   // Os caixas da loja da venda e o usuário (do servidor) para o campo "Caixa" dos painéis.
   const caixas = paraCaixasDaLoja(await viewsDosCaixas(db, [venda.establishment_id]));
   // Cancelar só mexe na gaveta se houve dinheiro, ou fiado já recebido (pode ter sido em dinheiro).
@@ -126,6 +131,16 @@ export default async function VendaPage({ params }: { params: Promise<{ id: stri
               Imprimir cupom
             </a>
           </Button>
+          <Button asChild variant="outline" size="sm">
+            <a href={`/emporio/imprimir/romaneio/${venda.id}?formato=a4`} target="_blank" rel="noopener noreferrer">
+              Romaneio A4
+            </a>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <a href={`/emporio/imprimir/romaneio/${venda.id}?formato=cupom`} target="_blank" rel="noopener noreferrer">
+              Romaneio cupom
+            </a>
+          </Button>
           {podeDevolver && (
             <>
               <DevolverForm vendaId={venda.id} itens={itensDevolviveis} abertoCent={Math.round(venda.open_amount * 100)}
@@ -173,6 +188,30 @@ export default async function VendaPage({ params }: { params: Promise<{ id: stri
             : "Venda com devolução: não dá para cancelar a venda inteira."}
         </p>
       )}
+
+      <section className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-borda bg-superficie p-4">
+        <div className="min-w-0 space-y-0.5">
+          <h2 className="text-base font-semibold text-texto">
+            {venda.for_delivery ? "Pedido para entrega" : "Retirada no balcão"}
+          </h2>
+          {venda.for_delivery && (
+            <p className="break-words text-sm text-texto-secundario">
+              {linhaDoEndereco(venda.delivery_address) ?? "Sem endereço."}
+            </p>
+          )}
+        </div>
+        {podeMudarPedido && (
+          <MudarPedidoParaEntregaForm
+            vendaId={venda.id}
+            cliente={{ id: venda.customer_id, name: venda.customer_name }}
+            pedido={{
+              for_delivery: venda.for_delivery,
+              delivery_address_kind: venda.delivery_address_kind,
+              delivery_address: venda.delivery_address,
+            }}
+          />
+        )}
+      </section>
 
       <section className="space-y-2">
         <h2 className="text-lg font-semibold text-texto">Itens</h2>

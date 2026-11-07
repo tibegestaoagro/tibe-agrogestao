@@ -9,7 +9,9 @@ import { reaisBr } from "@/lib/numero-br";
 import type { OrcamentoView } from "@/lib/actions/emporio-orcamentos";
 import { CONSUMIDOR_FINAL } from "@/lib/contatos/cadastro";
 import { consumidorFinalEscolhido, type ClienteEscolhido } from "@/lib/emporio/cliente-escolhido";
+import { linhaDoEndereco } from "@/lib/emporio/pedido-para-entrega";
 import { numeroBr, paraCampo, UNIDADE_BASE_SUFIXO } from "./formato";
+import { valorDoPedido, type PedidoParaEntregaValor } from "./pedido-para-entrega-campos";
 import type { CargaDoOrcamento, ProdutoVenda } from "./venda-estado";
 
 /**
@@ -27,13 +29,16 @@ export function dataBr(iso: string): string {
   return `${d}/${m}/${a}`;
 }
 
+/** A carga do carrinho e o pedido para entrega do orçamento, que o balcão guarda fora do carrinho. */
+export type CargaDoBalcao = CargaDoOrcamento & { pedido: PedidoParaEntregaValor };
+
 /**
  * O orçamento como carga do carrinho, com as contas do servidor: o preço de cada
  * item é o `preco_que_vale`, e o desconto se mede contra o `preco_de_referencia`.
  * A mesma apresentação em duas linhas vale a mais barata de cada um, como na
  * action. Sem preço que valha (vencido e sem preço hoje), o item entra sem preço.
  */
-export function cargaDoOrcamento(q: OrcamentoView, consumidorFinal: { id: string }): CargaDoOrcamento {
+export function cargaDoOrcamento(q: OrcamentoView, consumidorFinal: { id: string }): CargaDoBalcao {
   const referencia: Record<string, number> = {};
   const vale: Record<string, number> = {};
   const menor = (mapa: Record<string, number>, chave: string, valor: number | null) => {
@@ -54,6 +59,8 @@ export function cargaDoOrcamento(q: OrcamentoView, consumidorFinal: { id: string
       qtd: paraCampo(i.quantity),
     })),
     cliente: q.customer.id ? clienteDoOrcamento(q.customer, consumidorFinal) : null,
+    // Ao faturar, a tela manda o pedido explícito (D3), já preenchido com o do orçamento.
+    pedido: valorDoPedido(q),
   };
 }
 
@@ -309,6 +316,9 @@ export function ResumoDoOrcamento({
         {reaisBr(orcamento.net_amount)}, cliente {orcamento.customer.name}
         {orcamento.seller_name ? `, vendedor ${orcamento.seller_name}` : ""}
       </p>
+      {orcamento.for_delivery && (
+        <p>Pedido para entrega: {linhaDoEndereco(orcamento.delivery_address) ?? "sem endereço"}</p>
+      )}
       <p>
         {orcamento.items
           .map((i) => `${numeroBr(i.quantity)} × ${i.produto} (${i.apresentacao})`)
