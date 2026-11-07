@@ -12,6 +12,15 @@ import { cancelarVendeuPagou, gravarVendeuPagou } from "@/lib/emporio/vendeu-pag
 import { resolverTurno, type TurnoResolvido } from "@/lib/emporio/turno";
 import { vendedoresDaLoja } from "@/lib/emporio/vendedores";
 import { CONSUMIDOR_FINAL } from "@/lib/contatos/cadastro";
+import type { EnderecoDoPedido } from "@/lib/emporio/cliente-cadastro";
+import {
+  enderecoDasColunas,
+  entradaHerdadaDoOrcamento,
+  resolverPedidoParaEntrega,
+  type EscolhaDoEndereco,
+  type PedidoParaEntregaColunas,
+  type PedidoParaEntregaInput,
+} from "@/lib/emporio/pedido-para-entrega";
 import {
   arred2,
   arred3,
@@ -180,6 +189,10 @@ export type VendaView = {
   exchange_return_id: string | null;
   /** Entrega 4: o orçamento que a venda faturou (a cancelada continua dizendo). */
   quote: { id: string; numero: string } | null;
+  /** Pedido para entrega: a escolha e a cópia do endereço (nulas na retirada). */
+  for_delivery: boolean;
+  delivery_address_kind: EscolhaDoEndereco | null;
+  delivery_address: EnderecoDoPedido | null;
   notes: string | null;
   entry_id: string | null;
   entry_amount: number | null;
@@ -313,6 +326,9 @@ async function montarVendas(db: TenantPrismaClient, linhas: VendaRow[]): Promise
       canceled_reason: s.canceled_reason,
       exchange_return_id: s.exchange_return_id,
       quote: s.quote ? { id: s.quote.id, numero: formatarNumero(s.quote.number) } : null,
+      for_delivery: s.for_delivery,
+      delivery_address_kind: s.delivery_address_kind,
+      delivery_address: enderecoDasColunas(s),
       notes: s.notes,
       entry_id: e?.id ?? null,
       entry_amount: valorEntrada,
@@ -440,7 +456,7 @@ export type VendaPagamentoInput = {
   check?: { number?: string | null; bank?: string | null; good_for?: Date | null } | null;
 };
 
-export type VenderInput = {
+export type VenderInput = PedidoParaEntregaInput & {
   operation_key: string;
   establishment_id: string;
   /** O cliente do Empório (`EmporioCustomer`); o Consumidor final para quem não se identifica. */
@@ -507,6 +523,8 @@ type Preparada = {
   seller_user_id: string;
   /** O orçamento faturado: a transação o marca, e recusa se outra venda chegou antes. */
   quote: { id: string; number: number } | null;
+  /** As nove colunas do pedido para entrega, já resolvidas contra o cliente da venda. */
+  pedido: PedidoParaEntregaColunas;
 };
 
 const QUOTE_NOT_FOUND = () => fail("QUOTE_NOT_FOUND", "Orçamento não encontrado nesta loja.", 404, "quote_id");
@@ -518,6 +536,8 @@ type OrcamentoAFaturar = {
   vendedor: string | null;
   /** Para `precificarItens`; nulo quando vencido (a venda segue a regra normal). */
   precificacao: OrcamentoNaPrecificacao | null;
+  /** O pedido para entrega gravado no orçamento: a venda herda quando o corpo não diz (D3). */
+  pedido: PedidoParaEntregaColunas;
 };
 
 /**
@@ -543,6 +563,15 @@ async function orcamentoAFaturar(
       seller_user_id: true,
       valid_until: true,
       discount_authorized_by_user_id: true,
+      for_delivery: true,
+      delivery_address_kind: true,
+      delivery_zip: true,
+      delivery_street: true,
+      delivery_number: true,
+      delivery_complement: true,
+      delivery_district: true,
+      delivery_city: true,
+      delivery_state: true,
       sale: { select: { number: true } },
       items: { select: { presentation_id: true, unit_price: true, suggested_price: true } },
     },
@@ -554,9 +583,20 @@ async function orcamentoAFaturar(
   if (q.sale) return QUOTE_ALREADY_INVOICED(q.sale.number);
 
   const quote = { id: q.id, number: q.number };
+  const pedido: PedidoParaEntregaColunas = {
+    for_delivery: q.for_delivery,
+    delivery_address_kind: q.delivery_address_kind,
+    delivery_zip: q.delivery_zip,
+    delivery_street: q.delivery_street,
+    delivery_number: q.delivery_number,
+    delivery_complement: q.delivery_complement,
+    delivery_district: q.delivery_district,
+    delivery_city: q.delivery_city,
+    delivery_state: q.delivery_state,
+  };
   // Vencido: os itens do orçamento seguem a regra normal, sem referência nem autorização herdada.
   if (hojeEmBrasilia(soldAt).getTime() > q.valid_until.getTime()) {
-    return ok({ quote, vendedor: q.seller_user_id, precificacao: null });
+    return ok({ quote, vendedor: q.seller_user_id, precificacao: null, pedido });
   }
   const precos = await db.presentationPrice.findMany({
     where: { establishment_id: lojaId, presentation_id: { in: q.items.map((i) => i.presentation_id) } },
@@ -583,8 +623,34 @@ async function orcamentoAFaturar(
     quote,
     vendedor: q.seller_user_id,
     precificacao: { linhas, autorizou: q.discount_authorized_by_user_id },
+    pedido,
   });
 }
+
+/** O cliente da venda com tudo o que `resolverPedidoParaEntrega` confere (`ClienteParaConferir`). */
+const CAMPOS_DO_CLIENTE_DA_VENDA = {
+  id: true,
+  archived_at: true,
+  system_key: true,
+  name: true,
+  person_kind: true,
+  phone: true,
+  document: true,
+  address_zip: true,
+  address_street: true,
+  address_number: true,
+  address_complement: true,
+  address_district: true,
+  city: true,
+  address_state: true,
+  delivery_zip: true,
+  delivery_street: true,
+  delivery_number: true,
+  delivery_complement: true,
+  delivery_district: true,
+  delivery_city: true,
+  delivery_state: true,
+} as const;
 
 async function prepararVenda(
   db: TenantPrismaClient,
@@ -640,11 +706,17 @@ async function prepararVenda(
   }
   const cliente = await db.emporioCustomer.findFirst({
     where: { id: String(input.customer_id) },
-    select: { id: true, archived_at: true, system_key: true },
+    select: CAMPOS_DO_CLIENTE_DA_VENDA,
   });
   if (!cliente || cliente.archived_at) return fail("VALIDATION_ERROR", "Escolha um cliente ativo.", 422, "customer_id");
   const customerId: string = cliente.id;
   const ehConsumidorFinal = cliente.system_key === CONSUMIDOR_FINAL.system_key;
+
+  // Pedido para entrega (D3): ao faturar, o corpo sem `for_delivery` herda do orçamento;
+  // no `principal` e no `cadastro_entrega`, o endereço sai do cliente DESTA venda, agora.
+  const entrada = input.for_delivery == null && orcamento ? entradaHerdadaDoOrcamento(orcamento.pedido) : input;
+  const pedido = resolverPedidoParaEntrega(cliente, entrada);
+  if (!pedido.ok) return pedido;
 
   // Itens
   if (!Array.isArray(input.items) || input.items.length === 0) {
@@ -674,10 +746,10 @@ async function prepararVenda(
   const autorizou = precificados.data.autorizou;
 
   // Pagamentos
-  const entrada = Array.isArray(input.payments) ? input.payments : [];
+  const pagamentosDoCorpo = Array.isArray(input.payments) ? input.payments : [];
   const pagamentos: PagamentoPreparado[] = [];
   let temFiado = false;
-  for (const p of entrada) {
+  for (const p of pagamentosDoCorpo) {
     const kind = p?.kind;
     if (kind === "troca") {
       return fail("VALIDATION_ERROR", "O pagamento por troca só nasce na troca de mercadoria.", 422, "payments");
@@ -797,6 +869,7 @@ async function prepararVenda(
     cash_register_id: pedidoDeCaixa(input.cash_register_id),
     seller_user_id: vendedorId,
     quote: orcamento?.quote ?? null,
+    pedido: pedido.data,
   });
 }
 
@@ -961,6 +1034,7 @@ async function gravarVenda(
       cash_session_id: turno.id,
       notes: p.notes,
       quote_id: p.quote?.id ?? null,
+      ...p.pedido,
     }),
   });
 
@@ -1236,7 +1310,7 @@ export async function venderAction(
         target_id: novaId,
         summary: `Vendeu ${dinheiro(prep.data.net)} na ${prep.data.loja.name} (${frasItens(prep.data.itens.length)})${
           prep.data.quote ? ` do orçamento nº ${formatarNumero(prep.data.quote.number)}` : ""
-        }`,
+        }${prep.data.pedido.for_delivery ? ", para entrega" : ""}`,
       });
       return novaId;
     });
@@ -1824,8 +1898,9 @@ export async function trocarAction(
     ...(input.venda as VenderInput),
     // O vendedor da troca é o da venda original (`vendedorHerdado`); sem ele, quem registra. O do corpo não vale.
     seller_user_id: null,
-    // A venda nova da troca não fatura orçamento.
+    // A venda nova da troca não fatura orçamento, e nasce retirada (D6): quem fatura a marca depois.
     quote_id: null,
+    for_delivery: false,
     operation_key: String(input.venda?.operation_key ?? "").trim() || `${chave}:venda`,
     establishment_id: input.venda?.establishment_id || origem.establishment_id,
     cash_register_id: pedidoDeCaixa(input.cash_register_id) ?? pedidoDeCaixa(input.venda?.cash_register_id),
