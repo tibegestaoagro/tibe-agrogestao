@@ -96,7 +96,7 @@ O detalhe de 29/09 (seis defeitos do canário, roteiro do aparelho com passos
 [historico/2026-09.md](historico/2026-09.md). Faltam os passos 9 e 10 do
 roteiro (foto de recibo e o "não" final).
 
-### Empório: clientes, fornecedores, escolha do cliente e romaneio (06/11), plano 1 IMPLEMENTADO na branch
+### Empório: clientes, fornecedores, escolha do cliente e romaneio (06/11), planos 1 e 2 EM PRODUÇÃO (07/11), plano 3 em execução
 
 Design aprovado pelo usuário em 06/11:
 `docs/superpowers/specs/2026-11-06-emporio-clientes-fornecedores-romaneio-design.md`.
@@ -110,38 +110,25 @@ Três planos, um por frente, a executar NESTA ordem, cada um com contexto limpo
    `test:m96`; Q199 a Q204).
 3. `docs/superpowers/plans/2026-11-06-emporio-frente3-entrega-e-romaneio.md`
    (10 tarefas; pedido para entrega e romaneio; `test:m97`).
-**Plano 1 completo na branch (Tasks 1 a 10 e revisão final, HEAD `4ac17b5`),
-NÃO em produção.** Roteiro `npm run navegador -- emporio-clientes` verde;
+**Deploy dos planos 1 e 2 em 07/11, de madrugada (fora do horário das lojas),
+autorizado pelo usuário na conversa:** `conferir-clientes-emporio.ts antes`
+(6 contas), as três migrações no Neon pela URL Direct (`migrate status` em
+dia), merge e push da `main` até `ad2a42e`, `conferir ... depois` "Tudo
+confere" antes e depois do deploy da Vercel (verde); `tibe_ensaio` apagado do
+Docker. O registro abaixo é do que foi entregue.
+
+**Plano 1 (Tasks 1 a 10 e revisão final).** Roteiro `npm run navegador -- emporio-clientes` verde;
 decisões Q191 a Q198 na spec do módulo 39; o que ficou para depois em
 [dividas.md](dividas.md) 5.20. Ensaio numa cópia fresca da produção (06/11):
 contagens iguais antes e depois em 6 contas, 10 contatos saem de Contatos (6 da
 Max Dias Agromax, o Consumidor final das outras 4), telas sem erro;
 `test:all -- --sem-redis` 94/95, e a m92 (asserção velha do menu do Caixa)
 corrigida e verde sozinha. A migração tem
-`lock_timeout` de 5 s (provado nos dois sentidos). As migrações
-`20261106120000_emporio_clientes_fornecedores` e
-`20261106180000_emporio_clientes_saem_de_contatos` **NÃO estão no Neon**.
-Ordem do deploy, cada passo com autorização do usuário na conversa, **fora do
-horário das lojas** (a segunda apaga colunas que o código da `main` lê, e trava
-as tabelas por alguns segundos):
-1. push da branch (livre) e build dela verde na Vercel;
-2. `conferir-clientes-emporio.ts antes --saida` contra o Neon (só leitura);
-3. as duas migrações no Neon pela URL Direct inline; se o `lock_timeout`
-   disparar, `migrate resolve --rolled-back` e repetir;
-4. `migrate status` em dia, merge e push na `main` logo em seguida;
-5. `conferir ... depois` com a MESMA URL do `antes` (Pooled e Direct têm hosts
-   diferentes e o `depois` recusa), e de novo depois do deploy da Vercel (o
-   código velho, se alguém abrir o balcão na janela, recria o Consumidor final
-   em `Contact`);
-6. apagar o banco `tibe_ensaio` do Docker (tem dados reais da produção).
-O plano 3 não começou.
+`lock_timeout` de 5 s (provado nos dois sentidos).
 
-**Plano 2 (a escolha do cliente e do fornecedor) COMPLETO na branch
-`emporio-escolha-do-cliente`, saída do fim do plano 1** (`aa93edd`), NÃO em
-produção. Tasks 1 a 8 e revisão final (opus, pronta para merge, minors
-corrigidos em `79bf02b`); `test:all -- --sem-redis` 96/96 e o roteiro
-`emporio-escolha` verde no código final (07/11). `migrate status` no Neon
-(07/11, leitura): as duas do plano 1 e a do plano 2 pendentes.
+**Plano 2 (a escolha do cliente e do fornecedor).** Tasks 1 a 8 e revisão
+final (opus, minors corrigidos em `79bf02b`); `test:all -- --sem-redis` 96/96 e
+o roteiro `emporio-escolha` verde no código final.
 - busca no servidor de clientes e de fornecedores (`busca-de-cadastro.ts`,
   `telefone.ts`, coluna gerada `phone_busca`), a janela `JanelaDeEscolha` sobre
   a regra pura `sequencia-da-busca.ts`, `EscolherCliente` (Venda, Orçamento e
@@ -153,12 +140,11 @@ corrigidos em `79bf02b`); `test:all -- --sem-redis` 96/96 e o roteiro
   corrida da digitação e a recusa velha de Vencimento da Compra, provados nos
   dois sentidos. `manual-emporio` verde, com a figura nova
   `balcao-escolher-cliente`.
-- A migração `20261107090000_emporio_busca_por_telefone` **NÃO está no Neon**.
-- **Ordem do deploy** (cada passo com autorização do usuário na conversa): 1) o
-  plano 1 inteiro, na branch `emporio-clientes-romaneio` (as duas migrações
-  dele no Neon, depois merge e push); 2) a migração deste plano no Neon (URL
-  Direct inline); 3) o merge desta branch e o push. A branch do plano 2 sai do
-  fim do plano 1: o merge dela só faz sentido depois do plano 1 na `main`.
+
+**Plano 3 (pedido para entrega e romaneio) em execução na branch
+`emporio-entrega-e-romaneio`** (saída da `main` `ad2a42e`), pelo SDD (o ledger fica na pasta ignorada `.superpowers`, só nesta máquina;
+no notebook, retomar pelo `git log` da branch). A migração dele (`20261107120000_emporio_pedido_para_entrega`)
+é só acréscimo.
 Roteiro preso em recarga (página e `/login` em laço no log do `next dev`) é aba
 sobrando no Chrome de testes, não defeito: ver o cofre,
 `a-aba-oculta-e-a-leitura-cedo-imitam-defeito-no-navegador`.
