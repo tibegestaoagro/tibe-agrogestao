@@ -1186,7 +1186,7 @@ model BankAccount {
 /// (`related_module` emporio, `related_id` = id): aqui fica o que foi vendido,
 /// por quanto e como se pagou, não um segundo registro do dinheiro.
 model EmporioSale {
-  id                             String            @id @default(cuid())
+  id                             String                      @id @default(cuid())
   tenant_id                      String
   establishment_id               String
   /// §23.2: repetir a chave devolve esta venda, sem duplicar.
@@ -1201,23 +1201,34 @@ model EmporioSale {
   /// Entrega 3: quem de fato vendeu (comissão e relatório). Igual a `sold_by_user_id`
   /// quando o próprio vendedor registra; difere quando o Caixa registra por ele.
   seller_user_id                 String?
-  net_amount                     Decimal           @db.Decimal(14, 2)
+  net_amount                     Decimal                     @db.Decimal(14, 2)
   /// Q85: soma de (sugerido − praticado) × quantidade dos itens abaixo do preço.
-  discount_amount                Decimal           @default(0) @db.Decimal(14, 2)
+  discount_amount                Decimal                     @default(0) @db.Decimal(14, 2)
   discount_authorized_by_user_id String?
-  status                         EmporioSaleStatus @default(concluida)
+  status                         EmporioSaleStatus           @default(concluida)
   canceled_at                    DateTime?
   canceled_by_user_id            String?
   canceled_reason                String?
   /// Q86: a devolução que esta venda troca.
-  exchange_return_id             String?           @unique
+  exchange_return_id             String?                     @unique
   cash_session_id                String?
   /// Entrega 4: o orçamento que esta venda faturou. Sem `@unique`: a venda
   /// cancelada continua dizendo de onde veio, e a que fatura de novo também.
   quote_id                       String?
   notes                          String?
-  created_at                     DateTime          @default(now())
-  updated_at                     DateTime          @updatedAt
+  /// Frente 3 do Empório: pedido para entrega. A cópia do endereço escolhido fica
+  /// aqui; na retirada tudo é nulo e `for_delivery` é false.
+  for_delivery                   Boolean                     @default(false)
+  delivery_address_kind          EmporioDeliveryAddressKind?
+  delivery_zip                   String?
+  delivery_street                String?
+  delivery_number                String?
+  delivery_complement            String?
+  delivery_district              String?
+  delivery_city                  String?
+  delivery_state                 String?
+  created_at                     DateTime                    @default(now())
+  updated_at                     DateTime                    @updatedAt
 
   tenant            Tenant                @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   establishment     Establishment         @relation(fields: [establishment_id], references: [id], onDelete: Restrict)
@@ -1244,10 +1255,17 @@ model EmporioSale {
   @@index([tenant_id, quote_id])
 }
 
+/// Frente 3 do Empório: de onde veio o endereço do pedido para entrega.
+enum EmporioDeliveryAddressKind {
+  principal
+  cadastro_entrega
+  outro
+}
+
 /// Entrega 4 do Empório: o orçamento. Não mexe em estoque, caixa nem
 /// financeiro; a situação (aberto, vencido, faturado) é derivada, nunca gravada.
 model EmporioQuote {
-  id                             String   @id @default(cuid())
+  id                             String                      @id @default(cuid())
   tenant_id                      String
   establishment_id               String
   /// Repetir a chave devolve este orçamento, sem duplicar.
@@ -1259,15 +1277,25 @@ model EmporioQuote {
   seller_user_id                 String?
   created_by_user_id             String?
   /// Vale até o fim deste dia em Brasília.
-  valid_until                    DateTime @db.Date
-  net_amount                     Decimal  @db.Decimal(14, 2)
-  discount_amount                Decimal  @default(0) @db.Decimal(14, 2)
+  valid_until                    DateTime                    @db.Date
+  net_amount                     Decimal                     @db.Decimal(14, 2)
+  discount_amount                Decimal                     @default(0) @db.Decimal(14, 2)
   discount_authorized_by_user_id String?
   /// A venda ATIVA que faturou este orçamento; volta a nulo se ela for cancelada.
-  sale_id                        String?  @unique
+  sale_id                        String?                     @unique
   notes                          String?
-  created_at                     DateTime @default(now())
-  updated_at                     DateTime @updatedAt
+  /// Frente 3 do Empório: pedido para entrega (mesma cópia de endereço da venda).
+  for_delivery                   Boolean                     @default(false)
+  delivery_address_kind          EmporioDeliveryAddressKind?
+  delivery_zip                   String?
+  delivery_street                String?
+  delivery_number                String?
+  delivery_complement            String?
+  delivery_district              String?
+  delivery_city                  String?
+  delivery_state                 String?
+  created_at                     DateTime                    @default(now())
+  updated_at                     DateTime                    @updatedAt
 
   tenant        Tenant             @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   establishment Establishment      @relation(fields: [establishment_id], references: [id], onDelete: Restrict)
@@ -3463,7 +3491,7 @@ model EmporioCustomer {
   /// Coluna GERADA pelo Postgres: ver `ServiceClient.name_busca`.
   phone_busca         String?            @default(dbgenerated("telefone_local(phone)"))
   state_registration  String?
-  birth_date         DateTime?          @db.Date
+  birth_date          DateTime?          @db.Date
   responsible_name    String?
   address_zip         String?
   address_street      String?

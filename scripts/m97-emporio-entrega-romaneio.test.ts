@@ -8,6 +8,7 @@ exigirBancoLocal();
  * Roda: `npm run test:m97`
  *
  * Seção 1: a regra pura do pedido para entrega (sem banco).
+ * Seção 2: as colunas do pedido para entrega no orçamento e na venda (banco).
  */
 
 let falhas = 0;
@@ -193,12 +194,59 @@ async function secao1() {
   check("linhaDoEndereco nulo", R.linhaDoEndereco(null) === null);
 }
 
-// As seções com banco entram nas próximas tarefas.
 async function comBanco(fn: () => Promise<void>) {
   (globalThis as unknown as { AsyncLocalStorage: unknown }).AsyncLocalStorage = (await import("node:async_hooks")).AsyncLocalStorage;
   await fn();
 }
-void comBanco;
+
+async function secao2() {
+  console.log("\nSeção 2: as colunas do pedido para entrega (banco)");
+  const { prisma, prismaForTenant } = await import("@/lib/prisma");
+  const stamp = Date.now().toString(36);
+  const mkTenant = async (rotulo: string) => {
+    const t = await prisma.tenant.create({
+      data: { name: `M97 ${rotulo} ${stamp}`, document: `M97${rotulo}${stamp}`.slice(0, 14), plan: "grupo", status: "trial", trial_ends_at: new Date(Date.now() + 86_400_000) },
+    });
+    tenantIds.push(t.id);
+    const loja = await prisma.establishment.create({ data: { tenant_id: t.id, name: `M97 Loja ${rotulo}` } });
+    const cli = await prisma.emporioCustomer.create({ data: { tenant_id: t.id, name: `M97 Cliente ${rotulo}` } });
+    return { t, loja, cli };
+  };
+  const A = await mkTenant("A");
+  const B = await mkTenant("B");
+  const nulas = ["delivery_address_kind", "delivery_zip", "delivery_street", "delivery_number", "delivery_complement", "delivery_district", "delivery_city", "delivery_state"];
+
+  const venda = await prisma.emporioSale.create({
+    data: { tenant_id: A.t.id, establishment_id: A.loja.id, operation_key: `m97-${stamp}-v1`, number: 1, customer_id: A.cli.id, sold_at: new Date(), net_amount: 10 },
+  });
+  const orc = await prisma.emporioQuote.create({
+    data: { tenant_id: A.t.id, establishment_id: A.loja.id, operation_key: `m97-${stamp}-q1`, number: 1, customer_id: A.cli.id, valid_until: new Date(), net_amount: 10 },
+  });
+  for (const [nome, linha] of [["venda", venda], ["orçamento", orc]] as const) {
+    const l = linha as Dado;
+    check(`${nome} sem as colunas novas: for_delivery false`, l.for_delivery === false, String(l.for_delivery));
+    check(`${nome} sem as colunas novas: as outras oito nulas`, nulas.every((c) => l[c] === null), j(l));
+  }
+
+  const end = {
+    for_delivery: true, delivery_address_kind: "outro", delivery_zip: "38400000", delivery_street: "Rua B", delivery_number: "20",
+    delivery_complement: "Apto 2", delivery_district: "Centro", delivery_city: "Uberlândia", delivery_state: "MG",
+  };
+  const vend2 = await prisma.emporioSale.create({
+    data: { tenant_id: A.t.id, establishment_id: A.loja.id, operation_key: `m97-${stamp}-v2`, number: 2, customer_id: A.cli.id, sold_at: new Date(), net_amount: 20, ...end } as Dado,
+  });
+  const orc2 = await prisma.emporioQuote.create({
+    data: { tenant_id: A.t.id, establishment_id: A.loja.id, operation_key: `m97-${stamp}-q2`, number: 2, customer_id: A.cli.id, valid_until: new Date(), net_amount: 20, ...end } as Dado,
+  });
+  const lerV = (await prisma.emporioSale.findUnique({ where: { id: vend2.id } })) as Dado;
+  const lerQ = (await prisma.emporioQuote.findUnique({ where: { id: orc2.id } })) as Dado;
+  check("venda: grava e lê o endereço de entrega", Object.entries(end).every(([k, v]) => lerV[k] === v), j(lerV));
+  check("orçamento: grava e lê o endereço de entrega", Object.entries(end).every(([k, v]) => lerQ[k] === v), j(lerQ));
+
+  const dbB = prismaForTenant(B.t.id) as Dado;
+  check("o client do tenant B não acha a venda do A", (await dbB.emporioSale.findFirst({ where: { id: vend2.id } })) === null);
+  check("o client do tenant B não acha o orçamento do A", (await dbB.emporioQuote.findFirst({ where: { id: orc2.id } })) === null);
+}
 
 async function limpar() {
   if (tenantIds.length === 0) return;
@@ -227,6 +275,7 @@ async function limpar() {
 async function main() {
   try {
     await secao1();
+    await comBanco(secao2);
   } finally {
     await limpar();
   }
