@@ -84,20 +84,6 @@ export function formatarCep(d: string | null): string {
   return /^\d{8}$/.test(d) ? d.replace(/(\d{5})(\d{3})/, "$1-$2") : d;
 }
 
-/**
- * Telefone para exibir, "(38) 99999-0000", venha ele com máscara ou só com os
- * dígitos (a API, os cenários e os contatos antigos gravam como vier). O 55 do país sai; fora de
- * 10 ou 11 dígitos, o texto sai como veio.
- */
-export function formatarTelefone(t: string | null): string {
-  if (!t) return "";
-  let d = t.replace(/\D/g, "");
-  if (d.length > 11 && d.startsWith("55")) d = d.slice(2);
-  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
-  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
-  return t;
-}
-
 export function cadastroIncompleto(c: {
   name: string;
   person_kind: string | null;
