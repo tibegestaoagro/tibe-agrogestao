@@ -238,8 +238,8 @@ async function validarLoja(
     return fail("VALIDATION_ERROR", "Informe a área em m², de 0 a 999.999,99.", 422, "area_m2");
   }
   const func = input.employees_count;
-  if (func != null && (typeof func !== "number" || !Number.isInteger(func) || func < 0)) {
-    return fail("VALIDATION_ERROR", "Informe o número de funcionários, inteiro, de 0 em diante.", 422, "employees_count");
+  if (func != null && (typeof func !== "number" || !Number.isInteger(func) || func < 0 || func > 100000)) {
+    return fail("VALIDATION_ERROR", "Informe o número de funcionários, inteiro, de 0 a 100.000.", 422, "employees_count");
   }
   if (input.responsible_user_id) {
     const u = await db.user.findFirst({ where: { id: input.responsible_user_id, active: true } });

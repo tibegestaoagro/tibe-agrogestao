@@ -24,7 +24,7 @@ async function GETHandler(request: Request) {
       status: status === "pending" || status === "paid" || status === "cancelled" || status === "all" ? status : undefined,
       de: de?.success ? de.data : undefined,
       ate: ate?.success ? ate.data : undefined,
-      limit: Number.isFinite(limit) && limit > 0 ? limit : undefined,
+      limit: Number.isFinite(limit) && limit > 0 ? Math.min(limit, 500) : undefined,
     }),
   );
 }

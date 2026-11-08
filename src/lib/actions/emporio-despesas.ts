@@ -721,7 +721,7 @@ function partesManuais(d: FixaDados): Map<string, number> {
 }
 
 /** O valor de cada loja num mês, em centavos. No percentual, o centavo que sobra fica na primeira loja. */
-function partesDoMes(
+export function partesDoMes(
   splitKind: "percentual" | "valor",
   amount: number,
   splits: { establishment_id: string; value: number }[],
@@ -1061,9 +1061,19 @@ export async function editarDespesaFixaAction(
     // De manual para automático, as contas futuras sem pagamento (do mês seguinte em diante) ficam canceladas com
     // `NOTA_VIROU_AUTOMATICO` até o mês chegar, e o gatilho de leitura as refaz com a base daquele momento. Isso vale
     // também para as que a saída da loja do rateio já cancelou (trocam a marca); as canceladas à mão seguem canceladas.
+    // Exceção: o mês futuro que já tem alguma ocorrência paga é um mês fechado. As irmãs dele não são canceladas nem
+    // recalculadas (ficam como partes manuais) e o gatilho não refaz nem cria nada nele, para a soma do mês seguir
+    // sendo o valor do modelo.
+    const mesesFechados = new Set<string>();
     if (!eraAutomatico && automatico) {
       for (const o of ocorrencias) {
+        if (compararMeses(mesDaData(o.period), atual) > 0 && pagas.has(o.financial_entry_id)) {
+          mesesFechados.add(textoDoMes(mesDaData(o.period)));
+        }
+      }
+      for (const o of ocorrencias) {
         if (compararMeses(mesDaData(o.period), atual) <= 0) continue;
+        if (mesesFechados.has(textoDoMes(mesDaData(o.period)))) continue;
         if (pagas.has(o.financial_entry_id)) continue;
         const lancamento = lancamentos.get(o.financial_entry_id);
         // A cancelada à mão fica cancelada; a cancelada pela saída do rateio troca a marca, para o gatilho refazê-la.
@@ -1079,6 +1089,7 @@ export async function editarDespesaFixaAction(
     }
 
     for (let m = inicioJanela; compararMeses(m, ultimo) <= 0; m = somarMeses(m, 1)) {
+      if (mesesFechados.has(textoDoMes(m))) continue;
       const partes = partesDe(m);
       for (const s of d.splits) {
         const parte = partes.get(s.establishment_id) ?? 0;
@@ -1297,6 +1308,8 @@ export async function garantirOcorrenciasDoMes(
       // divisão está feita: loja nova, ou que ganhou área ou funcionários no meio do mês, entra no mês seguinte ou
       // num editar (criar a parte dela agora faria a soma passar do valor da despesa).
       const nascido = doModelo.length > refazer.length;
+      // Mês fechado: alguma ocorrência já paga. Refazer as irmãs canceladas somaria acima do valor do modelo.
+      if (doModelo.some((o) => o.financial_entry.status === "paid")) continue;
       const faltam = nascido ? [] : lojas.filter((l) => !doModelo.some((o) => o.establishment_id === l.id));
       if (faltam.length === 0 && refazer.length === 0) continue;
 
@@ -1459,6 +1472,9 @@ async function filtroDoEmporio(
   };
 }
 
+/** O maior `limit` que a lista aceita: as telas e a rota ficam nos padrões deles, a projeção e o relatório pedem o teto. */
+export const TETO_DE_CONTAS_A_PAGAR = 5000;
+
 type FiltroDeContasAPagar = {
   establishment_id?: string;
   status?: "pending" | "paid" | "cancelled" | "all";
@@ -1486,7 +1502,7 @@ async function filtroDeContasAPagar(
   const vencimento: Record<string, Date> = {};
   if (dataValida(opts.de)) vencimento.gte = opts.de;
   if (dataValida(opts.ate)) vencimento.lte = opts.ate;
-  const limite = opts.limit && opts.limit > 0 ? Math.min(Math.floor(opts.limit), 500) : 200;
+  const limite = opts.limit && opts.limit > 0 ? Math.min(Math.floor(opts.limit), TETO_DE_CONTAS_A_PAGAR) : 200;
 
   const filtros: Prisma.FinancialEntryWhereInput = {
     ...(opts.establishment_id

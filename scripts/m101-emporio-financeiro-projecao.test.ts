@@ -851,6 +851,75 @@ async function secao4Fixas() {
   check("depois da troca, cada mês seguinte da janela é estimado com 600", perto(apos - comManual, 600 * meses28), `${apos - comManual} esperado ${600 * meses28}`);
 }
 
+/** Achados do juiz da rodada 1: mês futuro fechado na troca de critério, estimativa da manual, teto de contas, funcionários. */
+async function secao4Juiz() {
+  secaoAtual = "4";
+  console.log("\nSeção 4 (cont.): os achados do juiz (mês fechado, manual estimada, teto, funcionários)");
+  const { F } = M!;
+  const Dd = await import("@/lib/actions/emporio-despesas");
+  const soma = (xs: Dado[]) => xs.reduce((s, x) => s + n(x.amount), 0);
+  const doMes = async (tpl: string, ym: string) => {
+    const ocs = (await F.db.fixedExpenseOccurrence.findMany({ where: { template_id: tpl }, include: { financial_entry: true } })) as Dado[];
+    return ocs.filter((o) => diaDe(o.period).slice(0, 7) === ym).map((o) => o.financial_entry as Dado);
+  };
+
+  console.log("  (a) manual com ocorrência futura paga, trocado para área: o mês fechado soma o valor do modelo");
+  const cf = await chamar(F.tok.owner, R.fixed, "POST", "emporio/fixed-expenses", {
+    name: "M101 Fixa fechada", category: "M101 Fixa fechada", amount: 1000, due_day: 20, starts_on: `${mesCorrente}-01`,
+    split_kind: "valor", splits: [{ establishment_id: F.L1, value: 750 }, { establishment_id: F.L2, value: 250 }],
+  });
+  check("(fixture) o modelo manual de R$ 1.000: 201", cf.status === 201, `${cf.status} ${j(cf.corpo)}`);
+  const tpl = String(cf.corpo?.data?.id ?? "");
+  const antes = (await doMes(tpl, mesSeguinte)) as Dado[];
+  const paga = antes.find((e) => perto(n(e.amount), 250));
+  check("(fixture) o mês seguinte tem duas contas (750 e 250)", antes.length === 2 && !!paga, j(antes.map((e) => e.amount)));
+  const pg = await chamar(F.tok.owner, R.payablesPay, "POST", "emporio/payables/pay", { entry_ids: [String(paga?.id)], from: { bank_account_id: F.conta } });
+  check("(fixture) a conta futura de 250 é paga: 2xx", ok2xx(pg), `${pg.status} ${j(pg.corpo)}`);
+  const ocsAntes = await F.db.fixedExpenseOccurrence.count({ where: { template_id: tpl } });
+  const tr = await chamar(F.tok.owner, R.fixedId, "PATCH", `emporio/fixed-expenses/${tpl}`, { split_kind: "area" }, tpl);
+  check("(fixture) trocar para área: 200", tr.status === 200, `${tr.status} ${j(tr.corpo)}`);
+  await garantirSeguro(Dd, F.db, F.owner, civil(mesSeguinte));
+  const depois = await doMes(tpl, mesSeguinte);
+  const vivas = depois.filter((e) => e.status !== "cancelled");
+  check("o mês seguinte segue somando 1.000 (a paga de 250 e a irmã de 750 como parte manual)", perto(soma(vivas), 1000) && vivas.length === 2, j(depois.map((e) => `${e.amount} ${e.status}`)));
+  check("a irmã não foi cancelada nem refeita", depois.every((e) => e.status !== "cancelled"), j(depois.map((e) => e.status)));
+  check("nada nasceu: o número de ocorrências é o mesmo", (await F.db.fixedExpenseOccurrence.count({ where: { template_id: tpl } })) === ocsAntes);
+
+  console.log("  (b) manual cujo lote de 12 meses acabou: a projeção estima os meses sem conta com as partes dos splits");
+  const fim = emDias(89);
+  const meses28 = [1, 2, 3].map((k) => somaMes(mesCorrente, k)).filter((ym) => `${ym}-28` <= fim).length;
+  const estimado = async (qs = "") => somaSemanas((await proj(F, F.tok.fin, `?days=90${qs}`)).corpo?.data, (s) => s.payables?.fixed_estimated);
+  const e0 = await estimado();
+  const e0L1 = await estimado(`&establishment_id=${F.L1}`);
+  const velha = await chamar(F.tok.owner, R.fixed, "POST", "emporio/fixed-expenses", {
+    name: "M101 Fixa lote acabou", category: "M101 Fixa lote acabou", amount: 700, due_day: 28, starts_on: `${somaMes(mesCorrente, -11)}-01`,
+    split_kind: "valor", splits: [{ establishment_id: F.L1, value: 400 }, { establishment_id: F.L2, value: 300 }],
+  });
+  check("(fixture) o modelo manual com início 11 meses atrás: 201", velha.status === 201, `${velha.status} ${j(velha.corpo)}`);
+  const e1 = await estimado();
+  const e1L1 = await estimado(`&establishment_id=${F.L1}`);
+  check("cada mês seguinte da janela sem conta é estimado com 700 (as partes dos splits)", perto(e1 - e0, 700 * meses28), `${e1 - e0} esperado ${700 * meses28}`);
+  check("filtrado pela Loja 1, só a parte dela (400)", perto(e1L1 - e0L1, 400 * meses28), `${e1L1 - e0L1} esperado ${400 * meses28}`);
+  const nota = ((await proj(F, F.tok.fin, "?days=90")).corpo?.data?.notes ?? []) as string[];
+  check("notes diz que as fixas dos meses sem conta gerada são estimativa", nota.some((x) => x.includes("Despesas fixas dos meses sem conta gerada são estimativa")), j(nota));
+
+  console.log("  (c) o limit 5000 da lista de contas a pagar");
+  const quantas = await Dd.lerQuantidadeDeContasAPagar(F.db, F.owner, { status: "pending" });
+  const padrao = await Dd.listarContasAPagarAction(F.db, F.owner, { status: "pending" });
+  const cheia = await Dd.listarContasAPagarAction(F.db, F.owner, { status: "pending", limit: 5000 });
+  const alem = await Dd.listarContasAPagarAction(F.db, F.owner, { status: "pending", limit: 99999 });
+  check("limit 5000 devolve todas as pendentes, e o padrão (200) é o de antes", cheia.ok && quantas.ok && padrao.ok && cheia.data.length === quantas.data && padrao.data.length === Math.min(200, quantas.data), `${cheia.ok && cheia.data.length} ${quantas.ok && quantas.data}`);
+  check("limit acima do teto é cortado em 5000, sem erro", alem.ok && alem.data.length <= 5000);
+  const rotaLim = await chamar(F.tok.owner, () => import("@/app/api/v1/emporio/payables/route"), "GET", "emporio/payables?status=pending&limit=5000");
+  check("a rota segue com o teto dela (500)", rotaLim.status === 200 && (rotaLim.corpo?.data ?? []).length <= 500, `${rotaLim.status}`);
+
+  console.log("  (d) funcionários com teto");
+  const fx = await chamar(F.tok.owner, R.estab, "PATCH", `emporio/establishments/${F.L1}`, { employees_count: 3000000000 }, F.L1);
+  check("3 bilhões de funcionários: 422 em employees_count, em português", erro(fx, 422, "VALIDATION_ERROR", "employees_count") && /100\.000/.test(String(fx.corpo?.error?.message)), `${fx.status} ${j(fx.corpo)}`);
+  const fy = await chamar(F.tok.owner, R.estab, "PATCH", `emporio/establishments/${F.L1}`, { employees_count: 100001 }, F.L1);
+  check("100.001 funcionários: 422", erro(fy, 422, "VALIDATION_ERROR", "employees_count"), `${fy.status} ${j(fy.corpo)}`);
+}
+
 // ---------------------------------------------------------------------------
 // Seção 5: os relatórios
 // ---------------------------------------------------------------------------
@@ -1039,6 +1108,7 @@ async function main() {
       await rodar("4", secao4);
       await rodar("4 estimativa", secao4Estimativa);
       await rodar("4 fixas", secao4Fixas);
+      await rodar("4 juiz", secao4Juiz);
       await rodar("5", secao5);
       await rodar("6", secao6);
     });

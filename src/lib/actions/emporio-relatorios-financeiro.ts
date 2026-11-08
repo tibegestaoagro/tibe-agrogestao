@@ -8,7 +8,7 @@ import { faixaDeIdade, type FaixaDeIdade } from "@/lib/emporio/projecao";
 import { lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
 import { entradasAbertas } from "@/lib/actions/emporio-caixa";
 import { lerPosicoes, ROTULO_ORIGEM } from "@/lib/actions/emporio-financeiro";
-import { listarContasAPagarAction } from "@/lib/actions/emporio-despesas";
+import { listarContasAPagarAction, TETO_DE_CONTAS_A_PAGAR } from "@/lib/actions/emporio-despesas";
 
 /**
  * Meu Empório, financeiro das lojas, entrega 4: os três relatórios do dinheiro.
@@ -128,7 +128,10 @@ export type APagarPorVencimentoView = {
   by_name: { name: string; total: number; overdue_total: number }[];
   overdue_total: number;
   total: number;
+  notes: string[];
 };
+
+const NOTA_TETO_DE_CONTAS = "Mais de 5.000 contas pendentes: a soma considera as 5.000 primeiras.";
 
 /** As contas pendentes do Empório que vencem até o fim do período, por semana de 7 dias a partir de `de` e por nome; o que já venceu (antes de hoje) entra na primeira semana, em destaque, mesmo que seja anterior a `de`. */
 export async function lerAPagarPorVencimentoAction(
@@ -149,9 +152,11 @@ export async function lerAPagarPorVencimentoAction(
     establishment_id: al.lojaId,
     status: "pending",
     ate: new Date(ate.getTime() + DIA_MS - 1),
-    limit: 500,
+    limit: TETO_DE_CONTAS_A_PAGAR,
   });
   if (!contas.ok) return contas;
+  const notes: string[] = [];
+  if (contas.data.length >= TETO_DE_CONTAS_A_PAGAR) notes.push(NOTA_TETO_DE_CONTAS);
 
   const dias = Math.round((ate.getTime() - de.getTime()) / DIA_MS) + 1;
   const semanas: { de: string; ate: string; total: number; vencido: boolean; itens: Map<string, number> }[] = [];
@@ -202,6 +207,7 @@ export async function lerAPagarPorVencimentoAction(
       .map(([name, v]) => ({ name, total: v.total / 100, overdue_total: v.overdue / 100 })),
     overdue_total: vencidoTotal / 100,
     total: total / 100,
+    notes,
   });
 }
 

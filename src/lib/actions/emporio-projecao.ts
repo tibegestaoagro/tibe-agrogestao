@@ -15,6 +15,8 @@ import {
   NOTA_VIROU_AUTOMATICO,
   listarContasAPagarAction,
   partesAutomaticas,
+  partesDoMes,
+  TETO_DE_CONTAS_A_PAGAR,
 } from "@/lib/actions/emporio-despesas";
 
 /**
@@ -47,7 +49,8 @@ export type FluxoProjetadoView = {
 };
 
 const NOTA_CONTA = "A conta bancária é da rede inteira e só entra em Todas as lojas.";
-const NOTA_ESTIMATIVA = "Despesas fixas com rateio automático dos meses seguintes são estimativa com a base de hoje.";
+const NOTA_ESTIMATIVA = "Despesas fixas dos meses sem conta gerada são estimativa (as automáticas, com a base de hoje).";
+const NOTA_TETO_DE_CONTAS = "Mais de 5.000 contas pendentes: a soma considera as 5.000 primeiras.";
 
 const dia = (d: Date) => d.toISOString().slice(0, 10);
 const centavos = (n: number) => Math.round(Number((n * 100).toPrecision(12)));
@@ -119,7 +122,7 @@ export async function lerFluxoProjetadoAction(
     establishment_id: lojaId,
     status: "pending",
     ate: new Date(hoje.getTime() + days * DIA_MS - 1),
-    limit: 500,
+    limit: TETO_DE_CONTAS_A_PAGAR,
   });
   if (!contas.ok) return contas;
   for (const c of contas.data) {
@@ -133,6 +136,7 @@ export async function lerFluxoProjetadoAction(
   const notes: string[] = [];
   if (lojaId) notes.push(NOTA_CONTA);
   if (estimou) notes.push(NOTA_ESTIMATIVA);
+  if (contas.data.length >= TETO_DE_CONTAS_A_PAGAR) notes.push(NOTA_TETO_DE_CONTAS);
 
   let saldo = abertura;
   const weeks = semanas.map((s, i): SemanaProjetadaView => {
@@ -163,8 +167,9 @@ export async function lerFluxoProjetadoAction(
 }
 
 /**
- * A despesa fixa de rateio automático ainda não nasceu nos meses seguintes: entra como estimativa com a base de
- * agora, na semana do vencimento. O mês que já nasceu (tem ocorrência que a troca de critério não cancelou) entra
+ * A despesa fixa ainda sem conta nos meses seguintes (a manual cujo lote de 12 meses acabou, a automática que ainda
+ * não nasceu): entra como estimativa na semana do vencimento, com as partes do modelo nos critérios manuais e com a
+ * base de agora nos automáticos. O mês que já nasceu (tem ocorrência que a troca de critério não cancelou) entra
  * pela lista de contas, não aqui.
  * Devolve se alguma estimativa maior que zero entrou.
  */
@@ -180,8 +185,15 @@ async function estimarFixas(
   },
 ): Promise<boolean> {
   const modelos = await db.fixedExpenseTemplate.findMany({
-    where: { ended_at: null, split_kind: { in: [...CRITERIOS_AUTOMATICOS] } },
-    select: { id: true, due_day: true, amount: true, split_kind: true, starts_on: true },
+    where: { ended_at: null },
+    select: {
+      id: true,
+      due_day: true,
+      amount: true,
+      split_kind: true,
+      starts_on: true,
+      splits: { select: { establishment_id: true, value: true }, orderBy: { id: "asc" } },
+    },
   });
   if (modelos.length === 0) return false;
   const lojas = await db.establishment.findMany({
@@ -222,7 +234,6 @@ async function estimarFixas(
   let estimou = false;
   for (const modelo of modelos) {
     const kind = modelo.split_kind;
-    if (!ehCriterioAutomatico(kind)) continue;
     for (const mes of meses) {
       if (compararMeses(mes, mesDaData(modelo.starts_on)) < 0) continue;
       const vencimento = dia(diaDoMes(mes, modelo.due_day));
@@ -230,13 +241,22 @@ async function estimarFixas(
       const i = ctx.semanaDoDia(vencimento);
       if (i < 0) continue;
       if (nasceu.has(`${modelo.id}|${textoDoMes(mes)}`)) continue;
-      const bases = await basesDe(kind);
-      const { partes } = partesAutomaticas(centavos(decToNum(modelo.amount) ?? 0), bases.pesos);
+      const daLoja = (id: string) => (ctx.lojaId ? id === ctx.lojaId : !ctx.visiveis || ctx.visiveis.has(id));
       let soma = 0;
-      lojas.forEach((l, k) => {
-        if (ctx.lojaId ? l.id !== ctx.lojaId : ctx.visiveis && !ctx.visiveis.has(l.id)) return;
-        soma += partes[k];
-      });
+      if (ehCriterioAutomatico(kind)) {
+        const bases = await basesDe(kind);
+        const { partes } = partesAutomaticas(centavos(decToNum(modelo.amount) ?? 0), bases.pesos);
+        lojas.forEach((l, k) => {
+          if (daLoja(l.id)) soma += partes[k];
+        });
+      } else if (kind === "percentual" || kind === "valor") {
+        const partes = partesDoMes(
+          kind,
+          decToNum(modelo.amount) ?? 0,
+          modelo.splits.map((sp) => ({ establishment_id: sp.establishment_id, value: decToNum(sp.value) ?? 0 })),
+        );
+        for (const [id, parte] of partes) if (daLoja(id)) soma += parte;
+      }
       if (soma <= 0) continue;
       ctx.acc[i].fixed += soma;
       estimou = true;
