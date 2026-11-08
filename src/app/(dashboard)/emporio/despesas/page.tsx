@@ -50,6 +50,8 @@ export default async function DespesasPage() {
   if (!veAPagina(papel, "/emporio/despesas")) redirect("/emporio");
   // O Financeiro paga só pela conta bancária: a gaveta é da loja.
   const podeGaveta = pode(papel, "gestor_da_loja");
+  // Os critérios automáticos da despesa fixa são de quem vê todas as lojas (o servidor recusa os demais).
+  const podeAutomatico = papel.lojas === null;
   const [lojasRes, contasRes, fixasRes, regrasRes, caixaRes, produtosDb] = await Promise.all([
     listarEstabelecimentosAction(db, user),
     listarContasAPagarAction(db, user, { status: "pending" }),
@@ -142,7 +144,7 @@ export default async function DespesasPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-lg font-semibold text-texto">Despesas fixas</h2>
           {lojas.length > 0 && (
-            <DespesaFixaForm lojas={lojas} mesesDeInicio={mesesDeInicio} mesAtual={textoDoMes(atual)} />
+            <DespesaFixaForm podeAutomatico={podeAutomatico} lojas={lojas} mesesDeInicio={mesesDeInicio} mesAtual={textoDoMes(atual)} />
           )}
         </div>
         <p className="text-sm text-texto-secundario">
@@ -196,6 +198,7 @@ export default async function DespesasPage() {
                   <TableCell>
                     <div className="flex flex-wrap gap-2">
                       <DespesaFixaForm
+                        podeAutomatico={podeAutomatico}
                         lojas={lojas}
                         mesesDeInicio={mesesDeInicio}
                         mesAtual={textoDoMes(atual)}

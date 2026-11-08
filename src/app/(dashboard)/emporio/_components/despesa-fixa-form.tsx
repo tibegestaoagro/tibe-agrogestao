@@ -61,7 +61,10 @@ export function DespesaFixaForm({
   mesesDeInicio,
   mesAtual,
   despesa,
+  podeAutomatico,
 }: {
+  /** Verdadeiro quando o ator vê todas as lojas: só ele pode usar os critérios automáticos (o servidor recusa aos demais). */
+  podeAutomatico: boolean;
   lojas: { id: string; name: string }[];
   /** "AAAA-MM" e o nome do mês, vindos do servidor (o início não aceita data solta). */
   mesesDeInicio: { valor: string; rotulo: string }[];
@@ -94,6 +97,8 @@ export function DespesaFixaForm({
   const set = (parcial: Partial<ReturnType<typeof inicial>>) => setF((a) => ({ ...a, ...parcial }));
 
   const automatico = ehCriterioAutomatico(f.tipo);
+  // Quem não vê todas as lojas mantém o critério automático do modelo como está.
+  const somenteLeitura = !podeAutomatico && !!despesa && ehCriterioAutomatico(despesa.split_kind);
   const valor = lerNumeroBr(f.valor);
   const preenchidas = lojas.filter((l) => f.partes[l.id]?.trim());
   const somaCent = preenchidas.reduce((t, l) => t + cent(lerNumeroBr(f.partes[l.id]) ?? 0), 0);
@@ -276,8 +281,23 @@ export function DespesaFixaForm({
         </Field>
       )}
 
-      <Field label="Dividir entre as lojas" required id={err.idDe("split_kind")} error={err.erros.split_kind}>
-        {({ id, ...aria }) => (
+      <Field
+        label="Dividir entre as lojas"
+        required
+        id={err.idDe("split_kind")}
+        error={err.erros.split_kind}
+        hint={
+          podeAutomatico
+            ? undefined
+            : "Os critérios automáticos (faturamento, área, funcionários) ficam com quem vê todas as lojas."
+        }
+      >
+        {({ id, ...aria }) =>
+          somenteLeitura ? (
+            <p id={id} tabIndex={-1} {...aria} className="text-sm text-texto">
+              {RATEIO_ROTULO[f.tipo]}
+            </p>
+          ) : (
           <Select
             value={f.tipo}
             onValueChange={(v) => {
@@ -290,14 +310,17 @@ export function DespesaFixaForm({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {Object.entries(RATEIO_ROTULO).map(([k, nome]) => (
-                <SelectItem key={k} value={k}>
-                  {nome}
-                </SelectItem>
-              ))}
+              {Object.entries(RATEIO_ROTULO)
+                .filter(([k]) => podeAutomatico || !ehCriterioAutomatico(k))
+                .map(([k, nome]) => (
+                  <SelectItem key={k} value={k}>
+                    {nome}
+                  </SelectItem>
+                ))}
             </SelectContent>
           </Select>
-        )}
+          )
+        }
       </Field>
 
       {automatico && (
