@@ -202,7 +202,7 @@ export async function listarRegrasVariaveisAction(
   ator: Ator,
   opts: { establishment_id?: string; incluir_arquivadas?: boolean } = {},
 ): Promise<ActionResult<RegraVariavelView[]>> {
-  const neg = await exigir(db, ator, "gestor_da_loja", "mexer nas despesas da loja");
+  const neg = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "mexer nas despesas da loja");
   if (neg) return neg;
   const visiveis = await lojasDoAtor(db, ator);
   if (opts.establishment_id && visiveis && !visiveis.has(opts.establishment_id)) {
@@ -261,7 +261,7 @@ export async function criarRegraVariavelAction(
   ator: Ator,
   input: CriarRegraInput,
 ): Promise<ActionResult<RegraVariavelView>> {
-  const neg = await exigir(db, ator, "gestor_da_loja", "mexer nas despesas da loja");
+  const neg = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "mexer nas despesas da loja");
   if (neg) return neg;
   const loja = await acharLojaParaEscrita(db, ator, input?.establishment_id);
   if (!loja.ok) return loja;
@@ -293,7 +293,7 @@ export async function editarRegraVariavelAction(
   id: string,
   patch: EditarRegraInput,
 ): Promise<ActionResult<RegraVariavelView>> {
-  const neg = await exigir(db, ator, "gestor_da_loja", "mexer nas despesas da loja");
+  const neg = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "mexer nas despesas da loja");
   if (neg) return neg;
   const atual = await db.variableExpenseRule.findFirst({ where: { id } });
   if (!atual || !(await lojaVisivel(db, ator, atual.establishment_id))) return NAO_ACHADO("Regra");
@@ -446,7 +446,7 @@ export async function listarDespesasFixasAction(
   ator: Ator,
   opts: { incluir_encerradas?: boolean } = {},
 ): Promise<ActionResult<DespesaFixaView[]>> {
-  const neg = await exigir(db, ator, "gestor_da_loja", "mexer nas despesas da loja");
+  const neg = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "mexer nas despesas da loja");
   if (neg) return neg;
   const visiveis = await lojasDoAtor(db, ator);
   const linhas = await db.fixedExpenseTemplate.findMany({
@@ -632,7 +632,7 @@ export async function criarDespesaFixaAction(
   ator: Ator,
   input: CriarDespesaFixaInput,
 ): Promise<ActionResult<DespesaFixaView>> {
-  const neg = await exigir(db, ator, "gestor_da_loja", "mexer nas despesas da loja");
+  const neg = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "mexer nas despesas da loja");
   if (neg) return neg;
   const raw = (input ?? {}) as unknown as Record<string, unknown>;
   const dados = await validarFixa(db, ator, raw);
@@ -690,7 +690,7 @@ export async function editarDespesaFixaAction(
   id: string,
   patch: EditarDespesaFixaInput,
 ): Promise<ActionResult<DespesaFixaView>> {
-  const neg = await exigir(db, ator, "gestor_da_loja", "mexer nas despesas da loja");
+  const neg = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "mexer nas despesas da loja");
   if (neg) return neg;
   const t = await fixaVisivelParaEscrita(db, ator, id);
   if (!t) return NAO_ACHADO("Despesa fixa");
@@ -813,7 +813,7 @@ export async function encerrarDespesaFixaAction(
   ator: Ator,
   id: string,
 ): Promise<ActionResult<DespesaFixaView>> {
-  const neg = await exigir(db, ator, "gestor_da_loja", "mexer nas despesas da loja");
+  const neg = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "mexer nas despesas da loja");
   if (neg) return neg;
   const t = await fixaVisivelParaEscrita(db, ator, id);
   if (!t) return NAO_ACHADO("Despesa fixa");
@@ -851,7 +851,7 @@ export async function renovarDespesaFixaAction(
   ator: Ator,
   id: string,
 ): Promise<ActionResult<DespesaFixaView & { created: number }>> {
-  const neg = await exigir(db, ator, "gestor_da_loja", "mexer nas despesas da loja");
+  const neg = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "mexer nas despesas da loja");
   if (neg) return neg;
   const t = await fixaVisivelParaEscrita(db, ator, id);
   if (!t) return NAO_ACHADO("Despesa fixa");

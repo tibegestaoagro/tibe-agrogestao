@@ -1,7 +1,7 @@
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { decToNum, isoOrNull } from "@/lib/serialize";
-import { exigir, papelDoEmporio, pode, recusaDe } from "@/lib/emporio/papel";
+import { exigir, exigirUma, papelDoEmporio, pode, recusaDe } from "@/lib/emporio/papel";
 import { createLinkedEntry, runSerializableTenantTransaction, type TenantTransactionClient } from "@/lib/financial";
 import { resolverTurno } from "@/lib/emporio/turno";
 import { CATEGORIA_DIFERENCA_CAIXA, hojeEmBrasilia } from "@/lib/emporio/cartao";
@@ -242,7 +242,7 @@ export async function receberFiadoAction(
   ator: Ator,
   input: ReceberFiadoInput,
 ): Promise<ActionResult<RecebimentoView>> {
-  const neg = await exigir(db, ator, "vendedor_da_loja", "receber fiado");
+  const neg = await exigirUma(db, ator, ["vendedor_da_loja", "dinheiro"], "receber fiado");
   if (neg) return neg;
   const chave = String(input?.operation_key ?? "").trim();
   if (!chave) return fail("VALIDATION_ERROR", "Falta a chave da operação.", 422, "operation_key");
@@ -268,6 +268,11 @@ export async function receberFiadoAction(
     return fail("VALIDATION_ERROR", "O valor recebido deve ser maior que zero.", 422, "amount");
   }
   const valorCent = centavos(input.amount);
+  // O Financeiro não trabalha na loja: o que ele recebe entra na conta e não toca turno nenhum.
+  const naLoja = pode(await papelDoEmporio(db, ator), "vendedor_da_loja", loja.data.id);
+  if (input.kind === "dinheiro" && !naLoja) {
+    return fail("VALIDATION_ERROR", "O Financeiro recebe pela conta bancária; o dinheiro é no caixa da loja.", 422, "kind");
+  }
 
   let contaId: string | null = null;
   if (input.kind === "pix") {
@@ -311,7 +316,9 @@ export async function receberFiadoAction(
       }
 
       const naGaveta = input.kind === "dinheiro";
-      const turno = await resolverTurno(tx, ator, loja.data.id, texto(input.cash_register_id) ?? undefined, naGaveta ? "exige" : "se_houver");
+      const turno = naLoja
+        ? await resolverTurno(tx, ator, loja.data.id, texto(input.cash_register_id) ?? undefined, naGaveta ? "exige" : "se_houver")
+        : { ok: true as const, turno: null };
       if (!turno.ok) throw new RecusaCaixa(turno);
 
       const agora = new Date();
@@ -485,7 +492,7 @@ export async function listarContasAction(
   ator: Ator,
   opts: { incluir_arquivadas?: boolean } = {},
 ): Promise<ActionResult<ContaView[]>> {
-  const neg = await exigir(db, ator, "gestor_da_loja", "ver as contas bancárias");
+  const neg = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "ver as contas bancárias");
   if (neg) return neg;
   return ok(await viewsDasContas(db, opts.incluir_arquivadas ? {} : { archived_at: null }));
 }
@@ -504,7 +511,7 @@ export async function criarContaAction(
   ator: Ator,
   input: { name: string; bank?: string | null },
 ): Promise<ActionResult<ContaView>> {
-  const neg = await exigir(db, ator, "conta", "criar uma conta bancária");
+  const neg = await exigirUma(db, ator, ["conta", "dinheiro"], "criar uma conta bancária");
   if (neg) return neg;
   const nome = validarNomeDaConta(input?.name);
   if (!nome.ok) return nome;
@@ -537,7 +544,7 @@ export async function editarContaAction(
   id: string,
   input: { name?: string; bank?: string | null; archived?: boolean },
 ): Promise<ActionResult<ContaView>> {
-  const neg = await exigir(db, ator, "conta", "mudar uma conta bancária");
+  const neg = await exigirUma(db, ator, ["conta", "dinheiro"], "mudar uma conta bancária");
   if (neg) return neg;
   const atual = await db.bankAccount.findFirst({ where: { id } });
   if (!atual) return NAO_ACHADO("Conta");
@@ -601,7 +608,7 @@ export async function definirContaPixAction(
   establishment_id: string,
   input: { bank_account_id: string | null },
 ): Promise<ActionResult<{ establishment_id: string; pix_bank_account_id: string | null }>> {
-  const neg = await exigir(db, ator, "gestor_da_loja", "definir a conta PIX da loja");
+  const neg = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "definir a conta PIX da loja");
   if (neg) return neg;
   const loja = await acharLojaParaEscrita(db, ator, establishment_id);
   if (!loja.ok) return loja;
@@ -936,7 +943,7 @@ export async function lerCaixaAction(
     return NAO_ACHADO("Estabelecimento", "establishment_id");
   }
   const papel = await papelDoEmporio(db, ator);
-  const veContas = pode(papel, "gestor_da_loja");
+  const veContas = pode(papel, "gestor_da_loja") || pode(papel, "dinheiro");
   if (opts.bank_account_id && !veContas) return recusaDe("gestor_da_loja", "ver uma conta bancária");
 
   const lojas = await db.establishment.findMany({
@@ -1114,7 +1121,7 @@ export async function saldoInicialCaixaAction(
     if (neg) return neg;
     gerenciaId = loja.data.id;
   } else {
-    const neg = await exigir(db, ator, "conta", "informar o saldo inicial de uma conta bancária");
+    const neg = await exigirUma(db, ator, ["conta", "dinheiro"], "informar o saldo inicial de uma conta bancária");
     if (neg) return neg;
     const conta = await db.bankAccount.findFirst({
       where: { id: String(input.bank_account_id) },
@@ -1253,7 +1260,8 @@ export async function listarRegrasCartaoAction(
     include: INCLUDE_REGRA,
     orderBy: [{ establishment: { name: "asc" } }, { kind: "asc" }],
   });
-  const veConta = pode(await papelDoEmporio(db, ator), "gestor_da_loja");
+  const papelRegras = await papelDoEmporio(db, ator);
+  const veConta = pode(papelRegras, "gestor_da_loja") || pode(papelRegras, "dinheiro");
   return ok(regras.map((r) => viewDaRegra(r, veConta)));
 }
 
@@ -1277,7 +1285,7 @@ export async function definirRegraCartaoAction(
   ator: Ator,
   input: DefinirRegraCartaoInput,
 ): Promise<ActionResult<RegraCartaoView>> {
-  const neg = await exigir(db, ator, "gestor_da_loja", "definir a regra de cartão");
+  const neg = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "definir a regra de cartão");
   if (neg) return neg;
   const loja = await acharLojaParaEscrita(db, ator, input?.establishment_id);
   if (!loja.ok) return loja;
@@ -1344,7 +1352,7 @@ export async function removerRegraCartaoAction(
   ator: Ator,
   id: string,
 ): Promise<ActionResult<{ id: string }>> {
-  const neg = await exigir(db, ator, "gestor_da_loja", "remover a regra de cartão");
+  const neg = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "remover a regra de cartão");
   if (neg) return neg;
   const regra = await db.cardFeeRule.findFirst({
     where: { id },

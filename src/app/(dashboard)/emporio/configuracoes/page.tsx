@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
+import { veAPagina } from "@/lib/emporio/paginas";
 import { lerConfiguracoesAction } from "@/lib/actions/emporio-configuracoes";
 import { listarEstabelecimentosAction, type EstablishmentView } from "@/lib/actions/emporio-catalogo";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -36,7 +37,7 @@ export default async function ConfiguracoesPage() {
   const user = await requireFeaturePage("emporio");
   const db = await getTenantDb();
   const papel = await papelDoEmporio(db, user);
-  if (!pode(papel, "gestor_da_loja")) redirect("/emporio");
+  if (!veAPagina(papel, "/emporio/configuracoes")) redirect("/emporio");
   const podeEditarConta = pode(papel, "conta");
 
   const [cfgRes, lojasRes, usuarios] = await Promise.all([

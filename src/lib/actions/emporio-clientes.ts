@@ -12,7 +12,7 @@ import {
   type EnderecoDoPedido,
 } from "@/lib/emporio/cliente-cadastro";
 import { faltaNoClienteParaEntrega, linhaDoEndereco } from "@/lib/emporio/pedido-para-entrega";
-import { exigir } from "@/lib/emporio/papel";
+import { exigir, exigirUma } from "@/lib/emporio/papel";
 import { diferencas, registrarNoHistorico } from "@/lib/emporio/historico";
 
 /**
@@ -313,7 +313,7 @@ export async function listarClientesAction(
   ator: Ator,
   f: { q?: string; arquivados?: boolean; pagina?: number; por_pagina?: number },
 ): Promise<ActionResult<{ itens: ClienteLinha[]; total: number; pagina: number; por_pagina: number; poucos_digitos: boolean }>> {
-  const neg = await exigir(db, ator, "vendedor_da_loja", "ver os clientes");
+  const neg = await exigirUma(db, ator, ["vendedor_da_loja", "dinheiro"], "ver os clientes");
   if (neg) return neg;
 
   const porPagina = Math.min(POR_PAGINA_MAXIMO, Math.max(1, Math.floor(Number(f.por_pagina) || POR_PAGINA_PADRAO)));
@@ -359,7 +359,7 @@ export async function buscarClientesAction(
   ator: Ator,
   f: { q?: string; id?: string; pagina?: number; por_pagina?: number },
 ): Promise<ActionResult<ResultadoDaBusca<ClienteDaBusca>>> {
-  const neg = await exigir(db, ator, "vendedor_da_loja", "buscar um cliente");
+  const neg = await exigirUma(db, ator, ["vendedor_da_loja", "dinheiro"], "buscar um cliente");
   if (neg) return neg;
 
   const porPagina = Math.min(BUSCA_POR_PAGINA_MAXIMO, Math.max(1, Math.floor(Number(f.por_pagina) || BUSCA_POR_PAGINA_PADRAO)));
@@ -472,7 +472,7 @@ export async function lerFicha(
   id: string,
   limiteDeVendas: number,
 ): Promise<ActionResult<ClienteFichaView>> {
-  const neg = await exigir(db, ator, "vendedor_da_loja", "ver um cliente");
+  const neg = await exigirUma(db, ator, ["vendedor_da_loja", "dinheiro"], "ver um cliente");
   if (neg) return neg;
   const c = await db.emporioCustomer.findFirst({ where: { id } });
   if (!c) return NAO_ACHADO();

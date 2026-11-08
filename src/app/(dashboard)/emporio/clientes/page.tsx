@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
 import { listarClientesAction } from "@/lib/actions/emporio-clientes";
+import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { formatarDocumento } from "@/lib/contatos/cadastro";
 import { formatarTelefone } from "@/lib/emporio/telefone";
 import { POUCOS_DIGITOS } from "@/lib/emporio/sequencia-da-busca";
@@ -57,7 +58,7 @@ export default async function ClientesPage({
             Quem compra no Empório. Abra o cliente para ver o histórico de compras.
           </p>
         </div>
-        <ClienteForm modo="novo" />
+        {pode(await papelDoEmporio(db, user), "vendedor_da_loja") && <ClienteForm modo="novo" />}
       </header>
 
       <ClientesFiltro q={q} arquivados={mostrarArquivados} />

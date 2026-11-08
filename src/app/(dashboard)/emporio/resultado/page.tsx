@@ -2,7 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
-import { papelDoEmporio, pode } from "@/lib/emporio/papel";
+import { papelDoEmporio } from "@/lib/emporio/papel";
+import { veAPagina } from "@/lib/emporio/paginas";
 import { listarEstabelecimentosAction, lojasDoAtor } from "@/lib/actions/emporio-catalogo";
 import {
   resultadoDaLojaAction,
@@ -33,7 +34,7 @@ export default async function ResultadoPage({
 
   const db = await getTenantDb();
   // F6b: o resultado da loja é do Gestor da loja para cima; o Vendedor volta ao início.
-  if (!pode(await papelDoEmporio(db, user), "gestor_da_loja")) redirect("/emporio");
+  if (!veAPagina(await papelDoEmporio(db, user), "/emporio/resultado")) redirect("/emporio");
   const lojasRes = await listarEstabelecimentosAction(db, user);
   const lojas = lojasRes.ok ? lojasRes.data.map((l) => ({ id: l.id, name: l.name })) : [];
 

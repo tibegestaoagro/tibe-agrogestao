@@ -113,7 +113,7 @@ export default async function ClienteFichaPage({ params }: { params: Promise<{ i
         {!c.fixed && (
           <div className="flex flex-wrap gap-2">
             {/* A action recusa editar o arquivado: o botão só volta depois de desarquivar. */}
-            {!c.archived && (
+            {!c.archived && pode(papel, "vendedor_da_loja") && (
               <ClienteForm
                 modo="completar"
                 contatoId={c.id}

@@ -2,7 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
-import { papelDoEmporio, pode } from "@/lib/emporio/papel";
+import { papelDoEmporio } from "@/lib/emporio/papel";
+import { veAPagina } from "@/lib/emporio/paginas";
 import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
 import { relatorioDeVendasAction } from "@/lib/actions/emporio-relatorios";
 import { hojeEmBrasilia } from "@/lib/emporio/cartao";
@@ -23,7 +24,7 @@ export default async function RelatoriosPage({
   const { de: deDaUrl = "", ate: ateDaUrl = "", loja: lojaDaUrl = "" } = await searchParams;
 
   const db = await getTenantDb();
-  if (!pode(await papelDoEmporio(db, user), "gestor_da_loja")) redirect("/emporio");
+  if (!veAPagina(await papelDoEmporio(db, user), "/emporio/relatorios")) redirect("/emporio");
   const lojasRes = await listarEstabelecimentosAction(db, user);
   const lojas = lojasRes.ok ? lojasRes.data.map((l) => ({ id: l.id, name: l.name })) : [];
 

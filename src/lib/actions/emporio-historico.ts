@@ -1,7 +1,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import type { TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
-import { papelDoEmporio } from "@/lib/emporio/papel";
+import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { ACOES_DO_HISTORICO, linkDoAlvo, rotuloDaAcao, type MudancaDoHistorico } from "@/lib/emporio/historico";
 import type { AppUserRole } from "@/types/next-auth";
 
@@ -86,9 +86,9 @@ export async function listarHistoricoAction(
   filtros: HistoricoFiltros = {},
 ): Promise<ActionResult<HistoricoPagina>> {
   const papel = await papelDoEmporio(db, ator);
-  const conta = papel.papel === "dono" || papel.papel === "gerente_geral";
+  const conta = pode(papel, "dinheiro");
   if (!conta && papel.papel !== "gestor") {
-    return fail("FORBIDDEN", "Só o dono, o gerente geral e o gestor podem ver o Histórico.", 403);
+    return fail("FORBIDDEN", "Só o dono, o gerente geral, o financeiro e o gestor podem ver o Histórico.", 403);
   }
   const f = filtros ?? {};
 
