@@ -707,6 +707,34 @@ async function comBanco() {
       const t6seguinte = await entradaFixa(T6, L6.id, somaMeses(prox, 2));
       check("uma conta que ninguém mexeu recebe o valor novo (R$ 100)", perto(n(t6seguinte?.amount), 100), String(t6seguinte?.amount));
 
+      // a loja que sai do rateio e volta recebe a conta de novo; a cancelada à mão de outra loja não volta
+      const marca = (D as Record<string, unknown>).NOTA_SAIU_DO_RATEIO;
+      check("emporio-despesas exporta NOTA_SAIU_DO_RATEIO (texto)", typeof marca === "string" && marca.length > 0, String(marca));
+      const split3 = (a: number, b: number, c: number) => [{ establishment_id: L5.id, value: a }, { establishment_id: L6.id, value: b }, { establishment_id: L7.id, value: c }];
+      const corpoT7 = (splits: { establishment_id: string; value: number }[]) => ({ name: "M83 T7", category: "M83 T7", amount: 100, due_day: 10, split_kind: "percentual", splits });
+      const rT7 = await criarFixa(admin, { name: "M83 T7", amount: 100, due_day: 10, split_kind: "percentual", splits: split3(40, 30, 30) });
+      check("cria T7 (R$ 100, dia 10, 40/30/30 entre Lojas 5, 6 e 7)", rT7.ok, j(rT7));
+      const T7 = fixaId(rT7);
+      const t7mao = await entradaFixa(T7, L5.id, prox);
+      const t7sai = await entradaFixa(T7, L6.id, prox);
+      check("cancela à mão a conta do mês seguinte da Loja 5 (T7)", (await dd("cancelarContaAction", admin, { entry_id: t7mao?.id ?? "x", reason: "m83 T7 à mão" })).ok);
+      const vencAdiado7 = new Date(`${somaMeses(prox, 1)}-25T12:00:00Z`);
+      check("adia o vencimento da conta do mês seguinte da Loja 6 (T7)", (await dd("adiarVencimentoContaAction", admin, { entry_id: t7sai?.id ?? "x", due_date: vencAdiado7 })).ok);
+      const rSai7 = await dd("editarDespesaFixaAction", admin, T7, corpoT7([{ establishment_id: L5.id, value: 50 }, { establishment_id: L7.id, value: 50 }]));
+      check("tira a Loja 6 do rateio de T7 (Lojas 5 e 7 com 50/50)", rSai7.ok, j(rSai7));
+      const t7saiFora = await entrada(t7sai?.id);
+      check("a conta da Loja 6 que saiu do rateio fica cancelada, com a marca nas notes", t7saiFora?.status === "cancelled" && t7saiFora?.notes === marca, j([t7saiFora?.status, t7saiFora?.notes]));
+      const t7maoFora = await entrada(t7mao?.id);
+      check("a cancelada à mão da Loja 5 segue cancelada, sem a marca", t7maoFora?.status === "cancelled" && !(t7maoFora?.notes ?? "").includes(String(marca)), j([t7maoFora?.status, t7maoFora?.notes]));
+      const rVolta7 = await dd("editarDespesaFixaAction", admin, T7, corpoT7(split3(40, 30, 30)));
+      check("põe a Loja 6 de volta no rateio de T7 (40/30/30)", rVolta7.ok, j(rVolta7));
+      const t7saiVolta = await entrada(t7sai?.id);
+      check("a conta da Loja 6 volta a pendente, com R$ 30, sem a marca", t7saiVolta?.status === "pending" && perto(n(t7saiVolta?.amount), 30) && t7saiVolta?.notes === null, j([t7saiVolta?.status, t7saiVolta?.amount, t7saiVolta?.notes]));
+      check("e com o vencimento do modelo (dia 10 do mês seguinte), não o adiado de antes", diaDe(t7saiVolta?.due_date as Date) === vencEsperado(prox, 10), `${diaDe(t7saiVolta?.due_date as Date)} contra ${vencEsperado(prox, 10)}`);
+      const t7maoVolta = await entrada(t7mao?.id);
+      check("a cancelada à mão da Loja 5 segue cancelada depois da volta da Loja 6", t7maoVolta?.status === "cancelled", j(t7maoVolta?.status));
+      check("T7 não duplicou ocorrência (12 meses x 3 lojas)", (await ocorrenciasDe(T7)).length === 36);
+
       // renovar: modelo que começou há 10 meses gerou só até o mês +1
       const inicio = somaMeses(mes, -10);
       const rT5 = await criarFixa(admin, { name: "M83 T5", amount: 50, due_day: 20, split_kind: "valor", starts_on: primeiroDia(inicio), splits: [{ establishment_id: L5.id, value: 50 }] });

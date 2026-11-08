@@ -552,6 +552,23 @@ function partesDoMes(
   return partes;
 }
 
+/**
+ * Marca nas `notes` da conta que a edição da despesa fixa cancelou porque a loja saiu do rateio.
+ * Distingue esse cancelamento do feito à mão (`cancelarContaAction`), que nunca volta sozinho.
+ */
+export const NOTA_SAIU_DO_RATEIO = "Saiu do rateio da despesa fixa";
+const SEPARADOR_NOTA = " | ";
+
+function temNotaSaiuDoRateio(notas: string | null): boolean {
+  return notas === NOTA_SAIU_DO_RATEIO || (notas ?? "").endsWith(`${SEPARADOR_NOTA}${NOTA_SAIU_DO_RATEIO}`);
+}
+
+function semNotaSaiuDoRateio(notas: string | null): string | null {
+  if (notas === null || notas === NOTA_SAIU_DO_RATEIO) return null;
+  const fim = `${SEPARADOR_NOTA}${NOTA_SAIU_DO_RATEIO}`;
+  return notas.endsWith(fim) ? notas.slice(0, -fim.length) : notas;
+}
+
 async function criarOcorrencia(
   tx: Tx,
   t: { id: string; category: string; due_day: number },
@@ -766,18 +783,30 @@ export async function editarDespesaFixaAction(
     const pagas = await comPagamento(tx, ocorrencias.map((o) => o.financial_entry_id));
     const porChave = new Map(ocorrencias.map((o) => [`${o.establishment_id}|${textoDoMes(mesDaData(o.period))}`, o]));
     const nova = { id, category: d.category, due_day: d.due_day };
-    // Conta cancelada à mão (`cancelarContaAction`) não volta a ser cobrada, e vencimento adiado (`adiarVencimentoContaAction`)
-    // não é desfeito: com o mesmo dia de vencimento do modelo, o `due_date` da conta fica como está;
-    // se o `due_day` mudou nesta edição, recalcula (a pessoa pediu outro dia).
+    // As três regras das contas futuras sem pagamento:
+    // 1. Conta cancelada à mão (`cancelarContaAction`, ou qualquer cancelada sem a marca `NOTA_SAIU_DO_RATEIO`) fica cancelada.
+    //    As canceladas por esta edição antes de a marca existir não a têm e contam como à mão (a função nasceu nesta branch).
+    // 2. Conta cancelada por esta edição porque a loja saiu do rateio (ou ficou com parte zero) leva a marca nas `notes`;
+    //    se a loja volta com parte > 0, a conta volta a `pending`, com o valor recalculado e o vencimento do modelo.
+    // 3. Vencimento adiado (`adiarVencimentoContaAction`) não é desfeito: com o mesmo `due_day` do modelo, o `due_date`
+    //    fica como está; se o `due_day` mudou nesta edição, recalcula (a pessoa pediu outro dia).
     const lancamentos = new Map(
       (
         await tx.financialEntry.findMany({
           where: { id: { in: ocorrencias.map((o) => o.financial_entry_id) } },
-          select: { id: true, status: true },
+          select: { id: true, status: true, notes: true },
         })
-      ).map((e) => [e.id, e.status]),
+      ).map((e) => [e.id, e]),
     );
     const mudouODia = d.due_day !== t.due_day;
+    const cancelarPorRateio = (entryId: string) => {
+      const notas = lancamentos.get(entryId)?.notes ?? null;
+      return {
+        status: "cancelled" as const,
+        notes: notas ? `${notas}${SEPARADOR_NOTA}${NOTA_SAIU_DO_RATEIO}` : NOTA_SAIU_DO_RATEIO,
+        updated_by_user_id: ator.id,
+      };
+    };
 
     for (let m = inicioJanela; compararMeses(m, ultimo) <= 0; m = somarMeses(m, 1)) {
       for (const s of d.splits) {
@@ -788,7 +817,9 @@ export async function editarDespesaFixaAction(
           continue;
         }
         if (pagas.has(existente.financial_entry_id)) continue;
-        if (lancamentos.get(existente.financial_entry_id) === "cancelled") continue;
+        const lancamento = lancamentos.get(existente.financial_entry_id);
+        const voltaAoRateio = lancamento?.status === "cancelled" && temNotaSaiuDoRateio(lancamento.notes);
+        if (lancamento?.status === "cancelled" && !(voltaAoRateio && parte > 0)) continue;
         const vencimento = diaDoMes(m, d.due_day);
         await tx.financialEntry.update({
           where: { id: existente.financial_entry_id },
@@ -797,22 +828,24 @@ export async function editarDespesaFixaAction(
               ? {
                   amount: parte / 100,
                   category: d.category,
-                  ...(mudouODia ? { due_date: vencimento } : {}),
+                  ...(mudouODia || voltaAoRateio ? { due_date: vencimento } : {}),
+                  ...(voltaAoRateio ? { notes: semNotaSaiuDoRateio(lancamento?.notes ?? null) } : {}),
                   status: "pending",
                   paid_at: null,
                   updated_by_user_id: ator.id,
                 }
-              : { status: "cancelled", updated_by_user_id: ator.id },
+              : cancelarPorRateio(existente.financial_entry_id),
         });
       }
-      // A loja que saiu do rateio: a conta futura sem pagamento é cancelada.
+      // A loja que saiu do rateio: a conta futura sem pagamento e ainda não cancelada é cancelada, com a marca.
       for (const o of ocorrencias) {
         if (textoDoMes(mesDaData(o.period)) !== textoDoMes(m)) continue;
         if (d.splits.some((s) => s.establishment_id === o.establishment_id)) continue;
         if (pagas.has(o.financial_entry_id)) continue;
+        if (lancamentos.get(o.financial_entry_id)?.status === "cancelled") continue;
         await tx.financialEntry.update({
           where: { id: o.financial_entry_id },
-          data: { status: "cancelled", updated_by_user_id: ator.id },
+          data: cancelarPorRateio(o.financial_entry_id),
         });
       }
     }
