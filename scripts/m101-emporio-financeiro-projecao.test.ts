@@ -885,6 +885,28 @@ async function secao4Juiz() {
   check("a irmã não foi cancelada nem refeita", depois.every((e) => e.status !== "cancelled"), j(depois.map((e) => e.status)));
   check("nada nasceu: o número de ocorrências é o mesmo", (await F.db.fixedExpenseOccurrence.count({ where: { template_id: tpl } })) === ocsAntes);
 
+  console.log("  (a2) manual com a conta do MÊS CORRENTE já paga, trocado para área: o mês corrente também é fechado (juiz, rodada 2)");
+  const cf2 = await chamar(F.tok.owner, R.fixed, "POST", "emporio/fixed-expenses", {
+    name: "M101 Fixa fechada hoje", category: "M101 Fixa fechada hoje", amount: 1000, due_day: 20, starts_on: `${mesCorrente}-01`,
+    split_kind: "valor", splits: [{ establishment_id: F.L1, value: 750 }, { establishment_id: F.L2, value: 250 }],
+  });
+  check("(fixture) o segundo modelo manual de R$ 1.000: 201", cf2.status === 201, `${cf2.status} ${j(cf2.corpo)}`);
+  const tpl2 = String(cf2.corpo?.data?.id ?? "");
+  const hojeAntes = (await doMes(tpl2, mesCorrente)) as Dado[];
+  const pagaHoje = hojeAntes.find((e) => perto(n(e.amount), 250));
+  check("(fixture) o mês corrente tem duas contas (750 e 250)", hojeAntes.length === 2 && !!pagaHoje, j(hojeAntes.map((e) => e.amount)));
+  const pg2 = await chamar(F.tok.owner, R.payablesPay, "POST", "emporio/payables/pay", { entry_ids: [String(pagaHoje?.id)], from: { bank_account_id: F.conta } });
+  check("(fixture) a conta de 250 do mês corrente é paga: 2xx", ok2xx(pg2), `${pg2.status} ${j(pg2.corpo)}`);
+  const ocsAntes2 = await F.db.fixedExpenseOccurrence.count({ where: { template_id: tpl2 } });
+  const tr2 = await chamar(F.tok.owner, R.fixedId, "PATCH", `emporio/fixed-expenses/${tpl2}`, { split_kind: "area" }, tpl2);
+  check("(fixture) trocar para área: 200", tr2.status === 200, `${tr2.status} ${j(tr2.corpo)}`);
+  await garantirSeguro(Dd, F.db, F.owner, civil(mesCorrente));
+  const hojeDepois = await doMes(tpl2, mesCorrente);
+  const vivasHoje = hojeDepois.filter((e) => e.status !== "cancelled");
+  check("o mês corrente segue somando 1.000 (a paga de 250 e a irmã de 750 intactas)", perto(soma(vivasHoje), 1000) && vivasHoje.length === 2, j(hojeDepois.map((e) => `${e.amount} ${e.status}`)));
+  check("a irmã do mês corrente não foi recalculada (continua 750)", vivasHoje.some((e) => perto(n(e.amount), 750)), j(vivasHoje.map((e) => e.amount)));
+  check("nada nasceu no mês corrente: o número de ocorrências é o mesmo", (await F.db.fixedExpenseOccurrence.count({ where: { template_id: tpl2 } })) === ocsAntes2);
+
   console.log("  (b) manual cujo lote de 12 meses acabou: a projeção estima os meses sem conta com as partes dos splits");
   const fim = emDias(89);
   const meses28 = [1, 2, 3].map((k) => somaMes(mesCorrente, k)).filter((ym) => `${ym}-28` <= fim).length;
