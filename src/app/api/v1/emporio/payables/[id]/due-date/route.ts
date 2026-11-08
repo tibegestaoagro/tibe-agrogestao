@@ -6,7 +6,7 @@ import { adiarVencimentoContaAction } from "@/lib/actions/emporio-despesas";
 import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
 import { dataIso } from "@/lib/emporio/venda-schema";
 
-/** PATCH /api/v1/emporio/payables/:id/due-date  { due_date }  adia o vencimento de uma conta pendente: Gestor, Financeiro, Gerente geral e Dono. */
+/** PATCH /api/v1/emporio/payables/:id/due-date  { due_date }  adia o vencimento de uma conta pendente: Financeiro, Gerente geral e Dono (o Gestor da loja recebe 403). */
 
 const schema = z.object({
   due_date: dataIso,

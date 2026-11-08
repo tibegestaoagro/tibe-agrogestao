@@ -5,7 +5,7 @@ import { withApi } from "@/lib/route";
 import { cancelarContaAction } from "@/lib/actions/emporio-despesas";
 import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
 
-/** POST /api/v1/emporio/payables/:id/cancel  { reason }  cancela uma conta sem pagamento: Gestor, Financeiro, Gerente geral e Dono. */
+/** POST /api/v1/emporio/payables/:id/cancel  { reason }  cancela uma conta sem pagamento: Financeiro, Gerente geral e Dono (o Gestor da loja recebe 403). */
 
 const schema = z.object({
   reason: z.string({ error: "Diga o motivo do cancelamento." }).trim().min(1, "Diga o motivo do cancelamento."),

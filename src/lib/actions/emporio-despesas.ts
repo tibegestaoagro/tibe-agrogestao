@@ -786,9 +786,11 @@ export async function editarDespesaFixaAction(
     const nova = { id, category: d.category, due_day: d.due_day };
     // As três regras das contas futuras sem pagamento:
     // 1. Conta cancelada à mão (`cancelarContaAction`, que grava "Cancelada: ..." nas `notes`) fica cancelada.
-    // 2. Qualquer outra cancelada (a marca `NOTA_SAIU_DO_RATEIO` documenta as de agora; as de antes dela não têm marca
-    //    nenhuma e também eram só de rateio): se a loja volta com parte > 0, a conta volta a `pending`,
-    //    com o valor recalculado e o vencimento do modelo.
+    // 2. Qualquer outra cancelada volta a `pending` quando a loja tem parte > 0, com o valor recalculado e o
+    //    vencimento do modelo. A marca `NOTA_SAIU_DO_RATEIO` documenta as canceladas pela saída da loja do rateio
+    //    a partir desta versão; as de antes não têm marca, e entre elas pode haver conta cancelada à mão pelo
+    //    /financeiro do Tibé (antes de `cancelEntryAction` recusar conta do Empório), com `notes` nulas. Essa volta
+    //    também, como já voltava antes: distinguir exigiria mexer em dado de produção, e re-cancelar é um clique.
     // 3. Vencimento adiado (`adiarVencimentoContaAction`) não é desfeito: com o mesmo `due_day` do modelo, o `due_date`
     //    fica como está; se o `due_day` mudou nesta edição, recalcula (a pessoa pediu outro dia).
     const lancamentos = new Map(
