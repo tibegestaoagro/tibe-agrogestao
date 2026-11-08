@@ -34,7 +34,11 @@ export async function areaPermitida(
   return "fazenda";
 }
 
-/** Pedaço do `where` de `FinancialEntry`: sempre sem loja, com a fazenda escolhida quando houver. */
+/**
+ * Pedaço do `where` de `FinancialEntry`: sempre sem loja, com a fazenda escolhida quando houver.
+ * A entry do Empório sempre nasce com `establishment_id` e `related_module: "emporio"`; a guarda do
+ * Tibé é `ehDoEmporio` (`src/lib/financial.ts`), e se um dia as duas condições divergirem é ela que vale.
+ */
 export function filtroDeArea(
   _area: AreaFinanceira | undefined,
   property_id?: string,

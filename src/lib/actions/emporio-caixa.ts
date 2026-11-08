@@ -1441,7 +1441,9 @@ export async function depositarChequeAction(
   id: string,
   input: { bank_account_id: string },
 ): Promise<ActionResult<ChequeView>> {
-  const neg = await exigir(db, ator, "chave:depositar_cheque", "depositar cheque");
+  // O depósito não mexe na gaveta nem pede turno (só troca o status e escolhe a conta),
+  // então o Financeiro, que cuida das contas, também deposita.
+  const neg = await exigirUma(db, ator, ["chave:depositar_cheque", "dinheiro"], "depositar cheque");
   if (neg) return neg;
   const cheque = await acharCheque(db, ator, id);
   if (!cheque) return NAO_ACHADO("Cheque");
@@ -1481,7 +1483,7 @@ export async function compensarChequeAction(
   ator: Ator,
   id: string,
 ): Promise<ActionResult<ChequeView>> {
-  const neg = await exigir(db, ator, "gestor_da_loja", "marcar o cheque como compensado");
+  const neg = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "marcar o cheque como compensado");
   if (neg) return neg;
   const cheque = await acharCheque(db, ator, id);
   if (!cheque) return NAO_ACHADO("Cheque");
@@ -1529,7 +1531,7 @@ export async function chequeVoltouAction(
   id: string,
   input: { reason: string },
 ): Promise<ActionResult<ChequeView>> {
-  const neg = await exigir(db, ator, "gestor_da_loja", "marcar o cheque como devolvido");
+  const neg = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "marcar o cheque como devolvido");
   if (neg) return neg;
   const cheque = await acharCheque(db, ator, id);
   if (!cheque) return NAO_ACHADO("Cheque");

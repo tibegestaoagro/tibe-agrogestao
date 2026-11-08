@@ -9,7 +9,9 @@ exigirBancoLocal();
 
 /**
  * Módulo 39 (Meu Empório), F4b: visão somada, produtos que mais vendem e que
- * mais dão margem, vendas com margem negativa e o filtro de área do Financeiro.
+ * mais dão margem, vendas com margem negativa e o filtro de área do Financeiro
+ * (desde a Q222 o `area` é aceito e ignorado: `filtroDeArea` devolve sempre a
+ * fazenda, e a seção F prova que `area=emporio` não traz lançamento de loja).
  * Roda: `npm run test:m84`
  *
  * Escrita da spec (docs/specs/module-39-meu-emporio.md, "F4b: contrato", Q103 a
@@ -20,7 +22,7 @@ exigirBancoLocal();
  * - G: duas lojas, vendas, transferência com diferença e despesa fixa 50/50 (o aceite);
  * - R: uma loja, 13 produtos, regras, cartão e devolução (conta independente do rateio);
  * - N: duas lojas com uma venda de cada causa de margem negativa;
- * - F: lançamentos com loja e sem loja (filtro de área);
+ * - F: lançamentos com loja e sem loja (o filtro devolve só os sem loja, qualquer `area`);
  * - B: sem dados, só para provar isolamento.
  *
  * O que o contrato calava e esta suíte ASSUME:

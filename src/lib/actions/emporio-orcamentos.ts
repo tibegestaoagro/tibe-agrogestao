@@ -2,7 +2,7 @@ import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { decToNum } from "@/lib/serialize";
 import { delegates } from "@/lib/prisma-delegates";
-import { exigir } from "@/lib/emporio/papel";
+import { exigir, exigirUma } from "@/lib/emporio/papel";
 import { runSerializableTenantTransaction } from "@/lib/financial";
 import { custoMedio } from "@/lib/emporio/custo-medio";
 import { formatarNumero, proximoNumero } from "@/lib/emporio/numeracao";
@@ -257,7 +257,7 @@ export async function lerOrcamentoAction(
   ator: Ator,
   id: string,
 ): Promise<ActionResult<OrcamentoView>> {
-  const neg = await exigir(db, ator, "vendedor_da_loja", "ver um orçamento");
+  const neg = await exigirUma(db, ator, ["vendedor_da_loja", "dinheiro"], "ver um orçamento");
   if (neg) return neg;
   const limpo = typeof id === "string" ? id.trim() : "";
   if (!limpo) return NAO_ACHADO();
@@ -272,7 +272,7 @@ export async function buscarOrcamentoPorNumeroAction(
   establishmentId: string,
   numero: number,
 ): Promise<ActionResult<OrcamentoView>> {
-  const neg = await exigir(db, ator, "vendedor_da_loja", "buscar um orçamento");
+  const neg = await exigirUma(db, ator, ["vendedor_da_loja", "dinheiro"], "buscar um orçamento");
   if (neg) return neg;
   const lojaId = typeof establishmentId === "string" ? establishmentId.trim() : "";
   if (!lojaId || !(await lojaVisivel(db, ator, lojaId))) {

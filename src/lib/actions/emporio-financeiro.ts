@@ -89,8 +89,13 @@ export type ExtratoLinhaView = {
   description: string;
 };
 
+export type LugarDoExtrato = { kind: "conta" | "gaveta" | "gerencia"; id: string };
+
 export type ExtratoView = {
-  account: { id: string; name: string; bank: string | null };
+  /** O lugar do extrato; para gaveta e gerência o `id` é o da loja e o `name`, o dela. */
+  place: { kind: "conta" | "gaveta" | "gerencia"; id: string; name: string };
+  /** Só para `place.kind === "conta"`; nulo nos outros lugares. */
+  account: { id: string; name: string; bank: string | null } | null;
   opening_balance: number;
   lines: ExtratoLinhaView[];
   closing_balance: number;
@@ -254,10 +259,44 @@ export async function lerExtratoDaContaAction(
   ator: Ator,
   input: { bank_account_id: string; de: Date; ate: Date },
 ): Promise<ActionResult<ExtratoView>> {
-  const neg = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "ver o extrato de uma conta");
+  return lerExtratoAction(db, ator, {
+    lugar: { kind: "conta", id: input?.bank_account_id },
+    de: input?.de,
+    ate: input?.ate,
+  });
+}
+
+/**
+ * O extrato de um lugar do bloco 1 (conta, gaveta ou gerência de uma loja) no
+ * período. Conta: movimentos mais parcelas de cartão. Gaveta e gerência: só
+ * movimentos, pelo mesmo filtro e pela mesma soma da posição do Hoje, para o
+ * fechamento bater com ela. Permissão: conta pede gestor ou dinheiro; gaveta,
+ * vendedor da loja ou dinheiro; gerência, gestor da loja ou dinheiro.
+ */
+export async function lerExtratoAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  input: { lugar: LugarDoExtrato; de: Date; ate: Date },
+): Promise<ActionResult<ExtratoView>> {
+  const kind = input?.lugar?.kind;
+  if (kind !== "conta" && kind !== "gaveta" && kind !== "gerencia") {
+    return fail("VALIDATION_ERROR", "Escolha o lugar: conta, gaveta ou gerência.", 422, "kind");
+  }
+  const campoId = kind === "conta" ? "bank_account_id" : "id";
+  const lugarId = typeof input.lugar.id === "string" ? input.lugar.id.trim() : "";
+  const neg =
+    kind === "conta"
+      ? await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "ver o extrato de uma conta")
+      : await exigirUma(
+          db,
+          ator,
+          [kind === "gaveta" ? "vendedor_da_loja" : "gestor_da_loja", "dinheiro"],
+          kind === "gaveta" ? "ver o extrato da gaveta" : "ver o extrato da gerência",
+          lugarId || undefined,
+        );
   if (neg) return neg;
-  if (typeof input?.bank_account_id !== "string" || !input.bank_account_id) {
-    return fail("VALIDATION_ERROR", "Escolha a conta.", 422, "bank_account_id");
+  if (!lugarId) {
+    return fail("VALIDATION_ERROR", kind === "conta" ? "Escolha a conta." : "Escolha a loja.", 422, campoId);
   }
   if (!dataValida(input.de)) return fail("VALIDATION_ERROR", "Informe uma data inicial válida.", 422, "de");
   if (!dataValida(input.ate)) return fail("VALIDATION_ERROR", "Informe uma data final válida.", 422, "ate");
@@ -269,8 +308,21 @@ export async function lerExtratoDaContaAction(
   if ((ateDia.getTime() - deDia.getTime()) / DIA_MS + 1 > PERIODO_MAXIMO_DIAS) {
     return fail("VALIDATION_ERROR", `O período do extrato é de até ${PERIODO_MAXIMO_DIAS} dias.`, 422, "ate");
   }
-  const conta = await db.bankAccount.findFirst({ where: { id: input.bank_account_id }, select: { id: true, name: true, bank: true } });
-  if (!conta) return fail("NOT_FOUND", "Conta não encontrada.", 404, "bank_account_id");
+  let conta: { id: string; name: string; bank: string | null } | null = null;
+  let lugar: { kind: "conta" | "gaveta" | "gerencia"; id: string; name: string };
+  let ondeMovimentos: { bank_account_id: string } | { establishment_id: string } | { manager_establishment_id: string };
+  if (kind === "conta") {
+    conta = await db.bankAccount.findFirst({ where: { id: lugarId }, select: { id: true, name: true, bank: true } });
+    if (!conta) return fail("NOT_FOUND", "Conta não encontrada.", 404, "bank_account_id");
+    lugar = { kind, id: conta.id, name: conta.name };
+    ondeMovimentos = { bank_account_id: conta.id };
+  } else {
+    const loja = await db.establishment.findFirst({ where: { id: lugarId }, select: { id: true, name: true } });
+    if (!loja) return fail("NOT_FOUND", "Estabelecimento não encontrado.", 404, "id");
+    lugar = { kind, id: loja.id, name: loja.name };
+    // O mesmo filtro de `saldoDaGaveta` e `saldoDaGerencia`, que alimentam o bloco 1 do Hoje.
+    ondeMovimentos = kind === "gaveta" ? { establishment_id: loja.id } : { manager_establishment_id: loja.id };
+  }
 
   const desde = new Date(deDia.getTime() + MEIA_NOITE_SP_EM_UTC_MS);
   const ate = new Date(ateDia.getTime() + DIA_MS + MEIA_NOITE_SP_EM_UTC_MS);
@@ -278,26 +330,30 @@ export async function lerExtratoDaContaAction(
   const [antes, antesCartao, movs, parcelas] = await Promise.all([
     db.cashMovement.groupBy({
       by: ["direction"],
-      where: { bank_account_id: conta.id, occurred_at: { lt: desde } },
+      where: { ...ondeMovimentos, occurred_at: { lt: desde } },
       _sum: { amount: true },
     }),
-    db.cardReceivable.aggregate({
-      where: { bank_account_id: conta.id, canceled_at: null, expected_on: { lt: deDia } },
-      _sum: { net_amount: true },
-    }),
+    conta
+      ? db.cardReceivable.aggregate({
+          where: { bank_account_id: conta.id, canceled_at: null, expected_on: { lt: deDia } },
+          _sum: { net_amount: true },
+        })
+      : null,
     db.cashMovement.findMany({
-      where: { bank_account_id: conta.id, occurred_at: { gte: desde, lt: ate } },
+      where: { ...ondeMovimentos, occurred_at: { gte: desde, lt: ate } },
       include: { establishment: { select: { name: true } } },
       orderBy: [{ occurred_at: "asc" }, { created_at: "asc" }],
     }),
-    db.cardReceivable.findMany({
-      where: { bank_account_id: conta.id, canceled_at: null, expected_on: { gte: deDia, lte: ateDia } },
-      include: { establishment: { select: { name: true } } },
-      orderBy: [{ expected_on: "asc" }, { installment: "asc" }],
-    }),
+    conta
+      ? db.cardReceivable.findMany({
+          where: { bank_account_id: conta.id, canceled_at: null, expected_on: { gte: deDia, lte: ateDia } },
+          include: { establishment: { select: { name: true } } },
+          orderBy: [{ expected_on: "asc" }, { installment: "asc" }],
+        })
+      : [],
   ]);
 
-  let abertura = centavos(decToNum(antesCartao._sum.net_amount) ?? 0);
+  let abertura = centavos(decToNum(antesCartao?._sum.net_amount) ?? 0);
   for (const l of antes) {
     const v = centavos(decToNum(l._sum.amount) ?? 0);
     abertura += l.direction === "entrada" ? v : -v;
@@ -330,7 +386,8 @@ export async function lerExtratoDaContaAction(
 
   const variacao = linhas.reduce((s, l) => s + (l.direction === "entrada" ? centavos(l.amount) : -centavos(l.amount)), 0);
   return ok({
-    account: { id: conta.id, name: conta.name, bank: conta.bank },
+    place: lugar,
+    account: conta ? { id: conta.id, name: conta.name, bank: conta.bank } : null,
     opening_balance: abertura / 100,
     lines: linhas,
     closing_balance: (abertura + variacao) / 100,

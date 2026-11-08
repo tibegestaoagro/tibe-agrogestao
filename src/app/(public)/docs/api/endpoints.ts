@@ -973,7 +973,7 @@ export const GROUPS: Group[] = [
       {
         method: "GET",
         path: "/api/v1/emporio/quotes/:id",
-        auth: "Sessão · emporio:read · quem vende na loja do orçamento (Caixa incluído)",
+        auth: "Sessão · emporio:read · quem vende na loja do orçamento (Caixa incluído), e o Financeiro, que lê o de qualquer loja (só leitura)",
         description: "Um orçamento: loja, cliente (`id`, `name`, `phone`, `document`), vendedor e quem salvou, `valid_until`, `situacao` derivada (`faturado` com venda ativa; senão `vencido` depois de `valid_until` em Brasília; senão `aberto`), `sale` (a venda ativa que o faturou) e `vendas` (todas as que saíram dele). Cada item traz `preco_orcado`, `preco_hoje` (nulo sem preço na loja), `preco_que_vale` (dentro da validade, o menor entre o orçado e o de hoje; vencido, o de hoje), `preco_de_referencia` (a referência do desconto ao faturar hoje: dentro da validade, o menor entre o de hoje e o `preco_sugerido`; vencido, o de hoje), `mudou`, `saldo_base` (o saldo da loja na unidade-base) e `falta`. De outra conta ou de loja fora do vínculo: 404.",
         response: `200
 { "data": { "id": "cl...", "numero": "000001", "situacao": "aberto", "customer": { "id": "cl...", "name": "Seu Zé", "phone": "11999990000", "document": "39053344705" }, "items": [{ "produto": "Sal grosso", "apresentacao": "Quilo", "quantity": 2, "preco_orcado": 19, "preco_sugerido": 20, "preco_hoje": 20, "preco_que_vale": 19, "preco_de_referencia": 20, "mudou": false, "saldo_base": 100, "falta": false, "total": 38 }] }, "meta": {} }`,
@@ -1083,7 +1083,7 @@ export const GROUPS: Group[] = [
       {
         method: "PATCH",
         path: "/api/v1/emporio/payables/:id/due-date",
-        auth: "Sessão · emporio:write · Gestor da loja, Financeiro, Gerente geral e Dono",
+        auth: "Sessão · emporio:write · Financeiro, Gerente geral e Dono (o Gestor da loja recebe 403)",
         description: "Adia o vencimento de uma conta pendente (`due_date`, AAAA-MM-DD). Conta que não está pendente: 422 `NOT_PENDING` em `due_date`; data inválida: 422 `due_date`; conta que não é do Empório: 404.",
         request: `{ "due_date": "2026-12-10" }`,
         response: `200
@@ -1092,7 +1092,7 @@ export const GROUPS: Group[] = [
       {
         method: "POST",
         path: "/api/v1/emporio/payables/:id/cancel",
-        auth: "Sessão · emporio:write · Gestor da loja, Financeiro, Gerente geral e Dono",
+        auth: "Sessão · emporio:write · Financeiro, Gerente geral e Dono (o Gestor da loja recebe 403)",
         description: "Cancela uma conta sem pagamento, com `reason` (422 `reason` se vazio). Conta com pagamento registrado: 422 `ENTRY_HAS_PAYMENTS`; já cancelada: 409 `ENTRY_CANCELED`; conta que não é do Empório: 404. Nada é apagado.",
         request: `{ "reason": "Compra lançada em duplicidade" }`,
         response: `200
@@ -1117,10 +1117,10 @@ export const GROUPS: Group[] = [
       {
         method: "GET",
         path: "/api/v1/emporio/finance/statement",
-        auth: "Sessão · emporio:read · Financeiro, Gerente geral e Dono (os outros papéis: 403)",
-        description: "Extrato de uma conta bancária no período. Query obrigatória: `bank_account_id`, `de` e `ate` (AAAA-MM-DD, inclusivos, até 92 dias; 422 no campo que falhar, inclusive data que não existe, como 2026-02-31). Devolve o saldo de abertura, as linhas (movimentos da conta e parcelas de cartão do período, com `kind` `movimento` ou `cartao`) e o saldo de fechamento. Conta de outra conta de cliente: 404.",
+        auth: "Sessão · emporio:read · conta: Gestor da loja, Financeiro, Gerente geral e Dono; gaveta: quem vende na loja (Caixa incluído) e o Financeiro; gerência: Gestor da loja e o Financeiro (os outros papéis: 403; Gerente geral e Dono passam em todos)",
+        description: "Extrato de um lugar no período. Query: `kind` (`conta`, `gaveta` ou `gerencia`; padrão `conta`), `id` (a conta, ou a loja para gaveta e gerência; `bank_account_id` segue valendo como sinônimo de `kind=conta&id=`), `de` e `ate` (AAAA-MM-DD, inclusivos, até 92 dias; 422 no campo que falhar, inclusive data que não existe, como 2026-02-31). Devolve `place` (`kind`, `id`, `name`), `account` (só na conta; nulo nos outros), o saldo de abertura, as linhas (movimentos do lugar e, na conta, as parcelas de cartão do período, com `kind` `movimento` ou `cartao`) e o saldo de fechamento, pela mesma soma da posição do `finance/today`. Conta ou loja de outra conta de cliente: 404.",
         response: `200
-{ "data": { "account": { "id": "cl...", "name": "Conta principal", "bank": null }, "opening_balance": 5000, "lines": [{ "kind": "movimento", "id": "cl...", "occurred_on": "2026-11-05", "direction": "saida", "amount": 220, "origin": "pagamento_compra", "establishment_id": "cl...", "establishment_name": "Loja Centro", "description": "Pagamento de compra" }], "closing_balance": 4780 }, "meta": {} }`,
+{ "data": { "place": { "kind": "conta", "id": "cl...", "name": "Conta principal" }, "account": { "id": "cl...", "name": "Conta principal", "bank": null }, "opening_balance": 5000, "lines": [{ "kind": "movimento", "id": "cl...", "occurred_on": "2026-11-05", "direction": "saida", "amount": 220, "origin": "pagamento_compra", "establishment_id": "cl...", "establishment_name": "Loja Centro", "description": "Pagamento de compra" }], "closing_balance": 4780 }, "meta": {} }`,
       },
       {
         method: "POST",
