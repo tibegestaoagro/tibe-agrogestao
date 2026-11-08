@@ -1061,17 +1061,21 @@ export async function editarDespesaFixaAction(
     // De manual para automático, as contas futuras sem pagamento (do mês seguinte em diante) ficam canceladas com
     // `NOTA_VIROU_AUTOMATICO` até o mês chegar, e o gatilho de leitura as refaz com a base daquele momento. Isso vale
     // também para as que a saída da loja do rateio já cancelou (trocam a marca); as canceladas à mão seguem canceladas.
-    // Exceção: o mês (o corrente ou um futuro) que já tem alguma ocorrência paga é um mês fechado. As irmãs dele não
-    // são canceladas nem recalculadas (ficam como partes manuais) e o gatilho não refaz nem cria nada nele, para a
-    // soma do mês seguir sendo o valor do modelo. O corrente entra aqui porque o laço abaixo recalcula as partes dele
-    // com a base automática, e a paga ficaria por cima (1.250 para um modelo de 1.000, juiz da entrega 4).
+    // Em modelo automático (o que acabou de virar e o que já era), o mês (o corrente ou um futuro) que já tem alguma
+    // ocorrência paga é um mês fechado em TODA edição: as irmãs não são canceladas nem recalculadas (ficam como
+    // estão) e o gatilho não refaz nem cria nada nele. Sem isso o laço abaixo redistribui o valor inteiro do modelo
+    // entre todas as lojas por cima da paga (1.250 para um modelo de 1.000, juiz da entrega 4, rodadas 2 e 3: a
+    // troca e, depois, qualquer edição, até renomear). No manual as partes são fixas por loja, e recalcular a irmã
+    // não paga é o comportamento de sempre.
     const mesesFechados = new Set<string>();
-    if (!eraAutomatico && automatico) {
+    if (automatico) {
       for (const o of ocorrencias) {
         if (compararMeses(mesDaData(o.period), atual) >= 0 && pagas.has(o.financial_entry_id)) {
           mesesFechados.add(textoDoMes(mesDaData(o.period)));
         }
       }
+    }
+    if (!eraAutomatico && automatico) {
       for (const o of ocorrencias) {
         if (compararMeses(mesDaData(o.period), atual) <= 0) continue;
         if (mesesFechados.has(textoDoMes(mesDaData(o.period)))) continue;

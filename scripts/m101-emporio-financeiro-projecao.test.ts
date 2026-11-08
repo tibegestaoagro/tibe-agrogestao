@@ -519,14 +519,14 @@ async function secao3() {
   const nasceu = hist.filter((h) => String(h.summary).includes("M101 Fat") && /nasceu/i.test(String(h.summary)));
   check("o Histórico grava UMA linha despesa.fixa 'nasceu' para o modelo (as duas chamadas não duplicam)", nasceu.length === 1, `${nasceu.length}: ${j(nasceu.map((h) => h.summary))}`);
 
-  console.log("  (f) editar o modelo automático recalcula só a futura não paga");
+  console.log("  (f) editar o modelo automático recalcula só os meses sem conta paga (o mês com pagamento é fechado)");
   const pg = await pagar([fat0[A.L1]?.id]);
   check("(fixture) pagar a ocorrência da Loja 1 do mês corrente (750) pela conta: 201", pg.status === 201, `${pg.status} ${j(pg.corpo)}`);
   const ed = await chamar(A.tok.owner, R.fixedId, "PATCH", `emporio/fixed-expenses/${T_fat}`, { amount: 2000 }, T_fat);
   check("editar o valor de 1.000 para 2.000: 200", ed.status === 200, `${ed.status} ${j(ed.corpo)}`);
   const f1 = await doMes(T_fat, mesCorrente);
   check("a ocorrência paga fica como estava (750 e paid)", perto(f1[A.L1]?.amount, 750) && f1[A.L1]?.status === "paid", j(f1[A.L1]));
-  check("a ocorrência não paga da Loja 2 é recalculada: 250 vira 500 (1/4 de 2.000)", perto(f1[A.L2]?.amount, 500) && f1[A.L2]?.status === "pending", j(f1[A.L2]));
+  check("a irmã não paga da Loja 2 fica como estava (250): o mês com conta paga é fechado (juiz da entrega 4)", perto(f1[A.L2]?.amount, 250) && f1[A.L2]?.status === "pending", j(f1[A.L2]));
   const f2 = await doMes(T_fat, mesSeguinte);
   check("as duas do mês seguinte (não pagas) também foram recalculadas: somam 2.000", perto((f2[A.L1]?.amount ?? 0) + (f2[A.L2]?.amount ?? 0), 2000), j(f2));
 
@@ -906,6 +906,18 @@ async function secao4Juiz() {
   check("o mês corrente segue somando 1.000 (a paga de 250 e a irmã de 750 intactas)", perto(soma(vivasHoje), 1000) && vivasHoje.length === 2, j(hojeDepois.map((e) => `${e.amount} ${e.status}`)));
   check("a irmã do mês corrente não foi recalculada (continua 750)", vivasHoje.some((e) => perto(n(e.amount), 750)), j(vivasHoje.map((e) => e.amount)));
   check("nada nasceu no mês corrente: o número de ocorrências é o mesmo", (await F.db.fixedExpenseOccurrence.count({ where: { template_id: tpl2 } })) === ocsAntes2);
+
+  console.log("  (a3) edições seguintes do modelo automático (renomear, mudar o valor) não reabrem o mês com conta paga (juiz, rodada 3)");
+  const ren = await chamar(F.tok.owner, R.fixedId, "PATCH", `emporio/fixed-expenses/${tpl2}`, { name: "M101 Fixa fechada hoje 2" }, tpl2);
+  check("(fixture) renomear o modelo automático: 200", ren.status === 200, `${ren.status} ${j(ren.corpo)}`);
+  await garantirSeguro(Dd, F.db, F.owner, civil(mesCorrente));
+  const aposRenomear = (await doMes(tpl2, mesCorrente)).filter((e) => e.status !== "cancelled");
+  check("depois de renomear, o mês corrente segue somando 1.000", perto(soma(aposRenomear), 1000) && aposRenomear.length === 2, j(aposRenomear.map((e) => `${e.amount} ${e.status}`)));
+  const val = await chamar(F.tok.owner, R.fixedId, "PATCH", `emporio/fixed-expenses/${tpl2}`, { amount: 1200 }, tpl2);
+  check("(fixture) mudar o valor do modelo automático para 1.200: 200", val.status === 200, `${val.status} ${j(val.corpo)}`);
+  await garantirSeguro(Dd, F.db, F.owner, civil(mesCorrente));
+  const aposValor = (await doMes(tpl2, mesCorrente)).filter((e) => e.status !== "cancelled");
+  check("depois de mudar o valor, o mês fechado continua como estava (1.000: a paga de 250 e a irmã de 750)", perto(soma(aposValor), 1000) && aposValor.length === 2, j(aposValor.map((e) => `${e.amount} ${e.status}`)));
 
   console.log("  (b) manual cujo lote de 12 meses acabou: a projeção estima os meses sem conta com as partes dos splits");
   const fim = emDias(89);
