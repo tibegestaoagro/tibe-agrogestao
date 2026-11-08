@@ -36,7 +36,7 @@ export default async function FinanceiroCaixaPage({
   const posicoes = resumo.ok ? resumo.data.positions : [];
 
   // `?conta=<id>` segue valendo como `conta:<id>` (links antigos). Um lugar que não está na lista é ignorado.
-  const pedido = q.lugar ?? (q.conta ? `conta:${q.conta}` : "");
+  const pedido = q.lugar || (q.conta ? `conta:${q.conta}` : "");
   const lugarEscolhido = posicoes.find((p) => `${p.kind}:${p.id}` === pedido);
   const lugar = lugarEscolhido ? pedido : "";
   const hoje = hojeEmBrasilia();
