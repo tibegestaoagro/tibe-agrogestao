@@ -81,7 +81,9 @@ type EntradaAberta = {
 };
 
 /** A parcela que nasce de cheque devolvido de venda já absorvida pelo acordo. */
-export const ehParcelaExtra = (notes: string | null | undefined) => !!notes && notes.endsWith("parcela extra");
+/** Sufixo das notas que marca a parcela extra do acordo (cheque devolvido); só este arquivo grava e lê. */
+const SUFIXO_PARCELA_EXTRA = "parcela extra";
+export const ehParcelaExtra = (notes: string | null | undefined) => !!notes && notes.endsWith(SUFIXO_PARCELA_EXTRA);
 
 const diaBr = (d: Date) => d.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
 
@@ -1666,7 +1668,7 @@ export async function chequeVoltouAction(
           agreement_id: lancamento.agreement_id,
           emporio_customer_id: lancamento.emporio_customer_id,
           establishment_id: lancamento.establishment_id,
-          notes: `Cheque devolvido da venda de ${venda ? dataBr(venda.sold_at.toISOString()) : "data desconhecida"}, parcela extra`,
+          notes: `Cheque devolvido da venda de ${venda ? dataBr(venda.sold_at.toISOString()) : "data desconhecida"}, ${SUFIXO_PARCELA_EXTRA}`,
         });
         await registrarNoHistorico(tx, ator, {
           action: "cheque.devolvido",
