@@ -78,7 +78,7 @@ export async function aprovarPedidoDePagamentoAction(
       }, 0);
       const totalPedidoCent = Math.round((decToNum(p.total) ?? 0) * 100);
       if (contas.length !== p.entry_ids.length || abertoAgoraCent !== totalPedidoCent) {
-        const msg = `O valor das contas mudou desde o pedido: ${dinheiro(abertoAgoraCent / 100)} agora, ${dinheiro(totalPedidoCent / 100)} no pedido. Peça de novo.`;
+        const msg = `O valor das contas mudou desde o pedido: ${dinheiro(abertoAgoraCent / 100)} agora, ${dinheiro(totalPedidoCent / 100)} no pedido. Recuse este pedido e quem pediu refaz.`;
         throw new RecusaDespesa(fail("PEDIDO_DESATUALIZADO", msg, 409, "request_id"));
       }
       // `paid_at` fica de fora de propósito: a data do pagamento é a da aprovação.

@@ -1897,12 +1897,13 @@ async function gravarDevolucao(
   const recebido = receita
     ? await tx.financialPayment.aggregate({ where: { entry_id: receita.id }, _sum: { amount: true } })
     : null;
-  // Venda em acordo: o acordo é uma dívida só, então o que o cliente pagou nas parcelas também é
-  // devolvível em dinheiro (senão, com o acordo quitado, a devolução não teria saída). O teto
-  // continua sendo o valor da própria venda.
-  const recebidoNasParcelas = receita?.agreement_id
+  // Venda em acordo: o acordo é uma dívida só, então o que o cliente pagou no acordo INTEIRO (nas origens
+  // de todas as vendas, antes do acordo, e nas parcelas) é devolvível em dinheiro por qualquer venda dele
+  // (senão, com o acordo quitado ou com outra venda paga em parte à vista, a devolução não teria saída).
+  // O teto continua sendo o valor da própria venda.
+  const recebidoNoAcordo = receita?.agreement_id
     ? await tx.financialPayment.aggregate({
-        where: { entry: { agreement_id: receita.agreement_id, category: CATEGORIA_ACORDO } },
+        where: { entry: { agreement_id: receita.agreement_id } },
         _sum: { amount: true },
       })
     : null;
@@ -1925,9 +1926,12 @@ async function gravarDevolucao(
     });
     jaVoltouNoAcordoCent = centavos(decToNum(voltouNoAcordo._sum.amount) ?? 0);
   }
-  const recebidoCent =
-    centavos(decToNum(recebido?._sum.amount) ?? 0) + centavos(decToNum(recebidoNasParcelas?._sum.amount) ?? 0);
-  // Venda em acordo: teto = min(valor da venda - já voltou desta venda, pago na origem + pago nas parcelas - já voltou em TODAS as vendas do acordo).
+  // Fora de acordo: o pago nesta venda. Em acordo: o pago em todas as origens e parcelas do acordo (a
+  // própria origem desta venda tem `agreement_id`, então já está na soma).
+  const recebidoCent = receita?.agreement_id
+    ? centavos(decToNum(recebidoNoAcordo?._sum.amount) ?? 0)
+    : centavos(decToNum(recebido?._sum.amount) ?? 0);
+  // Venda em acordo: teto = min(valor da venda - já voltou desta venda, pago no acordo inteiro - já voltou em TODAS as vendas do acordo).
   const tetoCent = receita?.agreement_id
     ? Math.min(
         centavos(decToNum(receita.amount) ?? 0) - centavos(decToNum(jaVoltou._sum.amount) ?? 0),
