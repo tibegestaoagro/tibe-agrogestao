@@ -13,6 +13,7 @@ import { NovoCaixaBotao } from "../_components/novo-caixa-botao";
 import { ConfiguracoesForm } from "./_components/configuracoes-form";
 import { LogoForm } from "./_components/logo-form";
 import { FiadoForm } from "./_components/fiado-form";
+import { AlcadaForm } from "./_components/alcada-form";
 import { reaisBr } from "@/lib/numero-br";
 
 function enderecoDaLoja(l: EstablishmentView): string {
@@ -169,6 +170,29 @@ export default async function ConfiguracoesPage() {
               </dd>
             </div>
           </dl>
+        ) : (
+          <EmptyState titulo="Não consegui ler as configurações">Recarregue a página.</EmptyState>
+        )}
+      </section>
+
+      <section className="space-y-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <h2 className="text-lg font-semibold text-texto">Alçada de pagamento</h2>
+          {podeEditarConta && cfg && <AlcadaForm limite={cfg.payment_approval_limit} />}
+        </div>
+        {cfg ? (
+          <>
+            <dl>
+              <Linha
+                rotulo="Teto sem aprovação"
+                valor={cfg.payment_approval_limit === null ? "Sem alçada" : reaisBr(cfg.payment_approval_limit)}
+              />
+            </dl>
+            <p className="text-sm text-texto-secundario">
+              Acima do teto, quem não é Dono nem Gerente geral pede aprovação em vez de pagar.
+              {!podeEditarConta && " Só o dono ou o gerente geral muda o teto."}
+            </p>
+          </>
         ) : (
           <EmptyState titulo="Não consegui ler as configurações">Recarregue a página.</EmptyState>
         )}

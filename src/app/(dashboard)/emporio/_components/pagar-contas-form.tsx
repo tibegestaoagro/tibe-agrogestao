@@ -81,7 +81,7 @@ export function PagarContasForm({
     err.limparTudo();
     setLoading(true);
     const [tipo, id] = origem.split(":");
-    const res = await apiPost("/api/v1/emporio/payables/pay", {
+    const res = await apiPost<{ waiting_approval?: boolean }>("/api/v1/emporio/payables/pay", {
       entry_ids: contas.map((c) => c.entry_id),
       // Hoje vai sem data (o servidor usa o instante); outro dia vai ao meio-dia de Brasília, para não escorregar de dia.
       paid_at: data === hoje ? null : `${data}T12:00:00-03:00`,
@@ -93,7 +93,11 @@ export function PagarContasForm({
       err.doServidor(res);
       return;
     }
-    aviso.sucesso(contas.length === 1 ? "Conta paga." : `${contas.length} contas pagas.`);
+    if (res.data?.waiting_approval === true) {
+      aviso.sucesso("Ficou esperando aprovação do Dono ou do Gerente geral.");
+    } else {
+      aviso.sucesso(contas.length === 1 ? "Conta paga." : `${contas.length} contas pagas.`);
+    }
     setOpen(false);
     aoPagar();
     router.refresh();

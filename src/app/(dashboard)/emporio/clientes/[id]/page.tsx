@@ -6,6 +6,10 @@ import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { lerClienteAction, type ClienteFichaView } from "@/lib/actions/emporio-clientes";
 import { lerCreditoDoClienteAction } from "@/lib/actions/emporio-credito";
 import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
+import { listarAcordosDoClienteAction } from "@/lib/actions/emporio-acordos";
+import { listarFiadoAction } from "@/lib/actions/emporio-caixa";
+import { hojeEmBrasilia } from "@/lib/emporio/datas";
+import { AcordosDoCliente } from "../_components/acordos-do-cliente";
 import { CreditoDoCliente } from "../_components/credito-do-cliente";
 import { formatarCep, formatarDocumento } from "@/lib/contatos/cadastro";
 import { formatarTelefone } from "@/lib/emporio/telefone";
@@ -23,7 +27,7 @@ import {
 } from "@/components/ui/table";
 import { ClienteForm } from "../../_components/cliente-form";
 import { ClienteArquivarBotao } from "../_components/cliente-arquivar-botao";
-import { numeroBr } from "../../_components/formato";
+import { numeroBr, numeroDaVenda } from "../../_components/formato";
 
 const DATA = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo" });
 
@@ -105,6 +109,31 @@ export default async function ClienteFichaPage({ params }: { params: Promise<{ i
         r.ok ? r.data.filter((l) => pode(papel, "gestor_da_loja", l.id)).map((l) => ({ id: l.id, name: l.name })) : [],
       )
     : [];
+
+  // Acordos: a lista vale para quem vê o crédito; o botão, só para quem pode (Dono e Financeiro) e com fiado de venda em aberto.
+  const acordosRes = credito ? await listarAcordosDoClienteAction(db, user, c.id) : null;
+  const podeFazerAcordo = !!credito && pode(papel, "acordo");
+  const entradasDeVenda = podeFazerAcordo
+    ? await listarFiadoAction(db, user, { customer_id: c.id }).then((r) =>
+        r.ok ? (r.data[0]?.entries ?? []).filter((e) => e.sale_id !== null && e.open > 0) : [],
+      )
+    : [];
+  const vendasDasOrigens = new Map(
+    (
+      await db.emporioSale.findMany({
+        where: { id: { in: entradasDeVenda.map((e) => e.sale_id as string) } },
+        select: { id: true, number: true, sold_at: true },
+      })
+    ).map((v) => [v.id, v]),
+  );
+  const origensDoAcordo = entradasDeVenda.map((e) => {
+    const v = vendasDasOrigens.get(e.sale_id as string);
+    return {
+      entry_id: e.entry_id,
+      rotulo: v ? `Venda ${numeroDaVenda(v.number)}, ${DATA.format(v.sold_at)}` : "Venda",
+      open: e.open,
+    };
+  });
 
   const principal = linhaEndereco(c.address_street, c.address_number, c.address_complement, c.address_district, c.city, c.address_state, c.address_zip);
   const entrega = linhaEndereco(c.delivery_street, c.delivery_number, c.delivery_complement, c.delivery_district, c.delivery_city, c.delivery_state, c.delivery_zip);
@@ -206,6 +235,16 @@ export default async function ClienteFichaPage({ params }: { params: Promise<{ i
           podeMudar={pode(papel, "dinheiro")}
           lojasQueLibera={lojasQueLibera}
           agora={new Date().toISOString()}
+        />
+      )}
+
+      {credito && acordosRes?.ok && (
+        <AcordosDoCliente
+          customerId={c.id}
+          acordos={acordosRes.data}
+          origens={origensDoAcordo}
+          podeFazer={podeFazerAcordo}
+          hoje={hojeEmBrasilia()}
         />
       )}
 

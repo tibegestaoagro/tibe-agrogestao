@@ -49,11 +49,20 @@ function Linha({ rotulo, valor, destaque = false }: { rotulo: string; valor: str
 
 /** A tela "Hoje" do Financeiro: quatro cartões, cada um levando à aba que resolve. */
 export function FinanceiroHoje({ resumo, loja }: { resumo: HojeView; loja: string }) {
-  const { positions, total_balance, payables_due, receivables_due, overdue_fiado } = resumo;
+  const { positions, total_balance, payables_due, receivables_due, overdue_fiado, pending_approvals } = resumo;
   const aReceberHoje = receivables_due.fiado.total + receivables_due.checks.total + receivables_due.cards.total;
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
+      {pending_approvals.count > 0 && (
+        <Cartao titulo="Esperando aprovação" href="/emporio/financeiro/aprovacoes" verTudo="Ver os pedidos">
+          <p className="text-2xl font-semibold text-atencao-tinta">{reaisBr(pending_approvals.total)}</p>
+          <p className="text-sm text-texto-secundario">
+            {plural(pending_approvals.count, "pedido de pagamento", "pedidos de pagamento")} acima do teto
+          </p>
+        </Cartao>
+      )}
+
       <Cartao titulo="Posição de caixa" href={enderecoDaAba("/emporio/financeiro/caixa", loja)} verTudo="Ver as posições e o extrato">
         {positions.length === 0 ? (
           <EmptyState compacto titulo="Nenhum lugar com dinheiro ainda." />
