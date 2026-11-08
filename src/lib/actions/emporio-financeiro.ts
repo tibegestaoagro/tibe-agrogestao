@@ -117,7 +117,7 @@ export type ExtratoView = {
   unreconciled_total: number;
 };
 
-const ROTULO_ORIGEM: Record<string, string> = {
+export const ROTULO_ORIGEM: Record<string, string> = {
   venda: "Venda",
   recebimento_fiado: "Fiado recebido",
   cancelamento_venda: "Venda cancelada",
@@ -133,7 +133,40 @@ const ROTULO_ORIGEM: Record<string, string> = {
   reforco: "Reforço",
   entrega_gerencia: "Entrega à gerência",
   pagamento_compra: "Pagamento de compra",
+  cartao: "Cartão",
 };
+
+/**
+ * As posições (gaveta e gerência de cada loja, e as contas bancárias): cada saldo é a soma das movimentações.
+ * `visiveis` recorta as lojas do alcance (nulo ou ausente: todas); as contas só entram com `comContas`.
+ */
+export async function lerPosicoes(
+  db: TenantPrismaClient,
+  opts: { lojaId?: string; visiveis?: Set<string> | null; comContas: boolean },
+): Promise<PosicaoView[]> {
+  const { lojaId, visiveis } = opts;
+  const lojas = await db.establishment.findMany({
+    where: {
+      archived_at: null,
+      ...(lojaId ? { id: lojaId } : visiveis ? { id: { in: [...visiveis] } } : {}),
+    },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
+  const positions: PosicaoView[] = [];
+  for (const l of lojas) {
+    positions.push({ kind: "gaveta", id: l.id, name: l.name, establishment_id: l.id, balance: (await saldoDaGaveta(db, l.id)) / 100 });
+    positions.push({ kind: "gerencia", id: l.id, name: l.name, establishment_id: l.id, balance: (await saldoDaGerencia(db, l.id)) / 100 });
+  }
+  if (opts.comContas) {
+    const contas = await db.bankAccount.findMany({ where: { archived_at: null }, select: { id: true, name: true }, orderBy: { name: "asc" } });
+    const saldos = await saldosDasContas(db);
+    for (const c of contas) {
+      positions.push({ kind: "conta", id: c.id, name: c.name, establishment_id: null, balance: (saldos.get(c.id) ?? 0) / 100 });
+    }
+  }
+  return positions;
+}
 
 /** O que existe hoje em cada lugar, com o que vence hoje a pagar e a receber. */
 export async function lerResumoHojeAction(
@@ -152,21 +185,7 @@ export async function lerResumoHojeAction(
   const hoje = hojeEmBrasilia();
   const fimDoDia = new Date(hoje.getTime() + DIA_MS - 1);
 
-  const lojas = await db.establishment.findMany({
-    where: { archived_at: null, ...(lojaId ? { id: lojaId } : {}) },
-    select: { id: true, name: true },
-    orderBy: { name: "asc" },
-  });
-  const positions: PosicaoView[] = [];
-  for (const l of lojas) {
-    positions.push({ kind: "gaveta", id: l.id, name: l.name, establishment_id: l.id, balance: (await saldoDaGaveta(db, l.id)) / 100 });
-    positions.push({ kind: "gerencia", id: l.id, name: l.name, establishment_id: l.id, balance: (await saldoDaGerencia(db, l.id)) / 100 });
-  }
-  const contas = await db.bankAccount.findMany({ where: { archived_at: null }, select: { id: true, name: true }, orderBy: { name: "asc" } });
-  const saldos = await saldosDasContas(db);
-  for (const c of contas) {
-    positions.push({ kind: "conta", id: c.id, name: c.name, establishment_id: null, balance: (saldos.get(c.id) ?? 0) / 100 });
-  }
+  const positions = await lerPosicoes(db, { lojaId, comContas: true });
   const total = positions.reduce((s, p) => s + centavos(p.balance), 0) / 100;
 
   const pagar = await listarContasAPagarAction(db, ator, {
