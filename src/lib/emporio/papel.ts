@@ -27,10 +27,10 @@ export const EMPORIO_KEY_IDS: readonly string[] = EMPORIO_KEYS.map((k) => k.id);
 
 export type PapelContexto = {
   papel: PapelEmporio | null;
-  /** Lojas do ator; nulo para Dono e Gerente geral, que veem todas. */
+  /** Lojas do ator; nulo para Dono, Gerente geral e Financeiro, que veem todas. */
   lojas: Set<string> | null;
   chaves: Set<string>;
-  /** Q120 e Q190: todo membro da equipe do Empório (Gerente geral, Gestor, Vendedor, Caixa). */
+  /** Q120 e Q190: todo membro da equipe do Empório (Gerente geral, Financeiro, Gestor, Vendedor, Caixa). */
   soDaLoja: boolean;
   /** Q190: usuário desativado (ou inexistente). Fica bloqueado: sem papel E só da loja, nunca liberado. */
   inativo?: boolean;
@@ -196,7 +196,7 @@ export async function exigir(
 export async function exigirUma(
   db: TenantPrismaClient,
   ator: AtorPapel,
-  acoes: AcaoEmporio[],
+  acoes: [AcaoEmporio, ...AcaoEmporio[]],
   oQue?: string,
   lojaId?: string,
 ) {

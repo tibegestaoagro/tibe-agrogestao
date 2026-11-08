@@ -244,7 +244,7 @@ export async function cadastrarMembroAction(
   const ids = funcao === "gerente_geral" || funcao === "financeiro" ? [] : [...new Set(input.establishment_ids as string[])];
   const gravado: FotoDoMembro & { emporio_role: FuncaoEmporio } = {
     emporio_role: funcao,
-    emporio_only: funcao === "gerente_geral",
+    emporio_only: funcao === "gerente_geral" || funcao === "financeiro",
     emporio_keys: funcao === "vendedor" ? (input.emporio_keys ?? []) : [],
     establishment_ids: ids,
   };
@@ -342,15 +342,15 @@ export async function alterarMembroAction(
     await db.userEstablishment.findMany({ where: { user_id: userId }, select: { establishment_id: true } })
   ).map((v) => v.establishment_id);
 
-  // Q133: virar Vendedor zera as chaves, virar Gerente geral limpa as lojas e as
-  // chaves. O que vem no mesmo pedido vale. `emporio_only` do pedido é aceito e
-  // ignorado (Q190): o Gerente geral grava sempre verdadeiro, o resto falso, e
+  // Q133: virar Vendedor zera as chaves, virar Gerente geral ou Financeiro limpa as
+  // lojas e as chaves. O que vem no mesmo pedido vale. `emporio_only` do pedido é aceito e
+  // ignorado (Q190): Gerente geral e Financeiro gravam sempre verdadeiro, o resto falso, e
   // o papel trata toda a equipe como só do Empório de qualquer jeito.
   const final = {
     emporio_role: nova,
     establishment_ids: nova === "gerente_geral" || nova === "financeiro" ? [] : (input.establishment_ids ?? vinculosAtuais),
     emporio_keys: input.emporio_keys ?? (mudou ? [] : alvo.emporio_keys),
-    emporio_only: nova === "gerente_geral",
+    emporio_only: nova === "gerente_geral" || nova === "financeiro",
   };
   // Quem não é Vendedor não guarda chave: a do pedido é recusada, a do estado antigo some.
   if (nova !== "vendedor" && input.emporio_keys === undefined) final.emporio_keys = [];
