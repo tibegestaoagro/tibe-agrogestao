@@ -219,6 +219,7 @@ const R = {
   payableCancel: () => import("@/app/api/v1/emporio/payables/[id]/cancel/route"),
   requests: () => import("@/app/api/v1/emporio/finance/payment-requests/route"),
   approve: () => import("@/app/api/v1/emporio/finance/payment-requests/[id]/approve/route"),
+  checkReturn: () => import("@/app/api/v1/emporio/checks/[id]/return/route"),
   reject: () => import("@/app/api/v1/emporio/finance/payment-requests/[id]/reject/route"),
   settings: () => import("@/app/api/v1/emporio/settings/route"),
   approval: () => import("@/app/api/v1/emporio/settings/approval/route"),
@@ -542,6 +543,57 @@ async function secao2() {
   check("a mensagem manda desfazer o acordo antes", /acordo/i.test(String(canc.corpo?.error?.message)), String(canc.corpo?.error?.message));
   const aindaLa = (await A.db.financialEntry.findFirst({ where: { id: f1.entry.id } })) as Dado;
   check("a recusa não mexeu na origem (continua em acordo)", aindaLa?.agreement_id === ac?.id && aindaLa?.status === "cancelled");
+
+  console.log("  (n) devolução em dinheiro de venda em acordo: conta o que foi pago nas parcelas");
+  const cn = await cliente(A, "Acordo devolucao dinheiro");
+  const fn1 = await fiado(A, cn, 100, 10);
+  const rn = await acordar(A.tok.fin, cn, [fn1.entry.id], partes(10000, 1, 5));
+  check("(fixture) acordo de 100 em 1 parcela: 201", rn.status === 201, `${rn.status} ${j(rn.corpo)}`);
+  const itemN = (await A.db.emporioSaleItem.findFirst({ where: { sale_id: fn1.vendaId } })) as Dado;
+  const devDinheiro = (qty: number) =>
+    chamar(A.tok.owner, R.saleReturn, "POST", `emporio/sales/${fn1.vendaId}/return`,
+      { operation_key: chave("devn"), refund_kind: "dinheiro", cash_register_id: A.reg, items: [{ sale_item_id: itemN?.id, quantity: qty }] }, fn1.vendaId);
+  const dnAntes = await devDinheiro(3);
+  check("antes de a parcela ser paga, devolver R$ 30 em dinheiro é recusado: 422", dnAntes.status === 422, `${dnAntes.status} ${j(dnAntes.corpo)}`);
+  const recN = await receber(A, cn, 100);
+  check("(fixture) a parcela é recebida inteira: 201", recN.status === 201, `${recN.status} ${j(recN.corpo)}`);
+  const dnDepois = await devDinheiro(3);
+  check("depois de paga a parcela, devolver R$ 30 em dinheiro é aceito", ok2xx(dnDepois), `${dnDepois.status} ${j(dnDepois.corpo)}`);
+
+  console.log("  (o) cheque devolvido de origem absorvida pelo acordo");
+  const co = await cliente(A, "Acordo cheque devolvido");
+  const numCheque = `M100-${stamp}`;
+  const vo = await vender(A, co, 10, [
+    { kind: "cheque", amount: 40, check: { number: numCheque, bank: "Banco M100", good_for: meioDia(emDias(10)) } },
+    { kind: "fiado", amount: 60, due_date: meioDia(emDias(10)) },
+  ]);
+  const eo = (await A.db.financialEntry.findFirst({ where: { emporio_customer_id: co.id, entry_type: "income", status: "pending" } })) as Dado;
+  check("(fixture) a venda tem uma conta a receber de 100, com 40 já pagos em cheque (60 em aberto)", !!eo?.id && perto(n(eo.amount), 100), j(eo));
+  const ro = await acordar(A.tok.fin, co, [eo?.id], partes(6000, 1, 10));
+  check("(fixture) acordo de 60 em 1 parcela: 201", ro.status === 201, `${ro.status} ${j(ro.corpo)}`);
+  const chequeO = (await A.db.emporioCheck.findFirst({ where: { number: numCheque } })) as Dado;
+  const volta = await chamar(A.tok.owner, R.checkReturn, "POST", `emporio/checks/${chequeO?.id}/return`, { reason: "M100 sem fundos" }, chequeO?.id);
+  check("o cheque volta: 2xx", ok2xx(volta), `${volta.status} ${j(volta.corpo)} venda ${vo}`);
+  const credO = (await credito(A.tok.owner, co)).corpo?.data as Dado;
+  check("o cliente deve 100 (a dívida do cheque não some)", perto(credO?.owed_total, 100), j(credO));
+  const acO = (await listarAcordos(A.tok.fin, co)).corpo?.data?.[0] as Dado;
+  const pO = (acO?.installments ?? []) as Dado[];
+  check("o acordo lista 2 parcelas: a regular de 60 e a extra de 40 vencendo hoje",
+    pO.length === 2 && pO.some((p) => perto(n(p.amount), 60)) && pO.some((p) => perto(n(p.amount), 40) && diaDe(p.due_date) === hojeStr), j(pO));
+  check("a origem continua cancelled", (await A.db.financialEntry.findFirst({ where: { id: eo?.id } })).status === "cancelled");
+
+  console.log("  (p) receber sem entry_id segue a ordem de vencimento");
+  const cq = await cliente(A, "Acordo fila vencimento");
+  const fq1 = await fiado(A, cq, 50, 10);
+  const rq = await acordar(A.tok.fin, cq, [fq1.entry.id], partes(5000, 1, 30));
+  check("(fixture) acordo de 50 em 1 parcela vencendo em 30 dias: 201", rq.status === 201, `${rq.status} ${j(rq.corpo)}`);
+  const fq2 = await fiado(A, cq, 40, 5);
+  const rc10 = await receber(A, cq, 10);
+  check("receber 10 sem entry_id: 201", rc10.status === 201, `${rc10.status} ${j(rc10.corpo)}`);
+  const pagoFiado = (await A.db.financialPayment.findMany({ where: { entry_id: fq2.entry.id } })) as Dado[];
+  check("os 10 vão ao fiado da venda posterior (vence antes)", perto(pagoFiado.reduce((s, x) => s + n(x.amount), 0), 10), j(pagoFiado.map((x) => x.amount)));
+  const aq = (await listarAcordos(A.tok.fin, cq)).corpo?.data?.[0] as Dado;
+  check("a parcela do acordo segue intocada", perto(aq?.installments?.[0]?.paid, 0) && perto(aq?.installments?.[0]?.open, 50), j(aq?.installments));
 }
 
 // ---------------------------------------------------------------------------
@@ -722,6 +774,17 @@ async function secao3() {
   console.log("  (j) o bloco do Hoje depois das decisões");
   const hj2 = (await chamar(A.tok.fin, R.today, "GET", "emporio/finance/today")).corpo?.data as Dado;
   check("só o pedido sem saldo segue pendente: 1 pedido de 150", hj2?.pending_approvals?.count === 1 && perto(hj2?.pending_approvals?.total, 150), j(hj2?.pending_approvals));
+
+  console.log("  (k) dois approve simultâneos");
+  const e6 = await despesa(A, 150);
+  const p6 = await pagar(A.tok.fin, [e6.id]);
+  const ped6 = p6.corpo?.data?.request as Dado;
+  check("(fixture) pedido pendente de 150", ok2xx(p6) && !!ped6?.id, `${p6.status} ${j(p6.corpo)}`);
+  const [d1, d2] = await Promise.all([aprovar(A.tok.owner, ped6?.id), aprovar(A.tok.owner, ped6?.id)]);
+  const ss = [d1, d2].sort((a, b) => a.status - b.status);
+  check("exatamente um 200 e um 409 PEDIDO_NAO_PENDENTE", ss[0].status === 200 && erro(ss[1], 409, "PEDIDO_NAO_PENDENTE"), `${d1.status} ${j(d1.corpo)} | ${d2.status} ${j(d2.corpo)}`);
+  const ef6 = await efeitos(e6.id);
+  check("só um pagamento e um movimento nascem, e a conta fica paid", ef6.pagamentos === 1 && ef6.movimentos === 1 && (await status(e6.id)) === "paid", j(ef6));
 }
 
 // ---------------------------------------------------------------------------
