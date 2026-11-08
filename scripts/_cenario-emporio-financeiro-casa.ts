@@ -21,7 +21,8 @@ import { setTenantFeatureAction } from "@/lib/actions/platform-features";
  *   - uma compra a prazo vencida ontem (R$ 100,00, "Fin Fornecedor");
  *   - um fiado vencido ontem (R$ 30,00), um cheque bom para hoje (R$ 50,00)
  *     e um cartao de credito a vista que cai hoje (R$ 100,00, 2%), todos do
- *     cliente "Fin Cliente".
+ *     cliente "Fin Cliente";
+ *   - um orcamento da Loja 1 para o Consumidor final (o Financeiro o abre).
  *
  * Os assentos: o plano "grupo" tem 5; Dono, Gestor, Caixa e Financeiro cabem, e
  * os demais usuarios da conta do seed ficam desativados.
@@ -212,6 +213,15 @@ async function main() {
   await vender("fiado", 3, [{ kind: "fiado", amount: 30, due_date: meioDia(somaDias(hojeStr, -1)) }], { sold_at: new Date(Date.now() - 3 * DIA) });
   await vender("cheque", 5, [{ kind: "cheque", amount: 50, check: { number: "9001", bank: "Banco Fin", good_for: meioDia(hojeStr) } }]);
   await vender("cartao", 10, [{ kind: "credito_vista", amount: 100 }], { sold_at: new Date(Date.now() - 1 * DIA) });
+
+  // Um orcamento da Loja 1, para o Financeiro abrir (a leitura dele vale para o Financeiro).
+  const orcamento = await (await import("@/lib/actions/emporio-orcamentos")).salvarOrcamentoAction(db, dono, {
+    operation_key: "cenario-fin-casa-orcamento",
+    establishment_id: loja1,
+    customer_id: (await (await import("@/lib/actions/emporio-clientes")).garantirConsumidorFinal(db)).id,
+    items: [{ emporio_product_id: racao, presentation_id: quilo, quantity: 2 }],
+  });
+  if (!orcamento.ok) throw new Error(`orcamento: ${orcamento.message}`);
 
   const cartao = await prisma.cardReceivable.findFirst({ where: { tenant_id, bank_account_id: conta, canceled_at: null } });
   if (!cartao) throw new Error("A venda no cartao nao gerou parcela a receber.");

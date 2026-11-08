@@ -334,4 +334,66 @@ ir("/emporio/financeiro/caixa?conta=" + conta_id)
 sem_rolagem("Posição de caixa com o extrato")
 cdp("Emulation.clearDeviceMetricsOverride")
 
+# --- 9 ---------------------------------------------------------------------------------
+passo("9. Adiar e cancelar conta pedem dinheiro; conta nova, extrato por lugar, orcamento e Historico")
+
+
+def botoes_com_texto(rotulo):
+    return js("Array.from(document.querySelectorAll('main button')).filter(b => b.innerText.trim() === " + repr(rotulo) + ").length") or 0
+
+
+def valor_apos(texto, rotulo):
+    """O primeiro 'R$ ...' que vem depois de `rotulo` no texto."""
+    import re
+    achado = re.search(re.escape(rotulo) + r"\s*(-?R\$\s*[\d.]+,\d{2})", texto)
+    return achado.group(1) if achado else None
+
+
+def clicar_ver_extrato_de(nome, tipo):
+    """Clica o link 'Ver extrato' da linha da tabela cujo texto tem `nome` e `tipo` (Gaveta, Com a gerência)."""
+    return js("(() => { const l = Array.from(document.querySelectorAll('main tbody tr')).find(r => { const t = r.innerText.replace(/\\u00a0/g, ' '); return t.includes(" + repr(nome) + ") && t.includes(" + repr(tipo) + "); }); const a = l && l.querySelector('a'); if (!a) return false; a.click(); return true; })()")
+
+
+def saldo_da_linha(nome, tipo):
+    return js("(() => { const l = Array.from(document.querySelectorAll('main tbody tr')).find(r => { const t = r.innerText.replace(/\\u00a0/g, ' '); return t.includes(" + repr(nome) + ") && t.includes(" + repr(tipo) + "); }); const c = l && l.querySelectorAll('td')[1]; return c ? c.innerText.replace(/\\u00a0/g, ' ').trim() : null; })()")
+
+
+entrar("gestor")
+ir("/emporio/despesas")
+confere("o Gestor ve a lista de contas a pagar (Fin Fornecedor)", esperar(lambda: tem(FORNECEDOR), 30), texto_principal(400))
+confere("o Gestor NAO tem o botao Adiar", botoes_com_texto("Adiar") == 0, botoes_com_texto("Adiar"))
+confere("o Gestor NAO tem o botao Cancelar", botoes_com_texto("Cancelar") == 0, botoes_com_texto("Cancelar"))
+
+entrar("financeiro")
+ir("/emporio/financeiro/pagar")
+confere("o Financeiro ve a conta em A pagar", esperar(lambda: tem(FORNECEDOR), 30), texto_principal(400))
+confere("o Financeiro tem o botao Adiar", esperar(lambda: botoes_com_texto("Adiar") > 0, 20), botoes_com_texto("Adiar"))
+confere("o Financeiro tem o botao Cancelar", botoes_com_texto("Cancelar") > 0, botoes_com_texto("Cancelar"))
+
+ir("/emporio/caixa")
+confere("o Financeiro tem o botao de nova conta bancaria em Caixa", esperar(lambda: botoes_com_texto("Nova conta") > 0, 30), caminho() + " " + texto_principal(300))
+
+ir("/emporio/financeiro/caixa")
+confere("a Posicao de caixa lista a gaveta da Fin Loja 1", esperar(lambda: saldo_da_linha(LOJA1, "Gaveta") is not None, 30), texto_principal(600))
+saldo_gaveta = saldo_da_linha(LOJA1, "Gaveta")
+confere("clica Ver extrato na gaveta", clicar_ver_extrato_de(LOJA1, "Gaveta") is True)
+confere("o extrato abre com o cabecalho 'Gaveta: Fin Loja 1'", esperar(lambda: tem("Gaveta: " + LOJA1), 40), texto_principal(500))
+fechamento = valor_apos(texto_do_main(), "Saldo de fechamento:")
+confere("o fechamento do extrato da gaveta e igual ao saldo da tabela", fechamento is not None and fechamento == saldo_gaveta, [fechamento, saldo_gaveta])
+saldo_gerencia = saldo_da_linha(LOJA1, "Com a gerência")
+confere("clica Ver extrato na linha Com a gerencia", clicar_ver_extrato_de(LOJA1, "Com a gerência") is True)
+confere("o extrato abre com 'Com a gerência: Fin Loja 1'", esperar(lambda: tem("Com a gerência: " + LOJA1), 40), texto_principal(500))
+fechamento_g = valor_apos(texto_do_main(), "Saldo de fechamento:")
+confere("o fechamento do extrato da gerencia e igual ao saldo da tabela", fechamento_g is not None and fechamento_g == saldo_gerencia, [fechamento_g, saldo_gerencia])
+
+orcamentos = lista_da_api("/api/v1/emporio/quotes?situacao=todos&limit=200")
+orcamento = next((o for o in orcamentos if o.get("loja") == LOJA1), None)
+confere("o Financeiro lista um orcamento pela API", bool(orcamento), len(orcamentos))
+ir("/emporio/orcamentos/" + (orcamento or {}).get("id", "sem-id"))
+confere("o orcamento abre para o Financeiro (nao e 404)", caminho().startswith("/emporio/orcamentos/") and not eh_404() and tem("Orçamento") and tem(LOJA1), caminho() + " " + texto_principal(300))
+
+ir("/emporio/historico")
+confere("o Historico abre para o Financeiro", caminho() == "/emporio/historico", caminho())
+confere("o Historico tem 'Pagou a compra' citando Fin Fornecedor", esperar(lambda: tem("Pagou a compra de " + FORNECEDOR), 30), texto_principal(1500))
+
 fim()
