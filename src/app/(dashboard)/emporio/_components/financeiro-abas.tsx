@@ -5,6 +5,7 @@ const ABAS = [
   { href: "/emporio/financeiro", rotulo: "Hoje" },
   { href: "/emporio/financeiro/pagar", rotulo: "A pagar" },
   { href: "/emporio/financeiro/receber", rotulo: "A receber" },
+  { href: "/emporio/financeiro/cobranca", rotulo: "Cobrança" },
   { href: "/emporio/financeiro/caixa", rotulo: "Posição de caixa" },
 ] as const;
 
