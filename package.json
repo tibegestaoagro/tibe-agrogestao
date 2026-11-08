@@ -80,6 +80,7 @@
     "test:m97": "tsx scripts/m97-emporio-entrega-romaneio.test.ts",
     "test:m98": "tsx scripts/m98-emporio-financeiro-casa.test.ts",
     "test:m99": "tsx scripts/m99-emporio-financeiro-credito.test.ts",
+    "test:m100": "tsx scripts/m100-emporio-financeiro-acordo.test.ts",
     "test:isolation": "tsx scripts/tenant-isolation.test.ts",
     "test:docs-api": "tsx scripts/docs-api-completeness.test.ts",
     "test:nav": "tsx scripts/nav-build.test.ts",
