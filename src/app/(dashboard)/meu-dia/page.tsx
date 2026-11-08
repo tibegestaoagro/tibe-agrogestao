@@ -122,7 +122,11 @@ export default async function MeuDiaPage() {
 
   const mostraEmporio = await veEmporio(user);
   /* F6b (Q120): quem é só da loja não vê nada da fazenda, nem o resumo, nem o histórico. */
-  const soLoja = mostraEmporio && (await papelDoEmporio(db, user)).soDaLoja;
+  const papelEmporio = mostraEmporio ? await papelDoEmporio(db, user) : null;
+  /* O Financeiro não tem o que fazer no Meu Dia: a casa dele é o Financeiro, e
+     é para cá que o login manda todos. */
+  if (papelEmporio?.papel === "financeiro") redirect("/emporio/financeiro");
+  const soLoja = papelEmporio?.soDaLoja ?? false;
 
   const [itens, resumo, historico, workers, properties] = await Promise.all([
     lerItensDoDiaCompleto(db, user, { property_id: propertyId }),

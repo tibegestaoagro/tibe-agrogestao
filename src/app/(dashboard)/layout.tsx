@@ -9,7 +9,7 @@ import { buildNavItems } from "@/lib/nav";
 import { isFeatureVisibleForUser } from "@/lib/features";
 import { papelDoEmporio } from "@/lib/emporio/papel";
 import { paginasVisiveis } from "@/lib/emporio/paginas";
-import { DESTINO_DO_SO_DA_LOJA, paginaPermitidaAoSoDaLoja } from "@/lib/emporio/paginas-do-so-da-loja";
+import { destinoDoSoDaLoja, paginaPermitidaAoSoDaLoja } from "@/lib/emporio/paginas-do-so-da-loja";
 import DashboardShell from "@/components/layout/dashboard-shell";
 import InstallInvite from "@/components/pwa/install-invite";
 import NotificationOptIn from "@/components/pwa/notification-opt-in";
@@ -51,7 +51,7 @@ export default async function DashboardLayout({
   // então não há laço (lá o 404 do recurso responde).
   const papelEmporio = await papelDoEmporio(await getTenantDb(), user);
   const soDaLoja = papelEmporio.soDaLoja;
-  if (soDaLoja && pathname && !paginaPermitidaAoSoDaLoja(pathname)) redirect(DESTINO_DO_SO_DA_LOJA);
+  if (soDaLoja && pathname && !paginaPermitidaAoSoDaLoja(pathname)) redirect(destinoDoSoDaLoja(papelEmporio));
 
   // Nome do tenant da própria sessão (Tenant não é tenant-scoped; lookup por
   // id). Vem do registro único por request: o gate de sessão e o controle de

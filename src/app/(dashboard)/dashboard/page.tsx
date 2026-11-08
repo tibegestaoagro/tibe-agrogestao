@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { papelDoEmporio } from "@/lib/emporio/papel";
-import { DESTINO_DO_SO_DA_LOJA } from "@/lib/emporio/paginas-do-so-da-loja";
+import { destinoDoSoDaLoja } from "@/lib/emporio/paginas-do-so-da-loja";
 import { PiggyBank, Wallet, FileWarning, CalendarClock, ChevronRight } from "lucide-react";
 import { getSessionUser, getActiveProfiles, getTenantDb } from "@/lib/tenant-context";
 import { getCashFlow } from "@/lib/actions/financial-reports";
@@ -48,7 +48,8 @@ export default async function DashboardHome() {
   // F6b (Q120): o Painel é o resumo da fazenda, e quem é só da loja não o vê.
   // O layout já fecha a URL; isto garante que a página nunca monte os números
   // se a lista de permitidas mudar.
-  if (user && (await papelDoEmporio(db, user)).soDaLoja) redirect(DESTINO_DO_SO_DA_LOJA);
+  const papelEmporio = user ? await papelDoEmporio(db, user) : null;
+  if (papelEmporio?.soDaLoja) redirect(destinoDoSoDaLoja(papelEmporio));
 
   const hasFazenda = profiles.includes("fazenda");
   const hasPrestador = profiles.includes("prestador");

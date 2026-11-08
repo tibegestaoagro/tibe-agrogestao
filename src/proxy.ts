@@ -3,7 +3,7 @@ import { getToken } from "next-auth/jwt";
 import { NextResponse } from "next/server";
 import { authConfig, ehCaminhoPublico } from "@/lib/auth.config";
 import { papelDoEmporio } from "@/lib/emporio/papel";
-import { DESTINO_DO_SO_DA_LOJA, paginaPermitidaAoSoDaLoja } from "@/lib/emporio/paginas-do-so-da-loja";
+import { destinoDoSoDaLoja, paginaPermitidaAoSoDaLoja } from "@/lib/emporio/paginas-do-so-da-loja";
 import { prismaForTenant } from "@/lib/prisma";
 import type { AppUserRole } from "@/types/next-auth";
 
@@ -148,7 +148,7 @@ async function bloqueioDoSoDaLoja(
   if (papel.papel === "dono") return null;
   if (FORA_DO_PAINEL.some((p) => pathname === p || pathname.startsWith(`${p}/`))) return null;
   if (paginaPermitidaAoSoDaLoja(pathname)) return null;
-  return papel.soDaLoja ? DESTINO_DO_SO_DA_LOJA : null;
+  return papel.soDaLoja ? destinoDoSoDaLoja(papel) : null;
 }
 
 export const config = {
