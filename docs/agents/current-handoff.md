@@ -26,11 +26,14 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 ## Estado atual
 
 - Atualizado em: 2026-11-08 à noite (as quatro entregas do financeiro do
-  Empório prontas nas branches; falta a revisão com o usuário e o deploy).
-- `main` em `ed8e37e`, Vercel verde. Nenhuma migração pendente no Neon.
-- Branches empilhadas, sem merge: `emporio-financeiro-spec` (spec) →
-  `emporio-financeiro-1` → `-2` → `-3` → `-4` (as quatro prontas, em origin).
-  Evidências por entrega em [financeiro-emporio-relatorio.md](financeiro-emporio-relatorio.md).
+  Empório em produção: migrações no Neon, merge e push autorizados na
+  conversa, na ordem 1, 2, 3, 4).
+- `main` em `2737027`, Vercel verde (o `/docs/api` em produção lista as rotas
+  das quatro entregas, conferido em 08/11). Nenhuma migração pendente no Neon
+  (as quatro do financeiro aplicadas com a URL Direct, uma por entrega).
+- As branches `emporio-financeiro-spec` e `-1` a `-4` foram mescladas por
+  fast-forward; podem ser apagadas. Evidências por entrega em
+  [financeiro-emporio-relatorio.md](financeiro-emporio-relatorio.md).
 
 ### A missão autônoma do financeiro do Empório (aprovada em 07/11)
 
@@ -76,13 +79,11 @@ verde. Q239 a Q243 a confirmar. Dívidas 2.45 a 2.53.
 
 ### ⏭️ Próximo passo
 
-1. Revisar com o usuário o relatório de evidências e as decisões a
-   confirmar (Q239 a Q243; 2.38 e Q238 já confirmadas). 2. Com o usuário,
-   por entrega e na ordem 1, 2, 3, 4: migração no Neon (URL Direct), merge
-   e push na `main` com `AUTORIZADO_PELO_USUARIO=1`, cada um autorizado na
-   conversa (cada entrega tem uma migração). 3. Depois do deploy, o cenário
-   de demonstração na conta de testes nova (pendência do usuário) e a
-   Agromax usando a casa do financeiro.
+1. O usuário confirma as decisões Q239 a Q243 (e as partes iguais sem
+   base); discordância vira ajuste pequeno em branch nova. 2. A Agromax passa
+   a usar a casa do financeiro (papel `financeiro` pela Equipe; teto da alçada
+   e limites do fiado em Configurações). 3. O cenário de demonstração na conta
+   de testes nova (pendência do usuário). 4. Dívidas 2.36 a 2.53 esperam pedido.
 
 As pastas `research_notes/` e `reports/` (pesquisa de mercado que embasou a
 spec) são ignoradas pelo git de propósito: o repositório é público.
@@ -189,8 +190,8 @@ relatórios em [agente-whatsapp/](agente-whatsapp/), detalhe em
 
 ## Últimas rodadas
 
-- 08/11 (noite): entrega 4 pronta em `emporio-financeiro-4` (juiz 9/10 na
-  rodada 4); as quatro entregas do financeiro esperam a revisão e o deploy.
+- 08/11 (noite): entrega 4 pronta (juiz 9/10 na rodada 4) e as quatro
+  entregas do financeiro em produção, na ordem 1 a 4, autorizadas na conversa.
 - 08/11: entrega 3 pronta em `emporio-financeiro-3` (juiz 8/10 na rodada 2,
   roteiro e manual à tarde).
 - 08/11: entregas 1 e 2 prontas em `emporio-financeiro-1` e `-2` (juiz 8/10).
