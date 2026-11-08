@@ -312,6 +312,9 @@ enum VariableExpenseKind {
 enum FixedSplitKind {
   percentual
   valor
+  faturamento
+  area
+  funcionarios
 }
 
 /// Módulo 39 (F3b, Q89): as formas de cartão que têm regra de taxa e prazo.
@@ -774,11 +777,14 @@ model Establishment {
   whatsapp             String?
   state                String?
   zip                  String?
+  /// Entrega 4 do financeiro: bases do rateio automático da despesa fixa.
+  area_m2              Decimal?           @db.Decimal(10, 2)
+  employees_count      Int?
   created_at           DateTime           @default(now())
   updated_at           DateTime           @updatedAt
 
   tenant                    Tenant                   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  responsible               User?                    @relation("EstablishmentResponsible", fields: [responsible_user_id], references: [id], onDelete: SetNull)
+  responsible              User?                    @relation("EstablishmentResponsible", fields: [responsible_user_id], references: [id], onDelete: SetNull)
   pix_bank_account          BankAccount?             @relation("EstablishmentPixAccount", fields: [pix_bank_account_id], references: [id], onDelete: SetNull)
   sales                     EmporioSale[]
   credit_releases           EmporioCreditRelease[]

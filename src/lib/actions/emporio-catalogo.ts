@@ -1,7 +1,7 @@
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { decToNum, isoOrNull } from "@/lib/serialize";
-import { alcanceDeLeitura, exigir, lojasDoPapel, papelDoEmporio, recusarCaixa } from "@/lib/emporio/papel";
+import { alcanceDeLeitura, exigir, lojasDoPapel, papelDoEmporio, pode, recusaDe, recusarCaixa } from "@/lib/emporio/papel";
 import { precoSugerido, percentualEfetivo } from "@/lib/emporio/preco";
 import { findUnit } from "@/lib/stock/units";
 import { diferencas, dinheiro, registrarNoHistorico } from "@/lib/emporio/historico";
@@ -108,6 +108,8 @@ export type EstablishmentView = {
   max_discount_pct: number | null;
   default_expense_pct: number | null;
   default_profit_pct: number | null;
+  area_m2: number | null;
+  employees_count: number | null;
   archived_at: string | null;
   user_ids: string[];
 };
@@ -127,6 +129,8 @@ type EstablishmentRow = {
   max_discount_pct: unknown;
   default_expense_pct: unknown;
   default_profit_pct: unknown;
+  area_m2: unknown;
+  employees_count: number | null;
   archived_at: Date | null;
   user_links: { user_id: string }[];
 };
@@ -147,6 +151,8 @@ function viewEstabelecimento(e: EstablishmentRow): EstablishmentView {
     max_discount_pct: decToNum(e.max_discount_pct),
     default_expense_pct: decToNum(e.default_expense_pct),
     default_profit_pct: decToNum(e.default_profit_pct),
+    area_m2: decToNum(e.area_m2),
+    employees_count: e.employees_count,
     archived_at: isoOrNull(e.archived_at),
     user_ids: e.user_links.map((l) => l.user_id),
   };
@@ -198,6 +204,8 @@ export type EstablishmentInput = {
   max_discount_pct?: number | null;
   default_expense_pct?: number | null;
   default_profit_pct?: number | null;
+  area_m2?: number | null;
+  employees_count?: number | null;
 };
 
 /** Validação comum à criação e à edição; só olha o que veio (`undefined` = não mexe). */
@@ -225,6 +233,14 @@ async function validarLoja(
   if (rd) return fail("VALIDATION_ERROR", rd, 422, "default_expense_pct");
   const rl = recusaPct(input.default_profit_pct, "O percentual de lucro");
   if (rl) return fail("VALIDATION_ERROR", rl, 422, "default_profit_pct");
+  const area = input.area_m2;
+  if (area != null && (typeof area !== "number" || !Number.isFinite(area) || area < 0 || area > 999999.99)) {
+    return fail("VALIDATION_ERROR", "Informe a área em m², de 0 a 999.999,99.", 422, "area_m2");
+  }
+  const func = input.employees_count;
+  if (func != null && (typeof func !== "number" || !Number.isInteger(func) || func < 0)) {
+    return fail("VALIDATION_ERROR", "Informe o número de funcionários, inteiro, de 0 em diante.", 422, "employees_count");
+  }
   if (input.responsible_user_id) {
     const u = await db.user.findFirst({ where: { id: input.responsible_user_id, active: true } });
     if (!u) return fail("VALIDATION_ERROR", "Responsável inválido.", 422, "responsible_user_id");
@@ -279,6 +295,8 @@ const ROTULOS_LOJA: Record<string, string> = {
   max_discount_pct: "Desconto máximo (%)",
   default_expense_pct: "Despesas padrão (%)",
   default_profit_pct: "Lucro padrão (%)",
+  area_m2: "Área (m²)",
+  employees_count: "Funcionários",
 };
 
 function pegarLoja(e: {
@@ -295,6 +313,8 @@ function pegarLoja(e: {
   max_discount_pct: unknown;
   default_expense_pct: unknown;
   default_profit_pct: unknown;
+  area_m2: unknown;
+  employees_count: number | null;
 }): Record<string, unknown> {
   return {
     name: e.name,
@@ -310,6 +330,8 @@ function pegarLoja(e: {
     max_discount_pct: decToNum(e.max_discount_pct as never),
     default_expense_pct: decToNum(e.default_expense_pct as never),
     default_profit_pct: decToNum(e.default_profit_pct as never),
+    area_m2: decToNum(e.area_m2 as never),
+    employees_count: e.employees_count,
   };
 }
 
@@ -341,6 +363,8 @@ export async function criarEstabelecimentoAction(
           max_discount_pct: input.max_discount_pct ?? null,
           default_expense_pct: input.default_expense_pct ?? null,
           default_profit_pct: input.default_profit_pct ?? null,
+          area_m2: input.area_m2 ?? null,
+          employees_count: input.employees_count ?? null,
         }),
         include: INCLUDE_LOJA,
       });
@@ -369,8 +393,14 @@ export async function editarEstabelecimentoAction(
   id: string,
   input: EstablishmentInput,
 ): Promise<ActionResult<EstablishmentView>> {
-  const neg = await exigir(db, ator, "gestor_da_loja", "editar os dados da loja");
-  if (neg) return neg;
+  const papel = await papelDoEmporio(db, ator);
+  if (!pode(papel, "gestor_da_loja")) {
+    // O Financeiro só mexe nas bases do rateio (área e funcionários); o resto da loja segue com o gestor.
+    const soBases =
+      pode(papel, "dinheiro") &&
+      Object.entries(input).every(([k, v]) => v === undefined || k === "area_m2" || k === "employees_count");
+    if (!soBases) return recusaDe("gestor_da_loja", "editar os dados da loja");
+  }
   if (input.allow_negative_stock !== undefined) {
     const negConta = await exigir(db, ator, "conta", "liberar o estoque negativo");
     if (negConta) return negConta;
@@ -401,6 +431,8 @@ export async function editarEstabelecimentoAction(
         ...(input.max_discount_pct !== undefined ? { max_discount_pct: input.max_discount_pct } : {}),
         ...(input.default_expense_pct !== undefined ? { default_expense_pct: input.default_expense_pct } : {}),
         ...(input.default_profit_pct !== undefined ? { default_profit_pct: input.default_profit_pct } : {}),
+        ...(input.area_m2 !== undefined ? { area_m2: input.area_m2 } : {}),
+        ...(input.employees_count !== undefined ? { employees_count: input.employees_count } : {}),
       },
       include: INCLUDE_LOJA,
     });
