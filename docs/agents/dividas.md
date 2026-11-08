@@ -108,7 +108,9 @@ redescobertos como defeito.
 | 2.32 | crediário com parcelas na venda e vencimento na safra: o prazo por cliente e o acordo deixam o lugar | Q214, Q223, Q230 | parcelas na venda, limite por safra e vencimento atrelado à colheita; só vale com cliente que use |
 | 2.33 | lembrete automático de cobrança pelo WhatsApp | Q225 | consentimento do cliente, texto padrão que não ameace e chip que não seja o do agente |
 | 2.34 | importação do XML da nota do fornecedor | Q229 | casar item da nota com produto do estoque; vai na frente de nota fiscal |
-| 2.35 | "vencido" calculado com o fuso do servidor em `listarFiadoAction` e com o dia de São Paulo em `lerResumoHojeAction`; entre 21h e 24h os dois blocos discordam | entrega 1 do financeiro, revisão da task 5 | usar o mesmo "hoje" (dia de São Paulo) nas duas leituras |
+| 2.37 | concorrência no limite de fiado: a checagem de atraso e de limite roda em `prepararVenda`, fora da transação; duas vendas em fiado simultâneas do mesmo cliente (caixas ou lojas diferentes) passam as duas (limite 500, deve 450, duas vendas de 50). Dano máximo: o valor de uma venda | entrega 2 do financeiro, revisão da task 4 | repetir a checagem dentro de `gravarVenda`, na transação serializável |
+| 2.38 | decisão de produto a confirmar: a liberação pontual é consumida pela PRIMEIRA venda em fiado do cliente naquela loja, mesmo uma que caberia sem ela (o Gestor libera para a compra grande e uma pequena chega antes e consome) | entrega 2 do financeiro, revisão da task 4, Q224 | fica como está até o usuário decidir; a alternativa é consumir só quando a venda precisaria da liberação |
+| 2.36 | "Pedir liberação" sem fila própria: o Caixa e o Vendedor que esbarram em `FIADO_BLOQUEADO` ou `LIMITE_EXCEDIDO` avisam o Gestor fora do sistema, e o Gestor libera na ficha do cliente, logado como ele | entrega 2 do financeiro, Q224 | se a Agromax pedir, a liberação vira um pedido com aviso ao Gestor (tela e WhatsApp do Tibé) |
 
 ## 3. Rede de segurança com furo
 

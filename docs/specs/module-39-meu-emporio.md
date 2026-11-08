@@ -322,6 +322,8 @@ cliente real com as duas coisas vai precisar.
 | Q236 | **Rateio ganha três critérios automáticos:** proporcional ao faturamento, por área (m²) e por funcionários, além de percentual e valor. | Decisão do usuário. |
 | Q237 | **Ordem de entrega:** casa e papel; crédito e cobrança; acordo, alçada e conciliação; projeção, relatórios e rateio. | A entrega 1 é a que permite contratar a pessoa e pô-la para trabalhar; a 2 vem logo atrás e não depende dela. |
 
+**Entregas do financeiro (Q214 a Q237).** Entrega 1 (07/11/2026): casa própria e o papel `financeiro`. Entrega 2 (08/11/2026): a Q219 (bloqueio por atraso e limite), a Q223 (vencimento do fiado), a Q224 (limite do Financeiro, liberação do Gestor) e a Q225 (lista de cobrança com o WhatsApp do aparelho). Falta o resto da Q237: acordo, alçada e conciliação; projeção, relatórios e rateio.
+
 ---
 
 ## 4. Modelo de dados proposto

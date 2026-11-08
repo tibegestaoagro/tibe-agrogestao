@@ -23,6 +23,7 @@ import * as desp from "@/lib/actions/emporio-despesas";
 import * as prod from "@/lib/actions/emporio-producao";
 import * as orc from "@/lib/actions/emporio-orcamentos";
 import * as conf from "@/lib/actions/emporio-configuracoes";
+import { definirCreditoDoClienteAction } from "@/lib/actions/emporio-credito";
 
 /**
  * Cenario de demonstracao do Meu Emporio (Modulo 39, Q137): monta, numa conta,
@@ -280,7 +281,7 @@ function vendasExplicitas(): VendaPlan[] {
     return { chave: `${PREFIXO}venda-${tag}`, tag, loja, d, quando: dia(d, h), quem, ...vendedor, itens, pagamentos: pag(c), ...extra };
   };
   return [
-    mk("fiado-vencido", "centro", 26, 11, "vendCentro", [{ slug: "bovEngorda", papel: "fechada", qtd: 8 }, { slug: "salEngorda", papel: "fechada", qtd: 4 }], (c) => [{ kind: "fiado", cents: c, vence: dia(8, 12) }], { cliente: "tresIrmaos" }),
+    mk("fiado-vencido", "centro", 26, 11, "vendCentro", [{ slug: "bovEngorda", papel: "fechada", qtd: 8 }, { slug: "salEngorda", papel: "fechada", qtd: 4 }], (c) => [{ kind: "fiado", cents: c, vence: dia(20, 12) }], { cliente: "tresIrmaos" }),
     mk("fiado-parcial", "centro", 18, 15, "vendCentro", [{ slug: "salCria", papel: "fechada", qtd: 4 }, { slug: "vermBov", papel: "fechada", qtd: 6 }], (c) => [{ kind: "fiado", cents: c, vence: dia(-10, 12) }], { cliente: "boaEsperanca" }),
     mk("fiado-rodovia", "rodovia", 9, 16, "caixaRodovia", [{ slug: "equinos", papel: "fechada", qtd: 6 }, { slug: "feno", papel: "fechada", qtd: 10 }], (c) => [{ kind: "fiado", cents: c, vence: dia(-12, 12) }], { cliente: "santaClara" }),
     mk("cheque", "centro", 14, 10, "gestor", [{ slug: "arameFarpado", papel: "fechada", qtd: 2 }, { slug: "grampo", papel: "fechada", qtd: 2 }], (c) => [{ kind: "cheque", cents: c, numero: "004512", banco: "Banco do Brasil", bomPara: dia(-20, 12) }], { cliente: "pedraBranca" }),
@@ -858,6 +859,9 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
   const contatos: Record<string, string> = {};
   for (const f of FORNECEDORES) contatos[f.chave] = await acharOuCriarFornecedor(db, gerente, f.nome, f.cidade);
   for (const c of CLIENTES) contatos[c.chave] = await acharOuCriarCliente(db, gerente, c);
+  // O Sítio Boa Esperança tem limite e prazo próprios (o resto vale o padrão da conta). A action só
+  // grava no Histórico quando o valor muda, então rodar de novo não repete nada.
+  exigir(await definirCreditoDoClienteAction(db, gerente, contatos.boaEsperanca, { fiado_limit: 5000, fiado_due_days: 45 }), "limite e prazo do Sítio Boa Esperança");
 
   // Produtos (o Gerente geral cadastra)
   await ensureProductCategories(db);
