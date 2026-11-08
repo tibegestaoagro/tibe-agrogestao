@@ -30,6 +30,7 @@ DEVEDOR = "Aco Devedor"
 ATRASADO = "Aco Atrasado"
 RACAO = "Aco Ração"
 BANCO = "Aco Banco"
+FORNECEDOR = "Aco Fornecedor"
 HOJE = datetime.date.today()
 SET = "(el, v) => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, v); el.dispatchEvent(new Event('input', { bubbles: true })); }"
 
@@ -183,18 +184,27 @@ def montar_venda(cliente, quantidade, fiado):
 
 
 def marcar_conta(valor):
-    """Marca a conta a pagar cuja linha cita `valor` (A pagar)."""
-    return bool(js("(() => { const tr = Array.from(document.querySelectorAll('main tbody tr')).find(x => x.innerText.replace(/\\u00a0/g, ' ').includes(" + repr(valor) + ")); const c = tr && tr.querySelector('input[type=checkbox]'); if (!c) return false; if (!c.checked) c.click(); return true; })()"))
+    """Marca a conta a pagar do Aco Fornecedor cuja linha cita `valor` (A pagar).
+    O banco de dev tem contas de outros cenarios com o mesmo valor (o Aluguel
+    de R$ 900,00 da demonstracao, por exemplo): a linha precisa ser a nossa."""
+    return bool(js("(() => { const tr = Array.from(document.querySelectorAll('main tbody tr')).find(x => { const t = x.innerText.replace(/\\u00a0/g, ' '); return t.includes(" + repr(valor) + ") && t.includes(" + repr(FORNECEDOR) + "); }); const c = tr && tr.querySelector('input[type=checkbox]'); if (!c) return false; if (!c.checked) c.click(); return true; })()"))
 
 
-def linha_tem(valor):
-    return bool(js("Array.from(document.querySelectorAll('main tbody tr')).some(x => x.innerText.replace(/\\u00a0/g, ' ').includes(" + repr(valor) + "))"))
+def linha_tem(valor, marca=None):
+    """Alguma linha da tabela cita `valor` (e `marca`, quando dada)."""
+    extra = "" if marca is None else " && t.includes(" + repr(marca) + ")"
+    return bool(js("Array.from(document.querySelectorAll('main tbody tr')).some(x => { const t = x.innerText.replace(/\\u00a0/g, ' '); return t.includes(" + repr(valor) + ")" + extra + "; })"))
+
+
+def conta_nossa(valor):
+    """A conta a pagar do Aco Fornecedor com esse valor esta na tabela."""
+    return linha_tem(valor, FORNECEDOR)
 
 
 def pagar_pela_tela(valor):
-    """No A pagar, marca a conta de `valor` e paga da conta Aco Banco."""
+    """No A pagar, marca a conta de `valor` do Aco Fornecedor e paga da conta Aco Banco."""
     ir("/emporio/financeiro/pagar")
-    confere("a conta de " + valor + " esta em A pagar", esperar(lambda: linha_tem(valor), 60), texto_principal(500))
+    confere("a conta de " + valor + " esta em A pagar", esperar(lambda: conta_nossa(valor), 60), texto_principal(500))
     confere("marca a conta de " + valor, esperar(lambda: marcar_conta(valor), 20))
     abre = abrir_painel_com(lambda: js("(() => { const b = Array.from(document.querySelectorAll('button')).find(x => x.innerText.trim().startsWith('Pagar selecionadas')); if (b) b.click(); })()"))
     confere("o painel Pagar contas abre", abre)
@@ -206,7 +216,20 @@ def pagar_pela_tela(valor):
 
 
 def pedidos_pendentes():
-    return lista_da_api("/api/v1/emporio/finance/payment-requests?status=pendente")
+    """Os pedidos pendentes que saem da conta Aco Banco: outros cenarios (a
+    demonstracao) deixam pedidos pendentes na mesma conta do seed."""
+    todos = lista_da_api("/api/v1/emporio/finance/payment-requests?status=pendente")
+    return [p for p in todos if BANCO in ((p.get("from") or {}).get("name") or "")]
+
+
+def botao_do_pedido(valor, rotulo):
+    """Clica em `rotulo` dentro do cartao do pedido que cita `valor` e a conta
+    Aco Banco, e nao no primeiro botao da fila."""
+    return bool(js("(() => { const li = Array.from(document.querySelectorAll('main li')).find(x => { const t = x.innerText.replace(/\\u00a0/g, ' '); return t.includes(" + repr(valor) + ") && t.includes(" + repr(BANCO) + "); }); const b = li && Array.from(li.querySelectorAll('button')).find(x => x.innerText.trim() === " + repr(rotulo) + "); if (!b) return false; b.click(); return true; })()"))
+
+
+def pedido_nosso_na_tela(valor):
+    return bool(js("Array.from(document.querySelectorAll('main li')).some(x => { const t = x.innerText.replace(/\\u00a0/g, ' '); return t.includes(" + repr(valor) + ") && t.includes(" + repr(BANCO) + "); })"))
 
 
 def conta_do_extrato():
@@ -296,37 +319,38 @@ entrar("financeiro")
 r = api("PATCH", "/api/v1/emporio/settings/approval", {"payment_approval_limit": 400})
 confere("o Financeiro nao muda a alcada pela API (403)", r["status"] == 403, r)
 pagar_pela_tela("R$ 300,00")
-confere("a conta de R$ 300,00 saiu de A pagar (paga direto)", esperar(lambda: not linha_tem("R$ 300,00"), 40) and linha_tem("R$ 900,00"), texto_principal(600))
+confere("a conta de R$ 300,00 saiu de A pagar (paga direto)", esperar(lambda: not conta_nossa("R$ 300,00"), 40) and conta_nossa("R$ 900,00"), texto_principal(600))
 confere("nenhum pedido pendente ainda", len(pedidos_pendentes()) == 0, pedidos_pendentes())
 pagar_pela_tela("R$ 900,00")
 confere("o aviso diz que ficou esperando aprovacao", esperar(lambda: tem_no_corpo("Ficou esperando aprovação do Dono ou do Gerente geral"), 20), texto_principal(300))
 confere("a API lista 1 pedido pendente de R$ 900,00", esperar(lambda: len(pedidos_pendentes()) == 1 and abs(float(pedidos_pendentes()[0].get("total")) - 900) < 0.005, 30), pedidos_pendentes())
 ir("/emporio/financeiro/pagar")
-confere("a conta de R$ 900,00 continua em A pagar (nao foi paga)", esperar(lambda: linha_tem("R$ 900,00"), 40))
+confere("a conta de R$ 900,00 continua em A pagar (nao foi paga)", esperar(lambda: conta_nossa("R$ 900,00"), 40))
 ir("/emporio/financeiro")
-confere("o Hoje mostra o cartao Esperando aprovacao", esperar(lambda: tem("Esperando aprovação") and tem("1 pedido de pagamento"), 40), texto_principal(800))
+confere("o Hoje mostra o cartao Esperando aprovacao", esperar(lambda: tem("Esperando aprovação") and tem("de pagamento acima do teto"), 40), texto_principal(800))
 ir("/emporio/financeiro/aprovacoes")
-confere("a aba Aprovacoes lista o pedido de R$ 900,00 como Esperando", esperar(lambda: tem("R$ 900,00") and tem("Esperando") and tem("Aco Financeiro pediu"), 40), texto_principal(800))
+confere("a aba Aprovacoes lista o pedido de R$ 900,00 como Esperando", esperar(lambda: pedido_nosso_na_tela("R$ 900,00") and tem("Esperando") and tem("Aco Financeiro pediu"), 40), texto_principal(800))
 confere("o Financeiro nao ve Aprovar nem Recusar", not js("Array.from(document.querySelectorAll('main button')).some(x => ['Aprovar', 'Recusar'].includes(x.innerText.trim()))"))
 r = api("POST", "/api/v1/emporio/finance/payment-requests/" + pedidos_pendentes()[0]["id"] + "/approve", {})
 confere("o Financeiro nao aprova pela API (403)", r["status"] == 403, r)
 
 entrar("dono")
 ir("/emporio/financeiro/aprovacoes")
-confere("o Dono ve o botao Aprovar", esperar(lambda: js("Array.from(document.querySelectorAll('main button')).some(x => x.innerText.trim() === 'Aprovar')"), 40), texto_principal(500))
-clicar("Aprovar")
+confere("o Dono ve o botao Aprovar no pedido de R$ 900,00", esperar(lambda: pedido_nosso_na_tela("R$ 900,00") and js("Array.from(document.querySelectorAll('main button')).some(x => x.innerText.trim() === 'Aprovar')"), 40), texto_principal(500))
+confere("clica em Aprovar no cartao do pedido de R$ 900,00", botao_do_pedido("R$ 900,00", "Aprovar"))
 confere("a confirmacao 'Aprovar e pagar?' abre", esperar(lambda: tem_no_corpo("Aprovar e pagar?"), 20), texto_principal(300))
 js("(() => { const d = document.querySelector('[role=alertdialog], [role=dialog]'); const b = d && Array.from(d.querySelectorAll('button')).find(x => x.innerText.trim() === 'Aprovar e pagar'); if (b) b.click(); })()")
 confere("o pedido some da fila de espera", esperar(lambda: len(pedidos_pendentes()) == 0, 60), pedidos_pendentes())
-confere("a tela mostra 'Nada esperando aprovação'", esperar(lambda: tem("Nada esperando aprovação"), 40), texto_principal(500))
+confere("a tela nao mostra mais o pedido de R$ 900,00 em Esperando", esperar(lambda: not pedido_nosso_na_tela("R$ 900,00"), 40), texto_principal(500))
 entrar("financeiro")
 ir("/emporio/financeiro/pagar")
-confere("a conta de R$ 900,00 saiu de A pagar depois de aprovada", esperar(lambda: not linha_tem("R$ 900,00"), 40), texto_principal(600))
+confere("a conta de R$ 900,00 saiu de A pagar depois de aprovada", esperar(lambda: not conta_nossa("R$ 900,00"), 40), texto_principal(600))
 pagar_pela_tela("R$ 700,00")
 confere("o segundo pedido (R$ 700,00) espera aprovacao", esperar(lambda: len(pedidos_pendentes()) == 1, 30), pedidos_pendentes())
 entrar("dono")
 ir("/emporio/financeiro/aprovacoes")
-abre = abrir_painel_com(lambda: clicar("Recusar"))
+esperar(lambda: pedido_nosso_na_tela("R$ 700,00"), 40)
+abre = abrir_painel_com(lambda: botao_do_pedido("R$ 700,00", "Recusar"))
 confere("o painel Recusar pagamento abre", abre)
 confere("preenche o motivo", preencher("Motivo", "Fornecedor vai rever o valor") not in ("SEM ROTULO", "SEM CAMPO"))
 enviar_painel()
@@ -336,7 +360,7 @@ ir("/emporio/financeiro/aprovacoes?status=decididos")
 confere("Decididos mostra 'Aprovado' e 'Recusado' com o motivo", esperar(lambda: tem("Aprovado por") and tem("Recusado por") and tem("Motivo: Fornecedor vai rever o valor"), 40), texto_principal(1200))
 entrar("financeiro")
 ir("/emporio/financeiro/pagar")
-confere("a conta recusada de R$ 700,00 continua em A pagar", esperar(lambda: linha_tem("R$ 700,00"), 40), texto_principal(600))
+confere("a conta recusada de R$ 700,00 continua em A pagar", esperar(lambda: conta_nossa("R$ 700,00"), 40), texto_principal(600))
 
 # --- 4 ---------------------------------------------------------------------------------
 passo("4. O extrato da conta: carimbar, filtrar Só sem carimbo, o Hoje mostra Sem carimbo")

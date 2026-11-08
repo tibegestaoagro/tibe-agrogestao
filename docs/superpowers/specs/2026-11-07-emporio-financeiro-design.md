@@ -465,7 +465,7 @@ não há envio pelo sistema.
 - **Bloqueio com acordo:** a parcela vencida bloqueia como um fiado vencido.
   Acordo em dia desbloqueia: o cliente compra fiado dentro do limite, e o
   saldo para o limite inclui as parcelas em aberto.
-- Receber a parcela usa o mesmo recebimento do fiado (mais antiga primeiro; na entrega 3 ficou pelo vencimento efetivo, Q238 da spec do módulo, a confirmar com o usuário).
+- Receber a parcela usa o mesmo recebimento do fiado (mais antiga primeiro; na entrega 3 ficou pelo vencimento efetivo, Q238 da spec do módulo, confirmada pelo usuário em 08/11).
 - **Venda cuja entry entrou num acordo:** a devolução com abatimento no fiado
   (`devolverVendaAction` com `abater_fiado`) abate na parcela mais antiga em
   aberto do acordo, e o total do acordo diminui; se o abatimento passar do que

@@ -25,13 +25,12 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-08 (entregas 1 e 2 do financeiro do Empório prontas
-  nas branches; missão autônoma das quatro entregas em curso).
+- Atualizado em: 2026-11-08 à tarde (entregas 1, 2 e 3 do financeiro do
+  Empório prontas nas branches; entrega 4 com o plano escrito).
 - `main` em `ed8e37e`, Vercel verde. Nenhuma migração pendente no Neon.
 - Branches empilhadas, sem merge: `emporio-financeiro-spec` (spec) →
-  `emporio-financeiro-1` (entrega 1, pronta) → `emporio-financeiro-2` (entrega
-  2, pronta) → `emporio-financeiro-3` (entrega 3, a começar). Evidências por
-  entrega em [financeiro-emporio-relatorio.md](financeiro-emporio-relatorio.md).
+  `emporio-financeiro-1` → `-2` → `-3` (as três prontas) → `-4` (a executar).
+  Evidências por entrega em [financeiro-emporio-relatorio.md](financeiro-emporio-relatorio.md).
 
 ### A missão autônoma do financeiro do Empório (aprovada em 07/11)
 
@@ -57,33 +56,33 @@ bloqueio por atraso e por limite, liberação do Gestor, ficha de crédito,
 seção Fiado em Configurações, aba Cobrança com o WhatsApp do aparelho.
 Migração `20261108120000_emporio_financeiro_credito`, só no Docker.
 `test:m99` 197, `test:all` 99/99, roteiro `emporio-financeiro-credito` nos
-dois sentidos, juiz Opus 8/10 na rodada 1. Dívidas 2.36 a 2.38 (a 2.38 é
-decisão a confirmar: a liberação é consumida pela primeira venda fiado).
+dois sentidos, juiz Opus 8/10 na rodada 1. Dívidas 2.36 e 2.37; a 2.38 (a
+liberação é consumida pela primeira venda fiado) foi confirmada em 08/11.
 
-**Entrega 3 (`emporio-financeiro-3`): código pronto, prova viva bloqueada.**
-Acordo de fiado em parcelas, alçada de pagamento com aprovação e aviso pelo
-WhatsApp, carimbo de conciliação no extrato. Migração
+**Entrega 3 (`emporio-financeiro-3`): pronta.** Acordo de fiado em parcelas,
+alçada de pagamento com aprovação e aviso pelo WhatsApp, carimbo de
+conciliação no extrato. Migração
 `20261108180000_emporio_financeiro_acordo_alcada_carimbo` só no Docker.
-`test:m100` 248 checagens, `test:all` 99/100 (m92 verde sozinha), build ok,
-juiz Opus 8/10 na rodada 2 (6/10 na 1, dois ALTO corrigidos). Faltam os
-critérios 6 e 8: o roteiro `emporio-financeiro-acordo` e as três PNGs do
-manual, porque o dev server da 3002 ficou com o client do Prisma anterior à
-migração e o agente não consegue reiniciar nem subir outro (memória). Decisão
-a confirmar: Q238 (recebimento vai ao que vence antes). Detalhe e o que
-destrava no relatório de evidências. A entrega 4 não começou (a 3 não bateu
-o GOAL). Ledger de cada entrega em `.superpowers/sdd/<plano>/progress.md`.
+`test:m100` 248, `test:all` 99/100 (m92 verde sozinha), juiz Opus 8/10 na
+rodada 2, roteiro `emporio-financeiro-acordo` nos dois sentidos (90
+conferências), manual com as três figuras. Q238 (recebimento vai ao que vence
+antes) confirmada pelo usuário em 08/11.
+
+**Entrega 4 (`emporio-financeiro-4`): plano escrito, a executar.** Plano em
+`docs/superpowers/plans/2026-11-08-emporio-financeiro-entrega-4.md` (8 tarefas:
+fluxo projetado, três relatórios, rateio automático; `test:m101`; roteiro
+`emporio-financeiro-projecao`). Ledger em `.superpowers/sdd/<plano>/progress.md`.
 
 ### ⏭️ Próximo passo
 
-1. O usuário encerra os `next dev` presos (PIDs 17708, 5936, 17328 em
-   08/11) e os `python` do harness. 2. Subir um dev server do HEAD de
-   `emporio-financeiro-3` (worktree ou o próprio clone, `npx prisma generate`
-   ANTES de subir) e rodar a T8 da entrega 3: roteiro nos dois sentidos e as
-   três figuras do manual (ver o relatório de evidências). 3. Só então a
-   entrega 4 (plano a escrever). 4. Ao fim das quatro: revisar com o usuário,
-   e então, por entrega e na ordem, migração no Neon (URL Direct), merge e
-   push na `main` com `AUTORIZADO_PELO_USUARIO=1`, cada um autorizado na
-   conversa.
+1. Executar a entrega 4 pelo plano (subagent-driven: Sonnet implementa, Opus
+   revisa a T3 e a T4, juiz Opus no fim), com os mesmos nove critérios; o dev
+   server (worktree `tibe-wt2`) precisa de `git checkout --detach` no HEAD e
+   `npx prisma generate` ANTES de subir de novo, porque a T1 muda o schema.
+   2. Revisão final das quatro branches e relatório ao usuário. 3. Com
+   o usuário, por entrega e na ordem 1, 2, 3, 4: migração no Neon (URL
+   Direct), merge e push na `main` com `AUTORIZADO_PELO_USUARIO=1`, cada um
+   autorizado na conversa.
 
 As pastas `research_notes/` e `reports/` (pesquisa de mercado que embasou a
 spec) são ignoradas pelo git de propósito: o repositório é público.
@@ -176,10 +175,11 @@ relatórios em [agente-whatsapp/](agente-whatsapp/), detalhe em
 - `npx prisma migrate deploy` contra o Neon pode ser recusado pelo
   classificador mesmo com autorização. Tente uma vez; se bloquear, dê ao
   usuário o comando e confira com `migrate status` antes do push.
-- O desktop tem dois clones (`C:` e `D:`) e os worktrees `D:/Projetos/tibe-wt2`
-  (dev server preso na 3002, client do Prisma velho) e `tibe-wt3` (incompleto).
-  O agente não consegue matar `next dev`; dev server novo só em worktree novo,
-  com `npx prisma generate` ANTES de subir; roteiro com `TIBE_BASE`.
+- Dois clones (`C:` e `D:`) e o worktree `D:/Projetos/tibe-wt2` (dev server
+  na 3003; a 3002 ficou presa a um processo morto; `tibe-wt3` sobrou
+  incompleto). O agente só mata `next dev` que ele subiu; depois do kill,
+  apague `.next`. Roteiro com `TIBE_BASE="http://localhost:3003"` (nunca
+  `127.0.0.1`: o cookie é de `localhost`); não suponha a conta vazia.
 - Roteiro preso em recarga é aba sobrando no Chrome de testes (cofre:
   `a-aba-oculta-e-a-leitura-cedo-imitam-defeito-no-navegador`). O
   `manual-emporio` regrava todos os PNGs: restaure os que não mudaram.
@@ -189,8 +189,8 @@ relatórios em [agente-whatsapp/](agente-whatsapp/), detalhe em
 
 ## Últimas rodadas
 
-- 08/11: entrega 3 com o código pronto em `emporio-financeiro-3` (juiz 8/10
-  na rodada 2); prova viva bloqueada pelo dev server.
+- 08/11: entrega 3 pronta em `emporio-financeiro-3` (juiz 8/10 na rodada 2,
+  roteiro e manual à tarde); plano da entrega 4 escrito.
 - 08/11: entregas 1 e 2 prontas em `emporio-financeiro-1` e `-2` (juiz 8/10).
 - 07/11: pesquisa de mercado, entrevista em 24 decisões e spec do financeiro
   do Empório, revisada por builder (branch `emporio-financeiro-spec`).

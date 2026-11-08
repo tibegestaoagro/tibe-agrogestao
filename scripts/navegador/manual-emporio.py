@@ -1181,7 +1181,7 @@ figura("financeiro-extrato", "dono", lambda: "/emporio/financeiro/caixa?lugar=co
     (2, "M.C('Sem carimbo no período')", "o total sem carimbo"),
     (3, "M.TH('Carimbo')", "a coluna Carimbo"),
     (4, "M.Bs('Carimbar')[0]", "o botao Carimbar"),
-], limite=8, hd=900, hc=1300)
+], rolar="M.H('Extrato')", limite=8, hd=900, hc=1300)
 
 fim_das_figuras = None
 

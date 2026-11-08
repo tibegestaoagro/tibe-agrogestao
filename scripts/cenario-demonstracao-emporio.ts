@@ -781,14 +781,19 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
     const ja = await db.user.findFirst({ where: { email: m.email } });
     if (ja) {
       // A conta montada antes tinha a Juliana como Vendedora: vira Caixa da Rodovia
-      // pela mesma action da Equipe que a tela usa. Já Caixa, nada muda.
-      if (ja.emporio_role !== m.funcao) {
+      // pela mesma action da Equipe que a tela usa. Já Caixa, nada muda. O mesmo
+      // vale para o vínculo com as lojas: depois de um `--apagar` as lojas nascem
+      // com id novo e a pessoa, que ficou, perde o vínculo (a Gestora sem loja
+      // recebia "Estabelecimento não encontrado" na primeira escrita).
+      const lojasDesejadas = m.lojas.map((c) => lojas[c]).sort();
+      const lojasAtuais = (await db.userEstablishment.findMany({ where: { user_id: ja.id }, select: { establishment_id: true } })).map((x) => x.establishment_id).sort();
+      if (ja.emporio_role !== m.funcao || lojasAtuais.join(",") !== lojasDesejadas.join(",")) {
         exigir(await equipe.alterarMembroAction(db, dono, ja.id, {
           emporio_role: m.funcao,
           establishment_ids: m.lojas.map((c) => lojas[c]),
           emporio_keys: [...m.keys],
         }), `equipe ${m.email}`);
-        log(`Função alterada: ${m.name} agora é ${m.funcao}`);
+        log(`Função ou lojas ajustadas: ${m.name} agora é ${m.funcao}`);
       }
       continue;
     }
@@ -1693,10 +1698,18 @@ async function apagarCenario(tenantId: string, executar: boolean) {
   const turnos = await prisma.cashSession.count({ where: { ...t, establishment_id: { in: lojas } } });
   // A Diferença de caixa da confirmação aponta para a entrega (sangria ou malote).
   const entregas = (await prisma.cashHandover.findMany({ where: { ...t, establishment_id: { in: lojas } }, select: { id: true } })).map((x) => x.id);
-  const relacionados = [...vendasIds, ...devolucoes, ...comprasIds, ...modelos, ...conferencias, ...producoes, ...entregas];
+  // Entrega 3: o acordo de fiado (as parcelas têm `related_id` = acordo) e o pedido de pagamento.
+  const acordos = (await prisma.emporioCreditAgreement.findMany({ where: { ...t, customer_id: { in: clientes } }, select: { id: true } })).map((x) => x.id);
+  const relacionados = [...vendasIds, ...devolucoes, ...comprasIds, ...modelos, ...conferencias, ...producoes, ...entregas, ...acordos];
   const entradas = (
     await prisma.financialEntry.findMany({
-      where: { ...t, OR: [{ establishment_id: { in: lojas } }, { related_id: { in: relacionados } }] },
+      where: { ...t, OR: [{ establishment_id: { in: lojas } }, { related_id: { in: relacionados } }, { emporio_customer_id: { in: clientes } }] },
+      select: { id: true },
+    })
+  ).map((x) => x.id);
+  const pedidos = (
+    await prisma.emporioPaymentRequest.findMany({
+      where: { ...t, OR: [{ requested_by_user_id: { in: usuarios } }, { entry_ids: { hasSome: entradas } }, { bank_account_id: { in: contas } }] },
       select: { id: true },
     })
   ).map((x) => x.id);
@@ -1757,10 +1770,14 @@ async function apagarCenario(tenantId: string, executar: boolean) {
   await prisma.productPresentation.deleteMany({ where: { emporio_product_id: { in: eps } } });
   await prisma.emporioProduct.deleteMany({ where: { id: { in: eps } } });
   await prisma.product.deleteMany({ where: { id: { in: produtosBase } } });
+  // Entregas 2 e 3: liberação de fiado, acordo e pedido de pagamento apontam para cliente, loja e usuário com Restrict.
+  await prisma.emporioCreditRelease.deleteMany({ where: { ...t, OR: [{ customer_id: { in: clientes } }, { establishment_id: { in: lojas } }, { released_by_user_id: { in: usuarios } }] } });
+  await prisma.emporioCreditAgreement.deleteMany({ where: { id: { in: acordos } } });
+  await prisma.emporioPaymentRequest.deleteMany({ where: { id: { in: pedidos } } });
   await prisma.userEstablishment.deleteMany({ where: { OR: [{ establishment_id: { in: lojas } }, { user_id: { in: usuarios } }] } });
   await prisma.establishment.deleteMany({ where: { id: { in: lojas } } });
   await prisma.bankAccount.deleteMany({ where: { id: { in: contas } } });
-  await prisma.emporioAuditLog.deleteMany({ where: { ...t, OR: [{ user_id: { in: usuarios } }, { establishment_id: { in: lojas } }, { target_id: { in: [...eps, ...usuarios, ...contas, ...lojas, ...relacionados] } }] } });
+  await prisma.emporioAuditLog.deleteMany({ where: { ...t, OR: [{ user_id: { in: usuarios } }, { establishment_id: { in: lojas } }, { target_id: { in: [...eps, ...usuarios, ...contas, ...lojas, ...relacionados, ...pedidos, ...clientes] } }] } });
   await prisma.user.deleteMany({ where: { id: { in: usuarios } } });
   await prisma.emporioCustomer.deleteMany({ where: { id: { in: clientes } } });
   await prisma.emporioSupplier.deleteMany({

@@ -75,8 +75,8 @@ Decisões tomadas sem o usuário (todas no ledger):
   balcão); quem define limite e prazo é `dinheiro`, quem libera é o Gestor
   da loja, quem cobra é `dinheiro`;
 - a liberação pontual vale até o fim do dia (São Paulo) e é consumida pela
-  primeira venda fiado do cliente naquela loja (dívida 2.38 pede
-  confirmação);
+  primeira venda fiado do cliente naquela loja (dívida 2.38, confirmada
+  pelo usuário em 08/11);
 - `{dias}` na mensagem de cobrança sai por extenso ("1 dia", "20 dias"),
   para o modelo não precisar saber plural;
 - a mensagem de cobrança com mais de 1000 caracteres é recusada (422 no
@@ -97,9 +97,10 @@ Plano: [../superpowers/plans/2026-11-08-emporio-financeiro-entrega-3.md](../supe
 HEAD da branch. Ledger (não versionado):
 `.superpowers/sdd/2026-11-08-emporio-financeiro-entrega-3/progress.md`.
 
-**Sete dos nove critérios batidos; os critérios 6 e 8 ficaram bloqueados pelo
-ambiente** (ver abaixo). A entrega NÃO conta como pronta até o roteiro rodar
-nos dois sentidos e o manual sair com as figuras.
+**Nove critérios batidos.** Os critérios 6 e 8 ficaram bloqueados pelo
+ambiente de 08/11 de manhã (dev server com o client do Prisma anterior à
+migração, sem como reiniciar) e foram fechados à tarde, depois que o usuário
+encerrou os processos presos.
 
 | # | critério | evidência |
 |---|---|---|
@@ -108,10 +109,10 @@ nos dois sentidos e o manual sair com as figuras.
 | 3 | check, tsc, lint, build | `npm run check`: "Repositorio consistente: 0 falhas."; `npx tsc --noEmit`: vazio, código 0; `npm run lint`: "0 errors, 13 warnings" (os mesmos 13); `npm run build`: código 0, "Compiled successfully in 21.4s" |
 | 4 | suíte nova e `test:all` | `npm run test:m100`: "M100 verde" (248 checagens: funções puras; acordo com total igual antes e depois, parcela vencida bloqueia, acordo em dia desbloqueia, Gerente geral 403, devolução abate e em dinheiro com acordo quitado, cheque devolvido vira parcela extra, fila por vencimento, venda em acordo não cancela; alçada com pedido em vez de pagar, aprovar com e sem saldo, dois approve simultâneos, pedido desatualizado, recusar com motivo, as travas em pagar, cancelar, adiar, corrigir, editar e encerrar despesa fixa, cancelar compra e venda; carimbo só em linha de conta, filtro e totais; isolamento); `npm run test:all -- --sem-redis`: "99/100 passaram, em ~5 min", com a `m92` (turno, não tocada) reprovando sob carga e verde sozinha logo depois |
 | 5 | isolamento | `npm run test:isolation`: "Isolamento multi-tenant validado: 0 falhas." |
-| 6 | roteiro de navegador nos dois sentidos | **BLOQUEADO.** `emporio-financeiro-acordo` (5 passos) e o cenário "Aco" estão escritos e commitados; a execução parou porque o único dev server que o agente consegue subir (3002, worktree `D:/Projetos/tibe-wt2`) ficou com o client do Prisma anterior à migração e não pode ser reiniciado pelo agente; a tentativa de um terceiro worktree foi encerrada pelo sistema por falta de memória (dois `next dev` presos, 2,7 GB e 2,2 GB) |
+| 6 | roteiro de navegador nos dois sentidos | `TIBE_BASE="http://localhost:3002" npm run navegador -- emporio-financeiro-acordo` (5 passos, dev server do HEAD no worktree `D:/Projetos/tibe-wt2`, 08/11 à tarde): íntegro "RESULTADO: 0 falha(s)" (90 conferências); sabotado (`papel.ts`, a ação `acordo` aceitando `gerente_geral`): saída 1, "RESULTADO: 1 falha(s)", a falha exatamente em "o Gerente geral recebe 403 ao fazer acordo pela API" (veio 422, a regra deixou passar); restaurado: "RESULTADO: 0 falha(s)", 90 conferências. A primeira execução do dia deu 10 falhas por culpa do roteiro, não do código: ele supunha a conta do seed sem outros pedidos e contas (o cenário de demonstração deixa um pedido pendente de R$ 2.400,00 e um Aluguel de R$ 900,00), e clicava no primeiro "Aprovar" da fila; o roteiro passou a filtrar pedidos pela conta Aco Banco, contas pelo Aco Fornecedor e a clicar no botão do cartão certo |
 | 7 | juiz Opus, 6 critérios | rodada 1: 6/10, reprovado (2 ALTO: a ocorrência de despesa fixa em pedido pendente ainda mudava de valor e a aprovação pagava o aberto atual sem conferir; a devolução em dinheiro de venda em acordo descontava só a própria venda; 1 MEDIO; 4 BAIXO); corrigidos em 2 commits com 22 checks novos na m100; rodada 2: 8/10, aprovado (C1 8, C2 9, C3 8, C4 9, C5 9, C6 9), os 2 ALTO resolvidos, zero CRITICO ou ALTO; o MEDIO e os 2 BAIXO da rodada 2 corrigidos em seguida |
-| 8 | manual e `manual-emporio` | **BLOQUEADO** pelo mesmo motivo do 6: as tarefas "Fazer acordo de fiado", "Aprovar um pagamento" e "Conferir o extrato com o carimbo" e as entradas das figuras estão escritas; faltam as PNGs `fiado-acordo`, `financeiro-aprovacoes` e `financeiro-extrato` |
-| 9 | dívidas, Q-table, docs/api, handoff | `dividas.md`: 2.28 reescrita, 2.39 a 2.44 novas, 2.41 fechada; Q238 (recebimento pelo vencimento) na tabela do módulo, a confirmar; `npm run test:docs-api`: 0 falhas; handoff atualizado |
+| 8 | manual e `manual-emporio` | tarefas "Fazer acordo de fiado", "Aprovar um pagamento" e "Conferir o extrato com o carimbo"; `FIGURAS=fiado-acordo,financeiro-aprovacoes,financeiro-extrato TIBE_BASE=... npm run navegador -- manual-emporio`: "RESULTADO: 0 falha(s)", as seis PNGs (computador e celular) gravadas; a figura do extrato ganhou `rolar="M.H('Extrato')"` porque o banco de dev tem 29 lojas de cenários antigos e a tabela de posições empurrava o extrato para fora da janela. Para o pedido pendente da figura das aprovações foi preciso apagar e remontar o cenário de demonstração (`--apagar --confirmar`, só banco local), o que achou dois defeitos do próprio cenário, corrigidos: o `--apagar` não apagava os pedidos de pagamento, os acordos e as liberações (chave estrangeira em `User` e `EmporioCustomer`), e o `montar` não refazia o vínculo de loja de quem já existia (a Gestora sem loja recebia "Estabelecimento não encontrado"). O manual inteiro: ver a linha abaixo da tabela |
+| 9 | dívidas, Q-table, docs/api, handoff | `dividas.md`: 2.28 reescrita, 2.39 a 2.44 novas, 2.41 fechada; Q238 (recebimento pelo vencimento) na tabela do módulo, confirmada pelo usuário em 08/11; `npm run test:docs-api`: 0 falhas; handoff atualizado |
 
 Decisões tomadas sem o usuário (todas no ledger):
 
@@ -125,20 +126,21 @@ Decisões tomadas sem o usuário (todas no ledger):
 - o cheque devolvido de uma origem absorvida vira parcela extra do acordo;
 - a devolução em dinheiro de venda em acordo conta o que o cliente pagou no
   acordo inteiro, menos o que já voltou em todas as vendas dele;
-- **Q238, a confirmar:** o recebimento de fiado vai primeiro ao que vence
-  antes (venda ou parcela), não mais à venda mais antiga.
+- Q238 (confirmada pelo usuário em 08/11): o recebimento de fiado vai
+  primeiro ao que vence antes (venda ou parcela), não mais à venda mais
+  antiga.
 
 Antes do deploy desta entrega (com o usuário): `prisma migrate deploy` no
 Neon com a URL Direct. Não há ajuste de dado.
 
-### O que destrava os critérios 6 e 8
-
-Encerrar os `next dev` presos (PIDs 17708 e 5936 em 08/11, mais 17328 e os
-`python` do harness) e subir um dev server a partir de um worktree no HEAD da
-branch com `npx prisma generate` rodado lá ANTES de subir; depois,
-`TIBE_BASE="http://localhost:<porta>" npm run navegador -- emporio-financeiro-acordo`
-nos dois sentidos (sabotagem em `papel.ts`, ação `acordo`) e
-`FIGURAS=fiado-acordo,financeiro-aprovacoes,financeiro-extrato ... manual-emporio`.
+O manual inteiro (`TIBE_BASE="http://localhost:3003" npm run navegador -- manual-emporio`,
+contra o HEAD final, depois de `--limpar` nos cenários Cred, Fin e Aco e da
+demonstração remontada): "RESULTADO: 0 falha(s)", 104 imagens gravadas (52
+figuras em computador e celular); as PNGs que não mudaram foram restauradas
+com `git checkout -- public/manual`. A primeira execução caiu
+na figura `caixa-abrir` porque o dev server da 3002 travou (2,5 GB, sem
+resposta) e o harness perdeu o IPC; o servidor foi reiniciado na 3003 com o
+`.next` limpo.
 
 ## Entrega 4: projeção, relatórios e rateio (branch `emporio-financeiro-4`)
 
