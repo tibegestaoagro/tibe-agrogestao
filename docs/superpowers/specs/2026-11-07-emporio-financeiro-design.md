@@ -586,6 +586,17 @@ O Resultado da Loja não muda.
 - Contrato: rotas de projeção e relatórios; campos novos da loja.
 - Manual: Fluxo projetado, relatórios e os critérios de rateio.
 
+### Decisões da execução da entrega 4
+
+Decididas pelo agente, a confirmar com o usuário (registro completo na spec do módulo):
+
+- Os relatórios ficam na casa do financeiro, aba Relatórios, com uma linha de ligação na página Relatórios (Q239; a spec deixava ao builder).
+- O critério automático divide entre todas as lojas ativas no momento em que a ocorrência nasce, sem `FixedExpenseSplit` de verdade, e exige ver todas as lojas (`CRITERIO_SEM_LOJAS`, Q240). Base zero em todas as lojas vira partes iguais com aviso.
+- O a receber por idade é o retrato de hoje, sem período (Q241).
+- Por loja, a projeção e a posição por lugar deixam a conta bancária de fora (Q242).
+- No a pagar por vencimento, o vencido (antes de hoje) entra sempre na primeira semana, em destaque, mesmo anterior ao início do período (Q243): "vencido em destaque" não se cumpria com o padrão `de` igual a hoje.
+- O mês do modelo conta como nascido quando já tem ocorrência (a base que muda no meio do mês não cobra a mais), e `renovar` é inócuo em modelo automático.
+
 ---
 
 ## Dívidas registradas nesta spec

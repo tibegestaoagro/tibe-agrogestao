@@ -134,6 +134,12 @@ const LOJAS = [
   { chave: "rodovia", nome: "Loja da Rodovia", endereco: "Rodovia BR-364, km 3, Jardim Primavera", cidade: "Rondonópolis", desc: 8, desp: 11, lucro: 22, cnpj: "331207450003", fone: "(66) 3423-3640", zap: "(66) 99640-3640", cep: "78710000" },
 ] as const;
 type ChaveLoja = (typeof LOJAS)[number]["chave"];
+
+/** Área e funcionários das lojas que vendem (base do rateio automático da entrega 4); o Depósito fica sem base. */
+const BASE_DO_RATEIO: Partial<Record<ChaveLoja, { area_m2: number; employees_count: number }>> = {
+  centro: { area_m2: 120, employees_count: 4 },
+  rodovia: { area_m2: 80, employees_count: 2 },
+};
 type ChaveVenda = "centro" | "rodovia";
 
 const CONTA_NOME = "Conta da loja";
@@ -765,6 +771,14 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
     if (atual?.document !== cnpj || atual?.phone !== l.fone || atual?.whatsapp !== l.zap || atual?.state !== "MT" || atual?.zip !== l.cep) {
       exigir(await cat.editarEstabelecimentoAction(db, dono, id, { document: cnpj, phone: l.fone, whatsapp: l.zap, state: "MT", zip: l.cep }), `cabeçalho da ${l.nome}`);
     }
+    // Base do rateio automático (entrega 4): área e funcionários, só nas lojas que vendem.
+    const base = BASE_DO_RATEIO[l.chave];
+    if (base) {
+      const lida = await db.establishment.findFirst({ where: { id }, select: { area_m2: true, employees_count: true } });
+      if (Number(lida?.area_m2 ?? -1) !== base.area_m2 || lida?.employees_count !== base.employees_count) {
+        exigir(await cat.editarEstabelecimentoAction(db, dono, id, base), `área e funcionários da ${l.nome}`);
+      }
+    }
   }
 
   // Configurações da conta (entrega 1): validade do orçamento, rodapés e bobina.
@@ -988,10 +1002,11 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
         category: "Energia elétrica",
         amount: 1380,
         due_day: 15,
-        split_kind: "percentual",
+        split_kind: "faturamento",
         starts_on: inicio,
-        splits: [{ establishment_id: lojas.deposito, value: 20 }, { establishment_id: lojas.centro, value: 45 }, { establishment_id: lojas.rodovia, value: 35 }],
       }), "despesa fixa Energia");
+    } else if (energia.split_kind !== "faturamento") {
+      exigir(await desp.editarDespesaFixaAction(db, gerente, energia.id, { split_kind: "faturamento" }), "Energia elétrica para faturamento");
     }
   }
 

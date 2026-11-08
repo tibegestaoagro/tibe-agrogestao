@@ -308,10 +308,10 @@ export const GROUPS: Group[] = [
         method: "PATCH",
         path: "/api/v1/emporio/establishments/:id",
         auth: "Sessão · emporio:write · OWNER, ADMIN e gestor da loja",
-        description: "Edita os campos enviados (os ausentes ficam como estão; `null` limpa os opcionais). Cabeçalho do papel: `document` (CNPJ, numérico ou alfanumérico, guardado sem pontuação e em maiúscula), `phone` e `whatsapp` (até 40 caracteres), `state` (UF da lista, em maiúscula) e `zip` (CEP, 8 números guardados sem traço); recusa 422 no campo. O POST aceita os mesmos cinco.",
-        request: `{ "max_discount_pct": 10, "document": "12.ABC.345/01DE-35", "state": "MG", "zip": "39400-000" }`,
+        description: "Edita os campos enviados (os ausentes ficam como estão; `null` limpa os opcionais). Cabeçalho do papel: `document` (CNPJ, numérico ou alfanumérico, guardado sem pontuação e em maiúscula), `phone` e `whatsapp` (até 40 caracteres), `state` (UF da lista, em maiúscula) e `zip` (CEP, 8 números guardados sem traço); recusa 422 no campo. O POST aceita os mesmos cinco. Desde 08/11/2026 (entrega 4, Q236): `area_m2` (número, até 999999,99) e `employees_count` (inteiro), a base dos rateios por área e por funcionários; `null` limpa; recusa 422 no campo. O Financeiro (`dinheiro`) edita só esses dois: com qualquer outro campo, 403 `FORBIDDEN`. A resposta traz os dois (nulos enquanto não informados).",
+        request: `{ "max_discount_pct": 10, "document": "12.ABC.345/01DE-35", "state": "MG", "zip": "39400-000", "area_m2": 120, "employees_count": 4 }`,
         response: `200
-{ "data": { "id": "cl...", "name": "Loja Centro", "max_discount_pct": 10 }, "meta": {} }`,
+{ "data": { "id": "cl...", "name": "Loja Centro", "max_discount_pct": 10, "area_m2": 120, "employees_count": 4 }, "meta": {} }`,
       },
       {
         method: "POST",
@@ -1094,7 +1094,7 @@ export const GROUPS: Group[] = [
       {
         method: "GET",
         path: "/api/v1/emporio/fixed-expenses",
-        auth: "Sessão · emporio:read · só OWNER e ADMIN; com vínculo, só as despesas que têm loja dele",
+        auth: "Sessão · emporio:read · Gestor da loja, Financeiro, Gerente geral e Dono (os outros papéis: 403); com vínculo, só as despesas que têm loja dele",
         description: "Despesas fixas mensais (F4a, Q100) com o rateio, `generated_until` (último mês com conta gerada), `months_ahead` e `needs_renewal` (verdadeiro quando faltam menos de 3 meses gerados). `incluir_encerradas=1` traz as encerradas.",
         response: `200
 { "data": [{ "id": "cl...", "name": "Aluguel", "category": "Aluguel", "amount": 3000, "due_day": 10, "split_kind": "percentual", "starts_on": "2026-11-01", "ended_at": null, "splits": [{ "establishment_id": "cl...", "establishment_name": "Loja Centro", "value": 60 }, { "establishment_id": "cl...", "establishment_name": "Loja Norte", "value": 40 }], "generated_until": "2027-10", "months_ahead": 12, "needs_renewal": false }], "meta": {} }`,
@@ -1102,17 +1102,17 @@ export const GROUPS: Group[] = [
       {
         method: "POST",
         path: "/api/v1/emporio/fixed-expenses",
-        auth: "Sessão · emporio:write · só OWNER e ADMIN",
-        description: "Cria o modelo e gera 12 meses a partir de `starts_on` (padrão: o mês atual): uma conta a pagar pendente por loja e mês, no `due_day` (no mês curto, o último dia). `split_kind` `percentual` fecha 100 e `valor` fecha o `amount` (422 `splits`); no percentual o centavo que sobra vai na primeira loja. Outras recusas: 422 `name`, `amount`, `due_day`, `split_kind`. `category` omitida usa o nome.",
-        request: `{ "name": "Aluguel", "amount": 3000, "due_day": 10, "split_kind": "percentual", "starts_on": "2026-11-01", "splits": [{ "establishment_id": "cl...", "value": 60 }, { "establishment_id": "cl...", "value": 40 }] }`,
+        auth: "Sessão · emporio:write · Gestor da loja, Financeiro, Gerente geral e Dono (os outros papéis: 403)",
+        description: "Cria o modelo e gera 12 meses a partir de `starts_on` (padrão: o mês atual): uma conta a pagar pendente por loja e mês, no `due_day` (no mês curto, o último dia). `split_kind` `percentual` fecha 100 e `valor` fecha o `amount` (422 `splits`); no percentual o centavo que sobra vai na primeira loja. Outras recusas: 422 `name`, `amount`, `due_day`, `split_kind`. `category` omitida usa o nome. Desde 08/11/2026 (entrega 4, Q236, Q240): `split_kind` tem cinco valores, `percentual`, `valor` e os automáticos `faturamento` (faturamento líquido do mês anterior de cada loja), `area` (`area_m2`) e `funcionarios` (`employees_count`). Nos automáticos `splits` é opcional (dispensado), a divisão é entre TODAS as lojas ativas e é calculada quando a ocorrência do mês nasce: só a do mês corrente nasce no ato (`months_ahead` 1), e a do mês seguinte nasce no primeiro acesso do Empório naquele mês. Loja sem base recebe zero, e se nenhuma tem base a divisão é em partes iguais; os dois casos vêm em `avisos`, e `base_label` diz a base usada. Quem não vê todas as lojas (vínculo a uma loja) e pede um automático: 403 `CRITERIO_SEM_LOJAS` em `split_kind`.",
+        request: `{ "name": "Energia elétrica", "amount": 1380, "due_day": 15, "split_kind": "faturamento", "starts_on": "2026-11-01" }`,
         response: `201
-{ "data": { "id": "cl...", "name": "Aluguel", "amount": 3000, "months_ahead": 12 }, "meta": {} }`,
+{ "data": { "id": "cl...", "name": "Energia elétrica", "amount": 1380, "split_kind": "faturamento", "base_label": "Faturamento de outubro de 2026", "avisos": [], "months_ahead": 1, "needs_renewal": false }, "meta": {} }`,
       },
       {
         method: "PATCH",
         path: "/api/v1/emporio/fixed-expenses/:id",
-        auth: "Sessão · emporio:write · só OWNER e ADMIN",
-        description: "Edita o modelo. As contas dos meses do atual em diante que não têm pagamento são refeitas (valor e vencimento; a loja que saiu do rateio é cancelada; a loja nova ganha as contas); as pagas e as de meses passados ficam. Despesa encerrada: 409 `EXPENSE_ENDED`. Mudar `amount` ou `split_kind` exige mandar `splits` coerentes (422 `splits`).",
+        auth: "Sessão · emporio:write · Gestor da loja, Financeiro, Gerente geral e Dono (os outros papéis: 403)",
+        description: "Edita o modelo. As contas dos meses do atual em diante que não têm pagamento são refeitas (valor e vencimento; a loja que saiu do rateio é cancelada; a loja nova ganha as contas); as pagas e as de meses passados ficam. Despesa encerrada: 409 `EXPENSE_ENDED`. Mudar `amount` ou `split_kind` exige mandar `splits` coerentes (422 `splits`), salvo para um critério automático (`faturamento`, `area`, `funcionarios`), que não leva `splits`: editar recalcula só as contas futuras sem pagamento, com a base de agora, e trocar de critério vale também para as que já existem. Critério automático por quem não vê todas as lojas: 403 `CRITERIO_SEM_LOJAS`. Em modelo automático `renew` não faz nada (`created` 0): a ocorrência seguinte nasce no acesso.",
         request: `{ "amount": 3200, "splits": [{ "establishment_id": "cl...", "value": 50 }, { "establishment_id": "cl...", "value": 50 }] }`,
         response: `200
 { "data": { "id": "cl...", "amount": 3200 }, "meta": {} }`,
@@ -1120,7 +1120,7 @@ export const GROUPS: Group[] = [
       {
         method: "POST",
         path: "/api/v1/emporio/fixed-expenses/:id/end",
-        auth: "Sessão · emporio:write · só OWNER e ADMIN",
+        auth: "Sessão · emporio:write · Gestor da loja, Financeiro, Gerente geral e Dono (os outros papéis: 403)",
         description: "Encerra a despesa (`ended_at`) e cancela as contas de meses depois do atual que não têm pagamento. Já encerrada: 409 `EXPENSE_ENDED`.",
         response: `200
 { "data": { "id": "cl...", "ended_at": "2026-11-05T12:00:00.000Z" }, "meta": {} }`,
@@ -1128,7 +1128,7 @@ export const GROUPS: Group[] = [
       {
         method: "POST",
         path: "/api/v1/emporio/fixed-expenses/:id/renew",
-        auth: "Sessão · emporio:write · só OWNER e ADMIN",
+        auth: "Sessão · emporio:write · Gestor da loja, Financeiro, Gerente geral e Dono (os outros papéis: 403)",
         description: "Estende as contas até 12 meses a partir do mês atual, sem duplicar (único por modelo, loja e mês). Nada é gerado sozinho: a tela oferece o botão quando faltam menos de 3 meses. `created` diz quantas contas nasceram. Encerrada: 409 `EXPENSE_ENDED`.",
         response: `200
 { "data": { "id": "cl...", "months_ahead": 12, "created": 4 }, "meta": {} }`,
@@ -1242,6 +1242,38 @@ export const GROUPS: Group[] = [
         request: `{ "reason": "Conferir o preço com o fornecedor antes" }`,
         response: `200
 { "data": { "id": "cl...", "status": "recusado", "total": 4911.55, "created_at": "2026-11-08T14:00:00.000Z", "requested_by": { "id": "cl...", "name": "Fernanda" }, "from": { "kind": "conta", "id": "cl...", "name": "Conta PIX" }, "entries": [], "reason": "Conferir o preço com o fornecedor antes", "last_failure": null, "decided_by": { "name": "Marcos" }, "decided_at": "2026-11-08T15:00:00.000Z" }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/emporio/finance/projection",
+        auth: "Sessão · emporio:read · Financeiro, Gerente geral e Dono (os outros papéis: 403)",
+        description: "O fluxo de caixa projetado (Q228), por semana, só leitura. Query: `establishment_id` (opcional; fora do alcance: 404) e `days` (`30`, `60` ou `90`; padrão 30; outro: 422 em `days`). Parte do saldo de hoje (`opening_balance`, a posição de todos os lugares) e soma por semana o a receber (`fiado` e parcelas de acordo pelo vencimento, `cards` pelo `expected_on` líquido, `checks` pelo `good_for`) e o a pagar (`entries` pendentes pelo vencimento e `fixed_estimated`, as despesas fixas automáticas que ainda não nasceram, estimadas com a base de hoje). O que já venceu entra na primeira semana. Conta pendente sem vencimento fica fora. `notes` avisa a estimativa e, por loja, que a conta bancária fica de fora (é da rede, Q242). A leitura faz nascer a ocorrência do mês das despesas fixas automáticas.",
+        response: `200
+{ "data": { "today": "2026-11-08", "days": 30, "establishment_id": null, "opening_balance": 5000, "weeks": [{ "numero": 1, "de": "2026-11-08", "ate": "2026-11-14", "receivables": { "fiado": 320, "cards": 95.5, "checks": 0, "total": 415.5 }, "payables": { "entries": 220, "fixed_estimated": 0, "total": 220 }, "net": 195.5, "closing_balance": 5195.5 }], "closing_balance": 5195.5, "notes": ["Despesas fixas com rateio automático dos meses seguintes são estimativa com a base de hoje."] }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/emporio/finance/reports/receivables-aging",
+        auth: "Sessão · emporio:read · Financeiro, Gerente geral e Dono (os outros papéis: 403)",
+        description: "O a receber por idade de atraso (Q235): o fiado e as parcelas de acordo em aberto, por cliente e no total, nas faixas `em_dia`, `1-15`, `16-30` e `30+` (dias depois do vencimento efetivo), com `total` em cada linha. É o retrato de hoje, sem período (Q241). Query: `establishment_id` (opcional; fora do alcance: 404).",
+        response: `200
+{ "data": { "today": "2026-11-08", "customers": [{ "customer_id": "cl...", "customer_name": "Zé da Silva", "phone": "34 99876-1234", "em_dia": 0, "1-15": 0, "16-30": 320, "30+": 0, "total": 320 }], "totals": { "em_dia": 0, "1-15": 0, "16-30": 320, "30+": 0, "total": 320 } }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/emporio/finance/reports/payables-by-due",
+        auth: "Sessão · emporio:read · Financeiro, Gerente geral e Dono (os outros papéis: 403)",
+        description: "O a pagar por vencimento (Q235): as contas pendentes que vencem até `ate`, por semana de 7 dias a partir de `de` e por nome. Query: `establishment_id` (opcional), `de` e `ate` (AAAA-MM-DD; padrão de hoje a hoje mais 30 dias; até 366 dias; 422 no campo que falhar, `ate` inclusive quando passa do teto). O que venceu antes de hoje entra sempre na primeira semana, em destaque (`overdue`, `overdue_total`), mesmo anterior a `de` (Q243). Lê até 500 contas.",
+        response: `200
+{ "data": { "de": "2026-11-08", "ate": "2026-12-08", "weeks": [{ "de": "2026-11-08", "ate": "2026-11-14", "total": 220, "overdue": false, "items": [{ "name": "Aluguel", "total": 220 }] }], "by_name": [{ "name": "Aluguel", "total": 220, "overdue_total": 0 }], "overdue_total": 0, "total": 220 }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/emporio/finance/reports/cash-by-place",
+        auth: "Sessão · emporio:read · Financeiro, Gerente geral e Dono (os outros papéis: 403)",
+        description: "A posição de caixa por lugar (Q235): o saldo de hoje de cada gaveta, gerência e conta (`balance`) e o que se moveu em cada uma no período, por origem (`period.entradas`, `period.saidas`, `by_origin`). Query: `establishment_id` (opcional), `de` e `ate` (como no a pagar por vencimento; até 366 dias). Por loja, a conta bancária fica de fora (é da rede, Q242). Na conta, a parcela de cartão do período entra com a origem `cartao`.",
+        response: `200
+{ "data": { "de": "2026-11-01", "ate": "2026-11-08", "places": [{ "kind": "conta", "id": "cl...", "name": "Conta principal", "establishment_id": null, "balance": 5000, "period": { "entradas": 95.5, "saidas": 220, "by_origin": [{ "origin": "cartao", "label": "Cartão", "entradas": 95.5, "saidas": 0 }] } }], "total_balance": 5000 }, "meta": {} }`,
       },
       {
         method: "POST",
