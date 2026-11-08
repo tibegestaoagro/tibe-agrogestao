@@ -609,6 +609,8 @@ model Tenant {
   emporio_checks            EmporioCheck[]
   emporio_customers         EmporioCustomer[]
   emporio_credit_releases   EmporioCreditRelease[]
+  emporio_credit_agreements EmporioCreditAgreement[]
+  emporio_payment_requests  EmporioPaymentRequest[]
   emporio_suppliers         EmporioSupplier[]
   cash_transfers            CashTransfer[]
   cash_counts               CashCount[]
@@ -671,28 +673,30 @@ model User {
   /// Q129: as chaves de confiança do Vendedor (lista fixa no código).
   emporio_keys         String[]     @default([])
 
-  tenant                     Tenant                 @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  tenant                     Tenant                   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   whatsapp_contacts          WhatsAppContact[]
   password_resets            PasswordResetCode[]
   agent_flows                AgentFlowState[]
   refresh_tokens             RefreshToken[]
   herd_movements             HerdMovement[]
   herd_stays                 HerdStay[]
-  negotiations               Negotiation[]          @relation("NegotiationRecordedBy")
-  negotiations_canceled      Negotiation[]          @relation("NegotiationCanceledBy")
-  stock_movements            StockMovement[]        @relation("StockRecordedBy")
+  negotiations               Negotiation[]            @relation("NegotiationRecordedBy")
+  negotiations_canceled      Negotiation[]            @relation("NegotiationCanceledBy")
+  stock_movements            StockMovement[]          @relation("StockRecordedBy")
   push_subscriptions         PushSubscription[]
-  financial_entries_created  FinancialEntry[]       @relation("FinancialEntryCreatedBy")
-  financial_entries_updated  FinancialEntry[]       @relation("FinancialEntryUpdatedBy")
-  financial_payments_created FinancialPayment[]     @relation("FinancialPaymentCreatedBy")
-  workers_recorded           Worker[]               @relation("WorkerRecordedBy")
-  service_jobs_recorded      ServiceJob[]           @relation("ServiceJobRecordedBy")
-  service_jobs_canceled      ServiceJob[]           @relation("ServiceJobCanceledBy")
-  service_costs_recorded     ServiceJobCost[]       @relation("ServiceCostRecordedBy")
-  shopping_items_created     ShoppingItem[]         @relation("ShoppingItemCreatedBy")
-  establishments_responsible Establishment[]        @relation("EstablishmentResponsible")
+  financial_entries_created  FinancialEntry[]         @relation("FinancialEntryCreatedBy")
+  financial_entries_updated  FinancialEntry[]         @relation("FinancialEntryUpdatedBy")
+  financial_payments_created FinancialPayment[]       @relation("FinancialPaymentCreatedBy")
+  workers_recorded           Worker[]                 @relation("WorkerRecordedBy")
+  service_jobs_recorded      ServiceJob[]             @relation("ServiceJobRecordedBy")
+  service_jobs_canceled      ServiceJob[]             @relation("ServiceJobCanceledBy")
+  service_costs_recorded     ServiceJobCost[]         @relation("ServiceCostRecordedBy")
+  shopping_items_created     ShoppingItem[]           @relation("ShoppingItemCreatedBy")
+  establishments_responsible Establishment[]          @relation("EstablishmentResponsible")
   emporio_credit_releases    EmporioCreditRelease[]
-  tenant_feature_users       TenantFeatureUser[]    @relation("TenantFeatureUserUser")
+  emporio_credit_agreements  EmporioCreditAgreement[]
+  emporio_payment_requests   EmporioPaymentRequest[]
+  tenant_feature_users       TenantFeatureUser[]      @relation("TenantFeatureUserUser")
   user_establishments        UserEstablishment[]
 
   @@index([tenant_id])
@@ -1355,6 +1359,8 @@ model EmporioSettings {
   fiado_block_after_days   Int       @default(15)
   fiado_default_limit      Decimal?  @db.Decimal(14, 2)
   fiado_collection_message String?
+  /// Entrega 3: pagamento acima deste valor pede aprovação (Q233). Nulo = sem alçada.
+  payment_approval_limit   Decimal?  @db.Decimal(14, 2)
   logo                     Bytes?
   logo_mime                String?
   logo_updated_at          DateTime?
@@ -1465,19 +1471,22 @@ model CardFeeRule {
 /// `expected_on` está no futuro, soma no "a receber do cartão"; de hoje para
 /// trás, soma no saldo da conta. Nada é gravado na data (sem job).
 model CardReceivable {
-  id               String    @id @default(cuid())
-  tenant_id        String
-  sale_id          String
-  sale_payment_id  String
-  establishment_id String
-  bank_account_id  String
-  installment      Int
-  installments     Int
-  gross_amount     Decimal   @db.Decimal(14, 2)
-  net_amount       Decimal   @db.Decimal(14, 2)
-  expected_on      DateTime  @db.Date
-  canceled_at      DateTime?
-  created_at       DateTime  @default(now())
+  id                    String    @id @default(cuid())
+  tenant_id             String
+  sale_id               String
+  sale_payment_id       String
+  establishment_id      String
+  bank_account_id       String
+  installment           Int
+  installments          Int
+  gross_amount          Decimal   @db.Decimal(14, 2)
+  net_amount            Decimal   @db.Decimal(14, 2)
+  expected_on           DateTime  @db.Date
+  canceled_at           DateTime?
+  /// Entrega 3: carimbo de conciliação com o extrato (não mexe no saldo).
+  reconciled_at         DateTime?
+  reconciled_by_user_id String?
+  created_at            DateTime  @default(now())
 
   tenant         Tenant             @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   sale           EmporioSale        @relation(fields: [sale_id], references: [id], onDelete: Restrict)
@@ -1863,6 +1872,9 @@ model CashMovement {
   operation_key            String?
   notes                    String?
   created_by_user_id       String?
+  /// Entrega 3: carimbo de conciliação com o extrato (não mexe no saldo).
+  reconciled_at            DateTime?
+  reconciled_by_user_id    String?
   created_at               DateTime           @default(now())
 
   tenant                Tenant             @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
@@ -2768,15 +2780,20 @@ model FinancialEntry {
   /// dinheiro precisa das duas.
   payment_method PaymentMethod?
 
-  tenant           Tenant           @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  negotiation      Negotiation?     @relation(fields: [negotiation_id], references: [id], onDelete: SetNull)
-  created_by       User?            @relation("FinancialEntryCreatedBy", fields: [created_by_user_id], references: [id], onDelete: SetNull)
-  updated_by       User?            @relation("FinancialEntryUpdatedBy", fields: [updated_by_user_id], references: [id], onDelete: SetNull)
-  property         Property?        @relation(fields: [property_id], references: [id], onDelete: SetNull)
-  contact          Contact?         @relation(fields: [contact_id], references: [id], onDelete: SetNull)
-  emporio_customer EmporioCustomer? @relation(fields: [emporio_customer_id], references: [id], onDelete: SetNull)
-  emporio_supplier EmporioSupplier? @relation(fields: [emporio_supplier_id], references: [id], onDelete: SetNull)
-  establishment    Establishment?   @relation(fields: [establishment_id], references: [id], onDelete: SetNull)
+  /// Entrega 3: o acordo de fiado. Nas origens absorvidas (`cancelled`) e nas parcelas
+  /// (`pending`, com `related_id` = id do acordo).
+  agreement_id String?
+
+  tenant           Tenant                  @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  agreement        EmporioCreditAgreement? @relation(fields: [agreement_id], references: [id], onDelete: SetNull)
+  negotiation      Negotiation?            @relation(fields: [negotiation_id], references: [id], onDelete: SetNull)
+  created_by       User?                   @relation("FinancialEntryCreatedBy", fields: [created_by_user_id], references: [id], onDelete: SetNull)
+  updated_by       User?                   @relation("FinancialEntryUpdatedBy", fields: [updated_by_user_id], references: [id], onDelete: SetNull)
+  property         Property?               @relation(fields: [property_id], references: [id], onDelete: SetNull)
+  contact          Contact?                @relation(fields: [contact_id], references: [id], onDelete: SetNull)
+  emporio_customer EmporioCustomer?        @relation(fields: [emporio_customer_id], references: [id], onDelete: SetNull)
+  emporio_supplier EmporioSupplier?        @relation(fields: [emporio_supplier_id], references: [id], onDelete: SetNull)
+  establishment    Establishment?          @relation(fields: [establishment_id], references: [id], onDelete: SetNull)
 
   /// O livro-razão do rebanho aponta para cá (`HerdMovement.financial_entry_id`).
   herd_movements HerdMovement[]
@@ -2800,6 +2817,7 @@ model FinancialEntry {
   @@index([emporio_customer_id])
   @@index([emporio_supplier_id])
   @@index([establishment_id])
+  @@index([agreement_id])
 }
 
 /// Um pagamento (ou recebimento) feito contra um lançamento.
@@ -3531,12 +3549,13 @@ model EmporioCustomer {
   created_at          DateTime           @default(now())
   updated_at          DateTime           @updatedAt
 
-  tenant            Tenant                 @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  tenant            Tenant                   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   sales             EmporioSale[]
   quotes            EmporioQuote[]
   checks            EmporioCheck[]
   financial_entries FinancialEntry[]
   credit_releases   EmporioCreditRelease[]
+  credit_agreements EmporioCreditAgreement[]
 
   @@unique([tenant_id, document])
   @@unique([tenant_id, system_key])
@@ -3564,6 +3583,51 @@ model EmporioCreditRelease {
   consumed_sale EmporioSale?    @relation(fields: [consumed_sale_id], references: [id], onDelete: SetNull)
 
   @@index([tenant_id, customer_id, valid_until])
+}
+
+/// Entrega 3 do financeiro: acordo de fiado em parcelas. As origens absorvidas ficam
+/// `cancelled` e as parcelas nascem `pending`, ambas com `FinancialEntry.agreement_id`.
+model EmporioCreditAgreement {
+  id                 String   @id @default(cuid())
+  tenant_id          String
+  customer_id        String
+  created_by_user_id String
+  total              Decimal  @db.Decimal(14, 2)
+  installments       Int
+  notes              String?
+  created_at         DateTime @default(now())
+
+  tenant     Tenant           @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  customer   EmporioCustomer  @relation(fields: [customer_id], references: [id], onDelete: Restrict)
+  created_by User             @relation(fields: [created_by_user_id], references: [id], onDelete: Restrict)
+  entries    FinancialEntry[]
+
+  @@index([tenant_id, customer_id])
+}
+
+/// Entrega 3: pedido de aprovação de pagamento acima da alçada (Q233). Os ids das contas
+/// ficam em `entry_ids`; a aprovação refaz o pagamento na hora, por isso `last_failure`.
+model EmporioPaymentRequest {
+  id                   String    @id @default(cuid())
+  tenant_id            String
+  requested_by_user_id String
+  entry_ids            String[]
+  establishment_id     String?
+  cash_register_id     String?
+  bank_account_id      String?
+  total                Decimal   @db.Decimal(14, 2)
+  /// "pendente" | "aprovado" | "recusado"
+  status               String
+  reason               String?
+  last_failure         String?
+  decided_by_user_id   String?
+  decided_at           DateTime?
+  created_at           DateTime  @default(now())
+
+  tenant       Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  requested_by User   @relation(fields: [requested_by_user_id], references: [id], onDelete: Restrict)
+
+  @@index([tenant_id, status])
 }
 
 enum EmporioSupplierKind {

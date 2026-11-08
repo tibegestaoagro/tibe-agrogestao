@@ -99,6 +99,8 @@ export type AcaoEmporio =
   | "fatura_na_loja"
   /** Q215: mexer no dinheiro das lojas (pagar, receber, conciliar): Financeiro, Gerente geral e Dono. */
   | "dinheiro"
+  /** Q233: acordo de fiado em parcelas. Só Dono e Financeiro. */
+  | "acordo"
   | `chave:${EmporioKey}`;
 
 const noAlcance = (c: PapelContexto, lojaId?: string) => !lojaId || !c.lojas || c.lojas.has(lojaId);
@@ -112,6 +114,8 @@ export function pode(c: PapelContexto, acao: AcaoEmporio, lojaId?: string): bool
   const conta = c.papel === "dono" || c.papel === "gerente_geral";
   if (acao === "conta") return conta;
   if (acao === "dinheiro") return conta || c.papel === "financeiro";
+  // Q233: o acordo renegocia dívida do cliente; o gerente geral NÃO passa, de propósito.
+  if (acao === "acordo") return c.papel === "dono" || c.papel === "financeiro";
   if (acao === "fora_do_caixa") return c.papel !== "caixa";
   if (c.papel === "financeiro") return false;
   if (conta) return true;
@@ -141,6 +145,7 @@ const FRASES: Record<string, string> = {
   fora_do_caixa: "O acesso de caixa não inclui isso.",
   fatura_na_loja: "Seu acesso não permite fazer isso nessa loja.",
   dinheiro: "Só o financeiro, o gerente geral e o dono podem fazer isso.",
+  acordo: "Só o financeiro e o dono podem fazer isso.",
 };
 
 /** Frase de recusa por papel (403). `oQue` complementa: "cancelar uma venda". */
@@ -156,6 +161,7 @@ export function recusaDe(acao: AcaoEmporio, oQue?: string) {
   if (oQue && acao === "dinheiro") {
     return fail("FORBIDDEN", `Só o financeiro, o gerente geral e o dono podem ${oQue}.`, 403);
   }
+  if (oQue && acao === "acordo") return fail("FORBIDDEN", `Só o financeiro e o dono podem ${oQue}.`, 403);
   if (oQue && acao === "gestor_da_loja") {
     return fail("FORBIDDEN", `Só o gestor da loja pode ${oQue}.`, 403);
   }

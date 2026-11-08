@@ -47,6 +47,12 @@ export const ACOES_DO_HISTORICO = {
   "fiado.prazo": "Mudou o prazo de fiado",
   "fiado.liberar": "Liberou o crédito de um cliente bloqueado",
   "fiado.cobrar": "Cobrou um fiado atrasado",
+  "fiado.acordo": "Acordo de fiado",
+  "pagamento.pedir": "Pedido de aprovação de pagamento",
+  "pagamento.aprovar": "Pagamento aprovado",
+  "pagamento.recusar": "Pagamento recusado",
+  "conciliacao.carimbar": "Carimbo de conciliação",
+  "conciliacao.descarimbar": "Carimbo retirado",
   "caixa.transferir": "Transferiu dinheiro",
   "caixa.conferir": "Conferiu a gaveta",
   "caixa.saldo_inicial": "Informou o saldo inicial do caixa",
@@ -200,6 +206,10 @@ export function linkDoAlvo(targetType: string, targetId: string | null): string 
       return targetId ? `/emporio/clientes/${targetId}` : null;
     case "fornecedor":
       return targetId ? `/emporio/fornecedores/${targetId}` : null;
+    case "pedido_pagamento":
+      return "/emporio/financeiro/aprovacoes";
+    case "conta":
+      return targetId ? `/emporio/financeiro/caixa?lugar=conta:${targetId}` : null;
     default:
       return null;
   }
