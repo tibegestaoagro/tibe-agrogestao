@@ -14,13 +14,23 @@ import { reaisBr } from "@/lib/numero-br";
 import { CorrigirContaForm } from "./corrigir-conta-form";
 import type { CaixaDaLoja } from "./caixas-da-loja";
 import { PagarContasForm, type OrigemDoDinheiro } from "./pagar-contas-form";
+import { AdiarVencimentoForm, CancelarContaForm } from "./conta-acoes";
+
+const ORIGEM_ROTULO: Record<ContaDaLista["origin"], string> = {
+  vendeu_pagou: "Vendeu, Pagou",
+  despesa_fixa: "Despesa fixa",
+  compra: "Compra",
+};
 
 export type ContaDaLista = {
   entry_id: string;
-  origin: "vendeu_pagou" | "despesa_fixa";
+  origin: "vendeu_pagou" | "despesa_fixa" | "compra";
   name: string;
+  /** Da compra: o fornecedor (o `name` já o traz; fica para a frase da origem). */
+  supplier_name?: string | null;
   establishment_name: string | null;
   open_amount: number;
+  paid_amount: number;
   due_date: string | null;
   can_correct: boolean;
 };
@@ -34,7 +44,10 @@ export function ContasAPagar({
   hoje,
   caixas,
   usuarioId,
+  podeGaveta = true,
 }: {
+  /** Falso para quem não passa em `gestor_da_loja` (o Financeiro): o dinheiro da gaveta é da loja. */
+  podeGaveta?: boolean;
   contas: ContaDaLista[];
   origens: OrigemDoDinheiro[];
   hoje: string;
@@ -74,6 +87,7 @@ export function ContasAPagar({
           hoje={hoje}
           caixas={caixas}
           usuarioId={usuarioId}
+          podeGaveta={podeGaveta}
           aoPagar={() => setMarcadas(new Set())}
         />
       </div>
@@ -107,7 +121,7 @@ export function ContasAPagar({
                 <TableCell className="font-medium text-texto">
                   {c.name}
                   <span className="block text-xs font-normal text-texto-secundario">
-                    {c.origin === "vendeu_pagou" ? "Vendeu, Pagou" : "Despesa fixa"}
+                    {ORIGEM_ROTULO[c.origin]}
                     {c.establishment_name ? `, ${c.establishment_name}` : ""}
                   </span>
                 </TableCell>
@@ -121,7 +135,11 @@ export function ContasAPagar({
                 </TableCell>
                 <TableCell>{reaisBr(c.open_amount)}</TableCell>
                 <TableCell>
-                  {c.can_correct && <CorrigirContaForm entryId={c.entry_id} nome={c.name} valor={c.open_amount} />}
+                  <div className="flex flex-wrap gap-2">
+                    {c.can_correct && <CorrigirContaForm entryId={c.entry_id} nome={c.name} valor={c.open_amount} />}
+                    <AdiarVencimentoForm entryId={c.entry_id} nome={c.name} vencimento={c.due_date} />
+                    {c.paid_amount === 0 && <CancelarContaForm entryId={c.entry_id} nome={c.name} />}
+                  </div>
                 </TableCell>
               </TableRow>
             );

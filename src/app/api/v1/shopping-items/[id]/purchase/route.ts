@@ -34,6 +34,14 @@ const schema = z.object({
   property_id: z.string().nullish(),
   /** Módulo 39 (Q68): compra numa loja do Empório (à vista, recebida). */
   establishment_id: z.string().nullish(),
+  /** De onde saiu o dinheiro da compra na loja (a gaveta da loja OU uma conta); a compra do Empório exige. */
+  paid_from: z
+    .object({
+      establishment_id: z.string().nullish(),
+      bank_account_id: z.string().nullish(),
+      cash_register_id: z.string().nullish(),
+    })
+    .nullish(),
   contact_id: z.string().nullish(),
   contact_name: z.string().nullish(),
   occurred_at: z.string().datetime().nullish(),

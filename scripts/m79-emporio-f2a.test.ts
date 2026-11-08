@@ -168,18 +168,29 @@ async function comBanco() {
       return { id: d.id, product_id: d.product_id, p };
     };
 
+    // Compra à vista ou com entrada diz de onde saiu o dinheiro: uma conta bancária com saldo, paga por quem passa em
+    // `gestor_da_loja` (o Vendedor `op` não paga da conta, então o fixture troca o ator só quando há parte paga).
+    const Cx = (await import("@/lib/actions/emporio-caixa")) as unknown as Record<string, Acao>;
+    const rContaA = await chamarEm(Cx, db, "criarContaAction", admin, { name: `M79 Conta ${stamp}`, bank: "Banco M79" });
+    if (!rContaA.ok) throw new Error(`conta: ${j(rContaA)}`);
+    const rSaldoA = await chamarEm(Cx, db, "saldoInicialCaixaAction", owner, { bank_account_id: rContaA.data.id, amount: 1_000_000 });
+    if (!rSaldoA.ok) throw new Error(`saldo inicial: ${j(rSaldoA)}`);
+    const contaA: string = rContaA.data.id;
+
     let chaveSeq = 0;
     const comprar = (ator: Ator, over: Dado = {}) => {
       chaveSeq += 1;
-      return pp("criarCompraAction", ator, {
+      const payment: Dado = over.payment ?? { kind: "a_vista" };
+      const pagaNaHora = payment.kind === "a_vista" || (payment.kind === "parcelada" && Number(payment.down_payment ?? 0) > 0);
+      return pp("criarCompraAction", pagaNaHora && ator === op ? admin : ator, {
         operation_key: `m79-${stamp}-${chaveSeq}`,
         establishment_id: L1.id,
         purchased_at: new Date(),
         received: true,
         freight: 0,
-        payment: { kind: "a_vista" },
         items: [],
         ...over,
+        payment: pagaNaHora && !payment.paid_from ? { ...payment, paid_from: { bank_account_id: contaA } } : payment,
       });
     };
     const compraId = (r: R): string => dados(r)?.id ?? dados(r)?.purchase_id;
@@ -469,7 +480,7 @@ async function comBanco() {
     check("VISUALIZADOR encaminha: 403", recusa(await ee("encaminharParaListaAction", visu, { establishment_id: L1.id, emporio_product_id: R3.id, quantity: 1 }), "FORBIDDEN", 403));
     const item = itensLista[0];
     const antes = await total(L1.id, R3);
-    const rComp = await registrarCompraDoItemAction(db, item.id, { amount: 90, quantity: 30, pago: true, recorded_by_user_id: op.id, establishment_id: L1.id } as never) as R;
+    const rComp = await registrarCompraDoItemAction(db, item.id, { amount: 90, quantity: 30, pago: true, ator: admin, paid_from: { bank_account_id: contaA }, establishment_id: L1.id } as never) as R;
     check("\"comprei\" do item com loja funciona", rComp.ok, j(rComp));
     const mComp = await movimentosDe(R3, { movement_type: "compra" });
     check("cria compra recebida NA LOJA (movimentação com purchase_id e a loja, sem fazenda)", mComp.length === 1 && mComp[0].establishment_id === L1.id && mComp[0].property_id === null && mComp[0].purchase_id !== null, j(mComp.map((m) => [m.establishment_id, m.property_id, m.purchase_id])));
@@ -478,9 +489,20 @@ async function comBanco() {
     const eLista = await entradasDe(idLista);
     check("com lançamento emporio pago de 90 na loja", eLista.length === 1 && eLista[0].status === "paid" && perto(n(eLista[0].amount), 90) && eLista[0].establishment_id === L1.id, j(eLista.map((e) => [e.status, e.amount, e.establishment_id])));
     check("o item sai da Lista (comprado)", (await db.shoppingItem.findUnique({ where: { id: item.id } }))?.status === "comprado");
-    const rRep = await registrarCompraDoItemAction(db, item.id, { amount: 90, quantity: 30, pago: true, recorded_by_user_id: op.id, establishment_id: L1.id } as never) as R;
+    const rRep = await registrarCompraDoItemAction(db, item.id, { amount: 90, quantity: 30, pago: true, ator: admin, paid_from: { bank_account_id: contaA }, establishment_id: L1.id } as never) as R;
     check("repetir o \"comprei\": recusado", !rRep.ok, j(rRep));
     check("e não duplica compra, movimentação, lançamento nem saldo", (await movimentosDe(R3, { movement_type: "compra" })).length === 1 && (await total(L1.id, R3)) === antes + 30 && (await entradasDe(idLista)).length === 1);
+    // Sem dizer de onde saiu o dinheiro, o "comprei" da loja não vira pagamento: fica nas contas a pagar, vencendo hoje.
+    const rEnc2 = await ee("encaminharParaListaAction", admin, { establishment_id: L1.id, emporio_product_id: R3.id, quantity: 4 });
+    const item2 = await db.shoppingItem.findFirst({ where: { product_id: R3.product_id, status: "pendente" } });
+    check("novo item da Lista para o teste sem paid_from", rEnc2.ok && !!item2, j(rEnc2));
+    const rSemLugar = await registrarCompraDoItemAction(db, item2?.id ?? "", { amount: 40, quantity: 4, pago: true, ator: admin, establishment_id: L1.id } as never) as R;
+    check("\"comprei\" da loja sem paid_from: registra e avisa que ficou a pagar", rSemLugar.ok && dados(rSemLugar)?.a_pagar_na_loja === true, j(rSemLugar));
+    const eSemLugar = await entradasDe(dados(rSemLugar)?.purchase_id ?? "");
+    check("a conta nasce pendente, de 40, na loja, sem pagamento nem movimento de caixa",
+      eSemLugar.length === 1 && eSemLugar[0].status === "pending" && perto(n(eSemLugar[0].amount), 40) && eSemLugar[0].establishment_id === L1.id
+        && (await db.financialPayment.count({ where: { entry_id: eSemLugar[0].id } })) === 0, j(eSemLugar.map((e) => [e.status, e.amount])));
+    check("e o item sai da Lista", (await db.shoppingItem.findUnique({ where: { id: item2?.id ?? "" } }))?.status === "comprado");
 
     console.log("\n13. A fazenda não enxerga o Empório");
     const vistos = new Set((await listProductsWithBalance(db)).map((p) => p.id));
@@ -547,7 +569,10 @@ async function comBanco() {
     const rLojaB = await chamarEm(C, dbB, "criarEstabelecimentoAction", ownerB, { name: "M79 Loja B", kind: "ponto_venda" });
     const rProdB = await chamarEm(C, dbB, "criarProdutoEmporioAction", ownerB, { name: "M79 Produto B", category_id: catB.id, base_unit: "quilograma" });
     check("B monta o próprio Empório", rLojaB.ok && rProdB.ok, j([rLojaB, rProdB]));
-    const mesmaChave = await pb("criarCompraAction", ownerB, { operation_key: chave, establishment_id: dados(rLojaB)?.id, purchased_at: new Date(), received: true, freight: 0, payment: { kind: "a_vista" }, items: [{ emporio_product_id: dados(rProdB)?.id, quantity: 1, item_total: 5 }] });
+    const rContaB = await chamarEm(Cx, dbB, "criarContaAction", ownerB, { name: `M79 Conta B ${stamp}`, bank: "Banco M79 B" });
+    const rSaldoB = await chamarEm(Cx, dbB, "saldoInicialCaixaAction", ownerB, { bank_account_id: dados(rContaB)?.id, amount: 1000 });
+    check("B monta a própria conta com saldo", rContaB.ok && rSaldoB.ok, j([rContaB, rSaldoB]));
+    const mesmaChave = await pb("criarCompraAction", ownerB, { operation_key: chave, establishment_id: dados(rLojaB)?.id, purchased_at: new Date(), received: true, freight: 0, payment: { kind: "a_vista", paid_from: { bank_account_id: dados(rContaB)?.id } }, items: [{ emporio_product_id: dados(rProdB)?.id, quantity: 1, item_total: 5 }] });
     check("a chave de operação é por conta: B grava a mesma chave de A como compra própria", mesmaChave.ok && compraId(mesmaChave) !== compraId(k1), j(mesmaChave));
     check("e a compra de A (mesma chave) segue com 7 kg", (await total(L1.id, K)) === 7);
     check("nada de A foi alterado por B (saldo da Ração)", (await total(L1.id, R1)) === 25);

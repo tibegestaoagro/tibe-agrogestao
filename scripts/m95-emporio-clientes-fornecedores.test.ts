@@ -1073,8 +1073,8 @@ async function secao5() {
   check("o filtro supplier_id", listada.ok && listada.data.length === 1 && listada.data[0].id === ce.data.id, j(listada));
   const semNada = await comprar(owner, {}) as Dado;
   check("sem fornecedor e sem payment: 422 payment", !semNada.ok && semNada.status === 422 && semNada.field === "payment", j(semNada));
-  const semForn = await comprar(owner, { payment: { kind: "a_vista" } });
-  check("sem fornecedor, à vista: ok", semForn.ok && semForn.data.supplier_id === null && semForn.data.supplier_name === null, j(semForn));
+  const semForn = await comprar(owner, { payment: { kind: "a_prazo", due_date: venc } });
+  check("sem fornecedor, a prazo: ok", semForn.ok && semForn.data.supplier_id === null && semForn.data.supplier_name === null, j(semForn));
 
   const meuDia = await MD.itensDoEmporioNoDia(db, owner);
   check(
@@ -1185,7 +1185,7 @@ async function secao5() {
       purchased_at: new Date().toISOString(),
       received: true,
       items: [{ emporio_product_id: prod.id, quantity: 1, item_total: 4 }],
-      payment: { kind: "a_vista" },
+      payment: { kind: "a_prazo", due_date: new Date(Date.now() + 5 * 86_400_000).toISOString() },
     })),
   );
   const cCompra = (await rCompra.json()) as Dado;

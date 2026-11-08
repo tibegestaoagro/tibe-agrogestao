@@ -497,6 +497,8 @@ export async function registrarCompraDoItemAction(
     property_id?: string | null;
     /** Módulo 39 (Q68): compra numa loja do Empório. Também vale o do próprio item. */
     establishment_id?: string | null;
+    /** Só no caminho da loja: de onde saiu o dinheiro (a compra à vista do Empório exige). */
+    paid_from?: { establishment_id?: string | null; bank_account_id?: string | null; cash_register_id?: string | null } | null;
     /** Obrigatório no caminho da loja (a compra do Empório exige quem comprou). */
     ator?: Ator;
     contact_id?: string | null;
@@ -508,7 +510,7 @@ export async function registrarCompraDoItemAction(
     recorded_by_user_id?: string | null;
   },
 ): Promise<
-  ActionResult<{ item_id: string; negotiation_id: string | null; product_id: string; purchase_id: string | null }>
+  ActionResult<{ item_id: string; negotiation_id: string | null; product_id: string; purchase_id: string | null; a_pagar_na_loja?: boolean }>
 > {
   const item = await db.shoppingItem.findFirst({ where: { id: itemId } });
   if (!item) return fail("NOT_FOUND", "Item não encontrado", 404);
@@ -614,6 +616,7 @@ async function registrarCompraDoItemNaLoja(
     product_id?: string | null;
     quantity?: number | null;
     property_id?: string | null;
+    paid_from?: { establishment_id?: string | null; bank_account_id?: string | null; cash_register_id?: string | null } | null;
     ator?: Ator;
     recorded_by_user_id?: string | null;
     contact_id?: string | null;
@@ -621,7 +624,7 @@ async function registrarCompraDoItemNaLoja(
     notes?: string | null;
   },
 ): Promise<
-  ActionResult<{ item_id: string; negotiation_id: string | null; product_id: string; purchase_id: string | null }>
+  ActionResult<{ item_id: string; negotiation_id: string | null; product_id: string; purchase_id: string | null; a_pagar_na_loja?: boolean }>
 > {
   // Sem `ator`, quem comprou é lido de `recorded_by_user_id` e a role vem do
   // banco (nunca do caller), que é o caminho do agente do WhatsApp.
@@ -667,7 +670,11 @@ async function registrarCompraDoItemNaLoja(
     received: true,
     freight: 0,
     items: [{ emporio_product_id: produto.id, quantity: quantidade, item_total: input.amount }],
-    payment: { kind: "a_vista" },
+    // Sem dizer de onde saiu o dinheiro, a compra não vira pagamento: fica nas contas a pagar da loja, vencendo na data
+    // da compra, e quem paga (Gestor ou Financeiro) escolhe o lugar.
+    payment: input.paid_from
+      ? { kind: "a_vista", paid_from: input.paid_from }
+      : { kind: "a_prazo", due_date: input.occurred_at ?? new Date() },
     notes: input.notes ?? null,
   });
   if (!compra.ok) return fail(compra.code, compra.message, compra.status, compra.field);
@@ -683,7 +690,13 @@ async function registrarCompraDoItemNaLoja(
     },
   });
 
-  return ok({ item_id: item.id, negotiation_id: null, product_id: produto.product_id, purchase_id: compra.data.id });
+  return ok({
+    item_id: item.id,
+    negotiation_id: null,
+    product_id: produto.product_id,
+    purchase_id: compra.data.id,
+    ...(input.paid_from ? {} : { a_pagar_na_loja: true }),
+  });
 }
 
 /**

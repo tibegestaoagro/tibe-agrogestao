@@ -443,7 +443,11 @@ async function comBanco() {
     const milhoAntes = await total(L1.id, Milho);
     const sojaAntes = await total(L1.id, Soja);
     const consumosAntes = await db.stockMovement.count({ where: { movement_type: "producao_consumo" } });
-    const rCompra = await comprar(op, { items: [{ emporio_product_id: Final.id, quantity: 50, item_total: 500 }] });
+    // A forma de pagamento não é o assunto aqui: a prazo, para a compra não precisar dizer de onde saiu o dinheiro.
+    const rCompra = await comprar(op, {
+      items: [{ emporio_product_id: Final.id, quantity: 50, item_total: 500 }],
+      payment: { kind: "a_prazo", due_date: new Date(Date.now() + 7 * 86_400_000) },
+    });
     check("compra recebida de produto que tem composição", rCompra.ok, j(rCompra));
     check("o produto ganha 50 (450)", (await total(L1.id, Final)) === 450);
     check("nenhum componente baixa", (await total(L1.id, Milho)) === milhoAntes && (await total(L1.id, Soja)) === sojaAntes);

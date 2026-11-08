@@ -28,8 +28,8 @@ export type OrigemDoDinheiro = { valor: string; rotulo: string };
 
 /**
  * Paga várias contas de uma vez, saindo da gaveta de uma loja ou de uma conta
- * bancária (Q98). Pagar aqui tira do caixa do Empório; pagar pelo Financeiro
- * não tira (dívida 2.26), e por isso o aviso fica no painel.
+ * bancária (Q98). Pagar aqui tira do caixa do Empório, inclusive a conta de
+ * compra (lacuna 2.26); o Financeiro só enxerga as contas bancárias.
  */
 export function PagarContasForm({
   contas,
@@ -38,7 +38,10 @@ export function PagarContasForm({
   aoPagar,
   caixas,
   usuarioId,
+  podeGaveta = true,
 }: {
+  /** Falso para o Financeiro: ele paga pela conta bancária, a gaveta é da loja. */
+  podeGaveta?: boolean;
   caixas: CaixaDaLoja[];
   usuarioId: string;
   contas: { entry_id: string; name: string; establishment_name: string | null; open_amount: number }[];
@@ -66,7 +69,7 @@ export function PagarContasForm({
   async function submit() {
     const novos: Partial<Record<Campo, string>> = {};
     if (contas.length === 0) novos.entry_ids = "Escolha ao menos uma conta para pagar.";
-    if (!origem) novos.from = "Diga de onde sai o dinheiro: uma gaveta ou uma conta.";
+    if (!origem) novos.from = podeGaveta ? "Diga de onde sai o dinheiro: uma gaveta ou uma conta." : "Escolha a conta de onde sai o dinheiro.";
     if (origem && lojaDaGaveta && abertos.length > 1 && !caixaEscolhido) novos.cash_register_id = "Escolha o caixa de onde sai o dinheiro.";
     if (!data) novos.paid_at = "Informe a data do pagamento.";
     if (Object.keys(novos).length > 0) {
@@ -147,7 +150,7 @@ export function PagarContasForm({
               <SelectValue placeholder="Escolha a gaveta ou a conta" />
             </SelectTrigger>
             <SelectContent>
-              {origens.map((o) => (
+              {origens.filter((o) => podeGaveta || !o.valor.startsWith("loja:")).map((o) => (
                 <SelectItem key={o.valor} value={o.valor}>
                   {o.rotulo}
                 </SelectItem>

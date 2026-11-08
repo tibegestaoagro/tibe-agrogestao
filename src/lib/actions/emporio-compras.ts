@@ -2,9 +2,11 @@ import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { dinheiro, itens as frasItens, registrarNoHistorico } from "@/lib/emporio/historico";
 import { decToNum, isoOrNull } from "@/lib/serialize";
-import { exigir, recusarCaixa } from "@/lib/emporio/papel";
-import { createLinkedEntry } from "@/lib/financial";
+import { exigir, exigirUma, recusarCaixa } from "@/lib/emporio/papel";
+import { createLinkedEntry, runSerializableTenantTransaction, type TenantTransactionClient } from "@/lib/financial";
 import { lacradoEfetivo, lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
+import { saldoDoCaixa, saldosDasContas } from "@/lib/actions/emporio-caixa";
+import { resolverTurno } from "@/lib/emporio/turno";
 
 /**
  * Meu Empório, F2a: compras (Módulo 39, Q38, Q39, Q61 a Q63, Q70).
@@ -24,6 +26,7 @@ const NAO_ACHADO = (o: string, field?: string) => fail("NOT_FOUND", `${o} não e
 
 const centavos = (v: number) => Math.round(v * 100);
 const dataValida = (d: unknown): d is Date => d instanceof Date && !Number.isNaN(d.getTime());
+const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const arred = (v: number, casas: number) => {
   const f = 10 ** casas;
   return Math.round(v * f) / f;
@@ -239,6 +242,8 @@ export type CompraInput = {
     due_date?: Date | null;
     down_payment?: number | null;
     installments?: { amount: number; due_date: Date }[] | null;
+    /** De onde saiu o dinheiro da parte paga (à vista ou entrada): a gaveta da loja da compra OU uma conta. */
+    paid_from?: { establishment_id?: string | null; bank_account_id?: string | null; cash_register_id?: string | null } | null;
   };
   notes?: string | null;
 };
@@ -423,6 +428,34 @@ export async function criarCompraAction(
     for (const p of parcelas) lancamentos.push({ amount: centavos(p.amount) / 100, due_date: p.due_date, paid: false });
   }
 
+  // A parte paga na hora (à vista ou entrada) sai da gaveta da loja OU de uma conta: dinheiro não aparece (Q215).
+  let lugar: { gaveta: boolean; conta_id: string | null; conta_nome: string | null; caixa_pedido: string | undefined } | null = null;
+  if (pg && lancamentos.some((l) => l.paid)) {
+    const pf = pg.paid_from;
+    const gavetaId = typeof pf?.establishment_id === "string" && pf.establishment_id.trim() ? pf.establishment_id.trim() : null;
+    const contaId = typeof pf?.bank_account_id === "string" && pf.bank_account_id.trim() ? pf.bank_account_id.trim() : null;
+    if ((gavetaId === null) === (contaId === null)) {
+      return fail("VALIDATION_ERROR", "Diga de onde saiu o dinheiro da compra: a gaveta da loja ou uma conta.", 422, "paid_from");
+    }
+    if (gavetaId && gavetaId !== loja.id) {
+      return fail("VALIDATION_ERROR", "O dinheiro da gaveta sai da loja da compra.", 422, "paid_from");
+    }
+    let contaNome: string | null = null;
+    if (contaId) {
+      const negConta = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "pagar da conta bancária", loja.id);
+      if (negConta) return negConta;
+      const conta = await db.bankAccount.findFirst({ where: { id: contaId }, select: { name: true, archived_at: true } });
+      if (!conta || conta.archived_at) return NAO_ACHADO("Conta", "paid_from");
+      contaNome = conta.name;
+    }
+    lugar = {
+      gaveta: gavetaId !== null,
+      conta_id: contaId,
+      conta_nome: contaNome,
+      caixa_pedido: typeof pf?.cash_register_id === "string" && pf.cash_register_id.trim() ? pf.cash_register_id.trim() : undefined,
+    };
+  }
+
   // A categoria nasce sob demanda (Q62). skipDuplicates cobre duas compras simultâneas.
   if (lancamentos.length > 0) {
     const cat = await db.financialCategory.findFirst({
@@ -437,9 +470,36 @@ export async function criarCompraAction(
   }
 
   const recebidaEm = input.received ? input.purchased_at : null;
+  const pagoCent = lancamentos.filter((l) => l.paid).reduce((s, l) => s + centavos(l.amount), 0);
 
   try {
-    const id = await db.$transaction(async (tx) => {
+    // Serializável (com a repetição do helper): duas compras à vista da mesma gaveta ou conta não passam juntas pelo saldo.
+    const id = await runSerializableTenantTransaction(db, async (txSerial) => {
+      const tx = txSerial as unknown as TxLike;
+      // Da gaveta o dinheiro sai do turno aberto, e o saldo que vale é o do caixa dele; da conta, o saldo da conta.
+      let turno: { id: string; cash_register_id: string } | null = null;
+      if (lugar) {
+        const pagoC = pagoCent;
+        const leitor = tx as unknown as TenantPrismaClient;
+        if (lugar.gaveta) {
+          const r = await resolverTurno(tx as unknown as TenantTransactionClient, ator, loja.id, lugar.caixa_pedido, "exige");
+          if (!r.ok) throw new AbortarCompra(r);
+          turno = r.turno;
+        }
+        const saldo = turno
+          ? await saldoDoCaixa(leitor, turno.cash_register_id)
+          : ((await saldosDasContas(leitor)).get(lugar.conta_id as string) ?? 0);
+        if (saldo < pagoC) {
+          throw new AbortarCompra(
+            fail(
+              "INSUFFICIENT_CASH",
+              `Saldo insuficiente: há ${brl(saldo / 100)} e a parte paga da compra é ${brl(pagoC / 100)}.`,
+              409,
+              "paid_from",
+            ),
+          );
+        }
+      }
       const compra = await tx.emporioPurchase.create({
         data: scoped({
           establishment_id: loja.id,
@@ -457,7 +517,7 @@ export async function criarCompraAction(
         data: itens.map((i) => scoped({ ...i, purchase_id: compra.id })),
       });
       for (const l of lancamentos) {
-        await createLinkedEntry(tx, {
+        const entrada = await createLinkedEntry(tx, {
           entry_type: "expense",
           category: CATEGORIA_MERCADORIAS,
           amount: l.amount,
@@ -469,6 +529,29 @@ export async function criarCompraAction(
           emporio_supplier_id: fornecedor?.id ?? null,
           establishment_id: loja.id,
         });
+        if (l.paid && lugar) {
+          // O pagamento nasce dentro de `createLinkedEntry`: o movimento de caixa se amarra a ele.
+          const pagamento = await tx.financialPayment.findFirst({ where: { entry_id: entrada.id }, select: { id: true } });
+          if (!pagamento) throw new Error("pagamento da compra não nasceu");
+          await tx.financialPayment.update({
+            where: { id: pagamento.id },
+            data: { method: lugar.gaveta ? "dinheiro" : "outro", created_by_user_id: ator.id },
+          });
+          await tx.cashMovement.create({
+            data: scoped({
+              establishment_id: lugar.gaveta ? loja.id : null,
+              cash_register_id: turno?.cash_register_id ?? null,
+              cash_session_id: turno?.id ?? null,
+              bank_account_id: lugar.conta_id,
+              direction: "saida" as const,
+              amount: l.amount,
+              origin: "pagamento_compra" as const,
+              occurred_at: l.due_date,
+              financial_payment_id: pagamento.id,
+              created_by_user_id: ator.id,
+            }),
+          });
+        }
       }
       if (recebidaEm) {
         await entrarNoEstoque(tx, ator, compra.id, loja.id, recebidaEm, itens, porId);
@@ -479,6 +562,15 @@ export async function criarCompraAction(
         target_type: "compra",
         target_id: compra.id,
         summary: `Lançou uma compra de ${dinheiro(totalC / 100)} na ${loja.name} (${frasItens(itens.length)}${recebidaEm ? ", já recebida" : ""})`,
+        changes: lugar
+          ? [
+              {
+                campo: "Dinheiro saiu de",
+                antes: null,
+                depois: `${dinheiro(pagoCent / 100)} ${lugar.gaveta ? `da gaveta da ${loja.name}` : `da conta ${lugar.conta_nome}`}`,
+              },
+            ]
+          : undefined,
       });
       return compra.id;
     });

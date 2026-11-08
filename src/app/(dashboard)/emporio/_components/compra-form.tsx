@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Select,
@@ -15,7 +15,10 @@ import { MoneyInput } from "@/components/ui/money-input";
 import { Field } from "@/components/ui/field";
 import { FormSheet } from "@/components/ui/form-sheet";
 import { useErrosDeFormulario } from "@/components/ui/use-erros-de-formulario";
-import { apiPost } from "@/lib/client-api";
+import { apiGet, apiPost } from "@/lib/client-api";
+import type { CaixaView } from "@/lib/actions/emporio-caixa";
+import { CaixaDaOperacao } from "./caixa-da-operacao";
+import { abertosDaLoja, caixaInicial, paraCaixasDaLoja, type CaixaDaLoja } from "./caixas-da-loja";
 import { lerNumeroBr, reaisBr } from "@/lib/numero-br";
 import type { FornecedorEscolhido } from "@/lib/actions/emporio-fornecedores";
 import { UNIDADE_BASE_SUFIXO } from "./formato";
@@ -51,6 +54,8 @@ const ORDEM = [
   "due_date",
   "down_payment",
   "installments",
+  "paid_from",
+  "cash_register_id",
 ] as const;
 type Campo = (typeof ORDEM)[number];
 
@@ -115,8 +120,33 @@ export function CompraForm({
   const [parcelas, setParcelas] = useState<ParcelaLinha[]>([]);
   const [nParcelas, setNParcelas] = useState("2");
   const [primeiroVenc, setPrimeiroVenc] = useState("");
+  // De onde saiu o dinheiro da parte paga: "gaveta" ou "conta:<id>". Os saldos vêm do servidor ao abrir o painel;
+  // quem não vê as contas (o Vendedor) recebe só a gaveta.
+  const [lugar, setLugar] = useState("");
+  const [caixa, setCaixa] = useState("");
+  const [dinheiroDaCasa, setDinheiroDaCasa] = useState<{
+    contas: { id: string; nome: string; saldo: number }[];
+    caixas: CaixaDaLoja[];
+  } | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    let vivo = true;
+    apiGet<CaixaView>("/api/v1/emporio/cash").then((res) => {
+      if (!vivo || !res.ok) return;
+      setDinheiroDaCasa({
+        contas: res.data.accounts.map((a) => ({ id: a.bank_account_id, nome: a.name, saldo: a.balance })),
+        caixas: paraCaixasDaLoja(res.data.drawers.flatMap((d) => d.registers)),
+      });
+    });
+    return () => {
+      vivo = false;
+    };
+  }, [open]);
 
   function reiniciar() {
+    setLugar("");
+    setCaixa("");
     setLoja(lojas.length === 1 ? lojas[0].id : "");
     setFornecedor(null);
     setData(hoje());
@@ -149,6 +179,11 @@ export function CompraForm({
   const falta = total - totalEntrada - somaParcelas;
   // Compra de propriedade do dono: entra só o custo, sem forma de pagamento nem conta a pagar.
   const deProps = fornecedor?.kind === "propriedade";
+  // Há parte paga na hora (à vista com total, ou entrada): o dinheiro não aparece, sai de um lugar.
+  const temParteTrazida = !deProps && ((forma === "a_vista" && total > 0) || (forma === "parcelada" && totalEntrada > 0));
+  const abertos = lugar === "gaveta" ? abertosDaLoja(dinheiroDaCasa?.caixas ?? [], loja) : [];
+  const caixaEscolhido = abertos.some((c) => c.id === caixa) ? caixa : caixaInicial(abertos, "");
+  const mostrarCaixa = lugar === "gaveta" && (abertos.length !== 1 || !!err.erros.cash_register_id);
 
   function atualizarItem(key: number, parte: Partial<ItemLinha>) {
     setItens((lista) => lista.map((i) => (i.key === key ? { ...i, ...parte } : i)));
@@ -226,6 +261,11 @@ export function CompraForm({
       }
     }
 
+    if (temParteTrazida && !lugar) novos.paid_from = "Diga de onde saiu o dinheiro: a gaveta da loja ou uma conta.";
+    if (temParteTrazida && lugar === "gaveta" && abertos.length > 1 && !caixaEscolhido) {
+      novos.cash_register_id = "Escolha o caixa de onde saiu o dinheiro.";
+    }
+
     if (Object.keys(novos).length > 0) {
       err.setGlobal(null);
       err.reprovar(novos);
@@ -253,6 +293,11 @@ export function CompraForm({
                 forma === "parcelada"
                   ? parcelas.map((p) => ({ amount: lerNumeroBr(p.valor) as number, due_date: paraIso(p.vencimento) }))
                   : null,
+              paid_from: temParteTrazida
+                ? lugar === "gaveta"
+                  ? { establishment_id: loja, cash_register_id: caixaEscolhido || null }
+                  : { bank_account_id: lugar.slice("conta:".length) }
+                : null,
             },
           }),
     });
@@ -589,6 +634,55 @@ export function CompraForm({
             )}
           </Field>
         </>
+      )}
+
+      {temParteTrazida && (
+        <Field label="De onde saiu o dinheiro" required id={err.idDe("paid_from")} error={err.erros.paid_from}>
+          {({ id, ...aria }) => (
+            <Select
+              value={lugar}
+              onValueChange={(v) => {
+                setLugar(v);
+                err.limparCampo("paid_from");
+                err.limparCampo("cash_register_id");
+              }}
+            >
+              <SelectTrigger id={id} {...aria}>
+                <SelectValue placeholder="Escolha a gaveta da loja ou uma conta" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="gaveta">Gaveta da loja</SelectItem>
+                {(dinheiroDaCasa?.contas ?? []).map((c) => (
+                  <SelectItem key={c.id} value={`conta:${c.id}`}>
+                    {`Conta: ${c.nome} (${reaisBr(c.saldo)})`}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </Field>
+      )}
+
+      {temParteTrazida && mostrarCaixa && (
+        <Field
+          label="Caixa de onde saiu o dinheiro"
+          required={abertos.length > 1}
+          id={err.idDe("cash_register_id")}
+          error={err.erros.cash_register_id}
+        >
+          {({ id, ...aria }) => (
+            <CaixaDaOperacao
+              id={id}
+              aria={aria}
+              abertos={abertos}
+              valor={caixaEscolhido}
+              aoMudar={(v) => {
+                setCaixa(v);
+                err.limparCampo("cash_register_id");
+              }}
+            />
+          )}
+        </Field>
       )}
     </FormSheet>
   );

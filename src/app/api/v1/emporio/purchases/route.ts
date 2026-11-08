@@ -36,6 +36,13 @@ const criarSchema = z.object({
       due_date: data.nullish(),
       down_payment: z.number().nullish(),
       installments: z.array(z.object({ amount: z.number(), due_date: data })).nullish(),
+      paid_from: z
+        .object({
+          establishment_id: z.string().nullish(),
+          bank_account_id: z.string().nullish(),
+          cash_register_id: z.string().nullish(),
+        })
+        .nullish(),
     },
     { error: "Informe o pagamento." },
   ).nullish(),

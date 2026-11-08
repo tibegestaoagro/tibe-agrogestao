@@ -2,7 +2,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { decToNum, isoOrNull } from "@/lib/serialize";
-import { exigir } from "@/lib/emporio/papel";
+import { exigir, exigirUma, papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { diferencas, dinheiro, registrarNoHistorico } from "@/lib/emporio/historico";
 import { createLinkedEntry, runSerializableTenantTransaction } from "@/lib/financial";
 import { lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
@@ -901,7 +901,8 @@ export async function renovarDespesaFixaAction(
 
 export type ContaAPagarView = {
   entry_id: string;
-  origin: "vendeu_pagou" | "despesa_fixa";
+  origin: "vendeu_pagou" | "despesa_fixa" | "compra";
+  /** Da compra: o nome do fornecedor, ou "Compra sem fornecedor". */
   name: string;
   category: string | null;
   establishment_id: string | null;
@@ -915,30 +916,40 @@ export type ContaAPagarView = {
   sale_variable_expense_id: string | null;
   template_id: string | null;
   period: string | null;
-  /** Corrigir só vale em conta pendente e sem pagamento. */
+  /** A compra que gerou a conta (só `origin: "compra"`). */
+  purchase_id: string | null;
+  supplier_name: string | null;
+  /** Corrigir só vale em conta pendente e sem pagamento, e não vale para a conta da compra. */
   can_correct: boolean;
 };
 
 const INCLUDE_CONTA = {
   payments: { select: { amount: true } },
   establishment: { select: { name: true } },
+  emporio_supplier: { select: { name: true } },
   sale_variable_expense: { include: { rule: { select: { name: true } } } },
   fixed_occurrence: { include: { template: { select: { id: true, name: true } } } },
 } as const;
 
 type ContaRow = Prisma.FinancialEntryGetPayload<{ include: typeof INCLUDE_CONTA }>;
 
-function viewDaConta(e: ContaRow): ContaAPagarView | null {
+/**
+ * A linha que não é de "Vendeu, Pagou" nem de despesa fixa é a conta de uma
+ * compra: quem chama já a filtrou (`filtroDoEmporio`, `acharContaDoEmporio`).
+ */
+function viewDaConta(e: ContaRow): ContaAPagarView {
   const sve = e.sale_variable_expense;
   const occ = e.fixed_occurrence;
-  if (!sve && !occ) return null;
+  const compra = !sve && !occ;
   const valorCent = centavos(decToNum(e.amount) ?? 0);
   const pagoCent = e.payments.reduce((s, p) => s + centavos(decToNum(p.amount) ?? 0), 0);
   const aberto = e.status === "cancelled" ? 0 : Math.max(0, valorCent - pagoCent);
   return {
     entry_id: e.id,
-    origin: sve ? "vendeu_pagou" : "despesa_fixa",
-    name: sve ? sve.rule.name : (occ?.template.name ?? ""),
+    origin: sve ? "vendeu_pagou" : occ ? "despesa_fixa" : "compra",
+    name: sve ? sve.rule.name : occ ? occ.template.name : (e.emporio_supplier?.name ?? "Compra sem fornecedor"),
+    purchase_id: compra ? e.related_id : null,
+    supplier_name: compra ? (e.emporio_supplier?.name ?? null) : null,
     category: e.category,
     establishment_id: e.establishment_id,
     establishment_name: e.establishment?.name ?? null,
@@ -951,11 +962,24 @@ function viewDaConta(e: ContaRow): ContaAPagarView | null {
     sale_variable_expense_id: sve?.id ?? null,
     template_id: occ ? occ.template_id : null,
     period: occ ? textoDoMes(mesDaData(occ.period)) : null,
-    can_correct: e.status === "pending" && pagoCent === 0,
+    can_correct: !compra && e.status === "pending" && pagoCent === 0,
   };
 }
 
 const SO_DO_EMPORIO = [{ sale_variable_expense: { isNot: null } }, { fixed_occurrence: { isNot: null } }];
+
+/**
+ * As contas do Empório: as duas formas de sempre mais a conta de compra não cancelada.
+ * `FinancialEntry` não tem relação com `EmporioPurchase` (só `related_id`), então os
+ * ids das compras vêm antes, pelo client escopado do tenant.
+ */
+async function filtroDoEmporio(db: TenantPrismaClient, lojas: string[] | null) {
+  const compras = await db.emporioPurchase.findMany({
+    where: { canceled_at: null, ...(lojas ? { establishment_id: { in: lojas } } : {}) },
+    select: { id: true },
+  });
+  return [...SO_DO_EMPORIO, ...(compras.length > 0 ? [{ related_id: { in: compras.map((c) => c.id) } }] : [])];
+}
 
 export async function listarContasAPagarAction(
   db: TenantPrismaClient,
@@ -968,7 +992,7 @@ export async function listarContasAPagarAction(
     limit?: number;
   } = {},
 ): Promise<ActionResult<ContaAPagarView[]>> {
-  const neg = await exigir(db, ator, "gestor_da_loja", "mexer nas despesas da loja");
+  const neg = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "mexer nas despesas da loja");
   if (neg) return neg;
   const visiveis = await lojasDoAtor(db, ator);
   if (opts.establishment_id && visiveis && !visiveis.has(opts.establishment_id)) {
@@ -983,11 +1007,12 @@ export async function listarContasAPagarAction(
   if (dataValida(opts.ate)) vencimento.lte = opts.ate;
   const limite = opts.limit && opts.limit > 0 ? Math.min(Math.floor(opts.limit), 500) : 200;
 
+  const lojasDaLista = opts.establishment_id ? [opts.establishment_id] : visiveis ? [...visiveis] : null;
   const linhas = await db.financialEntry.findMany({
     where: {
       related_module: "emporio",
       entry_type: "expense",
-      OR: SO_DO_EMPORIO,
+      OR: await filtroDoEmporio(db, lojasDaLista),
       ...(opts.establishment_id
         ? { establishment_id: opts.establishment_id }
         : visiveis
@@ -1000,17 +1025,30 @@ export async function listarContasAPagarAction(
     orderBy: [{ due_date: "asc" }, { created_at: "asc" }],
     take: limite,
   });
-  return ok(linhas.map(viewDaConta).filter((v): v is ContaAPagarView => v !== null));
+  return ok(linhas.map(viewDaConta));
 }
 
-async function acharContaDoEmporio(db: TenantPrismaClient, ator: Ator, entryId: unknown): Promise<ContaRow | null> {
+/** `semVisibilidade` acha a conta mesmo de loja fora do vínculo: só para distinguir "não existe" de "não é sua". */
+async function acharContaDoEmporio(
+  db: TenantPrismaClient,
+  ator: Ator,
+  entryId: unknown,
+  semVisibilidade = false,
+): Promise<ContaRow | null> {
   if (typeof entryId !== "string" || !entryId) return null;
   const e = await db.financialEntry.findFirst({
-    where: { id: entryId, related_module: "emporio", entry_type: "expense", OR: SO_DO_EMPORIO },
+    where: { id: entryId, related_module: "emporio", entry_type: "expense" },
     include: INCLUDE_CONTA,
   });
   if (!e) return null;
-  if (e.establishment_id && !(await lojaVisivel(db, ator, e.establishment_id))) return null;
+  if (!e.sale_variable_expense && !e.fixed_occurrence) {
+    // Sem as duas formas de sempre, só vale a conta de uma compra não cancelada.
+    const compra = e.related_id
+      ? await db.emporioPurchase.findFirst({ where: { id: e.related_id, canceled_at: null }, select: { id: true } })
+      : null;
+    if (!compra) return null;
+  }
+  if (!semVisibilidade && e.establishment_id && !(await lojaVisivel(db, ator, e.establishment_id))) return null;
   return e;
 }
 
@@ -1024,6 +1062,9 @@ export async function corrigirDespesaAction(
   if (neg) return neg;
   const conta = await acharContaDoEmporio(db, ator, entry_id);
   if (!conta) return NAO_ACHADO("Conta", "entry_id");
+  if (viewDaConta(conta).origin === "compra") {
+    return fail("VALIDATION_ERROR", "O valor da conta de uma compra vem da compra: não dá para corrigir aqui.", 422, "amount");
+  }
   if (!numero(input?.amount) || centavos(input.amount) <= 0) {
     return fail("VALIDATION_ERROR", "O valor da conta deve ser maior que zero.", 422, "amount");
   }
@@ -1058,7 +1099,7 @@ export async function corrigirDespesaAction(
           },
         });
       }
-      const nomeConta = viewDaConta(conta)?.name ?? "uma despesa";
+      const nomeConta = viewDaConta(conta).name || "uma despesa";
       await registrarNoHistorico(tx, ator, {
         action: "despesa.corrigir",
         establishment_id: conta.establishment_id,
@@ -1104,7 +1145,7 @@ export async function pagarDespesasAction(
   ator: Ator,
   input: PagarDespesasInput,
 ): Promise<ActionResult<PagamentoDeContasView>> {
-  const neg = await exigir(db, ator, "gestor_da_loja", "mexer nas despesas da loja");
+  const neg = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "mexer nas despesas da loja");
   if (neg) return neg;
 
   const ids = Array.isArray(input?.entry_ids) ? input.entry_ids : [];
@@ -1121,6 +1162,10 @@ export async function pagarDespesasAction(
     return fail("VALIDATION_ERROR", "Diga de onde sai o dinheiro: uma loja OU uma conta.", 422, "from");
   }
   if (lojaId) {
+    // O dinheiro da gaveta é da loja: o Financeiro (que passa só em `dinheiro`) paga pela conta bancária.
+    if (!pode(await papelDoEmporio(db, ator), "gestor_da_loja")) {
+      return fail("VALIDATION_ERROR", "O Financeiro paga pela conta bancária; o dinheiro da gaveta é com a loja.", 422, "from");
+    }
     const loja = await db.establishment.findFirst({ where: { id: lojaId }, select: { id: true } });
     if (!loja || !(await lojaVisivel(db, ator, lojaId))) return NAO_ACHADO("Estabelecimento", "from");
   } else {
@@ -1141,12 +1186,16 @@ export async function pagarDespesasAction(
       for (const id of ids) {
         const c = await acharContaDoEmporio(leitor, ator, id);
         if (!c) {
+          // A conta existe mas é de loja fora do vínculo do ator: não é dele.
+          if (await acharContaDoEmporio(leitor, ator, id, true)) {
+            throw new RecusaDespesa(NAO_ACHADO("Estabelecimento", "entry_ids"));
+          }
           throw new RecusaDespesa(fail("VALIDATION_ERROR", "Uma das contas não é uma conta do Empório.", 422, "entry_ids"));
         }
         const v = viewDaConta(c);
-        if (!v || v.status !== "pending" || !(v.open_amount > 0)) {
+        if (v.status !== "pending" || !(v.open_amount > 0)) {
           throw new RecusaDespesa(
-            fail("VALIDATION_ERROR", `A conta "${v?.name ?? id}" já foi paga ou cancelada.`, 422, "entry_ids"),
+            fail("VALIDATION_ERROR", `A conta "${v.name}" já foi paga ou cancelada.`, 422, "entry_ids"),
           );
         }
         contas.push(c);
@@ -1230,4 +1279,92 @@ export async function pagarDespesasAction(
     if (err instanceof RecusaDespesa) return err.recusa;
     throw err;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Adiar o vencimento e cancelar a conta (entrega 1 do financeiro)
+// ---------------------------------------------------------------------------
+
+export type AdiarVencimentoInput = { entry_id: string; due_date: Date };
+
+export async function adiarVencimentoContaAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  input: AdiarVencimentoInput,
+): Promise<ActionResult<ContaAPagarView>> {
+  const neg = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "mexer nas contas da loja");
+  if (neg) return neg;
+  const conta = await acharContaDoEmporio(db, ator, input?.entry_id);
+  if (!conta) return NAO_ACHADO("Conta", "entry_id");
+  if (!dataValida(input?.due_date)) return fail("VALIDATION_ERROR", "Informe uma data de vencimento válida.", 422, "due_date");
+  const nova = input.due_date;
+
+  try {
+    await runSerializableTenantTransaction(db, async (tx) => {
+      // Relê dentro da transação: um pagamento ou cancelamento que entrou agora fecha o adiamento.
+      const e = await tx.financialEntry.findFirst({ where: { id: conta.id }, select: { status: true, due_date: true } });
+      if (e?.status !== "pending") {
+        throw new RecusaDespesa(fail("NOT_PENDING", "Só é possível adiar o vencimento de uma conta pendente.", 422, "due_date"));
+      }
+      await tx.financialEntry.update({ where: { id: conta.id }, data: { due_date: nova, updated_by_user_id: ator.id } });
+      await registrarNoHistorico(tx, ator, {
+        action: "despesa.adiar",
+        establishment_id: conta.establishment_id,
+        target_type: "despesa",
+        target_id: conta.id,
+        summary: `Adiou o vencimento de ${viewDaConta(conta).name || "uma conta"} para ${diaIso(nova)}`,
+        changes: [{ campo: "Vencimento", antes: e.due_date ? diaIso(e.due_date) : null, depois: diaIso(nova) }],
+      });
+    });
+  } catch (err) {
+    if (err instanceof RecusaDespesa) return err.recusa;
+    throw err;
+  }
+  const atualizada = await acharContaDoEmporio(db, ator, input.entry_id);
+  return atualizada ? ok(viewDaConta(atualizada)) : NAO_ACHADO("Conta", "entry_id");
+}
+
+export type CancelarContaInput = { entry_id: string; reason: string };
+
+export async function cancelarContaAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  input: CancelarContaInput,
+): Promise<ActionResult<ContaAPagarView>> {
+  const neg = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "mexer nas contas da loja");
+  if (neg) return neg;
+  const conta = await acharContaDoEmporio(db, ator, input?.entry_id);
+  if (!conta) return NAO_ACHADO("Conta", "entry_id");
+  const motivo = texto(input?.reason);
+  if (!motivo) return fail("VALIDATION_ERROR", "Diga o motivo do cancelamento.", 422, "reason");
+
+  try {
+    await runSerializableTenantTransaction(db, async (tx) => {
+      const e = await tx.financialEntry.findFirst({ where: { id: conta.id }, select: { status: true, notes: true } });
+      const pagamentos = await tx.financialPayment.count({ where: { entry_id: conta.id } });
+      if (pagamentos > 0 || e?.status === "paid") {
+        throw new RecusaDespesa(fail("ENTRY_HAS_PAYMENTS", "Esta conta já tem pagamento registrado.", 422));
+      }
+      if (e?.status === "cancelled") {
+        throw new RecusaDespesa(fail("ENTRY_CANCELED", "Essa conta já foi cancelada.", 409));
+      }
+      const nota = `Cancelada: ${motivo}`;
+      await tx.financialEntry.update({
+        where: { id: conta.id },
+        data: { status: "cancelled", notes: e?.notes ? `${e.notes} | ${nota}` : nota, updated_by_user_id: ator.id },
+      });
+      await registrarNoHistorico(tx, ator, {
+        action: "despesa.cancelar",
+        establishment_id: conta.establishment_id,
+        target_type: "despesa",
+        target_id: conta.id,
+        summary: `Cancelou ${viewDaConta(conta).name || "uma conta"}: ${motivo}`,
+      });
+    });
+  } catch (err) {
+    if (err instanceof RecusaDespesa) return err.recusa;
+    throw err;
+  }
+  const atualizada = await acharContaDoEmporio(db, ator, input.entry_id);
+  return atualizada ? ok(viewDaConta(atualizada)) : NAO_ACHADO("Conta", "entry_id");
 }

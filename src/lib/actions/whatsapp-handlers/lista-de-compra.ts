@@ -442,7 +442,9 @@ export const compreiItemLista: Handler = async ({
     return {
       reply_text:
         `Registrei a compra de ${descreverItem(item)} por ${reaisBr(p.valor)}` +
-        `${p.pago ? "" : ", como conta a pagar"}, e risquei da sua lista.`,
+        (compra.data.a_pagar_na_loja
+          ? ", que ficou nas contas a pagar da loja, e risquei da sua lista."
+          : `${p.pago ? "" : ", como conta a pagar"}, e risquei da sua lista.`),
       requires_confirmation: false,
       auxiliary_data: { item_id: item.id, negotiation_id: compra.data.negotiation_id },
       report_url: null,
