@@ -27,6 +27,8 @@ export type EmporioSettingsView = {
   fiado_collection_message: string | null;
   /** O modelo cru que vale (o próprio ou o padrão), sem trocar os marcadores. */
   fiado_collection_message_effective: string;
+  /** Entrega 3 do financeiro: acima deste valor, quem não é da conta pede aprovação para pagar. Nulo: sem teto. */
+  payment_approval_limit: number | null;
 };
 
 export type EmporioSettingsInput = Partial<{
@@ -48,6 +50,7 @@ const ROTULOS: Record<string, string> = {
   fiado_block_after_days: "Bloquear o fiado após (dias de atraso)",
   fiado_default_limit: "Limite padrão de fiado",
   fiado_collection_message: "Mensagem de cobrança",
+  payment_approval_limit: "Teto sem aprovação",
 };
 
 type Linha = {
@@ -61,6 +64,7 @@ type Linha = {
   fiado_block_after_days: number;
   fiado_default_limit: unknown;
   fiado_collection_message: string | null;
+  payment_approval_limit: unknown;
 } | null;
 
 function viewConfiguracoes(l: Linha): EmporioSettingsView {
@@ -75,6 +79,7 @@ function viewConfiguracoes(l: Linha): EmporioSettingsView {
     fiado_block_after_days: l?.fiado_block_after_days ?? 15,
     fiado_default_limit: decToNum(l?.fiado_default_limit as never) ?? null,
     fiado_collection_message: l?.fiado_collection_message ?? null,
+    payment_approval_limit: decToNum(l?.payment_approval_limit as never) ?? null,
     fiado_collection_message_effective: l?.fiado_collection_message ?? MENSAGEM_DE_COBRANCA_PADRAO,
   };
 }
@@ -90,6 +95,7 @@ const SELECAO = {
   fiado_block_after_days: true,
   fiado_default_limit: true,
   fiado_collection_message: true,
+  payment_approval_limit: true,
 } as const;
 
 export async function lerConfiguracoesAction(
@@ -225,6 +231,48 @@ export async function salvarConfiguracoesDoFiadoAction(
         action: "configuracoes.editar",
         target_type: "configuracoes",
         summary: "Editou as configurações do fiado",
+        changes: mudancas,
+      });
+    }
+    return l;
+  });
+  return ok(viewConfiguracoes(depois));
+}
+
+/** Q227: o teto do pagamento sem aprovação. Só a conta (Dono e Gerente geral) o define, porque ele limita quem não é dela. */
+export async function salvarAlcadaAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  input: { payment_approval_limit: number | null },
+): Promise<ActionResult<EmporioSettingsView>> {
+  const neg = await exigir(db, ator, "conta", "definir o teto de pagamento sem aprovação");
+  if (neg) return neg;
+
+  const v = input?.payment_approval_limit;
+  if (v === undefined || (v !== null && (typeof v !== "number" || !Number.isFinite(v) || v < 0.01 || v > LIMITE_MAXIMO_DE_FIADO))) {
+    return fail("VALIDATION_ERROR", "O teto deve ser de R$ 0,01 a R$ 99.999.999,99, ou vazio para não ter teto.", 422, "payment_approval_limit");
+  }
+  const valor = v === null ? null : Math.round(Number((v * 100).toPrecision(12))) / 100;
+
+  const antes = viewConfiguracoes(await db.emporioSettings.findFirst({ select: SELECAO }));
+  const depois = await db.$transaction(async (tx) => {
+    const l = await tx.emporioSettings.upsert({
+      where: scoped({}),
+      create: scoped({ payment_approval_limit: valor }),
+      update: { payment_approval_limit: valor },
+      select: SELECAO,
+    });
+    const mudancas = diferencas(
+      { payment_approval_limit: antes.payment_approval_limit },
+      { payment_approval_limit: viewConfiguracoes(l).payment_approval_limit },
+      { payment_approval_limit: ROTULOS.payment_approval_limit },
+      { payment_approval_limit: (x) => (x == null ? null : dinheiro(Number(x))) },
+    );
+    if (mudancas.length > 0) {
+      await registrarNoHistorico(tx, ator, {
+        action: "configuracoes.editar",
+        target_type: "configuracoes",
+        summary: "Editou o teto de pagamento sem aprovação",
         changes: mudancas,
       });
     }

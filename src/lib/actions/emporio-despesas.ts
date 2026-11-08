@@ -9,6 +9,7 @@ import { lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
 import { acharLojaParaEscrita } from "@/lib/actions/emporio-estoque";
 import { saldoDoCaixa, saldosDasContas } from "@/lib/actions/emporio-caixa";
 import { resolverTurno } from "@/lib/emporio/turno";
+import { avisarAprovadores, viewDoPedidoDePagamento, type PedidoDePagamentoView } from "@/lib/emporio/pedido-pagamento";
 import { CATEGORIAS_RESERVADAS } from "@/lib/emporio/vendeu-pagou";
 import {
   compararMeses,
@@ -51,7 +52,7 @@ function ehErroUnico(e: unknown): boolean {
   return (e as { code?: unknown })?.code === "P2002";
 }
 
-class RecusaDespesa extends Error {
+export class RecusaDespesa extends Error {
   constructor(public recusa: ActionResult<never>) {
     super("recusa de despesa");
   }
@@ -1168,6 +1169,9 @@ export async function corrigirDespesaAction(
 
   try {
     await runSerializableTenantTransaction(db, async (tx) => {
+      if (await contaEmAprovacao(tx, [conta.id])) {
+        throw new RecusaDespesa(fail("CONTA_EM_APROVACAO", EM_APROVACAO, 409, "amount"));
+      }
       // Relê dentro da transação: um pagamento que entrou agora fecha a correção.
       const e = await tx.financialEntry.findFirst({ where: { id: conta.id }, select: { status: true } });
       const pagamentos = await tx.financialPayment.count({ where: { entry_id: conta.id } });
@@ -1229,12 +1233,152 @@ export type PagarDespesasInput = {
   cash_register_id?: string | null;
 };
 
-export type PagamentoDeContasView = {
-  paid_at: string;
-  total: number;
-  from: { establishment_id: string | null; bank_account_id: string | null };
-  payments: { entry_id: string; amount: number; financial_payment_id: string }[];
-};
+/**
+ * Entrega 3 (Q227): o pagamento ou foi feito (`waiting_approval: false`) ou virou um pedido de aprovação,
+ * porque passou do teto de quem não é da conta.
+ */
+export type PagamentoDeContasView =
+  | {
+      waiting_approval: false;
+      paid_at: string;
+      total: number;
+      from: { establishment_id: string | null; bank_account_id: string | null };
+      payments: { entry_id: string; amount: number; financial_payment_id: string }[];
+    }
+  | { waiting_approval: true; request: PedidoDePagamentoView };
+
+type Pagos = { entry_id: string; amount: number; financial_payment_id: string }[];
+
+const EM_APROVACAO = "Esta conta está esperando aprovação de pagamento.";
+
+/** Alguma das contas já está num pedido pendente? Pagar, cancelar, adiar e corrigir recusam. */
+async function contaEmAprovacao(leitor: Tx, ids: string[]): Promise<boolean> {
+  const p = await leitor.emporioPaymentRequest.findFirst({
+    where: { status: "pendente", entry_ids: { hasSome: ids } },
+    select: { id: true },
+  });
+  return !!p;
+}
+
+/** Acha, confere e soma o aberto das contas; recusa (RecusaDespesa) a que não é do ator, ou já foi paga ou cancelada. */
+async function carregarContasDoPagamento(leitor: TenantPrismaClient, ator: Ator, ids: string[]) {
+  const contas: ContaRow[] = [];
+  for (const id of ids) {
+    const c = await acharContaDoEmporio(leitor, ator, id);
+    if (!c) {
+      // A conta existe mas é de loja fora do vínculo do ator: não é dele.
+      if (await acharContaDoEmporio(leitor, ator, id, true)) {
+        throw new RecusaDespesa(NAO_ACHADO("Estabelecimento", "entry_ids"));
+      }
+      throw new RecusaDespesa(fail("VALIDATION_ERROR", "Uma das contas não é uma conta do Empório.", 422, "entry_ids"));
+    }
+    const v = viewDaConta(c);
+    if (v.status !== "pending" || !(v.open_amount > 0)) {
+      throw new RecusaDespesa(fail("VALIDATION_ERROR", `A conta "${v.name}" já foi paga ou cancelada.`, 422, "entry_ids"));
+    }
+    contas.push(c);
+  }
+  const abertoCent = contas.map((c) => {
+    const pago = c.payments.reduce((s, p) => s + centavos(decToNum(p.amount) ?? 0), 0);
+    return centavos(decToNum(c.amount) ?? 0) - pago;
+  });
+  return { contas, abertoCent, totalCent: abertoCent.reduce((s, v) => s + v, 0) };
+}
+
+/**
+ * Tudo o que acontece DENTRO da transação do pagamento: achar as contas, resolver o turno da gaveta, conferir o
+ * saldo, gravar `FinancialPayment`, a conta paga, o `CashMovement` e o Histórico `despesa.pagar`. Os dois caminhos
+ * (pagar direto e aprovar um pedido) chamam esta função; `pagoPor` é quem assina o pagamento e o Histórico.
+ * Recusa lançando `RecusaDespesa` (nada foi gravado antes de qualquer recusa).
+ */
+export async function executarPagamentoDeContas(
+  tx: Tx,
+  ator: Ator,
+  input: PagarDespesasInput,
+  opts: { pagoPor: Ator },
+): Promise<{ pagos: Pagos; totalCent: number; pagoEm: Date }> {
+  const lojaId = idOuNulo(input.from?.establishment_id);
+  const contaId = idOuNulo(input.from?.bank_account_id);
+  const pagoEm = input.paid_at != null ? input.paid_at : new Date();
+  const pagoPor = opts.pagoPor;
+  const leitor = tx as unknown as TenantPrismaClient;
+  const { contas, abertoCent, totalCent } = await carregarContasDoPagamento(leitor, ator, input.entry_ids);
+
+  // Da gaveta, o dinheiro sai do turno aberto, e o saldo que vale é o do caixa dele.
+  let turno: { id: string; cash_register_id: string } | null = null;
+  if (lojaId) {
+    const r = await resolverTurno(tx, ator, lojaId, idOuNulo(input.cash_register_id) ?? undefined, "exige");
+    if (!r.ok) throw new RecusaDespesa(r);
+    turno = r.turno;
+  }
+  const saldo = turno
+    ? await saldoDoCaixa(leitor, turno.cash_register_id)
+    : ((await saldosDasContas(leitor)).get(contaId as string) ?? 0);
+  if (saldo < totalCent) {
+    throw new RecusaDespesa(
+      fail(
+        "INSUFFICIENT_CASH",
+        `Saldo insuficiente: há ${brl(saldo / 100)} e as contas somam ${brl(totalCent / 100)}.`,
+        409,
+        "from",
+      ),
+    );
+  }
+
+  const pagos: Pagos = [];
+  for (let n = 0; n < contas.length; n++) {
+    const c = contas[n];
+    const valor = abertoCent[n] / 100;
+    const fp = await tx.financialPayment.create({
+      data: scoped({
+        entry_id: c.id,
+        amount: valor,
+        paid_at: pagoEm,
+        method: lojaId ? ("dinheiro" as const) : ("outro" as const),
+        created_by_user_id: pagoPor.id,
+      }),
+    });
+    await tx.financialEntry.update({
+      where: { id: c.id },
+      data: { status: "paid", paid_at: pagoEm, updated_by_user_id: pagoPor.id },
+    });
+    await tx.cashMovement.create({
+      data: scoped({
+        establishment_id: lojaId,
+        cash_register_id: turno?.cash_register_id ?? null,
+        cash_session_id: turno?.id ?? null,
+        bank_account_id: contaId,
+        direction: "saida" as const,
+        amount: valor,
+        origin: "pagamento_despesa" as const,
+        occurred_at: pagoEm,
+        financial_payment_id: fp.id,
+        created_by_user_id: pagoPor.id,
+      }),
+    });
+    pagos.push({ entry_id: c.id, amount: valor, financial_payment_id: fp.id });
+  }
+  // Uma linha por conta paga: a da compra aponta a compra, as demais apontam a conta de despesa.
+  const origemNome = lojaId
+    ? `pela gaveta da ${(await tx.establishment.findFirst({ where: { id: lojaId }, select: { name: true } }))?.name ?? "loja"}`
+    : `pela conta ${(await tx.bankAccount.findFirst({ where: { id: contaId as string }, select: { name: true } }))?.name ?? "bancária"}`;
+  for (let n = 0; n < contas.length; n++) {
+    const c = contas[n];
+    const v = viewDaConta(c);
+    const valor = dinheiro(abertoCent[n] / 100);
+    const daCompra = v.origin === "compra" && !!v.purchase_id;
+    await registrarNoHistorico(tx, pagoPor, {
+      action: "despesa.pagar",
+      establishment_id: c.establishment_id ?? lojaId ?? null,
+      target_type: daCompra ? "compra" : "despesa",
+      target_id: daCompra ? (v.purchase_id as string) : c.id,
+      summary: daCompra
+        ? `Pagou a compra${v.supplier_name ? ` de ${v.supplier_name}` : ""} (${valor}) ${origemNome}`
+        : `Pagou a conta de despesa ${v.name} (${valor}) ${origemNome}`,
+    });
+  }
+  return { pagos, totalCent, pagoEm };
+}
 
 export async function pagarDespesasAction(
   db: TenantPrismaClient,
@@ -1275,113 +1419,63 @@ export async function pagarDespesasAction(
     pagoEm = input.paid_at;
   }
 
+  const papel = await papelDoEmporio(db, ator);
+  const daConta = pode(papel, "conta");
+
   try {
-    const feitos = await runSerializableTenantTransaction(db, async (tx) => {
+    const feito = await runSerializableTenantTransaction(db, async (tx) => {
       const leitor = tx as unknown as TenantPrismaClient;
-      const contas: ContaRow[] = [];
-      for (const id of ids) {
-        const c = await acharContaDoEmporio(leitor, ator, id);
-        if (!c) {
-          // A conta existe mas é de loja fora do vínculo do ator: não é dele.
-          if (await acharContaDoEmporio(leitor, ator, id, true)) {
-            throw new RecusaDespesa(NAO_ACHADO("Estabelecimento", "entry_ids"));
-          }
-          throw new RecusaDespesa(fail("VALIDATION_ERROR", "Uma das contas não é uma conta do Empório.", 422, "entry_ids"));
-        }
-        const v = viewDaConta(c);
-        if (v.status !== "pending" || !(v.open_amount > 0)) {
-          throw new RecusaDespesa(
-            fail("VALIDATION_ERROR", `A conta "${v.name}" já foi paga ou cancelada.`, 422, "entry_ids"),
-          );
-        }
-        contas.push(c);
-      }
-      const abertoCent = contas.map((c) => {
-        const pago = c.payments.reduce((s, p) => s + centavos(decToNum(p.amount) ?? 0), 0);
-        return centavos(decToNum(c.amount) ?? 0) - pago;
-      });
-      const totalCent = abertoCent.reduce((s, v) => s + v, 0);
-
-      // Da gaveta, o dinheiro sai do turno aberto, e o saldo que vale é o do caixa dele.
-      let turno: { id: string; cash_register_id: string } | null = null;
-      if (lojaId) {
-        const r = await resolverTurno(tx, ator, lojaId, idOuNulo(input.cash_register_id) ?? undefined, "exige");
-        if (!r.ok) throw new RecusaDespesa(r);
-        turno = r.turno;
-      }
-      const saldo = turno
-        ? await saldoDoCaixa(leitor, turno.cash_register_id)
-        : ((await saldosDasContas(leitor)).get(contaId as string) ?? 0);
-      if (saldo < totalCent) {
-        throw new RecusaDespesa(
-          fail(
-            "INSUFFICIENT_CASH",
-            `Saldo insuficiente: há ${brl(saldo / 100)} e as contas somam ${brl(totalCent / 100)}.`,
-            409,
-            "from",
-          ),
-        );
+      if (await contaEmAprovacao(tx, ids)) {
+        throw new RecusaDespesa(fail("CONTA_EM_APROVACAO", EM_APROVACAO, 409, "entry_ids"));
       }
 
-      const pagos: PagamentoDeContasView["payments"] = [];
-      for (let n = 0; n < contas.length; n++) {
-        const c = contas[n];
-        const valor = abertoCent[n] / 100;
-        const fp = await tx.financialPayment.create({
-          data: scoped({
-            entry_id: c.id,
-            amount: valor,
-            paid_at: pagoEm,
-            method: lojaId ? ("dinheiro" as const) : ("outro" as const),
-            created_by_user_id: ator.id,
-          }),
-        });
-        await tx.financialEntry.update({
-          where: { id: c.id },
-          data: { status: "paid", paid_at: pagoEm, updated_by_user_id: ator.id },
-        });
-        await tx.cashMovement.create({
-          data: scoped({
+      // Q227: acima do teto, quem não é da conta pede aprovação em vez de pagar.
+      const settings = await tx.emporioSettings.findFirst({ select: { payment_approval_limit: true } });
+      const limite = settings?.payment_approval_limit;
+      if (limite != null && !daConta) {
+        const { totalCent } = await carregarContasDoPagamento(leitor, ator, ids);
+        if (totalCent > centavos(decToNum(limite) ?? 0)) {
+          const pedido = await tx.emporioPaymentRequest.create({
+            data: scoped({
+              requested_by_user_id: ator.id,
+              entry_ids: ids,
+              establishment_id: lojaId,
+              cash_register_id: idOuNulo(input.cash_register_id),
+              bank_account_id: contaId,
+              total: totalCent / 100,
+              status: "pendente",
+            }),
+          });
+          const nomeDoLugar = lojaId
+            ? `pela gaveta da ${(await tx.establishment.findFirst({ where: { id: lojaId }, select: { name: true } }))?.name ?? "loja"}`
+            : `pela conta ${(await tx.bankAccount.findFirst({ where: { id: contaId as string }, select: { name: true } }))?.name ?? "bancária"}`;
+          await registrarNoHistorico(tx, ator, {
+            action: "pagamento.pedir",
             establishment_id: lojaId,
-            cash_register_id: turno?.cash_register_id ?? null,
-            cash_session_id: turno?.id ?? null,
-            bank_account_id: contaId,
-            direction: "saida" as const,
-            amount: valor,
-            origin: "pagamento_despesa" as const,
-            occurred_at: pagoEm,
-            financial_payment_id: fp.id,
-            created_by_user_id: ator.id,
-          }),
-        });
-        pagos.push({ entry_id: c.id, amount: valor, financial_payment_id: fp.id });
+            target_type: "pedido_pagamento",
+            target_id: pedido.id,
+            summary: `Pediu aprovação para pagar ${ids.length} conta(s), ${dinheiro(totalCent / 100)}, ${nomeDoLugar}`,
+          });
+          return { pedidoId: pedido.id as string, pago: null };
+        }
       }
-      // Uma linha por conta paga: a da compra aponta a compra, as demais apontam a conta de despesa.
-      const origemNome = lojaId
-        ? `pela gaveta da ${(await tx.establishment.findFirst({ where: { id: lojaId }, select: { name: true } }))?.name ?? "loja"}`
-        : `pela conta ${(await tx.bankAccount.findFirst({ where: { id: contaId as string }, select: { name: true } }))?.name ?? "bancária"}`;
-      for (let n = 0; n < contas.length; n++) {
-        const c = contas[n];
-        const v = viewDaConta(c);
-        const valor = dinheiro(abertoCent[n] / 100);
-        const daCompra = v.origin === "compra" && !!v.purchase_id;
-        await registrarNoHistorico(tx, ator, {
-          action: "despesa.pagar",
-          establishment_id: c.establishment_id ?? lojaId ?? null,
-          target_type: daCompra ? "compra" : "despesa",
-          target_id: daCompra ? (v.purchase_id as string) : c.id,
-          summary: daCompra
-            ? `Pagou a compra${v.supplier_name ? ` de ${v.supplier_name}` : ""} (${valor}) ${origemNome}`
-            : `Pagou a conta de despesa ${v.name} (${valor}) ${origemNome}`,
-        });
-      }
-      return { pagos, totalCent };
+
+      const r = await executarPagamentoDeContas(tx, ator, { ...input, entry_ids: ids, paid_at: pagoEm }, { pagoPor: ator });
+      return { pedidoId: null, pago: r };
     });
+
+    if (feito.pago === null) {
+      const view = await viewDoPedidoDePagamento(db, feito.pedidoId);
+      if (!view) return NAO_ACHADO("Pedido", "entry_ids");
+      await avisarAprovadores(db, view);
+      return ok({ waiting_approval: true, request: view });
+    }
     return ok({
-      paid_at: pagoEm.toISOString(),
-      total: feitos.totalCent / 100,
+      waiting_approval: false,
+      paid_at: feito.pago.pagoEm.toISOString(),
+      total: feito.pago.totalCent / 100,
       from: { establishment_id: lojaId, bank_account_id: contaId },
-      payments: feitos.pagos,
+      payments: feito.pago.pagos,
     });
   } catch (err) {
     if (err instanceof RecusaDespesa) return err.recusa;
@@ -1409,6 +1503,9 @@ export async function adiarVencimentoContaAction(
 
   try {
     await runSerializableTenantTransaction(db, async (tx) => {
+      if (await contaEmAprovacao(tx, [conta.id])) {
+        throw new RecusaDespesa(fail("CONTA_EM_APROVACAO", EM_APROVACAO, 409, "due_date"));
+      }
       // Relê dentro da transação: um pagamento ou cancelamento que entrou agora fecha o adiamento.
       const e = await tx.financialEntry.findFirst({ where: { id: conta.id }, select: { status: true, due_date: true } });
       if (e?.status !== "pending") {
@@ -1448,6 +1545,9 @@ export async function cancelarContaAction(
 
   try {
     await runSerializableTenantTransaction(db, async (tx) => {
+      if (await contaEmAprovacao(tx, [conta.id])) {
+        throw new RecusaDespesa(fail("CONTA_EM_APROVACAO", EM_APROVACAO, 409, "entry_id"));
+      }
       const e = await tx.financialEntry.findFirst({ where: { id: conta.id }, select: { status: true, notes: true } });
       const pagamentos = await tx.financialPayment.count({ where: { entry_id: conta.id } });
       if (pagamentos > 0 || e?.status === "paid") {

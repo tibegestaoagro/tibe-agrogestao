@@ -54,6 +54,8 @@ export type HojeView = {
     cards: { count: number; total: number };
   };
   overdue_fiado: { customers: number; total: number };
+  /** Entrega 3: pedidos de pagamento esperando aprovação (quem lê o Hoje, Dono, Gerente geral e Financeiro, vê todos). */
+  pending_approvals: { count: number; total: number };
 };
 
 export type CartaoAReceberView = {
@@ -183,6 +185,7 @@ export async function lerResumoHojeAction(
   const fiado = await listarFiadoAction(db, ator, { establishment_id: lojaId });
   if (!fiado.ok) return fiado;
   const vencidos = fiado.data.filter((c) => c.overdue_amount > 0);
+  const pedidos = await db.emporioPaymentRequest.findMany({ where: { status: "pendente" }, select: { total: true } });
 
   return ok({
     positions,
@@ -204,6 +207,7 @@ export async function lerResumoHojeAction(
       customers: vencidos.length,
       total: arred2(vencidos.reduce((s, c) => s + c.overdue_amount, 0)),
     },
+    pending_approvals: { count: pedidos.length, total: pedidos.reduce((s, p) => s + centavos(decToNum(p.total) ?? 0), 0) / 100 },
   });
 }
 
