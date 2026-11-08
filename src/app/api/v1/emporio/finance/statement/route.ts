@@ -5,7 +5,7 @@ import { lerExtratoAction } from "@/lib/actions/emporio-financeiro";
 import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
 
 /**
- * GET /api/v1/emporio/finance/statement  ?kind=conta|gaveta|gerencia (padrão conta) &id= &de= &ate= (AAAA-MM-DD)
+ * GET /api/v1/emporio/finance/statement  ?kind=conta|gaveta|gerencia (padrão conta) &id= &de= &ate= (AAAA-MM-DD) &apenas_sem_carimbo=1
  * o extrato do lugar no período, de até 92 dias. `id` é a conta, ou a loja (gaveta e gerência);
  * `bank_account_id` segue valendo como sinônimo de `kind=conta&id=`.
  */
@@ -28,6 +28,7 @@ const schema = z
     bank_account_id: z.string().min(1, "Escolha a conta.").optional(),
     de: diaIso("de"),
     ate: diaIso("ate"),
+    apenas_sem_carimbo: z.boolean().optional(),
   })
   .superRefine((v, ctx) => {
     if (v.id || (v.kind === "conta" && v.bank_account_id)) return;
@@ -49,11 +50,12 @@ async function GETHandler(request: Request) {
     bank_account_id: sp.get("bank_account_id") ?? undefined,
     de: sp.get("de") ?? undefined,
     ate: sp.get("ate") ?? undefined,
+    apenas_sem_carimbo: sp.get("apenas_sem_carimbo") === "1" || sp.get("apenas_sem_carimbo") === "true",
   });
   if (!parsed.success) return apiErroDeZod(parsed.error);
-  const { kind, id, bank_account_id, de, ate } = parsed.data;
+  const { kind, id, bank_account_id, de, ate, apenas_sem_carimbo } = parsed.data;
   return respostaDaAction(
-    await lerExtratoAction(g.db, g.user, { lugar: { kind, id: (id ?? bank_account_id) as string }, de, ate }),
+    await lerExtratoAction(g.db, g.user, { lugar: { kind, id: (id ?? bank_account_id) as string }, de, ate, apenas_sem_carimbo }),
   );
 }
 

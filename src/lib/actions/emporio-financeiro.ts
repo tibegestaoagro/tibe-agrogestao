@@ -4,6 +4,7 @@ import { decToNum } from "@/lib/serialize";
 import { exigir, exigirUma } from "@/lib/emporio/papel";
 import { hojeEmBrasilia } from "@/lib/emporio/cartao";
 import { inicioDoDiaEmSaoPaulo } from "@/lib/dia-calendario";
+import { dinheiro, registrarNoHistorico } from "@/lib/emporio/historico";
 import { lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
 import {
   entradasAbertas,
@@ -56,6 +57,8 @@ export type HojeView = {
   overdue_fiado: { customers: number; total: number };
   /** Entrega 3: pedidos de pagamento esperando aprovação (quem lê o Hoje, Dono, Gerente geral e Financeiro, vê todos). */
   pending_approvals: { count: number; total: number };
+  /** Entrega 3: linhas de conta (movimentos e parcelas de cartão já devidas) sem carimbo nos últimos 30 dias. */
+  unreconciled: { count: number; total: number };
 };
 
 export type CartaoAReceberView = {
@@ -89,6 +92,9 @@ export type ExtratoLinhaView = {
   establishment_id: string | null;
   establishment_name: string | null;
   description: string;
+  /** Entrega 3: o carimbo de conciliação (só linha de conta; gaveta e gerência vêm nulos). */
+  reconciled_at: string | null;
+  reconciled_by: string | null;
 };
 
 export type LugarDoExtrato = { kind: "conta" | "gaveta" | "gerencia"; id: string };
@@ -101,6 +107,9 @@ export type ExtratoView = {
   opening_balance: number;
   lines: ExtratoLinhaView[];
   closing_balance: number;
+  /** Linhas de conta sem carimbo no período e a soma dos valores absolutos, antes do filtro `apenas_sem_carimbo`. */
+  unreconciled_count: number;
+  unreconciled_total: number;
 };
 
 const ROTULO_ORIGEM: Record<string, string> = {
@@ -186,6 +195,18 @@ export async function lerResumoHojeAction(
   if (!fiado.ok) return fiado;
   const vencidos = fiado.data.filter((c) => c.overdue_amount > 0);
   const pedidos = await db.emporioPaymentRequest.findMany({ where: { status: "pendente" }, select: { total: true } });
+  const desdeCarimbo = new Date(hoje.getTime() - 30 * DIA_MS);
+  const [movsSem, cartoesSem] = await Promise.all([
+    db.cashMovement.findMany({
+      where: { bank_account_id: { not: null }, reconciled_at: null, occurred_at: { gte: new Date(desdeCarimbo.getTime() + MEIA_NOITE_SP_EM_UTC_MS), lt: new Date(hoje.getTime() + DIA_MS + MEIA_NOITE_SP_EM_UTC_MS) } },
+      select: { amount: true },
+    }),
+    db.cardReceivable.findMany({
+      where: { canceled_at: null, reconciled_at: null, expected_on: { gte: desdeCarimbo, lte: hoje } },
+      select: { net_amount: true },
+    }),
+  ]);
+  const semCarimbo = [...movsSem.map((m) => m.amount), ...cartoesSem.map((c) => c.net_amount)];
 
   return ok({
     positions,
@@ -208,6 +229,7 @@ export async function lerResumoHojeAction(
       total: arred2(vencidos.reduce((s, c) => s + c.overdue_amount, 0)),
     },
     pending_approvals: { count: pedidos.length, total: pedidos.reduce((s, p) => s + centavos(decToNum(p.total) ?? 0), 0) / 100 },
+    unreconciled: { count: semCarimbo.length, total: semCarimbo.reduce((s, v) => s + centavos(Math.abs(decToNum(v) ?? 0)), 0) / 100 },
   });
 }
 
@@ -281,7 +303,7 @@ export async function lerExtratoDaContaAction(
 export async function lerExtratoAction(
   db: TenantPrismaClient,
   ator: Ator,
-  input: { lugar: LugarDoExtrato; de: Date; ate: Date },
+  input: { lugar: LugarDoExtrato; de: Date; ate: Date; apenas_sem_carimbo?: boolean },
 ): Promise<ActionResult<ExtratoView>> {
   const kind = input?.lugar?.kind;
   if (kind !== "conta" && kind !== "gaveta" && kind !== "gerencia") {
@@ -368,7 +390,23 @@ export async function lerExtratoAction(
     abertura += l.direction === "entrada" ? v : -v;
   }
 
-  const linhas: ExtratoLinhaView[] = [
+  // Quem carimbou, por nome (só conta tem carimbo; gaveta e gerência nunca o têm).
+  const idsCarimbadores = [
+    ...new Set(
+      [...movs, ...parcelas].map((l) => l.reconciled_by_user_id).filter((u): u is string => typeof u === "string" && !!u),
+    ),
+  ];
+  const nomes = new Map<string, string>(
+    idsCarimbadores.length
+      ? (await db.user.findMany({ where: { id: { in: idsCarimbadores } }, select: { id: true, name: true } })).map((u) => [u.id, u.name])
+      : [],
+  );
+  const carimbo = (r: { reconciled_at: Date | null; reconciled_by_user_id: string | null }) => ({
+    reconciled_at: r.reconciled_at ? r.reconciled_at.toISOString() : null,
+    reconciled_by: r.reconciled_at && r.reconciled_by_user_id ? (nomes.get(r.reconciled_by_user_id) ?? null) : null,
+  });
+
+  const todas: ExtratoLinhaView[] = [
     ...movs.map((m): ExtratoLinhaView => ({
       kind: "movimento",
       id: m.id,
@@ -380,6 +418,7 @@ export async function lerExtratoAction(
       establishment_id: m.establishment_id ?? m.manager_establishment_id ?? null,
       establishment_name: m.establishment?.name ?? (m.manager_establishment_id ? lugar.name : null),
       description: m.notes?.trim() || ROTULO_ORIGEM[m.origin] || m.origin,
+      ...carimbo(m),
     })),
     ...parcelas.map((p): ExtratoLinhaView => ({
       kind: "cartao",
@@ -391,15 +430,132 @@ export async function lerExtratoAction(
       establishment_id: p.establishment_id,
       establishment_name: p.establishment.name,
       description: `Cartão, parcela ${p.installment}/${p.installments}`,
+      ...carimbo(p),
     })),
   ].sort((a, b) => a.occurred_on.localeCompare(b.occurred_on));
 
-  const variacao = linhas.reduce((s, l) => s + (l.direction === "entrada" ? centavos(l.amount) : -centavos(l.amount)), 0);
+  // O total sem carimbo se calcula ANTES do filtro, para o aviso não mudar com ele.
+  const semCarimbo = conta ? todas.filter((l) => l.reconciled_at === null) : [];
+  const linhas = input.apenas_sem_carimbo === true ? todas.filter((l) => l.reconciled_at === null) : todas;
+
+  const variacao = todas.reduce((s, l) => s + (l.direction === "entrada" ? centavos(l.amount) : -centavos(l.amount)), 0);
   return ok({
     place: lugar,
     account: conta ? { id: conta.id, name: conta.name, bank: conta.bank } : null,
     opening_balance: abertura / 100,
     lines: linhas,
     closing_balance: (abertura + variacao) / 100,
+    unreconciled_count: semCarimbo.length,
+    unreconciled_total: semCarimbo.reduce((s, l) => s + centavos(Math.abs(l.amount)), 0) / 100,
   });
+}
+
+type KindDaLinha = "movimento" | "cartao";
+type LinhaDoCarimbo = {
+  conta_id: string | null;
+  descricao: string;
+  valor: number;
+  dia: Date;
+  carimbada: boolean;
+};
+
+const diaBr = (d: Date) => `${dia(d).slice(8, 10)}/${dia(d).slice(5, 7)}`;
+
+/** Acha a linha de conta a carimbar; devolve a recusa quando não existe ou não é de conta. */
+async function acharLinhaDeConta(
+  db: TenantPrismaClient,
+  input: { kind: KindDaLinha; id: string },
+): Promise<{ linha: LinhaDoCarimbo } | { erro: ActionResult<never> }> {
+  if (input?.kind !== "movimento" && input?.kind !== "cartao") {
+    return { erro: fail("VALIDATION_ERROR", "Escolha o tipo da linha: movimento ou cartão.", 422, "kind") };
+  }
+  const id = typeof input.id === "string" ? input.id.trim() : "";
+  if (!id) return { erro: fail("VALIDATION_ERROR", "Escolha a linha.", 422, "id") };
+  if (input.kind === "movimento") {
+    const m = await db.cashMovement.findFirst({ where: { id } });
+    if (!m) return { erro: fail("NOT_FOUND", "Linha não encontrada.", 404, "id") };
+    if (!m.bank_account_id) {
+      return { erro: fail("LINHA_NAO_E_DE_CONTA", "Só linha de conta bancária leva carimbo de conciliação.", 422, "id") };
+    }
+    return {
+      linha: {
+        conta_id: m.bank_account_id,
+        descricao: m.notes?.trim() || ROTULO_ORIGEM[m.origin] || m.origin,
+        valor: decToNum(m.amount) ?? 0,
+        dia: inicioDoDiaEmSaoPaulo(m.occurred_at),
+        carimbada: !!m.reconciled_at,
+      },
+    };
+  }
+  const p = await db.cardReceivable.findFirst({ where: { id, canceled_at: null } });
+  if (!p) return { erro: fail("NOT_FOUND", "Linha não encontrada.", 404, "id") };
+  return {
+    linha: {
+      conta_id: p.bank_account_id,
+      descricao: `Cartão, parcela ${p.installment}/${p.installments}`,
+      valor: decToNum(p.net_amount) ?? 0,
+      dia: p.expected_on,
+      carimbada: !!p.reconciled_at,
+    },
+  };
+}
+
+/** Marca a linha do extrato como conferida com o banco. Não mexe em valor nem em saldo. */
+export async function carimbarLinhaAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  input: { kind: KindDaLinha; id: string },
+): Promise<ActionResult<{ kind: KindDaLinha; id: string; reconciled_at: string; reconciled_by: string }>> {
+  const neg = await exigir(db, ator, "dinheiro", "carimbar o extrato");
+  if (neg) return neg;
+  const a = await acharLinhaDeConta(db, input);
+  if ("erro" in a) return a.erro;
+  const { linha } = a;
+  if (linha.carimbada) return fail("JA_CARIMBADO", "Esta linha já tem carimbo.", 409, "id");
+  const id = input.id.trim();
+  const agora = new Date();
+  const quem = await db.user.findFirst({ where: { id: ator.id }, select: { name: true } });
+  const gravou = await db.$transaction(async (tx) => {
+    const alvo = { where: { id, reconciled_at: null }, data: { reconciled_at: agora, reconciled_by_user_id: ator.id } };
+    const r = input.kind === "movimento" ? await tx.cashMovement.updateMany(alvo) : await tx.cardReceivable.updateMany(alvo);
+    if (r.count === 0) return false;
+    await registrarNoHistorico(tx, ator, {
+      action: "conciliacao.carimbar",
+      target_type: "conta",
+      target_id: linha.conta_id,
+      summary: `Carimbou ${linha.descricao}, ${dinheiro(linha.valor)} de ${diaBr(linha.dia)}`,
+    });
+    return true;
+  });
+  if (!gravou) return fail("JA_CARIMBADO", "Esta linha já tem carimbo.", 409, "id");
+  return ok({ kind: input.kind, id, reconciled_at: agora.toISOString(), reconciled_by: quem?.name ?? "" });
+}
+
+/** Tira o carimbo da linha (a conferência foi um engano). */
+export async function descarimbarLinhaAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  input: { kind: KindDaLinha; id: string },
+): Promise<ActionResult<{ kind: KindDaLinha; id: string }>> {
+  const neg = await exigir(db, ator, "dinheiro", "retirar o carimbo do extrato");
+  if (neg) return neg;
+  const a = await acharLinhaDeConta(db, input);
+  if ("erro" in a) return a.erro;
+  const { linha } = a;
+  if (!linha.carimbada) return fail("SEM_CARIMBO", "Esta linha não tem carimbo.", 409, "id");
+  const id = input.id.trim();
+  const limpou = await db.$transaction(async (tx) => {
+    const alvo = { where: { id, reconciled_at: { not: null } }, data: { reconciled_at: null, reconciled_by_user_id: null } };
+    const r = input.kind === "movimento" ? await tx.cashMovement.updateMany(alvo) : await tx.cardReceivable.updateMany(alvo);
+    if (r.count === 0) return false;
+    await registrarNoHistorico(tx, ator, {
+      action: "conciliacao.descarimbar",
+      target_type: "conta",
+      target_id: linha.conta_id,
+      summary: `Retirou o carimbo de ${linha.descricao}, ${dinheiro(linha.valor)} de ${diaBr(linha.dia)}`,
+    });
+    return true;
+  });
+  if (!limpou) return fail("SEM_CARIMBO", "Esta linha não tem carimbo.", 409, "id");
+  return ok({ kind: input.kind, id });
 }
