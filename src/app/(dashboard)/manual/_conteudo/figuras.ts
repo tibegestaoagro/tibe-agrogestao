@@ -194,6 +194,32 @@ export const FIGURAS: Figura[] = [
     ],
   },
   {
+    id: "financeiro-projecao",
+    pagina: "/emporio/financeiro/projecao",
+    papel: "dono",
+    legenda: "O fluxo projetado: o dinheiro que deve entrar e sair, semana a semana",
+    alt: "Aba Projeção do Financeiro com os botões 30, 60 e 90 dias, o saldo de hoje e a tabela de semanas com o que entra, o que sai e o saldo ao fim",
+    marcas: [
+      { numero: 1, alvo: "os botões 30, 60 e 90 dias", texto: "Escolha até onde olhar para a frente. A loja escolhida no filtro fica." },
+      { numero: 2, alvo: "o saldo de hoje", texto: "O dinheiro que existe agora, somando gavetas, gerências e contas bancárias." },
+      { numero: 3, alvo: "a coluna A receber", texto: "Fiado, parcela de cartão e cheque que devem entrar naquela semana." },
+      { numero: 4, alvo: "a coluna Saldo ao fim", texto: "O saldo de hoje mais o que entra e menos o que sai, até o fim de cada semana." },
+    ],
+  },
+  {
+    id: "financeiro-relatorios",
+    pagina: "/emporio/financeiro/relatorios",
+    papel: "dono",
+    legenda: "Os relatórios do dinheiro: a receber por idade, a pagar por vencimento e a posição por lugar",
+    alt: "Aba Relatórios do Financeiro com o período, a tabela de quanto cada cliente deve por faixa de atraso, as contas a pagar por semana e o saldo de cada lugar",
+    marcas: [
+      { numero: 1, alvo: "o período e o botão Ver relatórios", texto: "Vazio, cada relatório usa o seu período padrão. Preencha De e Até para mudar." },
+      { numero: 2, alvo: "o bloco A receber por idade", texto: "Cada cliente com o que deve em dia e o que está vencido, por faixa de dias de atraso." },
+      { numero: 3, alvo: "o bloco A pagar por vencimento", texto: "As contas pendentes por semana e por nome. O vencido fica na primeira semana, em destaque." },
+      { numero: 4, alvo: "o bloco Posição de caixa por lugar", texto: "O saldo de hoje de cada gaveta, gerência e conta, e o que entrou e saiu no período." },
+    ],
+  },
+  {
     id: "estoque-por-loja",
     pagina: "/emporio/produtos/[id]",
     papel: "gestor",
@@ -404,6 +430,18 @@ export const FIGURAS: Figura[] = [
       { numero: 2, alvo: "a coluna Rateio da lista", texto: "Mostra como a despesa é dividida entre as lojas, em percentual ou em reais." },
       { numero: 3, alvo: "a seção Vendeu, Pagou", texto: "Despesas que nascem junto com a venda, como comissão e entrega." },
       { numero: 4, alvo: "a seção Contas a pagar", texto: "O que vence e o botão para pagar várias de uma vez." },
+    ],
+  },
+  {
+    id: "despesa-rateio-automatico",
+    pagina: "/emporio/despesas",
+    papel: "dono",
+    legenda: "Rateio automático: o sistema divide a despesa entre as lojas",
+    alt: "Painel Nova despesa fixa com Por área escolhido em Dividir entre as lojas e a frase que explica a base do rateio, sem campos de parte por loja",
+    marcas: [
+      { numero: 1, alvo: "o campo Dividir entre as lojas", texto: "Além de percentual e reais, escolha faturamento, área ou funcionários." },
+      { numero: 2, alvo: "a frase que diz a base do rateio", texto: "A despesa é dividida entre todas as lojas ativas, pela base escolhida. Não há parte de cada loja para digitar." },
+      { numero: 3, alvo: "o botão Cadastrar despesa", texto: "Cria a conta do mês atual. As dos meses seguintes nascem quando o mês chega." },
     ],
   },
   {

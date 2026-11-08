@@ -641,7 +641,7 @@ figura("financeiro-hoje", "dono", lambda: "/emporio/financeiro?loja=" + id_da_lo
     (1, "document.querySelector('nav[aria-label=\"Telas do Financeiro\"]')", "as quatro abas"),
     (2, "M.S('Posição de caixa')", "o cartao Posição de caixa"),
     (3, "M.S('Vence hoje a pagar')", "o cartao Vence hoje a pagar"),
-], hd=900, hc=1500)
+], hd=900, hc=1700)
 
 figura("financeiro-pagar", "dono", "/emporio/financeiro/pagar", [
     (1, "M.TH('Conta')", "a lista de contas a pagar"),
@@ -1182,6 +1182,41 @@ figura("financeiro-extrato", "dono", lambda: "/emporio/financeiro/caixa?lugar=co
     (3, "M.TH('Carimbo')", "a coluna Carimbo"),
     (4, "M.Bs('Carimbar')[0]", "o botao Carimbar"),
 ], rolar="M.H('Extrato')", limite=8, hd=900, hc=1300)
+
+figura("financeiro-projecao", "dono", "/emporio/financeiro/projecao", [
+    (1, "document.querySelector('nav[aria-label=\"Janela da projeção\"]')", "os botoes 30, 60 e 90 dias"),
+    (2, "M.C('Saldo de hoje')", "o saldo de hoje"),
+    (3, "M.TH('A receber')", "a coluna A receber"),
+    (4, "M.TH('Saldo ao fim')", "a coluna Saldo ao fim"),
+], hd=900, hc=1300)
+
+figura("financeiro-relatorios", "dono", "/emporio/financeiro/relatorios", [
+    (1, "M.B('Ver relatórios').closest('form')", "o periodo e o botao Ver relatorios"),
+    (2, "M.H('A receber por idade')", "o bloco A receber por idade"),
+    (3, "M.H('A pagar por vencimento')", "o bloco A pagar por vencimento"),
+    (4, "M.H('Posição de caixa por lugar')", "o bloco Posicao de caixa por lugar"),
+], limite=3, hd=1700, hc=2400)
+
+
+def estado_rateio_automatico():
+    """Abre o painel Nova despesa fixa e escolhe a divisao por area: a frase da base aparece no lugar das partes."""
+    for _ in range(10):
+        clicar("Nova despesa fixa")
+        time.sleep(1.5)
+        if js("!!document.querySelector('[role=dialog]')"):
+            break
+    preencher("Nome", "Internet")
+    preencher("Valor por mês", "300,00")
+    preencher("Dia do vencimento", "10")
+    escolher("Dividir entre as lojas", "Por área (m²)")
+    time.sleep(0.8)
+
+
+figura("despesa-rateio-automatico", "dono", "/emporio/despesas", [
+    (1, "M.L('Dividir entre as lojas')", "o campo Dividir entre as lojas, com Por area escolhido"),
+    (2, "M.C('Dividida entre todas as lojas ativas')", "a frase que diz a base do rateio"),
+    (3, "document.querySelector('[role=dialog] button[type=submit]')", "o botao Cadastrar despesa"),
+], estado=estado_rateio_automatico, hd=1000, hc=1400)
 
 fim_das_figuras = None
 

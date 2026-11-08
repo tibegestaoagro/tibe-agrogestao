@@ -624,6 +624,45 @@ export function ParteDeFinanceiroDasLojas() {
         <Figura id="financeiro-extrato" />
       </Tarefa>
 
+      <Subtitulo>Ver o fluxo projetado</Subtitulo>
+      <Tarefa
+        paraQueServe="Saber, semana a semana, se o dinheiro vai dar para pagar o que vem pela frente."
+        passos={[
+          <>Abra <strong>Financeiro</strong> e a aba <strong>Projeção</strong>. Escolha <strong>30 dias</strong>, <strong>60 dias</strong> ou <strong>90 dias</strong>.</>,
+          <>No alto está o <strong>Saldo de hoje</strong>: a soma do dinheiro de todas as gavetas, gerências e contas bancárias.</>,
+          <>Cada semana mostra o que deve entrar (fiado, parcela de cartão e cheque) e o que deve sair (contas a pagar e despesas fixas). A última coluna é o saldo ao fim da semana.</>,
+          <>O fiado e a conta que já venceram entram na <strong>Semana 1</strong>, porque ainda precisam ser recebidos e pagos.</>,
+          <>Para ver uma loja só, escolha a loja no filtro. A conta bancária é da rede inteira e só aparece em <strong>Todas as lojas</strong>.</>,
+        ]}
+        problemas={[
+          {
+            quando: "A despesa fixa dos meses seguintes vem com a marca “estimativa”",
+            fazer: "É uma despesa com rateio automático que ainda não nasceu. O valor usa a divisão de hoje e pode mudar quando o mês chegar.",
+          },
+        ]}
+      >
+        <Figura id="financeiro-projecao" />
+      </Tarefa>
+
+      <Subtitulo>Relatórios do dinheiro</Subtitulo>
+      <Tarefa
+        paraQueServe="Ver quem deve há quanto tempo, o que vence a pagar e onde está o dinheiro."
+        passos={[
+          <>Abra <strong>Financeiro</strong> e a aba <strong>Relatórios</strong>. Se quiser, escolha a loja e o período em <strong>De</strong> e <strong>Até</strong>, e clique em <strong>Ver relatórios</strong>.</>,
+          <><strong>A receber por idade</strong> mostra cada cliente com o que deve em dia e o que está vencido há 1 a 15 dias, 16 a 30 dias ou mais de 30.</>,
+          <><strong>A pagar por vencimento</strong> junta as contas por semana e por nome. O que já venceu fica na primeira semana, com a marca <strong>Vencido</strong>.</>,
+          <><strong>Posição de caixa por lugar</strong> mostra o saldo de hoje de cada gaveta, gerência e conta, e o que entrou e saiu no período.</>,
+        ]}
+        problemas={[
+          {
+            quando: "Sem período, o a pagar e a posição mostram datas diferentes",
+            fazer: "É de propósito. O a pagar olha os próximos 30 dias, e a posição de caixa olha os últimos 30.",
+          },
+        ]}
+      >
+        <Figura id="financeiro-relatorios" />
+      </Tarefa>
+
       <Chamada tipo="atencao">
         <p>
           As compras à vista lançadas antes de 07/11/2026 não tiraram dinheiro de lugar nenhum: o saldo das gavetas e das

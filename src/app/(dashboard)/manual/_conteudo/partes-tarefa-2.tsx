@@ -469,6 +469,30 @@ export function ParteDeDespesas() {
         <Figura id="despesas-fixas" />
       </Tarefa>
 
+      <Subtitulo>Rateio automático da despesa fixa</Subtitulo>
+      <Tarefa
+        paraQueServe="Dividir uma despesa entre as lojas sem fazer conta: o sistema divide pelo faturamento, pela área ou pelo número de funcionários."
+        passos={[
+          <>Em <strong>Lojas</strong>, preencha a <strong>Área (m²)</strong> e os <strong>Funcionários</strong> de cada loja. O Financeiro também pode preencher esses dois campos.</>,
+          <>Em <strong>Despesas</strong>, cadastre a despesa fixa e, em <strong>Dividir entre as lojas</strong>, escolha <strong>Proporcional ao faturamento</strong>, <strong>Por área (m²)</strong> ou <strong>Por funcionários</strong>. Não precisa digitar a parte de cada loja.</>,
+          "A despesa é dividida entre todas as lojas ativas. No faturamento, vale o que cada loja vendeu no mês anterior.",
+          "Só a conta do mês atual é criada de uma vez. A de cada mês seguinte nasce quando o mês chega, com a divisão daquele momento.",
+          <>Na lista, a coluna <strong>Rateio</strong> mostra a parte de cada loja e avisa a loja que ficou sem base, por exemplo <strong>sem área cadastrada</strong>. Essa loja recebe zero.</>,
+        ]}
+        problemas={[
+          {
+            quando: "“O rateio automático divide entre todas as lojas”",
+            fazer: "Só quem vê todas as lojas pode usar esse rateio. O Gestor de uma loja só não pode: peça ao Dono, ao Gerente geral ou ao Financeiro.",
+          },
+          {
+            quando: "Uma loja ficou com zero",
+            fazer: "Ela não tem a área, os funcionários ou o faturamento do mês anterior. Cadastre o dado em Lojas para as próximas contas.",
+          },
+        ]}
+      >
+        <Figura id="despesa-rateio-automatico" />
+      </Tarefa>
+
       <Subtitulo>Vendeu, Pagou</Subtitulo>
       <Tarefa
         paraQueServe="Contar na margem as despesas que nascem junto com a venda, como comissão, entrega e taxa de cartão."
