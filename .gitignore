@@ -67,3 +67,7 @@ next-env.d.ts
 
 # Resultados brutos da avaliacao de modelos (Fase 3 do agente)
 /scripts/avaliacao/resultados/
+
+# Pesquisa da skill deep-research (fora do repositório público)
+research_notes/
+reports/
