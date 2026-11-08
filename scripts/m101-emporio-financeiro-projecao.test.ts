@@ -583,6 +583,40 @@ async function secao3() {
   check("partes iguais entre as 3 lojas: três ocorrências de 333,33 ou 333,34 que somam 1.000",
     valoresNada.length === 3 && valoresNada.every((v) => v >= 333.33 - 0.001 && v <= 333.34 + 0.001) && perto(valoresNada.reduce((s, v) => s + v, 0), 1000), j(nada));
   check("avisos diz que nenhuma loja tem base", (rNada.corpo?.data?.avisos ?? []).some((a: string) => /nenhuma loja tem base/i.test(a)), j(rNada.corpo?.data?.avisos));
+
+  console.log("  (k) mês nascido: a loja que ganha área no meio do mês não cria parte nova");
+  const somaVivas = (m: Record<string, { amount: number; status: string }>) =>
+    Object.values(m).filter((x) => x.status !== "cancelled").reduce((s, x) => s + x.amount, 0);
+  await patchLoja(A.L1, { area_m2: 60 });
+  await patchLoja(A.L2, { area_m2: 40 });
+  const rTarde = await criar(A.tok.owner, "M101 Area tarde", { split_kind: "area" });
+  const T_tarde = String(rTarde.corpo?.data?.id ?? "");
+  const tarde0 = await doMes(T_tarde, mesCorrente);
+  check("(fixture) nasce 600 e 400, a Loja 3 (sem área) fica sem parte", rTarde.status === 201 && perto(tarde0[A.L1]?.amount, 600) && perto(tarde0[A.L2]?.amount, 400) && tarde0[L3] === undefined, `${rTarde.status} ${j(tarde0)}`);
+  const pl3 = await patchLoja(L3, { area_m2: 100 });
+  check("(fixture) a Loja 3 ganha 100 m²: 200", pl3.status === 200, `${pl3.status} ${j(pl3.corpo)}`);
+  await (Dd as Dado).garantirOcorrenciasDoMes(A.db, A.owner, civil(mesCorrente));
+  const tarde1 = await doMes(T_tarde, mesCorrente);
+  check("o gatilho não cria a parte da Loja 3 no mês que já nasceu: segue 2 ocorrências somando 1.000", Object.keys(tarde1).length === 2 && perto(somaVivas(tarde1), 1000), j(tarde1));
+
+  console.log("  (l) manual com loja que saiu do rateio, trocado para automático: a loja volta nos meses seguintes");
+  const rSai = await criar(A.tok.owner, "M101 Saiu e virou", { split_kind: "percentual", splits: [{ establishment_id: A.L1, value: 50 }, { establishment_id: A.L2, value: 50 }] });
+  const T_sai = String(rSai.corpo?.data?.id ?? "");
+  const soL1 = await chamar(A.tok.owner, R.fixedId, "PATCH", `emporio/fixed-expenses/${T_sai}`, { split_kind: "percentual", splits: [{ establishment_id: A.L1, value: 100 }] }, T_sai);
+  const virou = await chamar(A.tok.owner, R.fixedId, "PATCH", `emporio/fixed-expenses/${T_sai}`, { split_kind: "area" }, T_sai);
+  check("(fixture) a Loja 2 saiu do rateio e o modelo virou área: 200 e 200", soL1.status === 200 && virou.status === 200, `${soL1.status} ${virou.status} ${j(virou.corpo)}`);
+  const mais2 = somaMes(mesCorrente, 2);
+  await (Dd as Dado).garantirOcorrenciasDoMes(A.db, A.owner, civil(mais2));
+  const sai2 = await doMes(T_sai, mais2);
+  check("no mês +2 as três lojas têm parte e a soma fecha em 1.000", Object.keys(sai2).length === 3 && perto(somaVivas(sai2), 1000), j(sai2));
+
+  console.log("  (m) três gatilhos em paralelo deixam uma linha do Histórico");
+  const nasceuDe = async (tpl: string) =>
+    ((await prisma.emporioAuditLog.findMany({ where: { tenant_id: A.tenantId, action: "despesa.fixa", target_id: tpl } })) as Dado[]).filter((h) => /nasceu/i.test(String(h.summary))).length;
+  const antesLinhas = await nasceuDe(T_sai);
+  const mais3 = somaMes(mesCorrente, 3);
+  const tres = await Promise.all([1, 2, 3].map(() => (Dd as Dado).garantirOcorrenciasDoMes(A.db, A.owner, civil(mais3))));
+  check("a soma do mês +3 fecha em 1.000 e uma só linha 'nasceu' nova", perto(somaVivas(await doMes(T_sai, mais3)), 1000) && (await nasceuDe(T_sai)) - antesLinhas === 1, `${j(tres)} ${(await nasceuDe(T_sai)) - antesLinhas}`);
 }
 
 // ---------------------------------------------------------------------------

@@ -17,7 +17,7 @@ import {
   type PedidoDePagamentoView,
 } from "@/lib/emporio/pedido-pagamento";
 import { CATEGORIAS_RESERVADAS } from "@/lib/emporio/vendeu-pagou";
-import { faturamentoLiquidoDoMes } from "@/lib/actions/emporio-resultado";
+import { faturamentoLiquidoDoMes } from "@/lib/emporio/faturamento";
 import {
   CRITERIOS_AUTOMATICOS,
   ehCriterioAutomatico,
@@ -497,7 +497,7 @@ async function viewsDasFixas(db: TenantPrismaClient, ator: Ator, linhas: FixaRow
   const visiveis = await lojasDoAtor(db, ator);
   const ocorrencias = await db.fixedExpenseOccurrence.findMany({
     where: { template_id: { in: linhas.map((l) => l.id) } },
-    select: { template_id: true, period: true, establishment_id: true, financial_entry: { select: { amount: true, status: true } } },
+    select: { template_id: true, period: true, establishment_id: true, financial_entry: { select: { amount: true, status: true, notes: true } } },
   });
   const atual = mesAtualEmBrasilia();
   const automaticas = linhas.some((t) => ehCriterioAutomatico(t.split_kind));
@@ -524,17 +524,20 @@ async function viewsDasFixas(db: TenantPrismaClient, ator: Ator, linhas: FixaRow
         const d = await divisoes.get(chave)!;
         base_label = d.base_label;
         avisos = d.avisos;
-        const doMes = new Map(
-          ocorrencias
-            .filter((o) => o.template_id === t.id && textoDoMes(mesDaData(o.period)) === textoDoMes(mesRef))
-            .map((o) => [o.establishment_id, o.financial_entry.status === "cancelled" ? 0 : centavos(decToNum(o.financial_entry.amount) ?? 0)]),
+        const doMes = ocorrencias.filter((o) => o.template_id === t.id && textoDoMes(mesDaData(o.period)) === textoDoMes(mesRef));
+        const aRefazer = (o: (typeof doMes)[number]) =>
+          o.financial_entry.status === "cancelled" && (o.financial_entry.notes ?? "").includes(NOTA_VIROU_AUTOMATICO);
+        // Mês nascido: a divisão está feita, e a loja sem ocorrência mostra 0. Antes disso, a estimativa de agora.
+        const nascido = doMes.some((o) => !aRefazer(o));
+        const partesDoMes = new Map(
+          doMes.filter((o) => !aRefazer(o)).map((o) => [o.establishment_id, o.financial_entry.status === "cancelled" ? 0 : centavos(decToNum(o.financial_entry.amount) ?? 0)]),
         );
         splits = lojas
           .filter((l) => !visiveis || visiveis.has(l.id))
           .map((l) => ({
             establishment_id: l.id,
             establishment_name: l.name,
-            value: (doMes.get(l.id) ?? d.partes.get(l.id) ?? 0) / 100,
+            value: (nascido ? (partesDoMes.get(l.id) ?? 0) : (d.partes.get(l.id) ?? 0)) / 100,
           }));
       } else {
         splits = t.splits
@@ -949,7 +952,8 @@ export async function editarDespesaFixaAction(
   // Automático: a base de agora, só para as ocorrências que já existem (a do mês corrente e a do seguinte).
   const partesDoMesAuto = new Map<string, Map<string, number>>();
   if (ehCriterioAutomatico(d.split_kind)) {
-    for (const m of [atual, proximo]) {
+    const temProximo = (await db.fixedExpenseOccurrence.count({ where: { template_id: id, period: primeiroDia(proximo) } })) > 0;
+    for (const m of temProximo ? [atual, proximo] : [atual]) {
       partesDoMesAuto.set(textoDoMes(m), (await ratearOMes(db, d.split_kind, centavos(d.amount), d.lojas, m)).partes);
     }
   }
@@ -1054,22 +1058,23 @@ export async function editarDespesaFixaAction(
       };
     };
 
-    // De manual para automático, as contas futuras sem pagamento (do mês seguinte em diante) deixam de existir
-    // até o mês chegar: o gatilho de leitura as refaz, com a base daquele momento.
+    // De manual para automático, as contas futuras sem pagamento (do mês seguinte em diante) ficam canceladas com
+    // `NOTA_VIROU_AUTOMATICO` até o mês chegar, e o gatilho de leitura as refaz com a base daquele momento. Isso vale
+    // também para as que a saída da loja do rateio já cancelou (trocam a marca); as canceladas à mão seguem canceladas.
     if (!eraAutomatico && automatico) {
       for (const o of ocorrencias) {
         if (compararMeses(mesDaData(o.period), atual) <= 0) continue;
-        if (pagas.has(o.financial_entry_id) || lancamentos.get(o.financial_entry_id)?.status === "cancelled") continue;
-        const notas = lancamentos.get(o.financial_entry_id)?.notes ?? null;
+        if (pagas.has(o.financial_entry_id)) continue;
+        const lancamento = lancamentos.get(o.financial_entry_id);
+        // A cancelada à mão fica cancelada; a cancelada pela saída do rateio troca a marca, para o gatilho refazê-la.
+        if (lancamento?.status === "cancelled" && (canceladaAMao(lancamento.notes) || !(lancamento.notes ?? "").includes(NOTA_SAIU_DO_RATEIO))) continue;
+        const base = semNotaSaiuDoRateio(lancamento?.notes ?? null);
+        const notas = base ? `${base}${SEPARADOR_NOTA}${NOTA_VIROU_AUTOMATICO}` : NOTA_VIROU_AUTOMATICO;
         await tx.financialEntry.update({
           where: { id: o.financial_entry_id },
-          data: {
-            status: "cancelled",
-            notes: notas ? `${notas}${SEPARADOR_NOTA}${NOTA_VIROU_AUTOMATICO}` : NOTA_VIROU_AUTOMATICO,
-            updated_by_user_id: ator.id,
-          },
+          data: { status: "cancelled", notes: notas, updated_by_user_id: ator.id },
         });
-        lancamentos.set(o.financial_entry_id, { id: o.financial_entry_id, status: "cancelled", notes: notas ? `${notas}${SEPARADOR_NOTA}${NOTA_VIROU_AUTOMATICO}` : NOTA_VIROU_AUTOMATICO });
+        lancamentos.set(o.financial_entry_id, { id: o.financial_entry_id, status: "cancelled", notes: notas });
       }
     }
 
@@ -1285,10 +1290,14 @@ export async function garantirOcorrenciasDoMes(
       const kind = m.split_kind;
       if (!ehCriterioAutomatico(kind)) continue;
       const doModelo = feitas.filter((o) => o.template_id === m.id);
-      const faltam = lojas.filter((l) => !doModelo.some((o) => o.establishment_id === l.id));
       const refazer = doModelo.filter(
         (o) => o.financial_entry.status === "cancelled" && (o.financial_entry.notes ?? "").includes(NOTA_VIROU_AUTOMATICO),
       );
+      // O mês nasceu quando alguma ocorrência dele existe e não é uma que a troca de critério cancelou. Nascido, a
+      // divisão está feita: loja nova, ou que ganhou área ou funcionários no meio do mês, entra no mês seguinte ou
+      // num editar (criar a parte dela agora faria a soma passar do valor da despesa).
+      const nascido = doModelo.length > refazer.length;
+      const faltam = nascido ? [] : lojas.filter((l) => !doModelo.some((o) => o.establishment_id === l.id));
       if (faltam.length === 0 && refazer.length === 0) continue;
 
       const { partes } = await ratearOMes(db, kind, centavos(decToNum(m.amount) ?? 0), lojas, mes);
@@ -1304,20 +1313,21 @@ export async function garantirOcorrenciasDoMes(
             if (await criarOcorrencia(tx, m, l.id, mes, partes.get(l.id) ?? 0)) nasceu.push(l.id);
           }
           for (const o of aRefazer) {
-            const entrada = o.financial_entry;
-            await tx.financialEntry.update({
-              where: { id: o.financial_entry_id },
+            // Condicional: de dois leitores ao mesmo tempo, só o que acha a conta ainda cancelada a refaz.
+            const refeita = await tx.financialEntry.updateMany({
+              where: { id: o.financial_entry_id, status: "cancelled", notes: { contains: NOTA_VIROU_AUTOMATICO } },
               data: {
                 status: "pending",
                 amount: (partes.get(o.establishment_id) ?? 0) / 100,
                 due_date: diaDoMes(mes, m.due_day),
-                notes: semNotaSaiuDoRateio(entrada.notes),
+                notes: semNotaSaiuDoRateio(o.financial_entry.notes),
                 paid_at: null,
                 updated_by_user_id: ator.id,
               },
             });
-            nasceu.push(o.establishment_id);
+            if (refeita.count === 1) nasceu.push(o.establishment_id);
           }
+          if (nasceu.length === 0) return;
           await registrarNoHistorico(tx, ator, {
             action: "despesa.fixa",
             target_type: "despesa_fixa",
