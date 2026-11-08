@@ -38,7 +38,10 @@ export function ReceberFiadoForm({
   lojas,
   caixas,
   usuarioId,
+  soPix = false,
 }: {
+  /** O Financeiro não está na loja: recebe por PIX na conta, e o dinheiro é do caixa da loja. */
+  soPix?: boolean;
   contatoId: string;
   contatoNome: string;
   devidoCent: number;
@@ -53,7 +56,7 @@ export function ReceberFiadoForm({
   const [loading, setLoading] = useState(false);
   const chave = useRef<{ assinatura: string; key: string } | null>(null);
   const [valor, setValor] = useState(centavosParaCampo(devidoCent));
-  const [forma, setForma] = useState("dinheiro");
+  const [forma, setForma] = useState(soPix ? "pix" : "dinheiro");
   const [loja, setLoja] = useState(lojas.length === 1 ? lojas[0].id : "");
   const [caixa, setCaixa] = useState("");
   // Só o dinheiro entra na gaveta; PIX nunca vê o campo do caixa.
@@ -151,7 +154,7 @@ export function ReceberFiadoForm({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="dinheiro">Dinheiro (entra na gaveta da loja)</SelectItem>
+              {!soPix && <SelectItem value="dinheiro">Dinheiro (entra na gaveta da loja)</SelectItem>}
               <SelectItem value="pix">PIX (entra na conta PIX da loja)</SelectItem>
             </SelectContent>
           </Select>

@@ -49,11 +49,14 @@ export default async function CaixaPage() {
   const ehConta = pode(papel, "conta");
   const ehGestor = pode(papel, "gestor_da_loja");
   const podeEscrever = pode(papel, "vendedor_da_loja");
+  // O Financeiro (ação `dinheiro`) cuida da conta Pix e da taxa de cartão de todas as lojas, como as actions já aceitam.
+  const ehDinheiro = pode(papel, "dinheiro");
+  const veContas = ehGestor || ehDinheiro;
 
   const [caixaRes, contasRes, regrasRes, contasDoBanco, implantados, comTurno, entregasRes] = await Promise.all([
     lerCaixaAction(db, user),
-    ehGestor ? listarContasAction(db, user, { incluir_arquivadas: true }) : Promise.resolve(null),
-    ehGestor ? listarRegrasCartaoAction(db, user) : Promise.resolve(null),
+    veContas ? listarContasAction(db, user, { incluir_arquivadas: true }) : Promise.resolve(null),
+    veContas ? listarRegrasCartaoAction(db, user) : Promise.resolve(null),
     // Depositar cheque é do Vendedor com a chave, que não lista contas
     // pela action (é do Gestor para cima): aqui só id e nome, para escolher o destino.
     db.bankAccount.findMany({
@@ -74,7 +77,7 @@ export default async function CaixaPage() {
     : { drawers: [], accounts: [], card_receivables: [], checks: [], movements: [] };
   const regras = regrasRes && regrasRes.ok ? regrasRes.data : [];
   const lojasDasRegras = caixa.drawers
-    .filter((d) => pode(papel, "gestor_da_loja", d.establishment_id))
+    .filter((d) => ehDinheiro || pode(papel, "gestor_da_loja", d.establishment_id))
     .map((d) => ({ id: d.establishment_id, name: d.name }));
   const aReceberDaConta = new Map(caixa.accounts.map((a) => [a.bank_account_id, a.to_receive]));
   const totalAReceber = caixa.card_receivables.reduce((s, p) => s + Math.round(p.net_amount * 100), 0) / 100;
@@ -210,7 +213,7 @@ export default async function CaixaPage() {
                         : `, ${d.last_count.difference > 0 ? "sobra" : "falta"} de ${reaisBr(Math.abs(d.last_count.difference))}${d.last_count.justification ? ` (${d.last_count.justification})` : ""}.`}
                     </p>
                   )}
-                  {ehGestor && (
+                  {veContas && (
                     <p className="text-sm text-texto-secundario">
                       Conta PIX: {pix ? pix.name : "nenhuma definida"}
                     </p>
@@ -219,7 +222,7 @@ export default async function CaixaPage() {
                     {gestorDaLoja && d.manager_balance !== null && !gerenciaComSaldoInicial.has(d.establishment_id) && (
                       <SaldoInicialForm tipo="gerencia" destinoId={d.establishment_id} destinoNome={`Com a gerência, ${d.name}`} />
                     )}
-                    {gestorDaLoja && contasAtivas.length > 0 && (
+                    {(gestorDaLoja || ehDinheiro) && contasAtivas.length > 0 && (
                       <PixLojaForm
                         lojaId={d.establishment_id}
                         lojaNome={d.name}
@@ -235,7 +238,7 @@ export default async function CaixaPage() {
         )}
       </section>
 
-      {ehGestor && (
+      {veContas && (
         <section className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-semibold text-texto">Contas bancárias</h2>
@@ -291,7 +294,7 @@ export default async function CaixaPage() {
         </section>
       )}
 
-      {ehGestor && (
+      {veContas && (
         <section className="space-y-3">
           <h2 className="text-lg font-semibold text-texto">A receber do cartão</h2>
           {caixa.card_receivables.length === 0 ? (
@@ -461,7 +464,7 @@ export default async function CaixaPage() {
         </section>
       )}
 
-      {ehGestor && (
+      {veContas && (
         <section className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-semibold text-texto">Taxas de cartão</h2>

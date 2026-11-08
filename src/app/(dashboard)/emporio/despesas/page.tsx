@@ -113,11 +113,11 @@ export default async function DespesasPage() {
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-texto">Contas a pagar</h2>
         <p className="text-sm text-texto-secundario">
-          Pague por aqui: pagar pelo Financeiro não tira o dinheiro do caixa do Empório.
+          Pague por aqui: o pagamento tira o dinheiro da gaveta da loja ou da conta bancária.
         </p>
         {contas.length === 0 ? (
           <EmptyState titulo="Nenhuma conta a pagar">
-            As contas do &quot;Vendeu, Pagou&quot; e das despesas fixas aparecem aqui até serem pagas.
+            As contas do &quot;Vendeu, Pagou&quot;, das despesas fixas e das compras a prazo aparecem aqui até serem pagas.
           </EmptyState>
         ) : (
           <ContasAPagar

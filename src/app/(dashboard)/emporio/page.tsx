@@ -151,6 +151,9 @@ export default async function EmporioPage() {
           plural="clientes com fiado em aberto"
         />
         <CartaoTexto href="/emporio/caixa" titulo="Caixa" texto="Saldo das gavetas e das contas, e os movimentos" />
+        {veAPagina(papel, "/emporio/financeiro") && (
+          <CartaoTexto href="/emporio/financeiro" titulo="Financeiro" texto="O dinheiro de hoje: posição de caixa, o que pagar e o que receber" />
+        )}
         {veAPagina(papel, "/emporio/equipe") && (
           <CartaoTexto href="/emporio/equipe" titulo="Equipe" texto="Quem trabalha nas lojas e o que cada um pode fazer" />
         )}
