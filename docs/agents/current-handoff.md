@@ -46,41 +46,44 @@ autorização disso foi dada.
 
 **Entrega 1 (`emporio-financeiro-1`): pronta.** Papel `financeiro`, ação
 `dinheiro`, a casa `/emporio/financeiro` (Hoje, A pagar, A receber, Posição
-de caixa com extrato de gaveta, gerência e conta), a conta da compra paga
-dentro do Empório com `CashMovement` (lacuna 2.26), o `/financeiro` do Tibé só
-da fazenda. Migração `20261107130000_emporio_financeiro_papel` (dois valores
-de enum), aplicada só no Docker. Provas: `test:m98` (244 checagens), `test:all
--- --sem-redis` 97/98 com a `m92` (não tocada) verde sozinha, roteiro
-`emporio-financeiro-casa` 0 falhas e reprovando com a regra desfeita, juiz
-Opus rodada 1 reprovou (6/10) e rodada 2 aprovou (8/10) depois de 10
-correções revisadas. Decisões tomadas sem o usuário estão no relatório de
-evidências.
+de caixa com extrato), a conta da compra paga no Empório com `CashMovement`,
+o `/financeiro` do Tibé só da fazenda. Migração
+`20261107130000_emporio_financeiro_papel`, só no Docker. `test:m98` 244,
+roteiro `emporio-financeiro-casa` nos dois sentidos, juiz Opus 8/10 na
+rodada 2.
 
-**Entrega 2 (`emporio-financeiro-2`): pronta.** Plano
-[../superpowers/plans/2026-11-08-emporio-financeiro-entrega-2.md](../superpowers/plans/2026-11-08-emporio-financeiro-entrega-2.md).
-Vencimento do fiado (prazo da conta, dias ou dia fixo do cliente), limite,
-bloqueio por atraso e por limite com 409 no campo `payments`, liberação do
-Gestor válida até o fim do dia e consumida pela primeira venda, ficha de
-crédito na página do cliente, seção Fiado em Configurações, aba Cobrança com
-o WhatsApp do aparelho. Migração `20261108120000_emporio_financeiro_credito`
-(campos do fiado em `EmporioSettings` e `EmporioCustomer`, model
-`EmporioCreditRelease`), aplicada só no Docker. Provas: `test:m99` (197
-checagens), `test:all -- --sem-redis` 99/99, roteiro
-`emporio-financeiro-credito` 0 falhas e 9 falhas com o atraso ignorado, juiz
-Opus 8/10 aprovado na rodada 1 (2 MEDIO e 2 BAIXO corrigidos em seguida).
-Dívidas 2.36 a 2.38 (a 2.38 é decisão de produto a confirmar: a liberação é
-consumida pela primeira venda fiado, mesmo uma que caberia).
+**Entrega 2 (`emporio-financeiro-2`): pronta.** Vencimento do fiado, limite,
+bloqueio por atraso e por limite, liberação do Gestor, ficha de crédito,
+seção Fiado em Configurações, aba Cobrança com o WhatsApp do aparelho.
+Migração `20261108120000_emporio_financeiro_credito`, só no Docker.
+`test:m99` 197, `test:all` 99/99, roteiro `emporio-financeiro-credito` nos
+dois sentidos, juiz Opus 8/10 na rodada 1. Dívidas 2.36 a 2.38 (a 2.38 é
+decisão a confirmar: a liberação é consumida pela primeira venda fiado).
 
-**Entrega 3 (`emporio-financeiro-3`): a começar** (acordo de fiado, alçada,
-carimbo; `test:m100`). Ledger de cada entrega em
-`.superpowers/sdd/<plano>/progress.md` (não versionado).
+**Entrega 3 (`emporio-financeiro-3`): código pronto, prova viva bloqueada.**
+Acordo de fiado em parcelas, alçada de pagamento com aprovação e aviso pelo
+WhatsApp, carimbo de conciliação no extrato. Migração
+`20261108180000_emporio_financeiro_acordo_alcada_carimbo` só no Docker.
+`test:m100` 248 checagens, `test:all` 99/100 (m92 verde sozinha), build ok,
+juiz Opus 8/10 na rodada 2 (6/10 na 1, dois ALTO corrigidos). Faltam os
+critérios 6 e 8: o roteiro `emporio-financeiro-acordo` e as três PNGs do
+manual, porque o dev server da 3002 ficou com o client do Prisma anterior à
+migração e o agente não consegue reiniciar nem subir outro (memória). Decisão
+a confirmar: Q238 (recebimento vai ao que vence antes). Detalhe e o que
+destrava no relatório de evidências. A entrega 4 não começou (a 3 não bateu
+o GOAL). Ledger de cada entrega em `.superpowers/sdd/<plano>/progress.md`.
 
 ### ⏭️ Próximo passo
 
-Se a missão parou no meio: ler o ledger da entrega em curso e retomar da
-primeira tarefa sem `complete`. Se as quatro terminaram: revisar com o usuário,
-e então, por entrega e na ordem, migração no Neon (URL Direct), merge e push
-na `main` com `AUTORIZADO_PELO_USUARIO=1`, cada um autorizado na conversa.
+1. O usuário encerra os `next dev` presos (PIDs 17708, 5936, 17328 em
+   08/11) e os `python` do harness. 2. Subir um dev server do HEAD de
+   `emporio-financeiro-3` (worktree ou o próprio clone, `npx prisma generate`
+   ANTES de subir) e rodar a T8 da entrega 3: roteiro nos dois sentidos e as
+   três figuras do manual (ver o relatório de evidências). 3. Só então a
+   entrega 4 (plano a escrever). 4. Ao fim das quatro: revisar com o usuário,
+   e então, por entrega e na ordem, migração no Neon (URL Direct), merge e
+   push na `main` com `AUTORIZADO_PELO_USUARIO=1`, cada um autorizado na
+   conversa.
 
 As pastas `research_notes/` e `reports/` (pesquisa de mercado que embasou a
 spec) são ignoradas pelo git de propósito: o repositório é público.
@@ -189,9 +192,9 @@ relatórios em [agente-whatsapp/](agente-whatsapp/), detalhe em
 
 ## Últimas rodadas
 
-- 08/11: entrega 2 do financeiro do Empório pronta em `emporio-financeiro-2`
-  (juiz Opus 8/10 na rodada 1).
-- 08/11: entrega 1 pronta em `emporio-financeiro-1` (juiz 8/10 na rodada 2).
+- 08/11: entrega 3 com o código pronto em `emporio-financeiro-3` (juiz 8/10
+  na rodada 2); prova viva bloqueada pelo dev server.
+- 08/11: entregas 1 e 2 prontas em `emporio-financeiro-1` e `-2` (juiz 8/10).
 - 07/11: pesquisa de mercado, entrevista em 24 decisões e spec do financeiro
   do Empório, revisada por builder (branch `emporio-financeiro-spec`).
 - 07/11: planos 1 a 3 do Empório (clientes, fornecedores, escolha, entrega e

@@ -92,7 +92,53 @@ Neon com a URL Direct. Não há ajuste de dado: fiado antigo sem
 
 ## Entrega 3: acordo, alçada e carimbo (branch `emporio-financeiro-3`)
 
-Não começou.
+Plano: [../superpowers/plans/2026-11-08-emporio-financeiro-entrega-3.md](../superpowers/plans/2026-11-08-emporio-financeiro-entrega-3.md)
+(9 tarefas, autoavaliação no próprio plano). Range: `emporio-financeiro-2..`
+HEAD da branch. Ledger (não versionado):
+`.superpowers/sdd/2026-11-08-emporio-financeiro-entrega-3/progress.md`.
+
+**Sete dos nove critérios batidos; os critérios 6 e 8 ficaram bloqueados pelo
+ambiente** (ver abaixo). A entrega NÃO conta como pronta até o roteiro rodar
+nos dois sentidos e o manual sair com as figuras.
+
+| # | critério | evidência |
+|---|---|---|
+| 1 | plano com autoavaliação | o plano, seção final "Autoavaliação"; pré-voo no ledger com a tabela de conflitos |
+| 2 | migração no Docker e `migrate diff` limpo | `20261108180000_emporio_financeiro_acordo_alcada_carimbo` aplicada (models `EmporioCreditAgreement` e `EmporioPaymentRequest`; `FinancialEntry.agreement_id`; `EmporioSettings.payment_approval_limit`; carimbo em `CashMovement` e `CardReceivable`); `migrate diff` (URL do Docker inline): `-- This is an empty migration.` |
+| 3 | check, tsc, lint, build | `npm run check`: "Repositorio consistente: 0 falhas."; `npx tsc --noEmit`: vazio, código 0; `npm run lint`: "0 errors, 13 warnings" (os mesmos 13); `npm run build`: código 0, "Compiled successfully in 21.4s" |
+| 4 | suíte nova e `test:all` | `npm run test:m100`: "M100 verde" (248 checagens: funções puras; acordo com total igual antes e depois, parcela vencida bloqueia, acordo em dia desbloqueia, Gerente geral 403, devolução abate e em dinheiro com acordo quitado, cheque devolvido vira parcela extra, fila por vencimento, venda em acordo não cancela; alçada com pedido em vez de pagar, aprovar com e sem saldo, dois approve simultâneos, pedido desatualizado, recusar com motivo, as travas em pagar, cancelar, adiar, corrigir, editar e encerrar despesa fixa, cancelar compra e venda; carimbo só em linha de conta, filtro e totais; isolamento); `npm run test:all -- --sem-redis`: "99/100 passaram, em ~5 min", com a `m92` (turno, não tocada) reprovando sob carga e verde sozinha logo depois |
+| 5 | isolamento | `npm run test:isolation`: "Isolamento multi-tenant validado: 0 falhas." |
+| 6 | roteiro de navegador nos dois sentidos | **BLOQUEADO.** `emporio-financeiro-acordo` (5 passos) e o cenário "Aco" estão escritos e commitados; a execução parou porque o único dev server que o agente consegue subir (3002, worktree `D:/Projetos/tibe-wt2`) ficou com o client do Prisma anterior à migração e não pode ser reiniciado pelo agente; a tentativa de um terceiro worktree foi encerrada pelo sistema por falta de memória (dois `next dev` presos, 2,7 GB e 2,2 GB) |
+| 7 | juiz Opus, 6 critérios | rodada 1: 6/10, reprovado (2 ALTO: a ocorrência de despesa fixa em pedido pendente ainda mudava de valor e a aprovação pagava o aberto atual sem conferir; a devolução em dinheiro de venda em acordo descontava só a própria venda; 1 MEDIO; 4 BAIXO); corrigidos em 2 commits com 22 checks novos na m100; rodada 2: 8/10, aprovado (C1 8, C2 9, C3 8, C4 9, C5 9, C6 9), os 2 ALTO resolvidos, zero CRITICO ou ALTO; o MEDIO e os 2 BAIXO da rodada 2 corrigidos em seguida |
+| 8 | manual e `manual-emporio` | **BLOQUEADO** pelo mesmo motivo do 6: as tarefas "Fazer acordo de fiado", "Aprovar um pagamento" e "Conferir o extrato com o carimbo" e as entradas das figuras estão escritas; faltam as PNGs `fiado-acordo`, `financeiro-aprovacoes` e `financeiro-extrato` |
+| 9 | dívidas, Q-table, docs/api, handoff | `dividas.md`: 2.28 reescrita, 2.39 a 2.44 novas, 2.41 fechada; Q238 (recebimento pelo vencimento) na tabela do módulo, a confirmar; `npm run test:docs-api`: 0 falhas; handoff atualizado |
+
+Decisões tomadas sem o usuário (todas no ledger):
+
+- a parcela do acordo é uma conta a receber com categoria própria ("Acordo
+  de fiado"); a origem fica cancelada e ligada ao acordo; não existe desfazer
+  acordo (dívida 2.39);
+- o teto da alçada é definido só pelo Dono e pelo Gerente geral;
+- a aprovação recusa o pedido se o valor das contas mudou desde o pedido
+  (`PEDIDO_DESATUALIZADO`), além de travar todos os caminhos que mudam a
+  conta;
+- o cheque devolvido de uma origem absorvida vira parcela extra do acordo;
+- a devolução em dinheiro de venda em acordo conta o que o cliente pagou no
+  acordo inteiro, menos o que já voltou em todas as vendas dele;
+- **Q238, a confirmar:** o recebimento de fiado vai primeiro ao que vence
+  antes (venda ou parcela), não mais à venda mais antiga.
+
+Antes do deploy desta entrega (com o usuário): `prisma migrate deploy` no
+Neon com a URL Direct. Não há ajuste de dado.
+
+### O que destrava os critérios 6 e 8
+
+Encerrar os `next dev` presos (PIDs 17708 e 5936 em 08/11, mais 17328 e os
+`python` do harness) e subir um dev server a partir de um worktree no HEAD da
+branch com `npx prisma generate` rodado lá ANTES de subir; depois,
+`TIBE_BASE="http://localhost:<porta>" npm run navegador -- emporio-financeiro-acordo`
+nos dois sentidos (sabotagem em `papel.ts`, ação `acordo`) e
+`FIGURAS=fiado-acordo,financeiro-aprovacoes,financeiro-extrato ... manual-emporio`.
 
 ## Entrega 4: projeção, relatórios e rateio (branch `emporio-financeiro-4`)
 
