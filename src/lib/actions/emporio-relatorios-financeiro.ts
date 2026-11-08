@@ -130,7 +130,7 @@ export type APagarPorVencimentoView = {
   total: number;
 };
 
-/** As contas pendentes do Empório que vencem até o fim do período, por semana de 7 dias a partir de `de` e por nome; o vencido antes de `de` entra na primeira semana, em destaque. */
+/** As contas pendentes do Empório que vencem até o fim do período, por semana de 7 dias a partir de `de` e por nome; o que já venceu (antes de hoje) entra na primeira semana, em destaque, mesmo que seja anterior a `de`. */
 export async function lerAPagarPorVencimentoAction(
   db: TenantPrismaClient,
   ator: Ator,
@@ -169,8 +169,10 @@ export async function lerAPagarPorVencimentoAction(
   let vencidoTotal = 0;
   for (const c of contas.data) {
     if (!c.due_date) continue;
-    // O que venceu antes de `de` entra na primeira semana (no padrão, `de` é hoje: o vencido é justo o que importa).
-    const semana = c.due_date < semanas[0].de ? semanas[0] : semanas.find((s) => c.due_date! >= s.de && c.due_date! <= s.ate);
+    // O que já VENCEU (antes de hoje) entra na primeira semana mesmo fora do período: o vencido é justo o
+    // que importa. Conta que vence entre hoje e um `de` futuro não venceu nem é do período: fica fora.
+    const vencidaAntesDoPeriodo = c.due_date < semanas[0].de && c.due_date < hojeTxt;
+    const semana = vencidaAntesDoPeriodo ? semanas[0] : semanas.find((s) => c.due_date! >= s.de && c.due_date! <= s.ate);
     if (!semana) continue;
     const valor = centavos(c.open_amount);
     const vencida = c.due_date < hojeTxt;
