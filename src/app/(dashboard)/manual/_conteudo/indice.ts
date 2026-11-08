@@ -32,6 +32,7 @@ export const PARTES_DO_EMPORIO: Parte[] = [
   { slug: "devolver", titulo: "Devolver, trocar e cancelar", grupo: "Por tarefa", resumo: "Quando o cliente volta atrás." },
   { slug: "fiado", titulo: "Fiado e receber fiado", grupo: "Por tarefa", resumo: "Vender para pagar depois e cobrar." },
   { slug: "caixa", titulo: "Caixa", grupo: "Por tarefa", resumo: "Abrir e encerrar o turno, sangria, malote, banco, cartão e cheques." },
+  { slug: "financeiro-das-lojas", titulo: "Financeiro das lojas", grupo: "Por tarefa", resumo: "A casa do Financeiro: pagar a conta da compra, receber fiado por Pix e ver o extrato." },
   { slug: "despesas", titulo: "Despesas", grupo: "Por tarefa", resumo: "Despesas fixas e Vendeu, Pagou." },
   { slug: "resultado", titulo: "Resultado e ponto de equilíbrio", grupo: "Por tarefa", resumo: "Saber se a loja está dando lucro." },
   { slug: "relatorios", titulo: "Relatórios", grupo: "Por tarefa", resumo: "Vendas por vendedor, por produto e por loja, e produtos parados." },

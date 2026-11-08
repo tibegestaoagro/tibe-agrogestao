@@ -144,6 +144,29 @@ export const FIGURAS: Figura[] = [
     ],
   },
   {
+    id: "financeiro-hoje",
+    pagina: "/emporio/financeiro",
+    papel: "dono",
+    legenda: "A casa do Financeiro: o dinheiro das lojas hoje",
+    alt: "Tela Hoje do Financeiro com as quatro abas, o filtro de loja e os cartões de posição de caixa, contas a pagar e a receber",
+    marcas: [
+      { numero: 1, alvo: "as quatro abas", texto: "Hoje, A pagar, A receber e Posição de caixa. Cada uma é uma tela." },
+      { numero: 2, alvo: "o cartão Posição de caixa", texto: "Onde está o dinheiro: cada gaveta, a gerência de cada loja e cada conta bancária." },
+      { numero: 3, alvo: "o cartão Vence hoje a pagar", texto: "As contas que vencem hoje ou já venceram. O botão leva à aba A pagar." },
+    ],
+  },
+  {
+    id: "financeiro-pagar",
+    pagina: "/emporio/financeiro/pagar",
+    papel: "dono",
+    legenda: "Pagando a conta de uma compra, saindo de uma conta bancária",
+    alt: "Aba A pagar do Financeiro com a lista de contas e o botão Pagar selecionadas",
+    marcas: [
+      { numero: 1, alvo: "a lista de contas a pagar", texto: "A conta de uma compra aparece com o nome do fornecedor e a loja." },
+      { numero: 2, alvo: "o botão Pagar selecionadas", texto: "Marque as contas e escolha de onde sai o dinheiro. O Financeiro paga pela conta bancária." },
+    ],
+  },
+  {
     id: "estoque-por-loja",
     pagina: "/emporio/produtos/[id]",
     papel: "gestor",

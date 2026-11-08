@@ -505,3 +505,94 @@ export function ParteDeFornecedores() {
     </Tarefa>
   );
 }
+
+export function ParteDeFinanceiroDasLojas() {
+  return (
+    <div className="space-y-2">
+      <p>
+        O <strong>Financeiro</strong> é uma função da Equipe para quem cuida do dinheiro de todas as lojas, sem vender no
+        balcão e sem mexer na Equipe. Ele não fica preso a uma loja e vê só o Meu Empório: a fazenda é do Dono. O Dono e o
+        Gerente geral também abrem a mesma casa.
+      </p>
+
+      <Subtitulo>A casa do Financeiro, em quatro abas</Subtitulo>
+      <Tarefa
+        paraQueServe="Saber onde está o dinheiro das lojas hoje, o que pagar e o que receber, sem abrir loja por loja."
+        passos={[
+          <>Abra <strong>Meu Empório</strong> e depois <strong>Financeiro</strong>. Quem tem só essa função já cai aqui ao entrar.</>,
+          <>Em <strong>Hoje</strong>, veja a posição de caixa (cada gaveta, a gerência de cada loja e cada conta bancária), o que vence hoje a pagar e a receber, e o fiado vencido.</>,
+          <>Em <strong>A pagar</strong>, marque as contas e clique em <strong>Pagar selecionadas</strong>. Veja a seção abaixo.</>,
+          <>Em <strong>A receber</strong>, veja o fiado por cliente, os cheques em carteira e os cartões por data de recebimento.</>,
+          <>Em <strong>Posição de caixa</strong>, clique em <strong>Ver extrato</strong> numa conta bancária para ver as entradas e saídas do período, com o saldo de abertura e o de fechamento.</>,
+          <>Para olhar uma loja só, use o filtro de loja no alto. Ele acompanha você de uma aba para outra.</>,
+        ]}
+        problemas={[
+          {
+            quando: "O extrato recusa o período",
+            fazer: "O extrato vai até 92 dias. Escolha datas mais próximas.",
+          },
+          {
+            quando: "A coluna dos cheques mostra só um traço",
+            fazer: "É de propósito. Depositar, compensar e devolver cheque é do Gestor da loja. O Financeiro só acompanha.",
+          },
+        ]}
+      >
+        <Figura id="financeiro-hoje" />
+        <Figura id="financeiro-pagar" />
+      </Tarefa>
+
+      <Subtitulo>Pagar a conta de uma compra</Subtitulo>
+      <Tarefa
+        paraQueServe="Pagar o fornecedor de uma compra a prazo e tirar o dinheiro do lugar certo."
+        passos={[
+          <>Em <strong>A pagar</strong>, a compra aparece como uma conta com o nome do fornecedor e a loja. Marque a conta.</>,
+          <>Clique em <strong>Pagar selecionadas</strong>.</>,
+          <>Em <strong>De onde sai o dinheiro</strong>, escolha a conta bancária. O Gestor da loja escolhe também a gaveta; o Financeiro não, porque a gaveta é da loja.</>,
+          <>Confira a data e clique no botão com o total. O saldo da conta cai e a saída entra no extrato como <strong>Conta paga</strong>.</>,
+          <>Para dar mais prazo, clique em <strong>Adiar</strong> na conta e escolha a nova data. Para desistir da conta, clique em <strong>Cancelar</strong> e diga o motivo; a compra em si continua valendo.</>,
+        ]}
+        problemas={[
+          {
+            quando: "“Não é possível cancelar: a conta já tem pagamento.”",
+            fazer: "Conta com pagamento não se cancela. Desfaça o pagamento antes, se foi engano.",
+          },
+          {
+            quando: "O Financeiro do Tibé (da fazenda) não mostra essa conta",
+            fazer: "É de propósito. As contas do Empório se pagam só aqui, porque aqui o pagamento tira dinheiro de uma gaveta ou conta. O Tibé recusa pagar uma conta do Empório.",
+          },
+        ]}
+      />
+
+      <Subtitulo>Receber fiado</Subtitulo>
+      <Tarefa
+        paraQueServe="Dar baixa no fiado de um cliente que pagou, direto da casa do Financeiro."
+        passos={[
+          <>Em <strong>A receber</strong>, na linha do cliente, clique em <strong>Receber</strong>.</>,
+          <>Digite o valor (pode ser parcial) e escolha a loja que recebe. A forma de pagamento já vem em <strong>Pix</strong>.</>,
+          <>Clique em receber. A entrada aparece no extrato da conta do Pix da loja como <strong>Fiado recebido</strong>.</>,
+        ]}
+        problemas={[
+          {
+            quando: "“Receber em dinheiro” não aparece, ou é recusado",
+            fazer: "O Financeiro recebe fiado só por Pix. Dinheiro é na gaveta da loja, com o Vendedor ou o Caixa e o turno aberto.",
+          },
+        ]}
+      />
+
+      <Chamada tipo="atencao">
+        <p>
+          As compras à vista lançadas antes de 07/11/2026 não tiraram dinheiro de lugar nenhum: o saldo das gavetas e das
+          contas ficou maior do que o real. A partir dessa data, toda compra à vista diz de onde saiu o dinheiro. A
+          diferença antiga não se corrige conta por conta: a primeira <strong>conferência de caixa</strong> (ou o{" "}
+          <strong>saldo inicial</strong> da conta bancária) absorve o que sobrou. Faça-a logo que puder.
+        </p>
+      </Chamada>
+      <Chamada tipo="saiba">
+        <p>
+          Quem lança a compra e quem paga podem ser pessoas diferentes. Veja <Link className="underline" href={`${B}/compras`}>Comprar e receber</Link>{" "}
+          para lançar, e <Link className="underline" href={`${B}/caixa`}>Caixa</Link> para as gavetas e as contas.
+        </p>
+      </Chamada>
+    </div>
+  );
+}

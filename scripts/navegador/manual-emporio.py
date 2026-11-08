@@ -636,6 +636,17 @@ figura("compra-receber", "vendedor_centro", "/emporio/compras", [
     (2, "M.B('Receber')", "o botao Receber"),
 ], hd=600, hc=800)
 
+figura("financeiro-hoje", "dono", "/emporio/financeiro", [
+    (1, "document.querySelector('nav[aria-label=\"Telas do Financeiro\"]')", "as quatro abas"),
+    (2, "M.S('Posição de caixa')", "o cartao Posição de caixa"),
+    (3, "M.S('Vence hoje a pagar')", "o cartao Vence hoje a pagar"),
+], hd=900, hc=1500)
+
+figura("financeiro-pagar", "dono", "/emporio/financeiro/pagar", [
+    (1, "M.TH('Conta')", "a lista de contas a pagar"),
+    (2, "M.T('Pagar selecionadas')", "o botao Pagar selecionadas"),
+], limite=6, hd=700, hc=1000)
+
 figura("fornecedores-lista", "gestor", "/emporio/fornecedores", [
     (1, "M.B('Novo fornecedor')", "o botao Novo fornecedor"),
     (2, "M.A('Buscar fornecedor')", "a busca por nome, documento ou telefone"),

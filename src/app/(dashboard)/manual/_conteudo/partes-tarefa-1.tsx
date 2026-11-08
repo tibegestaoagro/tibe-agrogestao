@@ -219,10 +219,19 @@ export function ParteDeCompras() {
         "Adicione cada item: produto, quantidade e o valor total do item (não o valor de uma unidade).",
         "Informe o frete, se houver. Ele é dividido entre os itens pelo valor de cada um.",
         "Diga como pagou: à vista, a prazo ou parcelado (com entrada, se tiver). Na compra de uma propriedade do dono, a forma de pagamento some: entra só o custo, sem conta a pagar.",
+        <>Se pagou alguma parte na hora (à vista ou a entrada), diga <strong>De onde saiu o dinheiro</strong>: a <strong>Gaveta da loja</strong> (precisa de um caixa com turno aberto na loja; se houver mais de um aberto, escolha qual) ou uma <strong>conta bancária</strong>. O dinheiro sai de lá na hora, e o saldo cai. A parte a prazo vira conta a pagar, que o Financeiro paga depois em <Link className="underline" href={`${B}/financeiro-das-lojas`}>Financeiro das lojas</Link>.</>,
         "Marque se a mercadoria já chegou. Se não chegou, a conta a pagar nasce hoje e o estoque só entra quando você receber.",
         <>Quando a mercadoria chegar, abra a compra e clique em <strong>Receber</strong>.</>,
       ]}
       problemas={[
+        {
+          quando: "“Diga de onde saiu o dinheiro: a gaveta da loja ou uma conta.”",
+          fazer: "Compra à vista precisa dizer de onde saiu o dinheiro. O Vendedor só enxerga a gaveta; para sair de uma conta bancária, peça ao Gestor ou ao Financeiro.",
+        },
+        {
+          quando: "Você esqueceu de lançar a nota de ontem",
+          fazer: "Lance como compra a prazo, com o vencimento de ontem. Ela entra já vencida nas contas a pagar, e o Financeiro paga de onde o dinheiro realmente saiu. Não lance à vista com data antiga: o dinheiro sairia do caixa de hoje.",
+        },
         {
           quando: "Você lançou errado",
           fazer: "Cancele a compra, desde que nenhuma parcela tenha sido paga. O sistema desfaz a conta a pagar e, se o estoque já entrou, tira também. Nada é apagado: fica no Histórico.",
