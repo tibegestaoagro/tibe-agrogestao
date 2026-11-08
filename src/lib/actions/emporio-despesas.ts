@@ -2,7 +2,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { decToNum, isoOrNull } from "@/lib/serialize";
-import { exigirUma, papelDoEmporio, pode } from "@/lib/emporio/papel";
+import { exigir, exigirUma, papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { diferencas, dinheiro, registrarNoHistorico } from "@/lib/emporio/historico";
 import { createLinkedEntry, runSerializableTenantTransaction } from "@/lib/financial";
 import { lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
@@ -559,8 +559,9 @@ function partesDoMes(
 export const NOTA_SAIU_DO_RATEIO = "Saiu do rateio da despesa fixa";
 const SEPARADOR_NOTA = " | ";
 
-function temNotaSaiuDoRateio(notas: string | null): boolean {
-  return notas === NOTA_SAIU_DO_RATEIO || (notas ?? "").endsWith(`${SEPARADOR_NOTA}${NOTA_SAIU_DO_RATEIO}`);
+/** `cancelarContaAction` grava `Cancelada: <motivo>` (sozinho ou depois de ` | `). */
+function canceladaAMao(notas: string | null): boolean {
+  return (notas ?? "").startsWith("Cancelada: ") || (notas ?? "").includes(`${SEPARADOR_NOTA}Cancelada: `);
 }
 
 function semNotaSaiuDoRateio(notas: string | null): string | null {
@@ -784,10 +785,10 @@ export async function editarDespesaFixaAction(
     const porChave = new Map(ocorrencias.map((o) => [`${o.establishment_id}|${textoDoMes(mesDaData(o.period))}`, o]));
     const nova = { id, category: d.category, due_day: d.due_day };
     // As três regras das contas futuras sem pagamento:
-    // 1. Conta cancelada à mão (`cancelarContaAction`, ou qualquer cancelada sem a marca `NOTA_SAIU_DO_RATEIO`) fica cancelada.
-    //    As canceladas por esta edição antes de a marca existir não a têm e contam como à mão (a função nasceu nesta branch).
-    // 2. Conta cancelada por esta edição porque a loja saiu do rateio (ou ficou com parte zero) leva a marca nas `notes`;
-    //    se a loja volta com parte > 0, a conta volta a `pending`, com o valor recalculado e o vencimento do modelo.
+    // 1. Conta cancelada à mão (`cancelarContaAction`, que grava "Cancelada: ..." nas `notes`) fica cancelada.
+    // 2. Qualquer outra cancelada (a marca `NOTA_SAIU_DO_RATEIO` documenta as de agora; as de antes dela não têm marca
+    //    nenhuma e também eram só de rateio): se a loja volta com parte > 0, a conta volta a `pending`,
+    //    com o valor recalculado e o vencimento do modelo.
     // 3. Vencimento adiado (`adiarVencimentoContaAction`) não é desfeito: com o mesmo `due_day` do modelo, o `due_date`
     //    fica como está; se o `due_day` mudou nesta edição, recalcula (a pessoa pediu outro dia).
     const lancamentos = new Map(
@@ -818,7 +819,7 @@ export async function editarDespesaFixaAction(
         }
         if (pagas.has(existente.financial_entry_id)) continue;
         const lancamento = lancamentos.get(existente.financial_entry_id);
-        const voltaAoRateio = lancamento?.status === "cancelled" && temNotaSaiuDoRateio(lancamento.notes);
+        const voltaAoRateio = lancamento?.status === "cancelled" && !canceladaAMao(lancamento.notes);
         if (lancamento?.status === "cancelled" && !(voltaAoRateio && parte > 0)) continue;
         const vencimento = diaDoMes(m, d.due_day);
         await tx.financialEntry.update({
@@ -1353,13 +1354,25 @@ export async function pagarDespesasAction(
         });
         pagos.push({ entry_id: c.id, amount: valor, financial_payment_id: fp.id });
       }
-      await registrarNoHistorico(tx, ator, {
-        action: "despesa.pagar",
-        establishment_id: lojaId ?? contas[0]?.establishment_id ?? null,
-        target_type: "despesa",
-        target_id: contas.length === 1 ? contas[0].id : null,
-        summary: `Pagou ${contas.length} ${contas.length === 1 ? "conta" : "contas"} de despesa (${dinheiro(totalCent / 100)})${lojaId ? " da gaveta" : " pela conta bancária"}`,
-      });
+      // Uma linha por conta paga: a da compra aponta a compra, as demais apontam a conta de despesa.
+      const origemNome = lojaId
+        ? `pela gaveta da ${(await tx.establishment.findFirst({ where: { id: lojaId }, select: { name: true } }))?.name ?? "loja"}`
+        : `pela conta ${(await tx.bankAccount.findFirst({ where: { id: contaId as string }, select: { name: true } }))?.name ?? "bancária"}`;
+      for (let n = 0; n < contas.length; n++) {
+        const c = contas[n];
+        const v = viewDaConta(c);
+        const valor = dinheiro(abertoCent[n] / 100);
+        const daCompra = v.origin === "compra" && !!v.purchase_id;
+        await registrarNoHistorico(tx, ator, {
+          action: "despesa.pagar",
+          establishment_id: c.establishment_id ?? lojaId ?? null,
+          target_type: daCompra ? "compra" : "despesa",
+          target_id: daCompra ? (v.purchase_id as string) : c.id,
+          summary: daCompra
+            ? `Pagou a compra${v.supplier_name ? ` de ${v.supplier_name}` : ""} (${valor}) ${origemNome}`
+            : `Pagou a conta de despesa ${v.name} (${valor}) ${origemNome}`,
+        });
+      }
       return { pagos, totalCent };
     });
     return ok({
@@ -1385,7 +1398,7 @@ export async function adiarVencimentoContaAction(
   ator: Ator,
   input: AdiarVencimentoInput,
 ): Promise<ActionResult<ContaAPagarView>> {
-  const neg = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "mexer nas contas da loja");
+  const neg = await exigir(db, ator, "dinheiro", "mexer nas contas da loja");
   if (neg) return neg;
   const conta = await acharContaDoEmporio(db, ator, input?.entry_id);
   if (!conta) return NAO_ACHADO("Conta", "entry_id");
@@ -1424,7 +1437,7 @@ export async function cancelarContaAction(
   ator: Ator,
   input: CancelarContaInput,
 ): Promise<ActionResult<ContaAPagarView>> {
-  const neg = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "mexer nas contas da loja");
+  const neg = await exigir(db, ator, "dinheiro", "mexer nas contas da loja");
   if (neg) return neg;
   const conta = await acharContaDoEmporio(db, ator, input?.entry_id);
   if (!conta) return NAO_ACHADO("Conta", "entry_id");

@@ -735,6 +735,23 @@ async function comBanco() {
       check("a cancelada à mão da Loja 5 segue cancelada depois da volta da Loja 6", t7maoVolta?.status === "cancelled", j(t7maoVolta?.status));
       check("T7 não duplicou ocorrência (12 meses x 3 lojas)", (await ocorrenciasDe(T7)).length === 36);
 
+      // T8: a ocorrência cancelada ANTES da marca (notes nulas) volta com a loja; a cancelada à mão (de qualquer época) não
+      const rT8 = await criarFixa(admin, { name: "M83 T8", amount: 100, due_day: 10, split_kind: "percentual", splits: split3(40, 30, 30) });
+      check("cria T8 (R$ 100, dia 10, 40/30/30 entre Lojas 5, 6 e 7)", rT8.ok, j(rT8));
+      const T8 = fixaId(rT8);
+      const corpoT8 = (splits: { establishment_id: string; value: number }[]) => ({ name: "M83 T8", category: "M83 T8", amount: 100, due_day: 10, split_kind: "percentual", splits });
+      const t8antiga = await entradaFixa(T8, L6.id, prox);
+      const t8mao = await entradaFixa(T8, L5.id, prox);
+      await db.financialEntry.update({ where: { id: t8antiga?.id ?? "x" }, data: { status: "cancelled", notes: null } });
+      check("cancela por Prisma a conta da Loja 6 (status cancelled, notes nulas: o jeito de antes da marca)", (await entrada(t8antiga?.id))?.status === "cancelled" && (await entrada(t8antiga?.id))?.notes === null);
+      check("cancela à mão a conta da Loja 5 (T8)", (await dd("cancelarContaAction", admin, { entry_id: t8mao?.id ?? "x", reason: "m83 T8 à mão" })).ok);
+      check("tira as Lojas 5 e 6 do rateio de T8 (Loja 7 com 100%)", (await dd("editarDespesaFixaAction", admin, T8, corpoT8([{ establishment_id: L7.id, value: 100 }]))).ok);
+      check("põe as Lojas 5 e 6 de volta no rateio de T8 (40/30/30)", (await dd("editarDespesaFixaAction", admin, T8, corpoT8(split3(40, 30, 30)))).ok);
+      const t8antigaVolta = await entrada(t8antiga?.id);
+      check("a cancelada de antes da marca (notes nulas) volta a pending com R$ 30", t8antigaVolta?.status === "pending" && perto(n(t8antigaVolta?.amount), 30), j([t8antigaVolta?.status, t8antigaVolta?.amount]));
+      const t8maoVolta = await entrada(t8mao?.id);
+      check("a cancelada à mão continua cancelled depois de a loja sair e voltar", t8maoVolta?.status === "cancelled" && (t8maoVolta?.notes ?? "").startsWith("Cancelada: "), j([t8maoVolta?.status, t8maoVolta?.notes]));
+
       // renovar: modelo que começou há 10 meses gerou só até o mês +1
       const inicio = somaMeses(mes, -10);
       const rT5 = await criarFixa(admin, { name: "M83 T5", amount: 50, due_day: 20, split_kind: "valor", starts_on: primeiroDia(inicio), splits: [{ establishment_id: L5.id, value: 50 }] });

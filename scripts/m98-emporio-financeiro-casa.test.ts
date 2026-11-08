@@ -411,6 +411,10 @@ async function secao3() {
   check("o saldo da conta caiu 100 (soma das movimentações, nada gravado)", perto((await saldoContaDb(A, A.conta)), antes - 100), `${antes} -> ${await saldoContaDb(A, A.conta)}`);
   const hist = await prisma.emporioAuditLog.findMany({ where: { tenant_id: A.tenantId, action: "despesa.pagar" } });
   check("o Histórico grava despesa.pagar", hist.length >= 1);
+  const hCompra = hist.find((h) => h.target_id === compra1);
+  check("o despesa.pagar da conta da compra aponta a compra (target_type compra, target_id = a compra)",
+    hCompra?.target_type === "compra" && hCompra?.establishment_id === A.L1, j(hCompra));
+  check("o resumo cita o fornecedor e a conta bancária", /Pagou a compra de M98 Fornecedor A .*pela conta /.test(String(hCompra?.summary)), String(hCompra?.summary));
   const l2 = await listaPagar(A.tok.fin);
   check("a conta paga some das pendentes", !l2.itens.some((x) => x.entry_id === e1.id));
 
@@ -441,6 +445,11 @@ async function secao3() {
   check("adiar conta já paga: 422 NOT_PENDING no due_date", erro(rAdPaga, 422, "NOT_PENDING", "due_date"), `${rAdPaga.status} ${j(rAdPaga.corpo)}`);
   const rAdLixo = await adiar(A.tok.fin, e3.id, { due_date: "lixo" });
   check("adiar com data inválida: 422 due_date", rAdLixo.status === 422 && rAdLixo.corpo?.error?.field === "due_date", `${rAdLixo.status} ${j(rAdLixo.corpo)}`);
+  const rAdGest = await adiar(A.tok.gestor, e3.id, { due_date: novaData });
+  check("o Gestor não adia conta (é `dinheiro`): 403", rAdGest.status === 403, `${rAdGest.status} ${j(rAdGest.corpo)}`);
+  const rCaGest = await cancelar(A.tok.gestor, e3.id, { reason: "tentativa do gestor" });
+  check("o Gestor não cancela conta (é `dinheiro`): 403", rCaGest.status === 403, `${rCaGest.status} ${j(rCaGest.corpo)}`);
+  check("a conta segue pendente depois das recusas ao Gestor", (await A.db.financialEntry.findFirst({ where: { id: e3.id } })).status === "pending");
   const rAdVend = await adiar(A.tok.vend, e3.id, { due_date: novaData });
   check("o Vendedor não adia conta: 403", rAdVend.status === 403, `${rAdVend.status}`);
 
