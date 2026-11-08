@@ -785,6 +785,50 @@ async function secao3() {
   check("exatamente um 200 e um 409 PEDIDO_NAO_PENDENTE", ss[0].status === 200 && erro(ss[1], 409, "PEDIDO_NAO_PENDENTE"), `${d1.status} ${j(d1.corpo)} | ${d2.status} ${j(d2.corpo)}`);
   const ef6 = await efeitos(e6.id);
   check("só um pagamento e um movimento nascem, e a conta fica paid", ef6.pagamentos === 1 && ef6.movimentos === 1 && (await status(e6.id)) === "paid", j(ef6));
+
+  console.log("  (r) a conta de uma compra a prazo com pedido pendente não se cancela pela compra");
+  const rotaCompra = () => import("@/app/api/v1/emporio/purchases/route");
+  const rotaCompraCancel = () => import("@/app/api/v1/emporio/purchases/[id]/cancel/route");
+  const rCompra = await chamar(A.tok.owner, rotaCompra, "POST", "emporio/purchases", {
+    operation_key: chave("compra"), establishment_id: A.L1, purchased_at: new Date().toISOString(), received: false,
+    items: [{ emporio_product_id: A.prodId, presentation_id: A.presId, quantity: 1, item_total: 150 }],
+    payment: { kind: "a_prazo", due_date: `${emDias(5)}T12:00:00Z` },
+  });
+  const compraId = String(rCompra.corpo?.data?.id ?? "");
+  check("(fixture) compra a prazo de 150: 201", rCompra.status === 201 && !!compraId, `${rCompra.status} ${j(rCompra.corpo)}`);
+  const eCompra = (await A.db.financialEntry.findFirst({ where: { related_module: "emporio", related_id: compraId, entry_type: "expense" } })) as Dado;
+  const pCompra = eCompra ? await pagar(A.tok.fin, [eCompra.id]) : null;
+  const pedCompra = pCompra?.corpo?.data?.request as Dado;
+  check("(fixture) o Financeiro paga a conta da compra: vira pedido pendente", !!pCompra && ok2xx(pCompra) && pCompra.corpo?.data?.waiting_approval === true && !!pedCompra?.id, pCompra ? `${pCompra.status} ${j(pCompra.corpo)}` : "a compra não gerou conta");
+  const cCancel = await chamar(A.tok.owner, rotaCompraCancel, "POST", `emporio/purchases/${compraId}/cancel`, { reason: "M100 teste" }, compraId);
+  check("cancelar a compra: 409 CONTA_EM_APROVACAO", trava(cCancel), `${cCancel.status} ${j(cCancel.corpo)}`);
+  const compraDepois = (await A.db.emporioPurchase.findFirst({ where: { id: compraId } })) as Dado;
+  check("a compra segue como estava (não cancelada) e a conta segue pending", !!compraDepois && compraDepois.status !== "cancelada" && !compraDepois.canceled_at && (await status(eCompra?.id)) === "pending", j(compraDepois));
+  check("o pedido segue pendente", (await pedidoDb(pedCompra?.id))?.status === "pendente");
+
+  console.log("  (s) a conta de uma despesa 'vendeu e pagou' com pedido pendente não se cancela pela venda");
+  const regra = await (await import("@/lib/actions/emporio-despesas")).criarRegraVariavelAction(A.db, A.owner, {
+    establishment_id: A.L1, name: `M100 Regra VP ${stamp}`, kind: "fixo_por_venda", value: 150,
+  });
+  if (!regra.ok) throw new Error(`regra vendeu e pagou: ${j(regra)}`);
+  const cliVp = await cliente(A, "Vendeu e pagou");
+  let vp: { vendaId: string } | null = null;
+  try {
+    vp = await fiado(A, cliVp, 20, 30);
+  } finally {
+    // a regra só vale para a venda de teste: as seções seguintes vendem na mesma loja
+    await (prisma as Dado).variableExpenseRule.update({ where: { id: regra.data.id }, data: { archived_at: new Date() } });
+  }
+  const eVp = (await A.db.financialEntry.findFirst({ where: { related_module: "emporio", related_id: vp.vendaId, entry_type: "expense" } })) as Dado;
+  check("(fixture) a venda gerou a conta de despesa de 150 da regra", !!eVp && perto(n(eVp.amount), 150), j(eVp));
+  const pVp = eVp ? await pagar(A.tok.fin, [eVp.id]) : null;
+  const pedVp = pVp?.corpo?.data?.request as Dado;
+  check("(fixture) o Financeiro paga essa conta: vira pedido pendente", !!pVp && ok2xx(pVp) && !!pedVp?.id, pVp ? `${pVp.status} ${j(pVp.corpo)}` : "sem conta");
+  const vCancel = await chamar(A.tok.owner, R.saleCancel, "POST", `emporio/sales/${vp.vendaId}/cancel`, { reason: "M100 teste" }, vp.vendaId);
+  check("cancelar a venda: 409 CONTA_EM_APROVACAO", trava(vCancel), `${vCancel.status} ${j(vCancel.corpo)}`);
+  const vendaDepois = (await A.db.emporioSale.findFirst({ where: { id: vp.vendaId } })) as Dado;
+  check("a venda segue concluída e a conta da despesa segue pending", vendaDepois?.status === "concluida" && (await status(eVp?.id)) === "pending", j(vendaDepois));
+  for (const id of [pedCompra?.id, pedVp?.id]) if (id) await recusar(A.tok.owner, id, { reason: "M100 limpeza" });
 }
 
 // ---------------------------------------------------------------------------
