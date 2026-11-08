@@ -163,9 +163,8 @@ relatórios em [agente-whatsapp/](agente-whatsapp/), detalhe em
 ### Outras pendências do usuário
 
 - Trocar o nome do cadastro "Owner Da Mata" em Ajustes (saudação sem nome).
-- O roteiro do estoque no aparelho:
-  [roteiro-aparelho-estoque.md](roteiro-aparelho-estoque.md), a partir do
-  bloco 0.
+- O roteiro do estoque no aparelho, a partir do bloco 0:
+  [roteiro-aparelho-estoque.md](roteiro-aparelho-estoque.md).
 - A lista geral: [pendencias-do-usuario.md](pendencias-do-usuario.md).
 
 ### Ambiente
