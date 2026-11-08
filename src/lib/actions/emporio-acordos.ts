@@ -7,7 +7,8 @@ import { diaUtc } from "@/lib/emporio/fiado";
 import { CATEGORIA_ACORDO, validarParcelas, type ParcelaDoAcordo } from "@/lib/emporio/acordo";
 import { dinheiro, registrarNoHistorico, type MudancaDoHistorico } from "@/lib/emporio/historico";
 import { createLinkedEntry, runSerializableTenantTransaction } from "@/lib/financial";
-import { entradasAbertas } from "@/lib/actions/emporio-caixa";
+import { entradasAbertas, ehParcelaExtra } from "@/lib/actions/emporio-caixa";
+import { dataBr } from "@/lib/emporio/datas";
 import { lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
 import { CATEGORIA_VENDAS } from "@/lib/actions/emporio-vendas";
 
@@ -34,6 +35,10 @@ export type AcordoParcelaView = {
   status: "paga" | "em_dia" | "vencida";
 };
 
+/**
+ * `total` é o combinado e nunca muda; `open_total` é o que falta (a soma do aberto das parcelas,
+ * extras de cheque devolvido inclusas): é por ele que "o total diminui" aparece.
+ */
 export type AcordoView = {
   id: string;
   customer_id: string;
@@ -78,7 +83,7 @@ async function montarAcordos(db: TenantPrismaClient, where: Record<string, unkno
   const ids = acordos.map((a) => a.id);
   const lancamentos = await db.financialEntry.findMany({
     where: { agreement_id: { in: ids } },
-    select: { id: true, agreement_id: true, category: true, related_id: true, amount: true, due_date: true, created_at: true, status: true },
+    select: { id: true, agreement_id: true, category: true, related_id: true, amount: true, due_date: true, created_at: true, status: true, notes: true },
   });
   const pagos = await db.financialPayment.findMany({
     where: { entry_id: { in: lancamentos.map((l) => l.id) } },
@@ -98,7 +103,12 @@ async function montarAcordos(db: TenantPrismaClient, where: Record<string, unkno
     const meus = lancamentos.filter((l) => l.agreement_id === a.id);
     const parcelas = meus
       .filter((l) => l.category === CATEGORIA_ACORDO)
-      .sort((x, y) => (x.due_date?.getTime() ?? 0) - (y.due_date?.getTime() ?? 0) || x.created_at.getTime() - y.created_at.getTime())
+      .sort(
+        (x, y) =>
+          Number(ehParcelaExtra(x.notes)) - Number(ehParcelaExtra(y.notes)) ||
+          (x.due_date?.getTime() ?? 0) - (y.due_date?.getTime() ?? 0) ||
+          x.created_at.getTime() - y.created_at.getTime(),
+      )
       .map((l, i): AcordoParcelaView => {
         const valor = centavos(decToNum(l.amount) ?? 0);
         const pago = pagoDe.get(l.id) ?? 0;
@@ -219,7 +229,7 @@ export async function fazerAcordoAction(
 
       const mudancas: MudancaDoHistorico[] = [
         ...origens.map((o) => ({
-          campo: `Conta de ${diaMes(o.sold_at)}`,
+          campo: `Conta de ${dataBr(o.sold_at.toISOString()).slice(0, 5)}`,
           antes: `${brl(o.open_cent)} em aberto`,
           depois: "entrou no acordo",
         })),

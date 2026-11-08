@@ -11,6 +11,7 @@ import { diaUtc, vencimentoEfetivo } from "@/lib/emporio/fiado";
 import { acharLojaParaEscrita } from "@/lib/actions/emporio-estoque";
 import { CATEGORIA_VENDAS } from "@/lib/actions/emporio-vendas";
 import { CATEGORIA_ACORDO } from "@/lib/emporio/acordo";
+import { dataBr } from "@/lib/emporio/datas";
 
 /**
  * Meu Empório, F3a: fiado, contas bancárias e caixa (Módulo 39, Q82, Q83, Q86).
@@ -79,9 +80,12 @@ type EntradaAberta = {
   installment_label: string | null;
 };
 
+/** A parcela que nasce de cheque devolvido de venda já absorvida pelo acordo. */
+export const ehParcelaExtra = (notes: string | null | undefined) => !!notes && notes.endsWith("parcela extra");
+
 const diaBr = (d: Date) => d.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
 
-/** Lançamentos de venda do Empório ainda em aberto, com o saldo calculado pela soma dos pagamentos. */
+/** Lançamentos de venda e parcelas de acordo do Empório ainda em aberto, com o saldo calculado pela soma dos pagamentos. */
 export async function entradasAbertas(
   db: TenantPrismaClient,
   where: Record<string, unknown>,
@@ -106,14 +110,19 @@ export async function entradasAbertas(
   const irmas = acordoIds.length
     ? await db.financialEntry.findMany({
         where: { agreement_id: { in: acordoIds }, category: CATEGORIA_ACORDO },
-        select: { id: true, agreement_id: true, due_date: true, created_at: true },
+        select: { id: true, agreement_id: true, due_date: true, created_at: true, notes: true },
       })
     : [];
   const numeroDaParcela = new Map<string, number>();
   for (const id of acordoIds) {
     irmas
       .filter((p) => p.agreement_id === id)
-      .sort((a, b) => (a.due_date?.getTime() ?? 0) - (b.due_date?.getTime() ?? 0) || a.created_at.getTime() - b.created_at.getTime())
+      .sort(
+        (a, b) =>
+          Number(ehParcelaExtra(a.notes)) - Number(ehParcelaExtra(b.notes)) ||
+          (a.due_date?.getTime() ?? 0) - (b.due_date?.getTime() ?? 0) ||
+          a.created_at.getTime() - b.created_at.getTime(),
+      )
       .forEach((p, i) => numeroDaParcela.set(p.id, i + 1));
   }
   const vendas = await db.emporioSale.findMany({
@@ -158,7 +167,9 @@ export async function entradasAbertas(
         open_cent: centavos(decToNum(e.amount) ?? 0) - pago,
         agreement_id: acordo ? acordo.id : null,
         installment_label: acordo
-          ? `Parcela ${numeroDaParcela.get(e.id) ?? "?"}/${acordo.installments} do acordo de ${diaBr(acordo.created_at)}`
+          ? ehParcelaExtra(e.notes)
+            ? `Parcela extra do acordo de ${diaBr(acordo.created_at)}`
+            : `Parcela ${numeroDaParcela.get(e.id) ?? "?"}/${acordo.installments} do acordo de ${diaBr(acordo.created_at)}`
           : null,
       };
     })
@@ -360,6 +371,13 @@ export async function receberFiadoAction(
       if (entradaId && abertas.length === 0) {
         throw new RecusaCaixa(fail("NOT_FOUND", "Essa conta a receber não foi encontrada ou já está quitada.", 404, "entry_id"));
       }
+      // O dinheiro vai para o que vence primeiro (venda ou parcela); a venda mais antiga desempata.
+      abertas.sort(
+        (a, b) =>
+          a.effective_due_date.getTime() - b.effective_due_date.getTime() ||
+          a.sold_at.getTime() - b.sold_at.getTime() ||
+          a.created_at.getTime() - b.created_at.getTime(),
+      );
       const devido = abertas.reduce((s, e) => s + e.open_cent, 0);
       if (valorCent > devido) {
         throw new RecusaCaixa(
@@ -1624,11 +1642,41 @@ export async function chequeVoltouAction(
       // deixou de estar coberto, volta a pendente (e a dívida aparece no fiado).
       const pagamento = await tx.financialPayment.findFirst({
         where: { id: cheque.financial_payment_id },
-        select: { id: true, entry_id: true },
+        select: { id: true, entry_id: true, amount: true },
       });
       if (!pagamento) return;
       await tx.financialPayment.delete({ where: { id: pagamento.id } });
       const lancamento = await tx.financialEntry.findFirst({ where: { id: pagamento.entry_id } });
+      // A origem já foi absorvida por um acordo: ela não revive (o aberto dela seria recalculado
+      // errado). O valor do cheque volta como parcela extra do acordo, vencendo hoje.
+      if (lancamento && lancamento.status === "cancelled" && lancamento.agreement_id) {
+        const valor = decToNum(pagamento.amount) ?? 0;
+        const venda = lancamento.related_id
+          ? await tx.emporioSale.findFirst({ where: { id: lancamento.related_id }, select: { sold_at: true } })
+          : null;
+        await createLinkedEntry(tx, {
+          entry_type: "income",
+          category: CATEGORIA_ACORDO,
+          amount: valor,
+          related_module: "emporio",
+          related_id: lancamento.agreement_id,
+          occurred_at: new Date(),
+          status: "pending",
+          due_date: hojeEmBrasilia(),
+          agreement_id: lancamento.agreement_id,
+          emporio_customer_id: lancamento.emporio_customer_id,
+          establishment_id: lancamento.establishment_id,
+          notes: `Cheque devolvido da venda de ${venda ? dataBr(venda.sold_at.toISOString()) : "data desconhecida"}, parcela extra`,
+        });
+        await registrarNoHistorico(tx, ator, {
+          action: "cheque.devolvido",
+          establishment_id: cheque.establishment_id,
+          target_type: "cheque",
+          target_id: id,
+          summary: `O valor do cheque ${cheque.number} (${dinheiro(valor)}) virou parcela extra do acordo de fiado do cliente`,
+        });
+        return;
+      }
       if (!lancamento || lancamento.status !== "paid") return;
       const pago = await tx.financialPayment.aggregate({ where: { entry_id: lancamento.id }, _sum: { amount: true } });
       if (centavos(decToNum(pago._sum.amount) ?? 0) < centavos(decToNum(lancamento.amount) ?? 0)) {

@@ -1891,17 +1891,29 @@ async function gravarDevolucao(
   // recebido na venda menos o que já voltou por dinheiro ou troca.
   const receita = await tx.financialEntry.findFirst({
     where: { related_module: "emporio", entry_type: "income", related_id: venda.id },
-    select: { id: true },
+    select: { id: true, amount: true, agreement_id: true },
   });
   const recebido = receita
     ? await tx.financialPayment.aggregate({ where: { entry_id: receita.id }, _sum: { amount: true } })
+    : null;
+  // Venda em acordo: o acordo é uma dívida só, então o que o cliente pagou nas parcelas também é
+  // devolvível em dinheiro (senão, com o acordo quitado, a devolução não teria saída). O teto
+  // continua sendo o valor da própria venda.
+  const recebidoNasParcelas = receita?.agreement_id
+    ? await tx.financialPayment.aggregate({
+        where: { entry: { agreement_id: receita.agreement_id, category: CATEGORIA_ACORDO } },
+        _sum: { amount: true },
+      })
     : null;
   const jaVoltou = await tx.emporioSaleReturn.aggregate({
     where: { sale_id: venda.id, refund_kind: { in: ["dinheiro", "troca"] }, id: { not: devolucao.id } },
     _sum: { amount: true },
   });
+  const recebidoCent =
+    centavos(decToNum(recebido?._sum.amount) ?? 0) + centavos(decToNum(recebidoNasParcelas?._sum.amount) ?? 0);
   const tetoCent =
-    centavos(decToNum(recebido?._sum.amount) ?? 0) - centavos(decToNum(jaVoltou._sum.amount) ?? 0);
+    (receita?.agreement_id ? Math.min(recebidoCent, centavos(decToNum(receita.amount) ?? 0)) : recebidoCent) -
+    centavos(decToNum(jaVoltou._sum.amount) ?? 0);
   if (d.totalCent > tetoCent) {
     throw new AbortarVenda(
       fail(
