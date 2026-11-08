@@ -237,13 +237,14 @@ const R = {
   entries: () => import("@/app/api/v1/financial-entries/route"),
   entryPay: () => import("@/app/api/v1/financial-entries/[id]/pay/route"),
   entryPayments: () => import("@/app/api/v1/financial-entries/[id]/payments/route"),
+  entryPaymentDel: () => import("@/app/api/v1/financial-entries/[id]/payments/[paymentId]/route"),
   entryPostpone: () => import("@/app/api/v1/financial-entries/[id]/postpone/route"),
   entryCancel: () => import("@/app/api/v1/financial-entries/[id]/cancel/route"),
   dre: () => import("@/app/api/v1/financial/dre/route"),
 };
 
 type Resp = { status: number; corpo: Dado };
-async function chamar(tok: string, rota: () => Promise<Dado>, metodo: "GET" | "POST" | "PATCH" | "PUT", url: string, corpo?: unknown, id?: string): Promise<Resp> {
+async function chamar(tok: string, rota: () => Promise<Dado>, metodo: "GET" | "POST" | "PATCH" | "PUT" | "DELETE", url: string, corpo?: unknown, id?: string | Record<string, string>): Promise<Resp> {
   const { withBearer } = await import("./_escopo-de-requisicao");
   let m: Dado;
   try {
@@ -257,7 +258,7 @@ async function chamar(tok: string, rota: () => Promise<Dado>, metodo: "GET" | "P
     headers: { "content-type": "application/json" },
     ...(corpo === undefined ? {} : { body: JSON.stringify(corpo) }),
   });
-  const res = await withBearer(tok, (): Promise<Response> => m[metodo](req, id === undefined ? undefined : { params: Promise.resolve({ id }) }));
+  const res = await withBearer(tok, (): Promise<Response> => m[metodo](req, id === undefined ? undefined : { params: Promise.resolve(typeof id === "string" ? { id } : id) }));
   return { status: res.status, corpo: (await res.json().catch(() => ({}))) as Dado };
 }
 const erro = (r: Resp, status: number, code?: string, field?: string) =>
@@ -574,6 +575,15 @@ async function secao4() {
   check("OWNER: PATCH .../cancel numa conta do Empório: 422 ENTRY_DO_EMPORIO", erro(rCan, 422, "ENTRY_DO_EMPORIO"), `${rCan.status} ${j(rCan.corpo)}`);
   const depois = j([await A.db.financialPayment.count({ where: { entry_id: e.id } }), (await A.db.financialEntry.findFirst({ where: { id: e.id } })).status, diaDe((await A.db.financialEntry.findFirst({ where: { id: e.id } })).due_date)]);
   check("as quatro recusas não mudaram nada (pagamento, status, vencimento)", antes === depois, `${antes} -> ${depois}`);
+
+  // Desfazer pagamento também é mexer na conta do Empório: a recusa vale para o DELETE do pagamento.
+  const empPaga = await A.db.financialEntry.create({
+    data: scoped({ entry_type: "expense", category: "M98 conta paga do Empório", amount: 10, due_date: new Date(), paid_at: new Date(), status: "paid", related_module: "emporio", establishment_id: A.L1 }) as Dado,
+  });
+  const pgEmp = await A.db.financialPayment.create({ data: scoped({ entry_id: empPaga.id, amount: 10, paid_at: new Date(), method: "pix" }) as Dado });
+  const rDel = await chamar(A.tok.owner, R.entryPaymentDel, "DELETE", `financial-entries/${empPaga.id}/payments/${pgEmp.id}`, undefined, { id: empPaga.id, paymentId: pgEmp.id });
+  check("OWNER: DELETE .../payments/:paymentId de pagamento de conta do Empório: 422 ENTRY_DO_EMPORIO", erro(rDel, 422, "ENTRY_DO_EMPORIO"), `${rDel.status} ${j(rDel.corpo)}`);
+  check("e o pagamento continua existindo (a conta segue paga)", (await A.db.financialPayment.count({ where: { id: pgEmp.id } })) === 1 && (await A.db.financialEntry.findFirst({ where: { id: empPaga.id } })).status === "paid");
 
   const rNada = await chamar(A.tok.owner, R.entryPay, "PATCH", "financial-entries/nao-existe/pay", {}, "nao-existe");
   check("entry inexistente segue 404 (a recusa vem DEPOIS do 404)", rNada.status === 404, `${rNada.status} ${j(rNada.corpo)}`);

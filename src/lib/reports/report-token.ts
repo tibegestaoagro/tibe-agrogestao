@@ -24,7 +24,7 @@ import type { AreaFinanceira } from "@/lib/financial-area";
  * produção. É reserva de transição, não desenho: rodando assim, avisa no log.
  */
 
-/** `area` (Q106) é opcional: link emitido antes do filtro não a traz e vale como `tudo`. */
+/** `area` (Q106) é opcional e, desde a Q222, ignorada: qualquer link (com `tudo`, `emporio` ou sem área) vale como fazenda. */
 type ReportPayload = { tenant_id: string; start: string; end: string; area?: AreaFinanceira; exp: number };
 
 let avisouSobreReserva = false;

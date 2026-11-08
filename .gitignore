@@ -69,5 +69,5 @@ next-env.d.ts
 /scripts/avaliacao/resultados/
 
 # Pesquisa da skill deep-research (fora do repositório público)
-research_notes/
-reports/
+/research_notes/
+/reports/

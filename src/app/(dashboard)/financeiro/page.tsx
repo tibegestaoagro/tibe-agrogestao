@@ -77,7 +77,6 @@ export default async function FinanceiroPage(
       related_module?: string;
       status?: string;
       property_id?: string;
-      area?: string;
     }>;
   }
 ) {

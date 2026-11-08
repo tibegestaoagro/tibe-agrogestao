@@ -190,6 +190,7 @@ export async function cancelarPagamentoAction(
 
   const entry = await db.financialEntry.findFirst({ where: { id: pagamento.entry_id } });
   if (!entry) return fail("NOT_FOUND", "Lançamento não encontrado", 404);
+  if (ehDoEmporio(entry)) return fail("ENTRY_DO_EMPORIO", ENTRY_DO_EMPORIO_MSG, 422);
 
   await db.financialPayment.delete({ where: { id: paymentId } });
 

@@ -30,9 +30,11 @@ exigirBancoLocal();
  *   (ou um objeto cuja primeira lista é a das vendas);
  * - `getDre`/`getCashFlow` recebem `area` no objeto de parâmetros; `getUpcoming`
  *   recebe `area` como 4º argumento posicional OU num objeto de 3º argumento
- *   (a suíte tenta as duas e relata qual vale);
+ *   (a suíte tenta as duas e relata qual vale). Desde a Q222 (07/11/2026) o
+ *   parâmetro é aceito e IGNORADO: o Financeiro do Tibé é só da fazenda;
  * - o token do link de relatório carrega a `area` em claro no payload (a suíte
- *   só procura o texto "emporio" ou "fazenda" nele);
+ *   só procura o texto "emporio" ou "fazenda" nele); desde a Q222 é sempre
+ *   "fazenda";
  * - `produtos` e `margem negativa` na visão somada seguem a mesma regra 10 do
  *   Resultado (vínculo ou OPERADOR: 403 ou 404);
  * - `margin_pct` pode vir em 0..100 ou 0..1; o ponto de equilíbrio vem como
