@@ -24,6 +24,8 @@ import * as prod from "@/lib/actions/emporio-producao";
 import * as orc from "@/lib/actions/emporio-orcamentos";
 import * as conf from "@/lib/actions/emporio-configuracoes";
 import { definirCreditoDoClienteAction } from "@/lib/actions/emporio-credito";
+import { fazerAcordoAction } from "@/lib/actions/emporio-acordos";
+import { carimbarLinhaAction, lerExtratoAction } from "@/lib/actions/emporio-financeiro";
 
 /**
  * Cenario de demonstracao do Meu Emporio (Modulo 39, Q137): monta, numa conta,
@@ -1289,6 +1291,73 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
       exigir(await caixa.conferirGavetaAction(db, quem, { cash_register_id: caixaId, counted: r2(esperado - 12.5), justification: "Troco dado a maior de manhã" }), "conferência com diferença");
     } else {
       exigir(await caixa.conferirGavetaAction(db, quem, { cash_register_id: caixaId, counted: esperado }), "conferência da gaveta");
+    }
+  }
+
+  // Entrega 3 do financeiro: o acordo do Haras Santa Clara (duas parcelas, a primeira paga hoje), o
+  // teto de R$ 2.000,00, um pedido de pagamento esperando e três linhas carimbadas no extrato da conta.
+  {
+    const hojeIso = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+    const [ay, am, ad] = hojeIso.split("-").map(Number);
+    const maisDias = (n: number) => new Date(Date.UTC(ay, am - 1, ad + n)).toISOString().slice(0, 10);
+
+    const jaTemAcordo = await db.emporioCreditAgreement.count({ where: { customer_id: contatos.santaClara } });
+    if (jaTemAcordo === 0) {
+      const abertas = await db.financialEntry.findMany({
+        where: { related_module: "emporio", entry_type: "income", status: "pending", emporio_customer_id: contatos.santaClara, agreement_id: null },
+        select: { id: true, amount: true },
+      });
+      const totalCent = abertas.reduce((s, e) => s + cents(Number(e.amount)), 0);
+      if (abertas.length > 0 && totalCent >= 200) {
+        const primeira = Math.round(totalCent / 2);
+        const acordo = exigir(await fazerAcordoAction(db, dono, contatos.santaClara, {
+          entry_ids: abertas.map((e) => e.id),
+          installments: [
+            { due_date: maisDias(0), amount: primeira / 100 },
+            { due_date: maisDias(30), amount: (totalCent - primeira) / 100 },
+          ],
+          notes: "Acordo em duas parcelas, combinado no balcão da Rodovia",
+        }), "acordo do Haras Santa Clara");
+        exigir(await caixa.receberFiadoAction(db, gerente, {
+          operation_key: `${PREFIXO}acordo-parcela-1`,
+          customer_id: contatos.santaClara,
+          establishment_id: lojas.rodovia,
+          amount: acordo.installments[0].amount,
+          kind: "pix",
+          entry_id: acordo.installments[0].entry_id,
+          bank_account_id: contaId,
+        }), "primeira parcela do acordo");
+      }
+    }
+
+    exigir(await conf.salvarAlcadaAction(db, dono, { payment_approval_limit: 2000 }), "teto de aprovação");
+    const pedidosPendentes = await db.emporioPaymentRequest.count({ where: { status: "pendente" } });
+    if (pedidosPendentes === 0) {
+      const contas = exigir(await desp.listarContasAPagarAction(db, gerente, { status: "pending" }), "contas a pagar");
+      const grandes = contas.filter((a) => a.open_amount > 2000).sort((a, b) => b.open_amount - a.open_amount);
+      // Quem pede: o Financeiro, se estiver ativo; senão a Gestora, que só enxerga as contas das lojas dela.
+      const financeiroAtivo = (await db.user.findFirst({ where: { email: "financeiro.demo.emporio@example.com" }, select: { active: true } }))?.active;
+      const quemPede = financeiroAtivo ? atores.financeiro : atores.gestor;
+      let pediu = false;
+      for (const grande of grandes) {
+        const r = await desp.pagarDespesasAction(db, quemPede, { entry_ids: [grande.entry_id], from: { bank_account_id: contaId } });
+        if (!r.ok) continue;
+        if (!r.data.waiting_approval) throw new Error("O pagamento acima do teto deveria virar pedido de aprovação.");
+        pediu = true;
+        break;
+      }
+      if (!pediu) {
+        log("AVISO: nenhuma conta a pagar acima de R$ 2.000,00; o pedido de pagamento pendente não foi criado.");
+      }
+    }
+
+    const carimbadas = (await db.cashMovement.count({ where: { bank_account_id: contaId, reconciled_at: { not: null } } })) + (await db.cardReceivable.count({ where: { bank_account_id: contaId, reconciled_at: { not: null } } }));
+    if (carimbadas < 3) {
+      const de = new Date(Date.UTC(ay, am - 1, ad - 35));
+      const ate = new Date(Date.UTC(ay, am - 1, ad));
+      const extrato = exigir(await lerExtratoAction(db, dono, { lugar: { kind: "conta", id: contaId }, de, ate }), "extrato da conta");
+      const livres = extrato.lines.filter((l) => !l.reconciled_at).slice(0, 3 - carimbadas);
+      for (const l of livres) exigir(await carimbarLinhaAction(db, dono, { kind: l.kind, id: l.id }), "carimbo do extrato");
     }
   }
 

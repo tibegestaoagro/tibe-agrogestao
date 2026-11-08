@@ -343,9 +343,18 @@ export const GROUPS: Group[] = [
         method: "GET",
         path: "/api/v1/emporio/settings",
         auth: "Sessão · emporio:read · qualquer papel no Empório",
-        description: "Configurações da conta: validade e rodapé do orçamento, rodapé da venda, largura da bobina e se há logo, mais as do fiado: `fiado_due_days` (prazo padrão), `fiado_block_after_days` (dias de atraso que bloqueiam o fiado), `fiado_default_limit` (limite padrão em reais, `null` = sem limite), `fiado_collection_message` (o modelo gravado, `null` = o padrão) e `fiado_collection_message_effective` (o texto que vale, com os marcadores `{nome}`, `{loja}`, `{valor}` e `{dias}`, este por extenso, como `20 dias`). Sem nada gravado, devolve os padrões (7 dias, bobina de 80 mm, fiado de 30 dias, bloqueio após 15) sem criar a linha.",
+        description: "Configurações da conta: validade e rodapé do orçamento, rodapé da venda, largura da bobina e se há logo, mais as do fiado: `fiado_due_days` (prazo padrão), `fiado_block_after_days` (dias de atraso que bloqueiam o fiado), `fiado_default_limit` (limite padrão em reais, `null` = sem limite), `fiado_collection_message` (o modelo gravado, `null` = o padrão) e `fiado_collection_message_effective` (o texto que vale, com os marcadores `{nome}`, `{loja}`, `{valor}` e `{dias}`, este por extenso, como `20 dias`). `payment_approval_limit` (desde 08/11/2026): o teto de pagamento sem aprovação, em reais; `null` = sem teto. Sem nada gravado, devolve os padrões (7 dias, bobina de 80 mm, fiado de 30 dias, bloqueio após 15, sem teto) sem criar a linha.",
         response: `200
-{ "data": { "quote_validity_days": 7, "quote_footer": null, "sale_footer": null, "receipt_width": 80, "has_logo": false, "logo_updated_at": null, "fiado_due_days": 30, "fiado_block_after_days": 15, "fiado_default_limit": null, "fiado_collection_message": null, "fiado_collection_message_effective": "Olá, {nome}! Aqui é da {loja}. Consta um fiado de {valor} vencido há {dias}. Pode nos ajudar a acertar? Obrigado!" }, "meta": {} }`,
+{ "data": { "quote_validity_days": 7, "quote_footer": null, "sale_footer": null, "receipt_width": 80, "has_logo": false, "logo_updated_at": null, "fiado_due_days": 30, "fiado_block_after_days": 15, "fiado_default_limit": null, "fiado_collection_message": null, "fiado_collection_message_effective": "Olá, {nome}! Aqui é da {loja}. Consta um fiado de {valor} vencido há {dias}. Pode nos ajudar a acertar? Obrigado!", "payment_approval_limit": null }, "meta": {} }`,
+      },
+      {
+        method: "PATCH",
+        path: "/api/v1/emporio/settings/approval",
+        auth: "Sessão · emporio:write · só o Gerente geral e o Dono (o Financeiro e os outros papéis: 403 `FORBIDDEN`) · perfil emporio · recurso `emporio` liberado",
+        description: "Define o teto de pagamento sem aprovação (Q227). `payment_approval_limit`: de 0.01 a 99999999.99, ou `null` para não ter teto (422 em `payment_approval_limit`). Pagar contas acima do teto, para quem não é da conta (Financeiro e Gestor da loja), vira um pedido de aprovação em vez de pagamento. Devolve as configurações inteiras, como o GET. Entra no Histórico como `configuracoes.editar`, com o campo, o antes e o depois.",
+        request: `{ "payment_approval_limit": 2000 }`,
+        response: `200
+{ "data": { "quote_validity_days": 7, "quote_footer": null, "sale_footer": null, "receipt_width": 80, "has_logo": false, "logo_updated_at": null, "fiado_due_days": 30, "fiado_block_after_days": 15, "fiado_default_limit": null, "fiado_collection_message": null, "fiado_collection_message_effective": "Olá, {nome}! Aqui é da {loja}. Consta um fiado de {valor} vencido há {dias}. Pode nos ajudar a acertar? Obrigado!", "payment_approval_limit": 2000 }, "meta": {} }`,
       },
       {
         method: "PATCH",
@@ -768,6 +777,23 @@ export const GROUPS: Group[] = [
 { "data": { "charged_at": "2026-11-08T14:00:00.000Z" }, "meta": {} }`,
       },
       {
+        method: "GET",
+        path: "/api/v1/emporio/customers/:id/agreements",
+        auth: "Sessão · emporio:read · quem vende na loja (Caixa incluído), Financeiro, Gerente geral e Dono · perfil emporio · recurso `emporio` liberado",
+        description: "Os acordos de fiado do cliente, do mais novo ao mais antigo, com tudo calculado na leitura. `total` é o combinado e nunca muda; `open_total` é o que falta (a soma do aberto das parcelas, inclusive parcela extra de cheque devolvido); `status` é `ativo` ou `quitado`. `installments`: `number`, `due_date`, `amount`, `paid`, `open` e `status` (`paga`, `em_dia` ou `vencida`). `origins`: as contas de fiado que entraram no acordo, com a venda de cada uma. Cliente inexistente ou de outra conta: 404.",
+        response: `200
+{ "data": [{ "id": "cl...", "customer_id": "cl...", "created_at": "2026-11-08T14:00:00.000Z", "created_by": "Marcos", "total": 600, "notes": "Acordo em duas parcelas", "installments": [{ "entry_id": "cl...", "number": 1, "due_date": "2026-11-08", "amount": 300, "paid": 300, "open": 0, "status": "paga" }, { "entry_id": "cl...", "number": 2, "due_date": "2026-12-08", "amount": 300, "paid": 0, "open": 300, "status": "em_dia" }], "origins": [{ "entry_id": "cl...", "sale_id": "cl...", "sold_at": "2026-10-27T15:00:00.000Z", "amount": 600 }], "open_total": 300, "status": "ativo" }], "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/customers/:id/agreements",
+        auth: "Sessão · emporio:write · só o Financeiro e o Dono (ação `acordo`; o Gerente geral e os outros papéis: 403 `FORBIDDEN`) · perfil emporio · recurso `emporio` liberado",
+        description: "Faz o acordo de fiado (Q231): as contas escolhidas em `entry_ids` viram um acordo, pago em parcelas sem juros. A soma das parcelas tem de ser igual ao aberto das contas escolhidas e nenhuma parcela vence antes de hoje (422 `installments`, código `PARCELAS_NAO_BATEM` ou `VALIDATION_ERROR`). Conta que não está mais em aberto, que é de outro cliente ou que já está em outro acordo: 422 `entry_ids`, código `ACORDO_SEM_ORIGEM`. `notes` opcional (até 500 caracteres). As contas de origem saem do fiado em aberto (a venda continua ligada ao acordo e não se cancela: 409 `VENDA_EM_ACORDO`) e cada parcela é cobrada, recebida e bloqueia o cliente por atraso como o fiado. Não há como desfazer o acordo. Entra no Histórico como `fiado.acordo`.",
+        request: `{ "entry_ids": ["cl..."], "installments": [{ "due_date": "2026-11-08", "amount": 300 }, { "due_date": "2026-12-08", "amount": 300 }], "notes": "Acordo em duas parcelas" }`,
+        response: `201
+{ "data": { "id": "cl...", "customer_id": "cl...", "created_at": "2026-11-08T14:00:00.000Z", "created_by": "Marcos", "total": 600, "notes": "Acordo em duas parcelas", "installments": [{ "entry_id": "cl...", "number": 1, "due_date": "2026-11-08", "amount": 300, "paid": 0, "open": 300, "status": "em_dia" }, { "entry_id": "cl...", "number": 2, "due_date": "2026-12-08", "amount": 300, "paid": 0, "open": 300, "status": "em_dia" }], "origins": [{ "entry_id": "cl...", "sale_id": "cl...", "sold_at": "2026-10-27T15:00:00.000Z", "amount": 600 }], "open_total": 600, "status": "ativo" }, "meta": {} }`,
+      },
+      {
         method: "POST",
         path: "/api/v1/emporio/suppliers",
         auth: "Sessão · emporio:write · dono, gerente geral, gestor e vendedor com a chave `lancar_compra` (os outros: 403 `FORBIDDEN`) · perfil emporio · recurso `emporio` liberado",
@@ -957,7 +983,7 @@ export const GROUPS: Group[] = [
         method: "POST",
         path: "/api/v1/emporio/sales/:id/cancel",
         auth: "Sessão · emporio:write · só OWNER e ADMIN",
-        description: "Cancela a venda inteira: `reason` obrigatório (422 `reason`). Marca as `venda` do estoque como canceladas (as aberturas de saca ficam), cancela o lançamento e, para cada pagamento recebido, grava uma saída de caixa no mesmo lugar em que entrou (cartão e cheque não geram saída de gaveta). Cartão: as parcelas futuras são canceladas, cada parcela que já caiu vira uma saída `estorno_cartao` da conta e a despesa \"Taxas de cartão\" é cancelada. Cheque `recebido` vira `devolvido_ao_cliente`; `depositado` ou `compensado`: 409 `SALE_HAS_DEPOSITED_CHECK`. Já cancelada: 409 `SALE_CANCELED`. Com devolução: 409 `SALE_HAS_RETURNS`. A saída do dinheiro que entrou na gaveta cai no turno aberto agora (não necessariamente no caixa de origem): `cash_register_id` opcional, com as recusas `CASH_CLOSED` e `CASH_REGISTER_REQUIRED` da venda; venda sem dinheiro na gaveta não precisa de turno. Venda que faturou um orçamento: o orçamento volta a aberto e pode ser faturado de novo.",
+        description: "Cancela a venda inteira: `reason` obrigatório (422 `reason`). Marca as `venda` do estoque como canceladas (as aberturas de saca ficam), cancela o lançamento e, para cada pagamento recebido, grava uma saída de caixa no mesmo lugar em que entrou (cartão e cheque não geram saída de gaveta). Cartão: as parcelas futuras são canceladas, cada parcela que já caiu vira uma saída `estorno_cartao` da conta e a despesa \"Taxas de cartão\" é cancelada. Cheque `recebido` vira `devolvido_ao_cliente`; `depositado` ou `compensado`: 409 `SALE_HAS_DEPOSITED_CHECK`. Já cancelada: 409 `SALE_CANCELED`. Com devolução: 409 `SALE_HAS_RETURNS`. A saída do dinheiro que entrou na gaveta cai no turno aberto agora (não necessariamente no caixa de origem): `cash_register_id` opcional, com as recusas `CASH_CLOSED` e `CASH_REGISTER_REQUIRED` da venda; venda sem dinheiro na gaveta não precisa de turno. Venda que faturou um orçamento: o orçamento volta a aberto e pode ser faturado de novo. Venda cujo fiado entrou num acordo: 409 `VENDA_EM_ACORDO` (desde 08/11/2026; não há como desfazer o acordo).",
         request: `{ "reason": "Venda lançada em duplicidade" }`,
         response: `200
 { "data": { "id": "cl...", "status": "cancelada", "canceled_reason": "Venda lançada em duplicidade" }, "meta": {} }`,
@@ -1146,9 +1172,9 @@ export const GROUPS: Group[] = [
         method: "GET",
         path: "/api/v1/emporio/finance/today",
         auth: "Sessão · emporio:read · Financeiro, Gerente geral e Dono (os outros papéis: 403)",
-        description: "A tela \"Hoje\" do dinheiro, de todas as lojas (filtro `establishment_id` opcional). `positions`: saldo por gaveta, gerência e conta, com `total_balance`; `payables_due`: contas a pagar vencidas ou que vencem hoje (`count`, `total`, `items`); `receivables_due`: fiado, cheques e cartões que vencem hoje (`count` e `total` de cada); `overdue_fiado`: clientes com fiado vencido e o total. Tudo calculado na leitura.",
+        description: "A tela \"Hoje\" do dinheiro, de todas as lojas (filtro `establishment_id` opcional). `positions`: saldo por gaveta, gerência e conta, com `total_balance`; `payables_due`: contas a pagar vencidas ou que vencem hoje (`count`, `total`, `items`); `receivables_due`: fiado, cheques e cartões que vencem hoje (`count` e `total` de cada); `overdue_fiado`: clientes com fiado vencido e o total; `pending_approvals` (desde 08/11/2026): pedidos de pagamento esperando aprovação (`count`, `total`); `unreconciled`: linhas de conta (movimentos e parcelas de cartão já devidas) sem carimbo nos últimos 30 dias (`count`, `total`). Tudo calculado na leitura.",
         response: `200
-{ "data": { "positions": [{ "kind": "conta", "id": "cl...", "name": "Conta principal", "establishment_id": null, "balance": 5000 }], "total_balance": 5000, "payables_due": { "count": 1, "total": 220, "items": [] }, "receivables_due": { "fiado": { "count": 1, "total": 80 }, "checks": { "count": 0, "total": 0 }, "cards": { "count": 1, "total": 95.5 } }, "overdue_fiado": { "customers": 1, "total": 80 } }, "meta": {} }`,
+{ "data": { "positions": [{ "kind": "conta", "id": "cl...", "name": "Conta principal", "establishment_id": null, "balance": 5000 }], "total_balance": 5000, "payables_due": { "count": 1, "total": 220, "items": [] }, "receivables_due": { "fiado": { "count": 1, "total": 80 }, "checks": { "count": 0, "total": 0 }, "cards": { "count": 1, "total": 95.5 } }, "overdue_fiado": { "customers": 1, "total": 80 }, "pending_approvals": { "count": 1, "total": 4911.55 }, "unreconciled": { "count": 3, "total": 740.5 } }, "meta": {} }`,
       },
       {
         method: "GET",
@@ -1170,18 +1196,61 @@ export const GROUPS: Group[] = [
         method: "GET",
         path: "/api/v1/emporio/finance/statement",
         auth: "Sessão · emporio:read · conta: Gestor da loja, Financeiro, Gerente geral e Dono; gaveta: quem vende na loja (Caixa incluído) e o Financeiro; gerência: Gestor da loja e o Financeiro (os outros papéis: 403; Gerente geral e Dono passam em todos)",
-        description: "Extrato de um lugar no período. Query: `kind` (`conta`, `gaveta` ou `gerencia`; padrão `conta`), `id` (a conta, ou a loja para gaveta e gerência; `bank_account_id` segue valendo como sinônimo de `kind=conta&id=`), `de` e `ate` (AAAA-MM-DD, inclusivos, até 92 dias; 422 no campo que falhar, inclusive data que não existe, como 2026-02-31). Devolve `place` (`kind`, `id`, `name`), `account` (só na conta; nulo nos outros), o saldo de abertura, as linhas (movimentos do lugar e, na conta, as parcelas de cartão do período, com `kind` `movimento` ou `cartao`) e o saldo de fechamento, pela mesma soma da posição do `finance/today`. Conta ou loja de outra conta de cliente: 404.",
+        description: "Extrato de um lugar no período. Query: `kind` (`conta`, `gaveta` ou `gerencia`; padrão `conta`), `id` (a conta, ou a loja para gaveta e gerência; `bank_account_id` segue valendo como sinônimo de `kind=conta&id=`), `de` e `ate` (AAAA-MM-DD, inclusivos, até 92 dias; 422 no campo que falhar, inclusive data que não existe, como 2026-02-31). Devolve `place` (`kind`, `id`, `name`), `account` (só na conta; nulo nos outros), o saldo de abertura, as linhas (movimentos do lugar e, na conta, as parcelas de cartão do período, com `kind` `movimento` ou `cartao`) e o saldo de fechamento, pela mesma soma da posição do `finance/today`. Desde 08/11/2026 (Q226): `apenas_sem_carimbo=1` deixa só as linhas de conta sem carimbo; cada linha traz `reconciled_at` e `reconciled_by` (nulos sem carimbo, e sempre nulos em gaveta e gerência, que não se carimbam); `unreconciled_count` e `unreconciled_total` (soma dos valores absolutos) contam as linhas de conta sem carimbo no período, antes do filtro. Conta ou loja de outra conta de cliente: 404.",
         response: `200
-{ "data": { "place": { "kind": "conta", "id": "cl...", "name": "Conta principal" }, "account": { "id": "cl...", "name": "Conta principal", "bank": null }, "opening_balance": 5000, "lines": [{ "kind": "movimento", "id": "cl...", "occurred_on": "2026-11-05", "direction": "saida", "amount": 220, "origin": "pagamento_compra", "establishment_id": null, "establishment_name": null, "description": "Pagamento de compra" }], "closing_balance": 4780 }, "meta": {} }`,
+{ "data": { "place": { "kind": "conta", "id": "cl...", "name": "Conta principal" }, "account": { "id": "cl...", "name": "Conta principal", "bank": null }, "opening_balance": 5000, "lines": [{ "kind": "movimento", "id": "cl...", "occurred_on": "2026-11-05", "direction": "saida", "amount": 220, "origin": "pagamento_compra", "establishment_id": null, "establishment_name": null, "description": "Pagamento de compra", "reconciled_at": null, "reconciled_by": null }], "closing_balance": 4780, "unreconciled_count": 1, "unreconciled_total": 220 }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/finance/statement/reconcile",
+        auth: "Sessão · emporio:write · Financeiro, Gerente geral e Dono (os outros papéis: 403 `FORBIDDEN`) · perfil emporio · recurso `emporio` liberado",
+        description: "Carimba uma linha do extrato da conta: o selo de que ela foi conferida com o extrato do banco (Q226). `kind` (`movimento` ou `cartao`) e `id` da linha (422 no campo que faltar). Só a linha de conta tem carimbo: movimento de gaveta ou de gerência é 422 `LINHA_NAO_E_DE_CONTA`; já carimbada: 409 `JA_CARIMBADO`; linha inexistente ou de outra conta de cliente: 404. Entra no Histórico como `conciliacao.carimbar`.",
+        request: `{ "kind": "movimento", "id": "cl..." }`,
+        response: `200
+{ "data": { "kind": "movimento", "id": "cl...", "reconciled_at": "2026-11-08T14:00:00.000Z", "reconciled_by": "Patrícia" }, "meta": {} }`,
+      },
+      {
+        method: "DELETE",
+        path: "/api/v1/emporio/finance/statement/reconcile",
+        auth: "Sessão · emporio:write · Financeiro, Gerente geral e Dono (os outros papéis: 403 `FORBIDDEN`) · perfil emporio · recurso `emporio` liberado",
+        description: "Tira o carimbo de uma linha da conta, com o mesmo corpo do POST (`kind` e `id`). Linha sem carimbo: 409 `SEM_CARIMBO`; inexistente ou de outra conta de cliente: 404. Entra no Histórico como `conciliacao.descarimbar`.",
+        request: `{ "kind": "movimento", "id": "cl..." }`,
+        response: `200
+{ "data": { "kind": "movimento", "id": "cl..." }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/emporio/finance/payment-requests",
+        auth: "Sessão · emporio:read · Financeiro, Gerente geral e Dono (os outros papéis: 403)",
+        description: "Os pedidos de pagamento acima do teto (Q227), Query: `status` (`pendente`, `aprovado` ou `recusado`; outro valor: 422 em `status`; sem ela, todos). Os pendentes saem do mais antigo ao mais novo (a fila de quem espera há mais tempo primeiro); os demais, do mais novo ao mais antigo. `from` diz de onde sairia o dinheiro (`kind` `gaveta` ou `conta`), `entries` traz as contas do pedido, `reason` o motivo da recusa e `last_failure` a última falha de uma aprovação que não passou (o pedido continua pendente). `decided_by` e `decided_at` ficam nulos enquanto pendente.",
+        response: `200
+{ "data": [{ "id": "cl...", "status": "pendente", "total": 4911.55, "created_at": "2026-11-08T14:00:00.000Z", "requested_by": { "id": "cl...", "name": "Fernanda" }, "from": { "kind": "conta", "id": "cl...", "name": "Conta PIX" }, "entries": [{ "entry_id": "cl...", "description": "Mercadorias para revenda", "supplier_or_category": "Mercadorias para revenda", "due_date": "2026-11-20", "amount": 4911.55 }], "reason": null, "last_failure": null, "decided_by": null, "decided_at": null }], "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/finance/payment-requests/:id/approve",
+        auth: "Sessão · emporio:write · só o Gerente geral e o Dono (ação `conta`; o Financeiro e os outros papéis: 403 `FORBIDDEN`) · perfil emporio · recurso `emporio` liberado",
+        description: "Aprova o pedido e paga as contas, como o aprovador, pelo mesmo caminho do pagamento comum (um pagamento e um movimento por conta). O Histórico diz quem pediu e quem aprovou (`pagamento.aprovar`). Saldo menor que o total: 409 `INSUFFICIENT_CASH` em `from`, e o pedido continua pendente com a falha em `last_failure`. Pedido já decidido: 409 `PEDIDO_NAO_PENDENTE`; inexistente ou de outra conta de cliente: 404. Devolve o pedido, agora `aprovado`.",
+        response: `200
+{ "data": { "id": "cl...", "status": "aprovado", "total": 4911.55, "created_at": "2026-11-08T14:00:00.000Z", "requested_by": { "id": "cl...", "name": "Fernanda" }, "from": { "kind": "conta", "id": "cl...", "name": "Conta PIX" }, "entries": [{ "entry_id": "cl...", "description": "Mercadorias para revenda", "supplier_or_category": "Mercadorias para revenda", "due_date": "2026-11-20", "amount": 4911.55 }], "reason": null, "last_failure": null, "decided_by": { "name": "Marcos" }, "decided_at": "2026-11-08T15:00:00.000Z" }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/finance/payment-requests/:id/reject",
+        auth: "Sessão · emporio:write · só o Gerente geral e o Dono (ação `conta`; o Financeiro e os outros papéis: 403 `FORBIDDEN`) · perfil emporio · recurso `emporio` liberado",
+        description: "Recusa o pedido, com `reason` obrigatório (422 `reason`). Nada é pago e as contas voltam a poder ser pagas, adiadas ou canceladas. Pedido já decidido: 409 `PEDIDO_NAO_PENDENTE`; inexistente ou de outra conta de cliente: 404. Entra no Histórico como `pagamento.recusar`. Devolve o pedido, agora `recusado`, com o motivo.",
+        request: `{ "reason": "Conferir o preço com o fornecedor antes" }`,
+        response: `200
+{ "data": { "id": "cl...", "status": "recusado", "total": 4911.55, "created_at": "2026-11-08T14:00:00.000Z", "requested_by": { "id": "cl...", "name": "Fernanda" }, "from": { "kind": "conta", "id": "cl...", "name": "Conta PIX" }, "entries": [], "reason": "Conferir o preço com o fornecedor antes", "last_failure": null, "decided_by": { "name": "Marcos" }, "decided_at": "2026-11-08T15:00:00.000Z" }, "meta": {} }`,
       },
       {
         method: "POST",
         path: "/api/v1/emporio/payables/pay",
         auth: "Sessão · emporio:write · só OWNER e ADMIN",
-        description: "Paga várias contas de uma vez, cada uma pelo valor dela, saindo da gaveta (`from.establishment_id`) OU da conta (`from.bank_account_id`): um pagamento e um movimento `pagamento_despesa` por conta. Da gaveta, o dinheiro sai de um turno aberto da loja (`cash_register_id` opcional, recusas `CASH_CLOSED` e `CASH_REGISTER_REQUIRED` como na venda), e o saldo que conta é o do caixa desse turno. Saldo menor que o total: 409 `INSUFFICIENT_CASH` em `from`. Conta de fora do Empório, já paga ou cancelada: 422 `entry_ids`. `paid_at` opcional (padrão agora). O `/financeiro` do Tibé recusa quitar conta do Empório (422 `ENTRY_DO_EMPORIO`) desde 07/11/2026: a conta só se paga por aqui.",
+        description: "Paga várias contas de uma vez, cada uma pelo valor dela, saindo da gaveta (`from.establishment_id`) OU da conta (`from.bank_account_id`): um pagamento e um movimento `pagamento_despesa` por conta. Da gaveta, o dinheiro sai de um turno aberto da loja (`cash_register_id` opcional, recusas `CASH_CLOSED` e `CASH_REGISTER_REQUIRED` como na venda), e o saldo que conta é o do caixa desse turno. Saldo menor que o total: 409 `INSUFFICIENT_CASH` em `from`. Conta de fora do Empório, já paga ou cancelada: 422 `entry_ids`. `paid_at` opcional (padrão agora). O `/financeiro` do Tibé recusa quitar conta do Empório (422 `ENTRY_DO_EMPORIO`) desde 07/11/2026: a conta só se paga por aqui. Desde 08/11/2026 (Q227): se o total passa do teto da conta (`payment_approval_limit`) e quem paga não é Gerente geral nem Dono, nada é pago: a resposta é `201` com `waiting_approval: true` e o `request` (o pedido de pagamento, ver `finance/payment-requests`), e os Aprovadores com telefone recebem o aviso pelo WhatsApp do Tibé. O pagamento feito traz `waiting_approval: false`. Conta que já está num pedido pendente: 409 `CONTA_EM_APROVACAO` em `entry_ids` (vale também para cancelar, adiar e corrigir essa conta).",
         request: `{ "entry_ids": ["cl...", "cl..."], "from": { "establishment_id": "cl..." } }`,
         response: `201
-{ "data": { "total": 9.5, "from": { "establishment_id": "cl...", "bank_account_id": null }, "payments": [{ "entry_id": "cl...", "amount": 5, "financial_payment_id": "cl..." }] }, "meta": {} }`,
+{ "data": { "waiting_approval": false, "total": 9.5, "from": { "establishment_id": "cl...", "bank_account_id": null }, "payments": [{ "entry_id": "cl...", "amount": 5, "financial_payment_id": "cl..." }] }, "meta": {} }`,
       },
       {
         method: "GET",
