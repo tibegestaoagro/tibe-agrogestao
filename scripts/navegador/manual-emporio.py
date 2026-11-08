@@ -930,6 +930,26 @@ figura("fiado-receber", "vendedor_centro", "/emporio/fiado", [
     (3, "document.querySelector('[role=dialog] button[type=submit]')", "o botao Registrar recebimento"),
 ], estado=lambda: (clicar_na_linha("Chácara Três Irmãos", "Receber"), time.sleep(1.5), preencher("Valor recebido (R$)", "500,00"), time.sleep(0.5)), hd=700, hc=900)
 
+def id_do_cliente(nome):
+    r = api("GET", "/api/v1/emporio/customers?q=" + nome.replace(" ", "%20"))
+    for c in r["body"]["data"]:
+        if c["name"] == nome:
+            return c["id"]
+    return None
+
+
+figura("fiado-credito", "dono", lambda: "/emporio/clientes/" + id_do_cliente("Chácara Três Irmãos"), [
+    (1, "M.C('Bloqueado: fiado vencido')", "o selo de situacao do fiado"),
+    (2, "M.B('Limite e prazo')", "o botao Limite e prazo"),
+    (3, "M.B('Liberar fiado hoje')", "o botao Liberar fiado hoje"),
+], hd=900, hc=1400)
+
+figura("financeiro-cobranca", "dono", "/emporio/financeiro/cobranca", [
+    (1, "M.T('Vencido:')", "o total vencido"),
+    (2, "M.C('Chácara Três Irmãos').closest('li').firstElementChild", "o cliente, o valor e os dias"),
+    (3, "M.Bs('Cobrar no WhatsApp')[0]", "o botao Cobrar no WhatsApp"),
+], limite=4, hd=800, hc=1100)
+
 LINHA_DO_CAIXA_ABERTO = "M.B('Conferir').closest('li')"
 figura("caixa-gaveta", "vendedor_centro", "/emporio/caixa", [
     # Q153: a gaveta virou os caixas numerados de cada loja.

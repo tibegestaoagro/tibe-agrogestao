@@ -525,6 +525,7 @@ export function ParteDeFinanceiroDasLojas() {
           <>Em <strong>A receber</strong>, veja o fiado por cliente, os cheques em carteira e os cartões por data de recebimento.</>,
           <>Em <strong>Posição de caixa</strong>, clique em <strong>Ver extrato</strong> numa gaveta, na gerência ou numa conta bancária para ver as entradas e saídas do período, com o saldo de abertura e o de fechamento.</>,
           <>Para olhar uma loja só, use o filtro de loja no alto. Ele acompanha você de uma aba para outra.</>,
+          <>Em <strong>Configurações</strong>, na seção <strong>Fiado</strong>, defina o prazo, os dias de atraso que bloqueiam o cliente, o limite padrão e a mensagem de cobrança. Na aba <strong>Cobrança</strong>, cobre quem está atrasado pelo WhatsApp.</>,
         ]}
         problemas={[
           {

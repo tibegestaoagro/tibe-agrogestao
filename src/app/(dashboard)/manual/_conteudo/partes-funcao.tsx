@@ -133,6 +133,7 @@ export function ParteGestor() {
           <>Cuida das <Link className="underline" href={`${B}/despesas`}>despesas</Link> e olha o <Link className="underline" href={`${B}/resultado`}>resultado</Link> da loja.</>,
           <>Abre <Link className="underline" href={`${B}/relatorios`}>Relatórios</Link> para ver quem vendeu o quê no período e os produtos parados. O filtro começa em <strong>Todas as minhas lojas</strong> e no mês atual.</>,
           <>Acompanha os <Link className="underline" href={`${B}/orcamento`}>Orçamentos</Link> abertos e vencidos da loja.</>,
+          <>Libera o fiado de um cliente bloqueado, para uma venda, na ficha dele (<strong>Liberar fiado hoje</strong>). O Caixa e o Vendedor não liberam.</>,
         ]}
       />
 

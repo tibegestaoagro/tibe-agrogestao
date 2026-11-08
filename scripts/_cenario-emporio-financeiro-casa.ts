@@ -123,6 +123,12 @@ async function main() {
   const tenant_id = owner.tenant_id;
 
   await limpar(tenant_id);
+  if (process.argv.includes("--limpar")) {
+    // So apaga: o manual fotografa a Cobranca sem os clientes de teste na lista.
+    console.log("Limpo o prefixo", JSON.stringify(PREFIXO), "na conta", tenant_id);
+    await prisma.$disconnect();
+    return;
+  }
 
   const gestor = await usuario(tenant_id, EMAILS.gestor, "Fin Gestor", { emporio_role: "gestor", emporio_only: false });
   const caixa = await usuario(tenant_id, EMAILS.caixa, "Fin Caixa", { emporio_role: "caixa", emporio_only: false });

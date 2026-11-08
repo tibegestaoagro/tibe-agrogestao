@@ -294,6 +294,30 @@ export const FIGURAS: Figura[] = [
     ],
   },
   {
+    id: "fiado-credito",
+    pagina: "/emporio/clientes",
+    papel: "dono",
+    legenda: "A ficha do cliente: fiado, limite e liberação",
+    alt: "Ficha de um cliente com o selo de fiado vencido, o que ele deve, o limite, o prazo e os botões Limite e prazo e Liberar fiado hoje",
+    marcas: [
+      { numero: 1, alvo: "o selo de situação", texto: "Em dia, No limite ou Bloqueado, com os dias de atraso." },
+      { numero: 2, alvo: "o botão Limite e prazo", texto: "Define o limite e o prazo só deste cliente. Vazio, vale o padrão da conta." },
+      { numero: 3, alvo: "o botão Liberar fiado hoje", texto: "O Gestor da loja libera uma venda, até o fim do dia, com o motivo." },
+    ],
+  },
+  {
+    id: "financeiro-cobranca",
+    pagina: "/emporio/financeiro/cobranca",
+    papel: "dono",
+    legenda: "A aba Cobrança: quem tem fiado vencido",
+    alt: "Aba Cobrança do Financeiro com o total vencido, os clientes do mais atrasado ao menos e o botão Cobrar no WhatsApp",
+    marcas: [
+      { numero: 1, alvo: "o total vencido", texto: "Quanto está vencido e em quantos clientes." },
+      { numero: 2, alvo: "o cliente, o valor e os dias", texto: "Do mais atrasado ao menos atrasado, com as lojas onde a dívida nasceu." },
+      { numero: 3, alvo: "o botão Cobrar no WhatsApp", texto: "Abre a mensagem pronta; ao confirmar, a cobrança fica registrada." },
+    ],
+  },
+  {
     id: "caixa-gaveta",
     pagina: "/emporio/caixa",
     papel: "vendedor",

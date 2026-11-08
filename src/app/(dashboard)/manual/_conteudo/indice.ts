@@ -30,7 +30,7 @@ export const PARTES_DO_EMPORIO: Parte[] = [
   { slug: "orcamento", titulo: "Orçamento", grupo: "Por tarefa", resumo: "Salvar, imprimir, achar e faturar um orçamento." },
   { slug: "entrega", titulo: "Pedido para entrega e romaneio", grupo: "Por tarefa", resumo: "Marcar a entrega, mudar depois de fechada e imprimir o romaneio sem preço." },
   { slug: "devolver", titulo: "Devolver, trocar e cancelar", grupo: "Por tarefa", resumo: "Quando o cliente volta atrás." },
-  { slug: "fiado", titulo: "Fiado e receber fiado", grupo: "Por tarefa", resumo: "Vender para pagar depois e cobrar." },
+  { slug: "fiado", titulo: "Fiado e receber fiado", grupo: "Por tarefa", resumo: "Vender para pagar depois, com limite e bloqueio por atraso, e cobrar pelo WhatsApp." },
   { slug: "caixa", titulo: "Caixa", grupo: "Por tarefa", resumo: "Abrir e encerrar o turno, sangria, malote, banco, cartão e cheques." },
   { slug: "financeiro-das-lojas", titulo: "Financeiro das lojas", grupo: "Por tarefa", resumo: "A casa do Financeiro: pagar a conta da compra, receber fiado por Pix e ver o extrato." },
   { slug: "despesas", titulo: "Despesas", grupo: "Por tarefa", resumo: "Despesas fixas e Vendeu, Pagou." },

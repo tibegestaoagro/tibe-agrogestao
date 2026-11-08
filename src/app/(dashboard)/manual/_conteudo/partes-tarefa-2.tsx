@@ -180,6 +180,48 @@ export function ParteDeFiado() {
       >
         <Figura id="fiado-receber" />
       </Tarefa>
+
+      <Subtitulo>Limite, bloqueio e liberação</Subtitulo>
+      <Tarefa
+        paraQueServe="Não deixar o fiado crescer sem controle: cada cliente tem um limite e um prazo, e quem atrasa demais para de comprar fiado."
+        passos={[
+          <>O Financeiro (ou o Dono) define o prazo, o bloqueio e o limite padrão em <strong>Configurações</strong>, na seção <strong>Fiado</strong>. Para um cliente específico, abra a ficha dele e use <strong>Limite e prazo</strong>.</>,
+          <>No balcão, ao escolher o cliente e tocar em <strong>+ Fiado</strong>, uma linha avisa quanto ele já deve e se está no limite ou bloqueado. Sem data em <strong>Vence em (opcional)</strong>, a venda vence no prazo do cliente.</>,
+          <>A venda fiado é recusada quando o cliente tem fiado vencido há mais dias que o bloqueio da conta, ou quando o valor passa do limite. A recusa aparece no campo <strong>Pagamento</strong>, com o link para a ficha. Se couber menos, a mensagem diz quanto: troque a forma de pagamento para o resto.</>,
+          <>Para vender mesmo assim, o Gestor da loja abre a ficha do cliente, clica em <strong>Liberar fiado hoje</strong>, escolhe a loja e escreve o motivo. A liberação vale para uma venda, até o fim do dia, e fica no Histórico.</>,
+        ]}
+        problemas={[
+          {
+            quando: "O Caixa não consegue liberar o cliente bloqueado",
+            fazer: "É de propósito. Só o Gestor da loja libera, e o Caixa não digita a senha do gestor. Chame o Gestor, que libera pela ficha do cliente.",
+          },
+          {
+            quando: "A liberação sumiu e a venda foi recusada de novo",
+            fazer: "Cada liberação vale para uma venda só. Se a primeira venda fechou, peça outra liberação ao Gestor.",
+          },
+        ]}
+      >
+        <Figura id="fiado-credito" />
+      </Tarefa>
+
+      <Subtitulo>Cobrar fiado vencido</Subtitulo>
+      <Tarefa
+        paraQueServe="Lembrar quem está atrasado, do mais atrasado ao menos, sem caçar o cliente em lista nenhuma."
+        passos={[
+          <>Abra <strong>Meu Empório</strong>, depois <strong>Financeiro</strong> e a aba <strong>Cobrança</strong>. Cada cliente com fiado vencido aparece com o valor, há quantos dias e em quais lojas.</>,
+          <>Para filtrar, escolha a loja no alto ou o tempo de atraso.</>,
+          <>Clique em <strong>Cobrar no WhatsApp</strong>, confira a mensagem (ela já vem com o nome e o valor, e dá para editar) e clique em <strong>Abrir o WhatsApp</strong>.</>,
+          <>O WhatsApp do aparelho abre com o texto da conta, e a cobrança fica registrada: a linha passa a mostrar <strong>Cobrado em</strong> com a data, e a ficha do cliente também.</>,
+        ]}
+        problemas={[
+          {
+            quando: "O cliente aparece com “Sem telefone no cadastro”",
+            fazer: <>Clique em <strong>Completar em Clientes</strong>, cadastre o telefone e volte à Cobrança.</>,
+          },
+        ]}
+      >
+        <Figura id="financeiro-cobranca" />
+      </Tarefa>
     </div>
   );
 }
