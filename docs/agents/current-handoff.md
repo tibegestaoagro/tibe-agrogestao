@@ -26,19 +26,27 @@ do Empório, das fases F0 a F5 até os três planos de 06/11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-07 (arquivamento do handoff; os três planos do
-  Empório em produção).
-- `main` em `c3b2606`, Vercel verde. Nenhuma migração pendente no Neon.
+- Atualizado em: 2026-11-07 (spec do financeiro do Empório escrita e
+  revisada).
+- `main` em `ed8e37e`, Vercel verde. Nenhuma migração pendente no Neon.
+- Branch de trabalho `emporio-financeiro-spec`: a spec, o `.gitignore` das
+  pastas de pesquisa e este handoff. Sem merge ainda.
 
-### ⏭️ Próximo passo: entrevista sobre o financeiro do Empório
+### ⏭️ Próximo passo: o plano da entrega 1 do financeiro do Empório
 
-Pedido do usuário: depois dos três planos, entrevistá-lo sobre o financeiro do
-Empório. Ele quer o financeiro das lojas separado do Tibé, com uma pessoa que
-cuida só do financeiro das lojas. Sem spec ainda. O caminho é a skill
-`superpowers:brainstorming`, depois a spec em `docs/superpowers/specs/` e o
-plano. Ponto de partida no código: o Resultado da Loja, as despesas fixas e
-variáveis e o filtro de área do Financeiro (F4a e F4b, ver
-[../specs/module-39-meu-emporio.md](../specs/module-39-meu-emporio.md)).
+Spec aprovada em conversa e escrita em
+[../superpowers/specs/2026-11-07-emporio-financeiro-design.md](../superpowers/specs/2026-11-07-emporio-financeiro-design.md):
+quatro entregas, decisões Q214 à Q237 (ainda não copiadas para a tabela da
+spec do módulo; o plano 1 faz isso). Um revisor leu a spec como builder; as
+nove perguntas dele foram fechadas na própria spec, marcadas "decisão minha".
+O usuário ainda não leu a versão revisada: confirme com ele as escolhas
+listadas na resposta de 07/11 antes de planejar. Depois, a skill
+`superpowers:writing-plans` para a entrega 1 (casa do financeiro, papel
+`financeiro`, lacuna 2.26, Empório fora do `/financeiro`). Suíte nova:
+`test:m98`.
+
+As pastas `research_notes/` e `reports/` (pesquisa de mercado que embasou a
+spec) são ignoradas pelo git de propósito: o repositório é público.
 
 ### Empório (Módulo 39): em produção, usado pela Agromax
 
@@ -175,6 +183,8 @@ relatórios em [agente-whatsapp/](agente-whatsapp/), detalhe em
 
 ## Últimas rodadas
 
+- 07/11: pesquisa de mercado, entrevista em 24 decisões e spec do financeiro
+  do Empório, revisada por builder (branch `emporio-financeiro-spec`).
 - 07/11: plano 3 do Empório (entrega e romaneio) em produção, `c3b2606`; handoff
   arquivado em `historico/2026-11.md`.
 - 07/11: planos 1 e 2 do Empório (clientes, fornecedores e a escolha) em
@@ -183,4 +193,3 @@ relatórios em [agente-whatsapp/](agente-whatsapp/), detalhe em
   do Tibé (`55dfd81`).
 - 05/11: Empório, entregas 2 a 4 (caixa com turno, vendedor e relatórios,
   orçamento), o manual e o cenário de demonstração.
-- 04/11: Empório, entrega 1 (configurações e impressão da venda).
