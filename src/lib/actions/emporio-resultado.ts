@@ -1,7 +1,7 @@
 import type { TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { decToNum } from "@/lib/serialize";
-import { exigir } from "@/lib/emporio/papel";
+import { exigirUma } from "@/lib/emporio/papel";
 import { CATEGORIA_TAXAS_CARTAO } from "@/lib/emporio/cartao";
 import {
   diaDoInstante,
@@ -301,7 +301,7 @@ type Visao = {
 
 /** O que as três leituras do Resultado validam igual: papel, loja (ou "all") e mês. */
 async function lerVisao(db: TenantPrismaClient, ator: Ator, input: ResultadoInput): Promise<ActionResult<Visao>> {
-  const neg = await exigir(db, ator, "gestor_da_loja", "ver o resultado da loja");
+  const neg = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "ver o resultado da loja");
   if (neg) return neg;
   const lojaId = typeof input?.establishment_id === "string" ? input.establishment_id.trim() : "";
   if (!lojaId) return fail("VALIDATION_ERROR", "Escolha o estabelecimento.", 422, "establishment_id");

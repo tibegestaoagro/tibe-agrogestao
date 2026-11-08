@@ -1,7 +1,7 @@
 import type { TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { decToNum } from "@/lib/serialize";
-import { exigir } from "@/lib/emporio/papel";
+import { exigirUma } from "@/lib/emporio/papel";
 import { lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
 import { valorDevolvidoDoItemCent } from "@/lib/actions/emporio-resultado";
 
@@ -63,7 +63,7 @@ export async function relatorioDeVendasAction(
   ator: Ator,
   input: RelatorioDeVendasInput,
 ): Promise<ActionResult<RelatorioDeVendas>> {
-  const neg = await exigir(db, ator, "gestor_da_loja", "ver os relatórios");
+  const neg = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "ver os relatórios");
   if (neg) return neg;
 
   const de = lerDia(input?.from);

@@ -15,7 +15,7 @@ import {
   type ChequeView,
   type FiadoClienteView,
 } from "@/lib/actions/emporio-caixa";
-import { listarContasAPagarAction, type ContaAPagarView } from "@/lib/actions/emporio-despesas";
+import { lerQuantidadeDeContasAPagar, listarContasAPagarAction, type ContaAPagarView } from "@/lib/actions/emporio-despesas";
 
 /**
  * Meu Empório, financeiro das lojas, entrega 1: a casa do Financeiro (Q215).
@@ -155,6 +155,9 @@ export async function lerResumoHojeAction(
   });
   if (!pagar.ok) return pagar;
   const itens = pagar.data;
+  // A lista tem teto de 500; a contagem é do filtro inteiro.
+  const quantas = await lerQuantidadeDeContasAPagar(db, ator, { establishment_id: lojaId, status: "pending", ate: fimDoDia });
+  if (!quantas.ok) return quantas;
 
   const visiveis = await lojasDoAtor(db, ator);
   const abertas = await entradasAbertas(db, {
@@ -179,7 +182,7 @@ export async function lerResumoHojeAction(
     positions,
     total_balance: total,
     payables_due: {
-      count: itens.length,
+      count: quantas.data,
       total: itens.reduce((s, i) => s + centavos(i.open_amount), 0) / 100,
       items: itens,
     },

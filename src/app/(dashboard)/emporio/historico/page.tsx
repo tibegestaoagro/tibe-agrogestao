@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { papelDoEmporio } from "@/lib/emporio/papel";
+import { veAPagina } from "@/lib/emporio/paginas";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
 import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
@@ -79,6 +81,7 @@ export default async function HistoricoPage({ searchParams }: { searchParams: Pr
   const user = await requireFeaturePage("emporio");
   const p = await searchParams;
   const db = await getTenantDb();
+  if (!veAPagina(await papelDoEmporio(db, user), "/emporio/historico")) notFound();
 
   const res = await listarHistoricoAction(db, user, {
     user_id: p.user_id,

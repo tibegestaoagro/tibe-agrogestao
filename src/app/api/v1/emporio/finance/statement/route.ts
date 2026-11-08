@@ -10,7 +10,11 @@ const diaIso = (campo: string) =>
   z
     .string({ error: `Informe a data ${campo === "de" ? "inicial" : "final"}.` })
     .regex(/^\d{4}-\d{2}-\d{2}$/, "Informe uma data válida (AAAA-MM-DD).")
-    .refine((v) => !Number.isNaN(Date.parse(`${v}T00:00:00Z`)), "Informe uma data válida (AAAA-MM-DD).")
+    .refine((v) => {
+      const t = Date.parse(`${v}T00:00:00Z`);
+      // O Date.parse aceita 2026-02-31 e rola para março: só vale a data que volta igual.
+      return !Number.isNaN(t) && new Date(t).toISOString().slice(0, 10) === v;
+    }, "Informe uma data válida (AAAA-MM-DD).")
     .transform((v) => new Date(`${v}T00:00:00Z`));
 
 const schema = z.object({

@@ -2,7 +2,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { decToNum, isoOrNull } from "@/lib/serialize";
-import { exigir, exigirUma, papelDoEmporio, pode } from "@/lib/emporio/papel";
+import { exigirUma, papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { diferencas, dinheiro, registrarNoHistorico } from "@/lib/emporio/historico";
 import { createLinkedEntry, runSerializableTenantTransaction } from "@/lib/financial";
 import { lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
@@ -1012,17 +1012,20 @@ async function filtroDoEmporio(
   };
 }
 
-export async function listarContasAPagarAction(
+type FiltroDeContasAPagar = {
+  establishment_id?: string;
+  status?: "pending" | "paid" | "cancelled" | "all";
+  de?: Date;
+  ate?: Date;
+  limit?: number;
+};
+
+/** O `where` e o limite que a lista e a contagem de contas a pagar compartilham. */
+async function filtroDeContasAPagar(
   db: TenantPrismaClient,
   ator: Ator,
-  opts: {
-    establishment_id?: string;
-    status?: "pending" | "paid" | "cancelled" | "all";
-    de?: Date;
-    ate?: Date;
-    limit?: number;
-  } = {},
-): Promise<ActionResult<ContaAPagarView[]>> {
+  opts: FiltroDeContasAPagar,
+): Promise<ActionResult<{ where: Prisma.FinancialEntryWhereInput; limite: number }>> {
   const neg = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "mexer nas despesas da loja");
   if (neg) return neg;
   const visiveis = await lojasDoAtor(db, ator);
@@ -1047,18 +1050,42 @@ export async function listarContasAPagarAction(
     ...(status === "all" ? {} : { status }),
     ...(Object.keys(vencimento).length > 0 ? { due_date: vencimento } : {}),
   };
-  const linhas = await db.financialEntry.findMany({
+  return ok({
     where: {
       related_module: "emporio",
       entry_type: "expense",
       ...(await filtroDoEmporio(db, filtros)),
       ...filtros,
     },
+    limite,
+  });
+}
+
+export async function listarContasAPagarAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  opts: FiltroDeContasAPagar = {},
+): Promise<ActionResult<ContaAPagarView[]>> {
+  const f = await filtroDeContasAPagar(db, ator, opts);
+  if (!f.ok) return f;
+  const linhas = await db.financialEntry.findMany({
+    where: f.data.where,
     include: INCLUDE_CONTA,
     orderBy: [{ due_date: "asc" }, { created_at: "asc" }],
-    take: limite,
+    take: f.data.limite,
   });
   return ok(linhas.map(viewDaConta));
+}
+
+/** Quantas contas o filtro alcança, sem o teto da lista. */
+export async function lerQuantidadeDeContasAPagar(
+  db: TenantPrismaClient,
+  ator: Ator,
+  opts: FiltroDeContasAPagar = {},
+): Promise<ActionResult<number>> {
+  const f = await filtroDeContasAPagar(db, ator, opts);
+  if (!f.ok) return f;
+  return ok(await db.financialEntry.count({ where: f.data.where }));
 }
 
 /** `semVisibilidade` acha a conta mesmo de loja fora do vínculo: só para distinguir "não existe" de "não é sua". */
@@ -1091,7 +1118,7 @@ export async function corrigirDespesaAction(
   entry_id: string,
   input: { amount: number },
 ): Promise<ActionResult<ContaAPagarView>> {
-  const neg = await exigir(db, ator, "gestor_da_loja", "mexer nas despesas da loja");
+  const neg = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "mexer nas despesas da loja");
   if (neg) return neg;
   const conta = await acharContaDoEmporio(db, ator, entry_id);
   if (!conta) return NAO_ACHADO("Conta", "entry_id");

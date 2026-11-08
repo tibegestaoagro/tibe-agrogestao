@@ -7,7 +7,8 @@ import type { AppUserRole } from "@/types/next-auth";
 
 /**
  * Meu Empório, F6b (Q134): a leitura do Histórico. Só leitura: nada aqui edita
- * ou apaga linha. Dono e Gerente geral leem tudo; o Gestor lê as lojas dele
+ * ou apaga linha. Dono, Gerente geral e Financeiro leem tudo;
+ * o Gestor lê as lojas dele
  * (a linha sem loja fica de fora); o Vendedor e quem não tem função recebem 403.
  */
 

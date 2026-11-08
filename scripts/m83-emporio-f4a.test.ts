@@ -1,5 +1,5 @@
 import "./_env-local";
-import { papelDeFixture, vincularTodas, virarGestor } from "./_emporio-papel";
+import { papelDeFixture, papelFinanceiro, vincularTodas, virarGestor } from "./_emporio-papel";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { exigirBancoLocal } from "./_banco-local";
 
@@ -187,6 +187,10 @@ async function comBanco() {
     const admin = await TA.mkUser("adm", "ADMIN");
     const op = await TA.mkUser("op", "OPERADOR");
     const visu = await TA.mkUser("vis", "VISUALIZADOR");
+    const finUser = await prisma.user.create({
+      data: { tenant_id: TA.t.id, name: `M83 fin ${stamp}`, email: `m83-fin-${stamp}@teste.local`, password_hash: "x", role: "OPERADOR", ...papelFinanceiro() },
+    });
+    const fin: Ator = { id: finUser.id, role: "OPERADOR" };
     const admV = await TA.mkUser("admv", "ADMIN"); // vinculado só à Loja 3
     await virarGestor(prisma, admV.id); // Q118: o Gerente geral não é limitado por vínculo; o Gestor é
     const ownerB = await TB.mkUser("own", "OWNER");
@@ -521,6 +525,7 @@ async function comBanco() {
       // corrigir
       const [c1, c2, c3] = ids;
       check("OPERADOR corrige: 403", recusa(await dd("corrigirDespesaAction", op, c3, { amount: 12.5 }), "FORBIDDEN", 403));
+      check("Financeiro corrige a conta pendente (`dinheiro`): ok", (await dd("corrigirDespesaAction", fin, c3, { amount: 12.5 })).ok);
       check("valor zero: 422 amount", recusa(await dd("corrigirDespesaAction", admin, c3, { amount: 0 }), "VALIDATION_ERROR", 422, "amount"));
       check("valor negativo: 422 amount", recusa(await dd("corrigirDespesaAction", admin, c3, { amount: -5 }), "VALIDATION_ERROR", 422, "amount"));
       const rCor = await dd("corrigirDespesaAction", admin, c3, { amount: 12.5 });

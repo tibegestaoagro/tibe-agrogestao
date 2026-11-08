@@ -1,5 +1,5 @@
 import "./_env-local";
-import { papelDeFixture, vincularTodas, virarGestor } from "./_emporio-papel";
+import { papelDeFixture, papelFinanceiro, vincularTodas, virarGestor } from "./_emporio-papel";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { exigirBancoLocal } from "./_banco-local";
 
@@ -164,6 +164,7 @@ async function comBanco() {
   const T = await carregar("@/lib/actions/emporio-transferencias");
   const D = await carregar("@/lib/actions/emporio-despesas");
   const RS = await carregar("@/lib/actions/emporio-resultado");
+  const REL = await carregar("@/lib/actions/emporio-relatorios");
   const FR = (await import("@/lib/actions/financial-reports")) as unknown as Record<string, (...a: unknown[]) => Promise<Dado>>;
 
   const stamp = Date.now();
@@ -204,13 +205,17 @@ async function comBanco() {
     const admin = await mkUser("adm", "ADMIN");
     const op = await mkUser("op", "OPERADOR");
     const visu = await mkUser("vis", "VISUALIZADOR");
+    const finUser = await prisma.user.create({
+      data: { tenant_id: t.id, name: `M84 ${rotulo} fin`, email: `m84-${rotulo}-fin-${stamp}@teste.local`, password_hash: "x", role: "OPERADOR", ...papelFinanceiro() },
+    });
+    const fin: Ator = { id: finUser.id, role: "OPERADOR" };
     const db = prismaForTenant(t.id);
     const cat = await db.productCategory.create({ data: scoped({ name: `M84 categoria ${rotulo}` }) });
     const cc = (nome: string, ...a: unknown[]) => chamarEm([C], db, nome, ...a);
     const ee = (nome: string, ...a: unknown[]) => chamarEm([E], db, nome, ...a);
     const vv = (nome: string, ...a: unknown[]) => chamarEm([V, X], db, nome, ...a);
     const xx = (nome: string, ...a: unknown[]) => chamarEm([X, V], db, nome, ...a);
-    const dd = (nome: string, ...a: unknown[]) => chamarEm([RS, D, V, X], db, nome, ...a);
+    const dd = (nome: string, ...a: unknown[]) => chamarEm([RS, REL, D, V, X], db, nome, ...a);
     const tt = (nome: string, ...a: unknown[]) => chamarEm([T], db, nome, ...a);
     const mkLoja = async (nome: string) => {
       const r = await cc("criarEstabelecimentoAction", owner, { name: `M84 ${rotulo} ${nome}`, kind: "ponto_venda" });
@@ -261,7 +266,7 @@ async function comBanco() {
     const resultado = (ator: Ator, est: string, month: string = mes) => dd("resultadoDaLojaAction", ator, { establishment_id: est, month });
     const produtos = (ator: Ator, est: string, month: string = mes) => dd("produtosDoMesAction", ator, { establishment_id: est, month });
     const negativas = (ator: Ator, est: string, month: string = mes) => dd("vendasComMargemNegativaAction", ator, { establishment_id: est, month });
-    return { t, owner, admin, op, visu, db, cat, mkUser, cc, ee, vv, xx, dd, tt, mkLoja, mkProduto, preparar, mkConta, regraCartao, item, venda, saleId, dinheiro, credito, limparRegras, novaRegra, resultado, produtos, negativas };
+    return { t, owner, admin, op, visu, fin, db, cat, mkUser, cc, ee, vv, xx, dd, tt, mkLoja, mkProduto, preparar, mkConta, regraCartao, item, venda, saleId, dinheiro, credito, limparRegras, novaRegra, resultado, produtos, negativas };
   };
 
   // ---- Rotas (route handler direto, sessão por Bearer)
@@ -388,6 +393,8 @@ async function comBanco() {
       check("OWNER lê 'all'", (await G.resultado(G.owner, "all")).ok);
       check("ADMIN sem vínculo lê 'all'", (await G.resultado(G.admin, "all")).ok);
       check("ADMIN com vínculo a uma loja: 403 FORBIDDEN em 'all'", recusa(await G.resultado(admV, "all"), "FORBIDDEN", 403));
+      check("Financeiro lê o resultado, os produtos e as vendas negativas de uma loja (Q232): 200", (await G.resultado(G.fin, g1)).ok && (await G.produtos(G.fin, g1)).ok && (await G.negativas(G.fin, g1)).ok);
+      check("Financeiro lê o relatório de vendas: ok", (await G.dd("relatorioDeVendasAction", G.fin, { from: `${mes}-01`, to: `${mes}-02` })).ok);
       check("OPERADOR: 403 em 'all'", recusa(await G.resultado(G.op, "all"), "FORBIDDEN", 403));
       check("VISUALIZADOR: 403 em 'all'", recusa(await G.resultado(G.visu, "all"), "FORBIDDEN", 403));
       check("ADMIN com vínculo ainda lê a loja dele (regressão)", (await G.resultado(admV, g1)).ok);
