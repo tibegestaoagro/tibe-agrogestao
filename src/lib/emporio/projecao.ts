@@ -2,16 +2,10 @@ export type Semana = { numero: number; de: string; ate: string };
 
 const DIA_MS = 86_400_000;
 
-const FORMATO_SP = new Intl.DateTimeFormat("en-CA", {
-  timeZone: "America/Sao_Paulo",
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-});
-
-function diaSP(d: Date): string {
-  return FORMATO_SP.format(d);
-}
+// `hoje` chega como o dia de São Paulo em meia-noite UTC (`hojeEmBrasilia()`),
+// então o dia é o da parte UTC do instante. Formatar no fuso de São Paulo
+// devolveria o dia anterior.
+const dia = (d: Date): string => d.toISOString().slice(0, 10);
 
 /**
  * Semanas corridas da janela: a 1 vai de hoje a hoje+6, a seguinte começa no
@@ -23,8 +17,8 @@ export function semanasDaJanela(hoje: Date, dias: 30 | 60 | 90): Semana[] {
     const fim = Math.min(ini + 6, dias - 1);
     semanas.push({
       numero,
-      de: diaSP(new Date(hoje.getTime() + ini * DIA_MS)),
-      ate: diaSP(new Date(hoje.getTime() + fim * DIA_MS)),
+      de: dia(new Date(hoje.getTime() + ini * DIA_MS)),
+      ate: dia(new Date(hoje.getTime() + fim * DIA_MS)),
     });
   }
   return semanas;

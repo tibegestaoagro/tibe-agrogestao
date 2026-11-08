@@ -5,7 +5,7 @@ export type SplitKind = "percentual" | "valor" | CriterioAutomatico;
 export const ehCriterioAutomatico = (k: string): k is CriterioAutomatico =>
   (CRITERIOS_AUTOMATICOS as readonly string[]).includes(k);
 
-/** Rótulo do Histórico e das mensagens; a tela tem o seu, igual, em `venda-rotulos.ts`. */
+/** Rótulo do Histórico e das mensagens; a tela reexporta este em `venda-rotulos.ts`. */
 export const RATEIO_ROTULO_SERVIDOR: Record<SplitKind, string> = {
   percentual: "Em percentual",
   valor: "Em reais",
@@ -17,9 +17,11 @@ export const RATEIO_ROTULO_SERVIDOR: Record<SplitKind, string> = {
 /**
  * Parte `totalCent` pelos pesos. Cada parte é o piso da proporção; o resto dos
  * centavos fica na primeira loja de peso maior que zero. Soma de pesos zero:
- * partes iguais (resto na primeira) e `iguais: true`.
+ * partes iguais (resto na primeira) e `iguais: true`. Peso negativo (loja que
+ * devolveu mais do que vendeu no mês) vale zero.
  */
-export function ratearPorPeso(totalCent: number, pesos: number[]): { partes: number[]; iguais: boolean } {
+export function ratearPorPeso(totalCent: number, pesosBrutos: number[]): { partes: number[]; iguais: boolean } {
+  const pesos = pesosBrutos.map((p) => (p > 0 ? p : 0));
   const n = pesos.length;
   if (n === 0) return { partes: [], iguais: false };
   const soma = pesos.reduce((s, p) => s + p, 0);
