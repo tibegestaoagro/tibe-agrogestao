@@ -27,8 +27,9 @@ export function validarParcelas(
   parcelas: ParcelaDoAcordo[],
   totalCent: number,
   hoje: Date,
-): { ok: true } | { ok: false; field: "installments"; message: string } {
-  const recusa = (message: string) => ({ ok: false as const, field: "installments" as const, message });
+): { ok: true } | { ok: false; code: "VALIDATION_ERROR" | "PARCELAS_NAO_BATEM"; field: "installments"; message: string } {
+  const recusa = (message: string, code: "VALIDATION_ERROR" | "PARCELAS_NAO_BATEM" = "VALIDATION_ERROR") =>
+    ({ ok: false as const, code, field: "installments" as const, message });
   if (parcelas.length < 1 || parcelas.length > 48) return recusa("O acordo tem de 1 a 48 parcelas.");
   if (parcelas.some((p) => !Number.isInteger(p.amount_cent) || p.amount_cent <= 0)) {
     return recusa("Toda parcela precisa ter valor maior que zero.");
@@ -42,7 +43,7 @@ export function validarParcelas(
     anterior = dia;
   }
   if (parcelas.reduce((s, p) => s + p.amount_cent, 0) !== totalCent) {
-    return recusa("A soma das parcelas precisa ser igual ao total do acordo.");
+    return recusa("A soma das parcelas precisa ser igual ao total do acordo.", "PARCELAS_NAO_BATEM");
   }
   return { ok: true };
 }

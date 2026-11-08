@@ -2,6 +2,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { dinheiro, itens as frasItens, registrarNoHistorico } from "@/lib/emporio/historico";
+import { CATEGORIA_ACORDO } from "@/lib/emporio/acordo";
 import { decToNum, isoOrNull } from "@/lib/serialize";
 import { exigir, papelDoEmporio } from "@/lib/emporio/papel";
 import { createLinkedEntry, runSerializableTenantTransaction } from "@/lib/financial";
@@ -1428,6 +1429,21 @@ export async function cancelarVendaAction(
   try {
     await runSerializableTenantTransaction(db, async (tx) => {
       const agora = new Date();
+      const emAcordo = await tx.financialEntry.findFirst({
+        where: { related_module: "emporio", entry_type: "income", related_id: id, agreement_id: { not: null } },
+        select: { agreement: { select: { created_at: true } } },
+      });
+      if (emAcordo?.agreement) {
+        const quando = emAcordo.agreement.created_at.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
+        throw new AbortarVenda(
+          fail(
+            "VENDA_EM_ACORDO",
+            `Esta venda entrou no acordo de ${quando} com o cliente. Desfaça o acordo antes de cancelar a venda.`,
+            409,
+            "sale_id",
+          ),
+        );
+      }
       const r = await tx.emporioSale.updateMany({
         where: { id, status: "concluida" },
         data: { status: "cancelada", canceled_at: agora, canceled_by_user_id: ator.id, canceled_reason: motivo },
@@ -1834,6 +1850,10 @@ async function gravarDevolucao(
     const lancamento = await tx.financialEntry.findFirst({
       where: { related_module: "emporio", entry_type: "income", related_id: venda.id },
     });
+    if (lancamento?.agreement_id) {
+      await abaterNoAcordo(tx, lancamento.agreement_id, d.totalCent, total, agora);
+      return devolucao.id;
+    }
     if (!lancamento || lancamento.status === "cancelled") {
       throw new AbortarVenda(fail("VALIDATION_ERROR", "Essa venda não tem conta a receber para abater.", 422, "amount"));
     }
@@ -1931,6 +1951,54 @@ async function gravarDevolucao(
   return devolucao.id;
 }
 
+/**
+ * A venda entrou num acordo de fiado: o que o cliente devia dela agora está nas parcelas. O
+ * abatimento sai da parcela em aberto mais antiga e passa para a seguinte se não couber.
+ * Passou do aberto do acordo, recusa como o fiado comum: devolva em dinheiro.
+ */
+async function abaterNoAcordo(tx: Tx, agreementId: string, totalCent: number, total: number, agora: Date): Promise<void> {
+  const parcelas = await tx.financialEntry.findMany({
+    where: { agreement_id: agreementId, category: CATEGORIA_ACORDO, status: "pending" },
+    orderBy: [{ due_date: "asc" }, { created_at: "asc" }],
+  });
+  const pagos = await tx.financialPayment.groupBy({
+    by: ["entry_id"],
+    where: { entry_id: { in: parcelas.map((p) => p.id) } },
+    _sum: { amount: true },
+  });
+  const pagoDe = new Map(pagos.map((p) => [p.entry_id, centavos(decToNum(p._sum.amount) ?? 0)]));
+  const abertas = parcelas
+    .map((p) => {
+      const valor = centavos(decToNum(p.amount) ?? 0);
+      return { id: p.id, valor, pago: pagoDe.get(p.id) ?? 0 };
+    })
+    .filter((p) => p.valor - p.pago > 0);
+  const abertoTotal = abertas.reduce((s, p) => s + (p.valor - p.pago), 0);
+  if (totalCent > abertoTotal) {
+    throw new AbortarVenda(
+      fail(
+        "VALIDATION_ERROR",
+        abertoTotal > 0
+          ? `A devolução (${brl(total)}) passa do que o cliente ainda deve no acordo (${brl(abertoTotal / 100)}). Devolva em dinheiro.`
+          : "O cliente já pagou o acordo inteiro: devolva em dinheiro.",
+        422,
+        "amount",
+      ),
+    );
+  }
+  let restante = totalCent;
+  for (const p of abertas) {
+    if (restante <= 0) break;
+    const parte = Math.min(restante, p.valor - p.pago);
+    restante -= parte;
+    const novo = p.valor - parte;
+    await tx.financialEntry.update({
+      where: { id: p.id },
+      data: novo === p.pago ? { amount: novo / 100, status: "paid", paid_at: agora } : { amount: novo / 100 },
+    });
+  }
+}
+
 async function devolucaoPorId(db: TenantPrismaClient, id: string): Promise<DevolucaoView | null> {
   const r = await db.emporioSaleReturn.findFirst({
     where: { id },
@@ -1995,13 +2063,24 @@ export async function devolverAction(
         reason: motivo,
         turno,
       });
+      const emAcordo =
+        input.refund_kind === "abater_fiado"
+          ? await tx.financialEntry.findFirst({
+              where: { related_module: "emporio", entry_type: "income", related_id: atual.id, agreement_id: { not: null } },
+              select: { agreement: { select: { created_at: true } } },
+            })
+          : null;
       await registrarNoHistorico(tx, ator, {
         action: "venda.devolver",
         establishment_id: atual.establishment_id,
         target_type: "venda",
         target_id: atual.id,
         summary: `Devolveu ${dinheiro(rev.data.totalCent / 100)} (${frasItens(rev.data.linhas.length)}) de uma venda da ${await nomeDaLoja(tx, atual.establishment_id)}, ${
-          input.refund_kind === "dinheiro" ? "em dinheiro" : "abatendo do fiado"
+          input.refund_kind === "dinheiro"
+            ? "em dinheiro"
+            : emAcordo?.agreement
+              ? `abatendo da parcela do acordo de ${emAcordo.agreement.created_at.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}`
+              : "abatendo do fiado"
         }`,
       });
       return devolucaoId;

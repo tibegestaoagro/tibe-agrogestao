@@ -10,6 +10,7 @@ import { diferencas, dinheiro, registrarNoHistorico } from "@/lib/emporio/histor
 import { diaUtc, vencimentoEfetivo } from "@/lib/emporio/fiado";
 import { acharLojaParaEscrita } from "@/lib/actions/emporio-estoque";
 import { CATEGORIA_VENDAS } from "@/lib/actions/emporio-vendas";
+import { CATEGORIA_ACORDO } from "@/lib/emporio/acordo";
 
 /**
  * Meu Empório, F3a: fiado, contas bancárias e caixa (Módulo 39, Q82, Q83, Q86).
@@ -72,7 +73,13 @@ type EntradaAberta = {
   effective_due_date: Date;
   open_cent: number;
   paid_cent: number;
+  /** Só a parcela de acordo tem: o acordo a que pertence. A venda tem nulo. */
+  agreement_id: string | null;
+  /** "Parcela 2/3 do acordo de 10/12/2026"; nulo na venda. */
+  installment_label: string | null;
 };
+
+const diaBr = (d: Date) => d.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
 
 /** Lançamentos de venda do Empório ainda em aberto, com o saldo calculado pela soma dos pagamentos. */
 export async function entradasAbertas(
@@ -81,9 +88,34 @@ export async function entradasAbertas(
   opts: { prazoPadraoDias?: number } = {},
 ): Promise<EntradaAberta[]> {
   const entradas = await db.financialEntry.findMany({
-    where: { related_module: "emporio", entry_type: "income", category: CATEGORIA_VENDAS, status: "pending", ...where },
+    where: {
+      related_module: "emporio",
+      entry_type: "income",
+      category: { in: [CATEGORIA_VENDAS, CATEGORIA_ACORDO] },
+      status: "pending",
+      ...where,
+    },
   });
   if (entradas.length === 0) return [];
+  // A parcela do acordo: o número e a data do acordo vêm do acordo e das irmãs.
+  const acordoIds = [...new Set(entradas.flatMap((e) => (e.agreement_id ? [e.agreement_id] : [])))];
+  const acordos = acordoIds.length
+    ? await db.emporioCreditAgreement.findMany({ where: { id: { in: acordoIds } }, select: { id: true, created_at: true, installments: true } })
+    : [];
+  const acordoPorId = new Map(acordos.map((a) => [a.id, a]));
+  const irmas = acordoIds.length
+    ? await db.financialEntry.findMany({
+        where: { agreement_id: { in: acordoIds }, category: CATEGORIA_ACORDO },
+        select: { id: true, agreement_id: true, due_date: true, created_at: true },
+      })
+    : [];
+  const numeroDaParcela = new Map<string, number>();
+  for (const id of acordoIds) {
+    irmas
+      .filter((p) => p.agreement_id === id)
+      .sort((a, b) => (a.due_date?.getTime() ?? 0) - (b.due_date?.getTime() ?? 0) || a.created_at.getTime() - b.created_at.getTime())
+      .forEach((p, i) => numeroDaParcela.set(p.id, i + 1));
+  }
   const vendas = await db.emporioSale.findMany({
     where: { id: { in: entradas.map((e) => e.related_id as string) } },
     select: { id: true, sold_at: true },
@@ -105,7 +137,8 @@ export async function entradasAbertas(
   return entradas
     .map((e) => {
       const pago = soma.get(e.id) ?? 0;
-      const vendidoQuando = vendidoEm.get(e.related_id as string) ?? e.created_at;
+      const acordo = e.agreement_id ? acordoPorId.get(e.agreement_id) : undefined;
+      const vendidoQuando = acordo ? e.created_at : (vendidoEm.get(e.related_id as string) ?? e.created_at);
       return {
         id: e.id,
         related_id: e.related_id,
@@ -115,17 +148,29 @@ export async function entradasAbertas(
         due_date: e.due_date,
         created_at: e.created_at,
         sold_at: vendidoQuando,
-        effective_due_date: vencimentoEfetivo(
-          { due_date: e.due_date, sold_at: hojeEmBrasilia(vendidoQuando), fiado_due_date: fiadoDaVenda.get(e.related_id as string) ?? null },
-          prazoPadrao,
-        ),
+        effective_due_date: acordo
+          ? (e.due_date ?? e.created_at)
+          : vencimentoEfetivo(
+              { due_date: e.due_date, sold_at: hojeEmBrasilia(vendidoQuando), fiado_due_date: fiadoDaVenda.get(e.related_id as string) ?? null },
+              prazoPadrao,
+            ),
         paid_cent: pago,
         open_cent: centavos(decToNum(e.amount) ?? 0) - pago,
+        agreement_id: acordo ? acordo.id : null,
+        installment_label: acordo
+          ? `Parcela ${numeroDaParcela.get(e.id) ?? "?"}/${acordo.installments} do acordo de ${diaBr(acordo.created_at)}`
+          : null,
       };
     })
     .filter((e) => e.open_cent > 0)
-    // O mais antigo é a VENDA mais antiga, não o vencimento.
-    .sort((a, b) => a.sold_at.getTime() - b.sold_at.getTime() || a.created_at.getTime() - b.created_at.getTime());
+    // O mais antigo é a VENDA mais antiga, não o vencimento. Parcelas do mesmo acordo
+    // nascem juntas: entre elas, vale o vencimento.
+    .sort(
+      (a, b) =>
+        a.sold_at.getTime() - b.sold_at.getTime() ||
+        a.effective_due_date.getTime() - b.effective_due_date.getTime() ||
+        a.created_at.getTime() - b.created_at.getTime(),
+    );
 }
 
 function filtroDeLojas(visiveis: Set<string> | null): Record<string, unknown> {
@@ -178,7 +223,7 @@ export async function listarFiadoAction(
     if (cli.oldest_due_date === null || venceEm < cli.oldest_due_date) cli.oldest_due_date = venceEm;
     cli.entries.push({
       entry_id: e.id,
-      sale_id: e.related_id,
+      sale_id: e.agreement_id ? null : e.related_id,
       establishment_id: e.establishment_id,
       amount: decToNum(e.amount) ?? 0,
       paid: e.paid_cent / 100,
@@ -223,7 +268,7 @@ export type RecebimentoView = {
 async function recebimentoGravado(db: TenantPrismaClient, ator: Ator, chave: string): Promise<ActionResult<RecebimentoView> | null> {
   const movs = await db.cashMovement.findMany({
     where: { operation_key: chave, origin: "recebimento_fiado" },
-    include: { financial_payment: { include: { entry: { select: { id: true, emporio_customer_id: true, establishment_id: true, related_id: true } } } } },
+    include: { financial_payment: { include: { entry: { select: { id: true, emporio_customer_id: true, establishment_id: true, related_id: true, agreement_id: true } } } } },
     orderBy: { created_at: "asc" },
   });
   if (movs.length === 0) return null;
@@ -243,7 +288,7 @@ async function recebimentoGravado(db: TenantPrismaClient, ator: Ator, chave: str
     received_at: primeira.m.occurred_at.toISOString(),
     parts: partes.map(({ m, fp }) => ({
       entry_id: fp.entry_id,
-      sale_id: fp.entry.related_id,
+      sale_id: fp.entry.agreement_id ? null : fp.entry.related_id,
       amount: decToNum(m.amount) ?? 0,
       financial_payment_id: fp.id,
     })),
@@ -364,13 +409,13 @@ export async function receberFiadoAction(
             amount: parte / 100,
             origin: "recebimento_fiado" as const,
             occurred_at: agora,
-            sale_id: e.related_id,
+            sale_id: e.agreement_id ? null : e.related_id,
             financial_payment_id: fp.id,
             operation_key: chave,
             created_by_user_id: ator.id,
           }),
         });
-        feitas.push({ entry_id: e.id, sale_id: e.related_id, amount: parte / 100, financial_payment_id: fp.id });
+        feitas.push({ entry_id: e.id, sale_id: e.agreement_id ? null : e.related_id, amount: parte / 100, financial_payment_id: fp.id });
       }
       await registrarNoHistorico(tx, ator, {
         action: "fiado.receber",

@@ -130,6 +130,10 @@ export async function createLinkedEntry(
      * forma em que aquele dinheiro saiu de fato.
      */
     payment_method?: PaymentMethod | null;
+    /** Acordo de fiado do Empório (entrega 3): a parcela e a origem absorvida apontam para o acordo. */
+    agreement_id?: string | null;
+    /** Texto do lançamento (a parcela do acordo diz "Acordo de fiado, parcela 1/3"). */
+    notes?: string | null;
   },
 ) {
   const status = params.status ?? "paid";
@@ -152,6 +156,8 @@ export async function createLinkedEntry(
       emporio_supplier_id: params.emporio_supplier_id ?? null,
       establishment_id: params.establishment_id ?? null,
       payment_method: params.payment_method ?? null,
+      agreement_id: params.agreement_id ?? null,
+      notes: params.notes ?? null,
     }),
   });
 
