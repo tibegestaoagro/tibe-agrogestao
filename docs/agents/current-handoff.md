@@ -20,30 +20,55 @@ outra. Leia depois do `CLAUDE.md`.
 
 ⚠️ Teto de 200 linhas. Este arquivo já chegou a 1.316 (arquivado em 02/09) e a
 904 (arquivado em 07/11). Se passar do teto, arquive antes de acrescentar.
-Histórico: `historico/2026-08.md`, `historico/2026-09.md`,
-`historico/2026-10.md` e `historico/2026-11.md` (o detalhe de todas as entregas
-do Empório, das fases F0 a F5 até os três planos de 06/11).
+Histórico em `historico/2026-08.md` a `historico/2026-11.md` (o detalhe do
+Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-07 (spec do financeiro do Empório escrita e
-  revisada).
+- Atualizado em: 2026-11-08 (entrega 1 do financeiro do Empório pronta na
+  branch; missão autônoma das quatro entregas em curso).
 - `main` em `ed8e37e`, Vercel verde. Nenhuma migração pendente no Neon.
-- Branch de trabalho `emporio-financeiro-spec`: a spec, o `.gitignore` das
-  pastas de pesquisa e este handoff. Sem merge ainda.
+- Branches empilhadas, sem merge: `emporio-financeiro-spec` (spec) →
+  `emporio-financeiro-1` (entrega 1, pronta) → `emporio-financeiro-2` (entrega
+  2, em execução). Evidências por entrega em
+  [financeiro-emporio-relatorio.md](financeiro-emporio-relatorio.md).
 
-### ⏭️ Próximo passo: o plano da entrega 1 do financeiro do Empório
+### A missão autônoma do financeiro do Empório (aprovada em 07/11)
 
-Spec aprovada em conversa e escrita em
-[../superpowers/specs/2026-11-07-emporio-financeiro-design.md](../superpowers/specs/2026-11-07-emporio-financeiro-design.md):
-quatro entregas, decisões Q214 à Q237 (ainda não copiadas para a tabela da
-spec do módulo; o plano 1 faz isso). Um revisor leu a spec como builder; as
-nove perguntas dele foram fechadas na própria spec, marcadas "decisão minha".
-O usuário ainda não leu a versão revisada: confirme com ele as escolhas
-listadas na resposta de 07/11 antes de planejar. Depois, a skill
-`superpowers:writing-plans` para a entrega 1 (casa do financeiro, papel
-`financeiro`, lacuna 2.26, Empório fora do `/financeiro`). Suíte nova:
-`test:m98`.
+Spec: [../superpowers/specs/2026-11-07-emporio-financeiro-design.md](../superpowers/specs/2026-11-07-emporio-financeiro-design.md)
+(Q214 a Q237, já na tabela do módulo). Contrato: quatro entregas, uma branch
+sobre a outra, cada uma com nove critérios batidos (plano, migração no Docker,
+check/tsc/lint/build, suíte nova mais `test:all`, isolamento, roteiro nos dois
+sentidos, juiz Opus com seis critérios a 8 ou mais, manual, docs). **Merge,
+push na `main`, deploy e migração no Neon são do usuário, na ordem 1, 2, 3,
+4, cada um com a migração antes do push, depois de revisar junto.** Nenhuma
+autorização disso foi dada.
+
+**Entrega 1 (`emporio-financeiro-1`): pronta.** Papel `financeiro`, ação
+`dinheiro`, a casa `/emporio/financeiro` (Hoje, A pagar, A receber, Posição
+de caixa com extrato de gaveta, gerência e conta), a conta da compra paga
+dentro do Empório com `CashMovement` (lacuna 2.26), o `/financeiro` do Tibé só
+da fazenda. Migração `20261107130000_emporio_financeiro_papel` (dois valores
+de enum), aplicada só no Docker. Provas: `test:m98` (244 checagens), `test:all
+-- --sem-redis` 97/98 com a `m92` (não tocada) verde sozinha, roteiro
+`emporio-financeiro-casa` 0 falhas e reprovando com a regra desfeita, juiz
+Opus rodada 1 reprovou (6/10) e rodada 2 aprovou (8/10) depois de 10
+correções revisadas. Decisões tomadas sem o usuário estão no relatório de
+evidências.
+
+**Entrega 2 (`emporio-financeiro-2`): em execução.** Plano
+[../superpowers/plans/2026-11-08-emporio-financeiro-entrega-2.md](../superpowers/plans/2026-11-08-emporio-financeiro-entrega-2.md)
+(vencimento do fiado, limite, bloqueio, liberação, ficha de crédito, lista de
+cobrança; `test:m99`, roteiro `emporio-financeiro-credito`, migração
+`20261108120000_emporio_financeiro_credito`). Ledger em
+`.superpowers/sdd/<plano>/progress.md` (não versionado).
+
+### ⏭️ Próximo passo
+
+Se a missão parou no meio: ler o ledger da entrega em curso e retomar da
+primeira tarefa sem `complete`. Se as quatro terminaram: revisar com o usuário,
+e então, por entrega e na ordem, migração no Neon (URL Direct), merge e push
+na `main` com `AUTORIZADO_PELO_USUARIO=1`, cada um autorizado na conversa.
 
 As pastas `research_notes/` e `reports/` (pesquisa de mercado que embasou a
 spec) são ignoradas pelo git de propósito: o repositório é público.
@@ -54,35 +79,15 @@ Spec do módulo: [../specs/module-39-meu-emporio.md](../specs/module-39-meu-empo
 (decisões até a Q213). Dívidas do módulo em [dividas.md](dividas.md), de 2.15 a
 2.27 e de 5.19 a 5.22. Manual em `/manual`, roteiro `manual-emporio`.
 
-Os três planos de 06/11 estão em produção desde 07/11, com deploy autorizado
-pelo usuário na conversa:
-1. Clientes e fornecedores fora de `Contact` (`test:m95`, Q191 a Q198). A
-   migração moveu dados; `conferir-clientes-emporio.ts` deu "Tudo confere"
-   antes e depois do deploy.
-2. A escolha do cliente e do fornecedor com busca no servidor (`test:m96`, Q199
-   a Q204).
-3. Pedido para entrega e romaneio (`test:m97`, Q205 a Q213). Decisões do
-   usuário em 07/11: a linha "PEDIDO PARA ENTREGA" fica nos papéis do orçamento
-   e da venda, e o Vendedor também muda o pedido para entrega de venda fechada,
-   só nas lojas dele.
+Os três planos de 06/11 (clientes e fornecedores fora de `Contact`, a escolha
+com busca no servidor, pedido para entrega e romaneio; `test:m95` a `m97`,
+Q191 a Q213) estão em produção desde 07/11, com deploy autorizado na conversa.
+Detalhe em `historico/2026-11.md`. O roteiro `emporio-romaneio` precisa de
+`pypdf` no python do sistema.
 
-Junto com o plano 3 subiu a correção do "Completar cadastro": o que se
-digitava antes de o cadastro carregar era sobrescrito.
-
-Provas no código final: `test:all -- --sem-redis` 97/97; roteiros
-`emporio-clientes`, `emporio-escolha`, `emporio-romaneio` e `manual-emporio`
-verdes. O roteiro `emporio-romaneio` precisa de `pypdf` no python do sistema.
-
-Pendências de produto do Empório que esperam o usuário (registradas em 05/11,
-antes da limpeza da Da Mata; confirme com ele se ainda valem):
-- o reforço vindo da gerência deve esperar o gestor confirmar, como a sangria?
-- as pontas da Q187: amarrar o cliente da venda ao do orçamento, o preço orçado
-  valer para qualquer quantidade, e o `sold_at` retroativo pela API;
-- imprimir um cupom de 58 e de 80 mm na bobina da loja e um A4;
-- o teste de cliente de
-  [roteiro-teste-emporio-cliente.md](roteiro-teste-emporio-cliente.md): receber
-  o que ele estranhou e separar defeito (branch nova, com roteiro que reprove
-  antes) de "faz falta" (conversa de escopo).
+As pendências de produto do Empório que esperam o usuário (reforço da
+gerência, pontas da Q187, cupom de 58/80 mm e A4, o teste de cliente) estão em
+[pendencias-do-usuario.md](pendencias-do-usuario.md), seção do Empório.
 
 Não ligue recurso nem escreva dado da Da Mata pelo agente: quem faz é o
 usuário, pela Plataforma e pelas telas.
@@ -183,6 +188,8 @@ relatórios em [agente-whatsapp/](agente-whatsapp/), detalhe em
 
 ## Últimas rodadas
 
+- 08/11: entrega 1 do financeiro do Empório pronta em `emporio-financeiro-1`
+  (juiz Opus 8/10 na rodada 2); plano da entrega 2 escrito.
 - 07/11: pesquisa de mercado, entrevista em 24 decisões e spec do financeiro
   do Empório, revisada por builder (branch `emporio-financeiro-spec`).
 - 07/11: plano 3 do Empório (entrega e romaneio) em produção, `c3b2606`; handoff
@@ -191,5 +198,3 @@ relatórios em [agente-whatsapp/](agente-whatsapp/), detalhe em
   produção, `ad2a42e`.
 - 06/11: Da Mata limpa para a Agromax; equipe do Empório separada dos usuários
   do Tibé (`55dfd81`).
-- 05/11: Empório, entregas 2 a 4 (caixa com turno, vendedor e relatórios,
-  orçamento), o manual e o cenário de demonstração.

@@ -347,3 +347,17 @@ estruturado, captura de exceção em página, cabeçalhos de segurança, Next 16
 advisories de auth, integridade e auditoria no banco, idempotência de alerta,
 conferência de tenant no `execute-action`, normalização de número e data no
 agente, e o código do worker. Tudo isso está em produção e validado.
+
+## 11. Pendências de produto do Empório (registradas em 05/11/2026)
+
+Registradas antes da limpeza da Da Mata para a Agromax; confirme se ainda
+valem antes de abrir branch:
+
+- o reforço vindo da gerência deve esperar o gestor confirmar, como a sangria?
+- as pontas da Q187: amarrar o cliente da venda ao do orçamento, o preço orçado
+  valer para qualquer quantidade, e o `sold_at` retroativo pela API;
+- imprimir um cupom de 58 e de 80 mm na bobina da loja e um A4;
+- o teste de cliente de
+  [roteiro-teste-emporio-cliente.md](roteiro-teste-emporio-cliente.md): receber
+  o que ele estranhou e separar defeito (branch nova, com roteiro que reprove
+  antes) de "faz falta" (conversa de escopo).
