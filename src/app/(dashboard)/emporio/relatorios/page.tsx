@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
-import { papelDoEmporio } from "@/lib/emporio/papel";
+import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { veAPagina } from "@/lib/emporio/paginas";
 import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
 import { relatorioDeVendasAction } from "@/lib/actions/emporio-relatorios";
@@ -24,7 +24,8 @@ export default async function RelatoriosPage({
   const { de: deDaUrl = "", ate: ateDaUrl = "", loja: lojaDaUrl = "" } = await searchParams;
 
   const db = await getTenantDb();
-  if (!veAPagina(await papelDoEmporio(db, user), "/emporio/relatorios")) redirect("/emporio");
+  const papel = await papelDoEmporio(db, user);
+  if (!veAPagina(papel, "/emporio/relatorios")) redirect("/emporio");
   const lojasRes = await listarEstabelecimentosAction(db, user);
   const lojas = lojasRes.ok ? lojasRes.data.map((l) => ({ id: l.id, name: l.name })) : [];
 
@@ -59,6 +60,16 @@ export default async function RelatoriosPage({
           Quem vendeu, o que vendeu e o que ficou parado, num período à sua escolha.
         </p>
       </header>
+
+      {pode(papel, "dinheiro") && (
+        <p className="text-sm text-texto-secundario">
+          Os relatórios do dinheiro (a receber por idade, a pagar por vencimento, posição de caixa) estão no{" "}
+          <Link href="/emporio/financeiro/relatorios" className="font-medium text-texto underline">
+            Financeiro
+          </Link>
+          .
+        </p>
+      )}
 
       {lojas.length === 0 ? (
         <EmptyState titulo="Nenhuma loja disponível">Cadastre uma loja em Estabelecimentos para ver os relatórios.</EmptyState>

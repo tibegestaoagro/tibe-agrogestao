@@ -8,6 +8,8 @@ const ABAS = [
   { href: "/emporio/financeiro/cobranca", rotulo: "Cobrança" },
   { href: "/emporio/financeiro/caixa", rotulo: "Posição de caixa" },
   { href: "/emporio/financeiro/aprovacoes", rotulo: "Aprovações" },
+  { href: "/emporio/financeiro/projecao", rotulo: "Projeção" },
+  { href: "/emporio/financeiro/relatorios", rotulo: "Relatórios" },
 ] as const;
 
 /** O endereço de uma aba do Financeiro, levando a loja escolhida junto. */
