@@ -615,7 +615,7 @@ def estado_compra_nova():
     clicar("Nova compra")
     time.sleep(1.5)
     escolher("Loja", "Loja Centro")
-    escolher_fornecedor("Agropecuária Central")
+    confere("compra-nova: fornecedor da demonstracao escolhido", escolher_fornecedor("Nutrisul Rações e Suplementos", "Nutrisul") is True)
     escolher_aria("Produto do item 1", "Milho em Grão")
     time.sleep(0.8)
     preencher_aria("Quantidade do item 1", "20")
@@ -629,6 +629,7 @@ figura("compra-nova", "gestor", "/emporio/compras", [
     (2, "M.L('Itens')", "a lista de itens"),
     (3, "M.L('Frete (R$)')", "o campo Frete"),
     (4, "M.T('Já recebi a mercadoria')", "a escolha entre ja recebi e vai chegar"),
+    (5, "M.L('De onde saiu o dinheiro')", "o campo De onde saiu o dinheiro"),
 ], estado=estado_compra_nova, hd=1300, hc=1700)
 
 figura("compra-receber", "vendedor_centro", "/emporio/compras", [

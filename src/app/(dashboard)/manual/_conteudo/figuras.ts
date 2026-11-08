@@ -124,12 +124,13 @@ export const FIGURAS: Figura[] = [
     pagina: "/emporio/compras",
     papel: "gestor",
     legenda: "Lançando uma compra de mercadoria",
-    alt: "Painel Nova compra com fornecedor, itens, frete e forma de pagamento",
+    alt: "Painel Nova compra com fornecedor, itens, frete, forma de pagamento e de onde saiu o dinheiro",
     marcas: [
       { numero: 1, alvo: "o campo Fornecedor", texto: "Opcional. Toque em Escolher fornecedor e busque pelo nome, pelo documento ou por um pedaço do telefone. Na propriedade do dono, a forma de pagamento some." },
       { numero: 2, alvo: "a lista de itens (produto, quantidade, valor total do item)", texto: "Digite o valor total de cada item, não o valor por unidade." },
       { numero: 3, alvo: "o campo Frete (R$)", texto: "É dividido entre os itens pelo valor de cada um." },
       { numero: 4, alvo: "a caixa Já recebi a mercadoria", texto: "Se ainda não chegou, a conta a pagar nasce hoje e o estoque entra quando você receber." },
+      { numero: 5, alvo: "o campo De onde saiu o dinheiro", texto: "Na compra paga na hora, diga se o dinheiro saiu da gaveta da loja ou de uma conta." },
     ],
   },
   {
