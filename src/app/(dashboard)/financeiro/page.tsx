@@ -6,10 +6,7 @@ import { getDre, getCashFlow, getUpcoming, resolvePeriod } from "@/lib/actions/f
 import { MODULE_LABEL } from "@/lib/related-modules";
 import { listFinancialCategoriesAction } from "@/lib/actions/financial-categories";
 import { situacaoDe, type SituacaoDePagamento } from "@/lib/actions/financial-payments";
-import { getActiveProfilesForTenant } from "@/lib/tenant-context";
-import { isFeatureVisibleForUser } from "@/lib/features";
-import { lerArea, filtroDeArea, areaPermitida } from "@/lib/financial-area";
-import { AreaFiltro } from "./area-filtro";
+import { filtroDeArea } from "@/lib/financial-area";
 import { getActivePropertyId } from "@/lib/active-property";
 import { inicioDoDiaEmSaoPaulo, prazoVencido } from "@/lib/dia-calendario";
 import {
@@ -105,12 +102,8 @@ export default async function FinanceiroPage(
   const activePropertyId = await getActivePropertyId(db);
   const propriedadeEscolhida = searchParams.property_id ?? activePropertyId ?? undefined;
 
-  // O seletor de área só existe quando a conta tem Fazenda e Empório (Q106).
-  const temDoisPerfis =
-    (await getActiveProfilesForTenant(user.tenant_id)).includes("fazenda") &&
-    (await isFeatureVisibleForUser(user.tenant_id, user.id, "emporio"));
-  // Q117: fora da lista a área é sempre a fazenda, sem erro e sem aviso.
-  const area = await areaPermitida(user, temDoisPerfis ? (lerArea(searchParams.area) ?? "tudo") : "tudo");
+  // Q222: o Financeiro do Tibé é só da fazenda; o `?area=` antigo é ignorado.
+  const area = "fazenda" as const;
 
   const hoje = inicioDoDiaEmSaoPaulo(new Date());
   const filtroDeStatus =
@@ -154,7 +147,7 @@ export default async function FinanceiroPage(
     }),
     // O seletor do formulário lista as categorias do tenant, não uma lista fixa.
     listFinancialCategoriesAction(db, { activeOnly: true }),
-    propriedadeEscolhida && area !== "emporio"
+    propriedadeEscolhida
       ? db.financialEntry.count({ where: { ...filtroDaTabela, property_id: null } })
       : Promise.resolve(0),
   ]);
@@ -214,7 +207,6 @@ export default async function FinanceiroPage(
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold text-texto">Financeiro</h1>
         <div className="flex gap-2">
-          {temDoisPerfis && <AreaFiltro area={area} areaVeioDaUrl={!!searchParams.area} />}
           <ExportReportButton area={area} />
           {writable && (
             <EntryForm

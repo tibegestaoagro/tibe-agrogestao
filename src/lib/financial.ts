@@ -13,6 +13,17 @@ import type { RelatedModule } from "@/generated/prisma/enums";
 type EntryType = "income" | "expense";
 type EntryStatus = "pending" | "paid" | "overdue";
 
+/**
+ * A conta é do Empório quando tem loja ou veio do módulo `emporio` (Q222).
+ * O Financeiro do Tibé recusa essas: pagar sem `CashMovement` deixaria o
+ * dinheiro "pago" sem sair de lugar nenhum.
+ */
+export const ENTRY_DO_EMPORIO_MSG = "Esta conta é do Empório: pague, adie ou cancele em Meu Empório > Financeiro.";
+
+export function ehDoEmporio(entry: { establishment_id: string | null; related_module: string }): boolean {
+  return entry.establishment_id !== null || entry.related_module === "emporio";
+}
+
 export type TenantTransactionClient = Prisma.TransactionClient;
 export type FinancialEntryCreateClient = {
   financialEntry: {

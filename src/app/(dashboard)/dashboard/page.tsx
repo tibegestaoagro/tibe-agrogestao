@@ -15,7 +15,7 @@ import { countCompletedUnbilledOrders } from "@/lib/actions/service-orders";
 import { getActivePropertyId } from "@/lib/active-property";
 import { classificar } from "@/lib/actions/meu-dia";
 import { lerItensDoDiaCompleto } from "@/lib/actions/emporio-meu-dia";
-import { areaPermitida, filtroDeArea } from "@/lib/financial-area";
+import { filtroDeArea } from "@/lib/financial-area";
 import { saudacaoEmSaoPaulo } from "@/lib/dia-calendario";
 import { decToNum } from "@/lib/serialize";
 import KpiCard from "@/components/dashboard/kpi-card";
@@ -60,9 +60,8 @@ export default async function DashboardHome() {
   // antigo segue nulo. Filtrar aqui esconderia esses em silêncio.
   const activePropertyId = hasFazenda ? await getActivePropertyId(db) : null;
 
-  /* Q117: quem não vê o Empório tem os números financeiros só da fazenda;
-     quem vê continua somando tudo (dívida 2.27). */
-  const area = user ? await areaPermitida(user, "tudo") : ("fazenda" as const);
+  /* Q222: o Financeiro do Tibé é só da fazenda; o Empório tem o dele. */
+  const area = "fazenda" as const;
   const areaWhere = filtroDeArea(area);
 
   const now = new Date();

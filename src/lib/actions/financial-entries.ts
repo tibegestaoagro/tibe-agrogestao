@@ -1,5 +1,5 @@
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
-import type { FinancialEntryCreateClient } from "@/lib/financial";
+import { ehDoEmporio, ENTRY_DO_EMPORIO_MSG, type FinancialEntryCreateClient } from "@/lib/financial";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import {
   registrarPagamentoAction,
@@ -99,6 +99,7 @@ export async function markEntryPaidAction(
 ): Promise<ActionResult<{ id: string; paid_at: Date }>> {
   const existing = await db.financialEntry.findFirst({ where: { id } });
   if (!existing) return fail("NOT_FOUND", "Lançamento não encontrado", 404);
+  if (ehDoEmporio(existing)) return fail("ENTRY_DO_EMPORIO", ENTRY_DO_EMPORIO_MSG, 422);
   if (existing.status === "paid") {
     return fail("ALREADY_PAID", "Este lançamento já está marcado como pago", 409);
   }
@@ -130,6 +131,7 @@ export async function postponeEntryDueDateAction(
 ): Promise<ActionResult<{ id: string; due_date: Date }>> {
   const existing = await db.financialEntry.findFirst({ where: { id } });
   if (!existing) return fail("NOT_FOUND", "Lançamento não encontrado", 404);
+  if (ehDoEmporio(existing)) return fail("ENTRY_DO_EMPORIO", ENTRY_DO_EMPORIO_MSG, 422);
   if (existing.status !== "pending") {
     return fail("NOT_PENDING", "Só é possível adiar o vencimento de um lançamento pendente", 422);
   }
@@ -149,6 +151,7 @@ export async function cancelEntryAction(
 ): Promise<ActionResult<{ id: string }>> {
   const existing = await db.financialEntry.findFirst({ where: { id } });
   if (!existing) return fail("NOT_FOUND", "Lançamento não encontrado", 404);
+  if (ehDoEmporio(existing)) return fail("ENTRY_DO_EMPORIO", ENTRY_DO_EMPORIO_MSG, 422);
   if (existing.status === "cancelled") {
     return fail("ALREADY_CANCELLED", "Este lançamento já está cancelado", 409);
   }

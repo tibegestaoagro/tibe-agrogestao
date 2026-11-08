@@ -99,8 +99,8 @@ redescobertos como defeito.
 | 2.23 | custo extra na produção da loja (mão de obra, embalagem) somado ao custo do produto feito aqui | Q78, F2b | mexe no "Vendeu, Pagou" e na margem (F3, F4); hoje o custo é só a soma dos componentes |
 | 2.24 | crédito na loja na devolução (o cliente sai com saldo para gastar depois) | Q86, F3a | precisa de um saldo do cliente, que não existe; hoje a devolução sai em dinheiro, abate do fiado ou vira troca |
 | 2.25 | taxa de cartão por número de parcelas (2x, 3x...), antecipação do recebível do cartão e cheque no recebimento de fiado | Q89, Q91, F3b | tabela de taxa por faixa de parcelas na regra; antecipação como transferência com custo; o cheque do recebimento sem venda por trás |
-| 2.26 | "Vendeu, Pagou" informado (valor digitado na venda), despesa fixa semanal e anual, e conta do Empório paga pelo Financeiro sem sair da gaveta ou da conta | Q97, Q100, F4a | campo opcional no balcão por regra informada; periodicidade no modelo; o Financeiro perguntar de onde saiu o dinheiro quando o lançamento é do Empório |
-| 2.27 | filtro "Fazenda / Empório / Tudo" no resumo financeiro do Painel e nas respostas do WhatsApp ("quanto gastei") | Q106, F4b | o mesmo parâmetro `area` no `financial-summary` e nos handlers do agente, com a pergunta de qual área quando a conta tem os dois perfis |
+| 2.26 | "Vendeu, Pagou" informado (valor digitado na venda) e despesa fixa semanal e anual. O terceiro item (conta do Empório paga pelo Financeiro sem sair da gaveta ou da conta) **fechado em 07/11/2026** (entrega 1 do financeiro do Empório): o Tibé recusa a conta do Empório com `ENTRY_DO_EMPORIO` | Q97, Q100, F4a | campo opcional no balcão por regra informada; periodicidade no modelo |
+| 2.27 | **não vai existir: decisão Q222 de 07/11/2026, o Empório tem financeiro próprio.** O Financeiro do Tibé é só da fazenda e o `area` das rotas é aceito e ignorado | Q106, F4b, Q222 | nada: o filtro "Fazenda / Empório / Tudo" foi retirado |
 
 ## 3. Rede de segurança com furo
 

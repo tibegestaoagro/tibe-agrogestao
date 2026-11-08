@@ -1,11 +1,16 @@
 import type { Prisma } from "@/generated/prisma/client";
-import { isFeatureVisibleForUser } from "@/lib/features";
 
 /**
- * Meu Empório, F4b (Q106): o filtro "Fazenda / Empório / Tudo" do Financeiro.
+ * O Financeiro do Tibé é SÓ da fazenda (Empório, financeiro das lojas, Q222,
+ * 07/11/2026). O Empório tem o seu em `/api/v1/emporio/finance`, com a conta
+ * paga saindo de uma gaveta ou conta bancária (`CashMovement`).
  *
- * `emporio` é o lançamento com `establishment_id`; `fazenda` é o que não tem;
- * `tudo` não filtra nada (o comportamento de antes do filtro existir).
+ * Antes disso o filtro "Fazenda / Empório / Tudo" (Q106, F4b) deixava o
+ * lançamento do Empório aparecer aqui e ser pago sem mover dinheiro nenhum.
+ *
+ * O parâmetro `area` das seis rotas segue aceito para o contrato não quebrar
+ * (cliente antigo, link de relatório já emitido), mas é IGNORADO: o filtro
+ * devolve sempre a fazenda, qualquer que seja o pedido.
  */
 
 export const AREAS_FINANCEIRAS = ["fazenda", "emporio", "tudo"] as const;
@@ -21,31 +26,19 @@ export function lerArea(valor: unknown): AreaFinanceira | null {
     : null;
 }
 
-/**
- * Meu Empório, F5 (Q117): quem não vê o Empório tem a área forçada para
- * `fazenda`, sem erro e sem aviso. Pedir `emporio` vira `fazenda` para não
- * revelar que o recurso existe, e o "Tudo" dele é só a fazenda. Quem vê
- * mantém o pedido.
- */
+/** Sempre `fazenda`: o Financeiro do Tibé não tem mais outra área (Q222). */
 export async function areaPermitida(
-  user: { id: string; tenant_id: string },
-  area: AreaFinanceira,
+  _user: { id: string; tenant_id: string },
+  _area: AreaFinanceira,
 ): Promise<AreaFinanceira> {
-  if (area === "fazenda") return area;
-  return (await isFeatureVisibleForUser(user.tenant_id, user.id, "emporio")) ? area : "fazenda";
+  return "fazenda";
 }
 
-/**
- * Pedaço do `where` de `FinancialEntry` para a área. Com `emporio` a fazenda
- * escolhida é ignorada: lançamento do Empório nunca tem propriedade, e filtrar
- * por ela esvaziaria a lista.
- */
+/** Pedaço do `where` de `FinancialEntry`: sempre sem loja, com a fazenda escolhida quando houver. */
 export function filtroDeArea(
-  area: AreaFinanceira | undefined,
+  _area: AreaFinanceira | undefined,
   property_id?: string,
 ): Pick<Prisma.FinancialEntryWhereInput, "establishment_id" | "property_id"> {
-  const propriedade = area !== "emporio" && property_id ? { property_id } : {};
-  if (area === "emporio") return { establishment_id: { not: null } };
-  if (area === "fazenda") return { establishment_id: null, ...propriedade };
-  return propriedade;
+  const propriedade = property_id ? { property_id } : {};
+  return { establishment_id: null, ...propriedade };
 }

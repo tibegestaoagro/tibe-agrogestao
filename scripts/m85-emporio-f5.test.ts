@@ -376,9 +376,10 @@ async function comBanco() {
         check(`quem não vê o Empório: '${a}' vira 'fazenda'`, x === "fazenda", String(x));
       }
       check("quem não vê o Empório: 'fazenda' continua 'fazenda'", (await area(Xx.owner, "fazenda")) === "fazenda");
+      // Q222 (07/11/2026): o Financeiro do Tibé é só da fazenda, vendo ou não o Empório; o pedido é aceito e ignorado.
       for (const a of ["tudo", "emporio", "fazenda"]) {
         const x = await area(Vv.owner, a);
-        check(`quem vê o Empório: '${a}' se mantém`, x === a, String(x));
+        check(`quem vê o Empório: '${a}' vira 'fazenda' (a área é ignorada, Q222)`, x === "fazenda", String(x));
       }
     });
 

@@ -637,19 +637,20 @@ async function comBanco() {
       tokenFVisu = signAccessToken(F.visu.id);
 
       const dre = async (area?: string) => dados({ ok: true, data: await FR.getDre(F.db, { ...janela, ...(area ? { area } : {}) }) });
-      check("DRE area=emporio: resultado 1.000 - 300 - 70 = R$ 630", perto(n((await dre("emporio")).total_result), 630), j(await dre("emporio")));
+      // Q222 (07/11/2026): o Financeiro do Tibé é só da fazenda; `area` é aceita e ignorada.
+      check("DRE area=emporio: ignorada, vale a fazenda (R$ 270)", perto(n((await dre("emporio")).total_result), 270), j(await dre("emporio")));
       check("DRE area=fazenda: resultado 500 - 200 - 30 = R$ 270", perto(n((await dre("fazenda")).total_result), 270));
-      check("DRE area=tudo: R$ 900", perto(n((await dre("tudo")).total_result), 900));
-      check("DRE sem area: R$ 900 (igual a hoje)", perto(n((await dre()).total_result), 900));
-      check("DRE: emporio + fazenda = tudo", perto(n((await dre("emporio")).total_result) + n((await dre("fazenda")).total_result), n((await dre("tudo")).total_result)));
+      check("DRE area=tudo: só a fazenda (R$ 270)", perto(n((await dre("tudo")).total_result), 270));
+      check("DRE sem area: só a fazenda (R$ 270)", perto(n((await dre()).total_result), 270));
+      check("DRE: emporio, fazenda e tudo dão o mesmo resultado", perto(n((await dre("emporio")).total_result), n((await dre("fazenda")).total_result)) && perto(n((await dre("tudo")).total_result), n((await dre("fazenda")).total_result)));
 
       const saldo = async (area?: string) => {
         const s = (await FR.getCashFlow(F.db, { ...janela, groupBy: "month", ...(area ? { area } : {}) })) as Dado[];
         return s.reduce((t, x) => t + n(x.balance), 0);
       };
-      check("fluxo de caixa area=emporio: saldo 1.000 - 300 = R$ 700", perto(await saldo("emporio"), 700), String(await saldo("emporio")));
+      check("fluxo de caixa area=emporio: ignorada, vale a fazenda (R$ 300)", perto(await saldo("emporio"), 300), String(await saldo("emporio")));
       check("fluxo de caixa area=fazenda: saldo 500 - 200 = R$ 300", perto(await saldo("fazenda"), 300));
-      check("fluxo de caixa area=tudo e sem area: R$ 1.000", perto(await saldo("tudo"), 1000) && perto(await saldo(), 1000));
+      check("fluxo de caixa area=tudo e sem area: só a fazenda (R$ 300)", perto(await saldo("tudo"), 300) && perto(await saldo(), 300));
 
       const valores = (l: Dado[]) => l.map((x) => n(x.amount)).sort((a, b) => a - b);
       const chamadaUpcoming = async (area: string, forma: "posicional" | "objeto"): Promise<Dado[] | null> => {
@@ -661,20 +662,20 @@ async function comBanco() {
         }
       };
       let forma: "posicional" | "objeto" = "posicional";
-      const teste = await chamadaUpcoming("emporio", "posicional");
+      const teste = await chamadaUpcoming("fazenda", "posicional");
       if (!teste || teste.length !== 1) forma = "objeto";
       const u = (area: string) => chamadaUpcoming(area, forma);
       console.log(`  (getUpcoming: forma '${forma}' de passar a area)`);
-      check("a vencer area=emporio: só os R$ 70 (com loja)", j(valores((await u("emporio")) ?? [])) === j([70]), j(await u("emporio")));
+      check("a vencer area=emporio: ignorada, só os R$ 30 da fazenda", j(valores((await u("emporio")) ?? [])) === j([30]), j(await u("emporio")));
       check("a vencer area=fazenda: só os R$ 30 (sem loja)", j(valores((await u("fazenda")) ?? [])) === j([30]));
-      check("a vencer area=tudo: os dois", j(valores((await u("tudo")) ?? [])) === j([30, 70]));
+      check("a vencer area=tudo: só a fazenda (R$ 30)", j(valores((await u("tudo")) ?? [])) === j([30]));
       const semArea = (await FR.getUpcoming(F.db, 7)) as Dado[];
-      check("a vencer sem area: os dois (igual a hoje)", j(valores(semArea)) === j([30, 70]));
+      check("a vencer sem area: só a fazenda (R$ 30)", j(valores(semArea)) === j([30]));
     });
 
     await rodar("F: filtro de área (rotas)", async () => {
       console.log("\n7. Filtro de área do Financeiro: rotas, 422 e o link do PDF");
-      // F5 (Q117): fora do Empório a área é sempre "fazenda"; aqui o filtro é provado para quem vê.
+      // Q222: com ou sem Empório visível, a área é sempre "fazenda"; aqui a conta vê o Empório e o filtro segue ignorando.
       await prisma.tenantProfile.upsert({
         where: { tenant_id_profile_type: { tenant_id: F.t.id, profile_type: "emporio" } },
         create: { tenant_id: F.t.id, profile_type: "emporio", active: true },
@@ -689,28 +690,28 @@ async function comBanco() {
         return { r, valores: ((r.json?.data ?? []) as Dado[]).map((x) => n(x.amount)).sort((a, b) => a - b) };
       };
       const ent = await lista("emporio");
-      check("financial-entries area=emporio: só os 3 com loja (70, 300, 1.000)", ent.r.status === 200 && j(ent.valores) === j([70, 300, 1000]), `${ent.r.status} ${j(ent.valores)}`);
+      check("financial-entries area=emporio: ignorada, só os 3 sem loja (30, 200, 500)", ent.r.status === 200 && j(ent.valores) === j([30, 200, 500]), `${ent.r.status} ${j(ent.valores)}`);
       check("financial-entries area=fazenda: só os 3 sem loja (30, 200, 500)", j((await lista("fazenda")).valores) === j([30, 200, 500]));
-      check("financial-entries area=tudo: os 6", j((await lista("tudo")).valores) === j([30, 70, 200, 300, 500, 1000]));
-      check("financial-entries sem area: os 6 (igual a hoje)", j((await lista()).valores) === j([30, 70, 200, 300, 500, 1000]));
+      check("financial-entries area=tudo: só os 3 da fazenda", j((await lista("tudo")).valores) === j([30, 200, 500]));
+      check("financial-entries sem area: só os 3 da fazenda", j((await lista()).valores) === j([30, 200, 500]));
       em422("financial-entries com area inválida", await chamarRota(tokenF, "financial-entries", `financial-entries?area=lixo&${per}`), "area");
 
       const dreR = async (area?: string) => (await chamarRota(tokenF, "financial/dre", `financial/dre?${area ? `area=${area}&` : ""}${per}`)).json?.data?.total_result;
-      check("rota financial/dre: emporio 630, fazenda 270, tudo e sem area 900", perto(n(await dreR("emporio")), 630) && perto(n(await dreR("fazenda")), 270) && perto(n(await dreR("tudo")), 900) && perto(n(await dreR()), 900), `${await dreR("emporio")} ${await dreR("fazenda")}`);
+      check("rota financial/dre: emporio, fazenda, tudo e sem area dão 270 (só a fazenda)", perto(n(await dreR("emporio")), 270) && perto(n(await dreR("fazenda")), 270) && perto(n(await dreR("tudo")), 270) && perto(n(await dreR()), 270), `${await dreR("emporio")} ${await dreR("fazenda")}`);
       em422("financial/dre com area inválida", await chamarRota(tokenF, "financial/dre", `financial/dre?area=lixo&${per}`), "area");
 
       const cfR = async (area?: string) => {
         const r = await chamarRota(tokenF, "financial/cash-flow", `financial/cash-flow?${area ? `area=${area}&` : ""}group_by=month&${per}`);
         return ((r.json?.data ?? []) as Dado[]).reduce((t, x) => t + n(x.balance), 0);
       };
-      check("rota financial/cash-flow: emporio 700, fazenda 300, tudo e sem area 1.000", perto(await cfR("emporio"), 700) && perto(await cfR("fazenda"), 300) && perto(await cfR("tudo"), 1000) && perto(await cfR(), 1000));
+      check("rota financial/cash-flow: emporio, fazenda, tudo e sem area dão 300 (só a fazenda)", perto(await cfR("emporio"), 300) && perto(await cfR("fazenda"), 300) && perto(await cfR("tudo"), 300) && perto(await cfR(), 300));
       em422("financial/cash-flow com area inválida", await chamarRota(tokenF, "financial/cash-flow", `financial/cash-flow?area=lixo&${per}`), "area");
 
       const upR = async (area?: string) => {
         const r = await chamarRota(tokenF, "financial/upcoming", `financial/upcoming${area ? `?area=${area}` : ""}`);
         return ((r.json?.data ?? []) as Dado[]).map((x) => n(x.amount)).sort((a, b) => a - b);
       };
-      check("rota financial/upcoming: emporio [70], fazenda [30], tudo e sem area [30, 70]", j(await upR("emporio")) === j([70]) && j(await upR("fazenda")) === j([30]) && j(await upR("tudo")) === j([30, 70]) && j(await upR()) === j([30, 70]));
+      check("rota financial/upcoming: emporio, fazenda, tudo e sem area dão [30] (só a fazenda)", j(await upR("emporio")) === j([30]) && j(await upR("fazenda")) === j([30]) && j(await upR("tudo")) === j([30]) && j(await upR()) === j([30]));
       em422("financial/upcoming com area inválida", await chamarRota(tokenF, "financial/upcoming", "financial/upcoming?area=lixo"), "area");
 
       // link do relatório
@@ -729,15 +730,15 @@ async function comBanco() {
       const lE = await link("emporio");
       const tkE = tokenDe(lE);
       check("report/link area=emporio: 200 com report_url e token", lE.status === 200 && !!tkE, `${lE.status} ${j(lE.json)}`);
-      check("o token assinado carrega a area emporio", /emporio/i.test(payloadDe(tkE)), payloadDe(tkE));
+      check("o token de area=emporio carrega fazenda (a área é ignorada)", /fazenda/i.test(payloadDe(tkE)) && !/emporio/i.test(payloadDe(tkE)), payloadDe(tkE));
       const lF = await link("fazenda");
       check("o token de area=fazenda carrega fazenda (e não emporio)", /fazenda/i.test(payloadDe(tokenDe(lF))) && !/emporio/i.test(payloadDe(tokenDe(lF))), payloadDe(tokenDe(lF)));
       const lT = await link("tudo");
       const lS = await link();
-      check("area=tudo e sem area: link 200, sem restringir a emporio nem fazenda", lT.status === 200 && lS.status === 200 && !/emporio|fazenda/i.test(payloadDe(tokenDe(lT))) && !/emporio|fazenda/i.test(payloadDe(tokenDe(lS))), `${payloadDe(tokenDe(lT))} | ${payloadDe(tokenDe(lS))}`);
+      check("area=tudo e sem area: link 200, o token carrega fazenda e nunca emporio", lT.status === 200 && lS.status === 200 && /fazenda/i.test(payloadDe(tokenDe(lT))) && /fazenda/i.test(payloadDe(tokenDe(lS))) && !/emporio/i.test(payloadDe(tokenDe(lT))) && !/emporio/i.test(payloadDe(tokenDe(lS))), `${payloadDe(tokenDe(lT))} | ${payloadDe(tokenDe(lS))}`);
       em422("report/link com area inválida", await link("lixo"), "area");
       const pdfE = await chamarRota(null, "financial/report", `financial/report?token=${encodeURIComponent(tkE ?? "")}`);
-      check("o relatório abre com o token da area=emporio: 200, application/pdf, com conteúdo", pdfE.status === 200 && pdfE.tipo.includes("pdf") && pdfE.bytes > 500, `${pdfE.status} ${pdfE.tipo} ${pdfE.bytes}`);
+      check("o relatório abre com o token de area=emporio (vira fazenda): 200, application/pdf, com conteúdo", pdfE.status === 200 && pdfE.tipo.includes("pdf") && pdfE.bytes > 500, `${pdfE.status} ${pdfE.tipo} ${pdfE.bytes}`);
       const pdfF = await chamarRota(null, "financial/report", `financial/report?token=${encodeURIComponent(tokenDe(lF) ?? "")}`);
       check("o relatório abre com o token da area=fazenda", pdfF.status === 200 && pdfF.tipo.includes("pdf") && pdfF.bytes > 500, `${pdfF.status} ${pdfF.bytes}`);
       console.log("  (o conteúdo do PDF por área não é observável sem ler o PDF: a suíte prova o token e a abertura)");

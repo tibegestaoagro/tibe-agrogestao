@@ -1,5 +1,6 @@
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
+import { ehDoEmporio, ENTRY_DO_EMPORIO_MSG } from "@/lib/financial";
 import { decToNum } from "@/lib/serialize";
 import type { PaymentMethod } from "@/generated/prisma/client";
 
@@ -94,6 +95,7 @@ export async function registrarPagamentoAction(
 ): Promise<ActionResult<{ id: string } & ResumoDePagamento>> {
   const entry = await db.financialEntry.findFirst({ where: { id: entryId } });
   if (!entry) return fail("NOT_FOUND", "Lançamento não encontrado", 404);
+  if (ehDoEmporio(entry)) return fail("ENTRY_DO_EMPORIO", ENTRY_DO_EMPORIO_MSG, 422);
 
   if (entry.status === "cancelled") {
     return fail(
