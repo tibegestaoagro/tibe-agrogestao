@@ -772,6 +772,22 @@ async function secao6() {
   check("a mensagem usa o modelo com {nome} e {valor} trocados", String(m2?.message).startsWith("Oi Cob Mais, pague ") && String(m2?.message).includes("150,00") && !String(m2?.message).includes("{"), String(m2?.message));
   const wa = (() => { try { return decodeURIComponent(String(m2?.whatsapp_url).split("?text=")[1] ?? ""); } catch { return ""; } })();
   check("e o link leva a mesma mensagem", wa === m2?.message, wa);
+
+  console.log("  (g) mensagem longa, plural e liberação simultânea");
+  const longa = await cobrar(C.tok.fin, mais, { message: "x".repeat(1001) });
+  check("mensagem de 1001 caracteres: 422 no campo message, em português", erro(longa, 422, "VALIDATION_ERROR", "message") && !/too big|expected/i.test(msgDe(longa.corpo?.error)) && msgDe(longa.corpo?.error).length > 0, `${longa.status} ${j(longa.corpo)}`);
+  const ontem = await cliente(C, "Cob Ontem", { phone: "34 99222-3333" });
+  await fiadoVencido(C, ontem, 1, 2);
+  const cobOntem = await cobrar(C.tok.fin, ontem);
+  check("(fixture) cobrar quem está vencido há 1 dia: 201", cobOntem.status === 201, `${cobOntem.status} ${j(cobOntem.corpo)}`);
+  const hOntem = (await prisma.emporioAuditLog.findMany({ where: { tenant_id: C.tenantId, action: "fiado.cobrar", target_id: ontem.id } })) as Dado[];
+  check("o Histórico diz 'há 1 dia', no singular", hOntem.length === 1 && String(hOntem[0].summary).includes("vencido há 1 dia") && !String(hOntem[0].summary).includes("1 dias"), j(hOntem.map((x) => x.summary)));
+  const F: Dado = await import("@/lib/emporio/fiado");
+  check("diasTexto: 1 dia e 2 dias", F.diasTexto(1) === "1 dia" && F.diasTexto(2) === "2 dias");
+  const [r1, r2] = await Promise.all([liberar(C, C.tok.owner, ontem, C.L1, "Toque duplo A"), liberar(C, C.tok.owner, ontem, C.L1, "Toque duplo B")]);
+  const total = await (prisma as Dado).emporioCreditRelease.count({ where: { customer_id: ontem.id, establishment_id: C.L1 } });
+  check("duas liberações simultâneas: exatamente uma existe", total === 1, `${total} (${r1.status}, ${r2.status})`);
+  check("e nenhuma resposta é 5xx (uma 201 e a outra 409)", r1.status < 500 && r2.status < 500 && [r1.status, r2.status].sort().join() === "201,409", `${r1.status} ${r2.status}`);
 }
 
 // ---------------------------------------------------------------------------

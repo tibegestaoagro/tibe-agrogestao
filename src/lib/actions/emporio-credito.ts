@@ -5,6 +5,7 @@ import { exigir, exigirUma, papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { hojeEmBrasilia } from "@/lib/emporio/cartao";
 import {
   diasDeAtraso,
+  diasTexto,
   diaUtc,
   LIMITE_MAXIMO_DE_FIADO,
   MENSAGEM_DE_COBRANCA_PADRAO,
@@ -306,7 +307,7 @@ export type DefinirCreditoInput = {
 };
 
 const textoDoPrazo = (dias: number | null, diaDoMes: number | null) =>
-  diaDoMes != null ? `todo dia ${diaDoMes}` : dias != null ? `${dias} dias` : "o padrão da conta";
+  diaDoMes != null ? `todo dia ${diaDoMes}` : dias != null ? diasTexto(dias) : "o padrão da conta";
 
 /** Limite e prazo do fiado de UM cliente. Chave ausente mantém; nulo limpa (volta ao padrão da conta). */
 export async function definirCreditoDoClienteAction(
@@ -472,11 +473,12 @@ export async function liberarFiadoAction(
   if (!loja) return fail("NOT_FOUND", "Estabelecimento não encontrado.", 404, "establishment_id");
 
   const agora = new Date();
-  if (await liberacaoValida(db, cliente.data.customer.id, lojaId, agora)) {
-    return fail("LIBERACAO_JA_EXISTE", "Este cliente já tem uma liberação válida hoje nesta loja.", 409, "establishment_id");
-  }
-
-  const criada = await db.$transaction(async (tx) => {
+  // A conferência e a criação ficam na MESMA transação serializável: dois toques simultâneos
+  // no botão não podem criar duas liberações válidas para o mesmo cliente e loja.
+  const criada = await runSerializableTenantTransaction(db, async (tx) => {
+    if (await liberacaoValida(tx as unknown as TenantPrismaClient, cliente.data.customer.id, lojaId, agora)) {
+      return fail("LIBERACAO_JA_EXISTE", "Este cliente já tem uma liberação válida hoje nesta loja.", 409, "establishment_id");
+    }
     const r = await tx.emporioCreditRelease.create({
       data: scoped({
         customer_id: cliente.data.customer.id,
@@ -496,6 +498,7 @@ export async function liberarFiadoAction(
     });
     return r;
   });
+  if ("ok" in criada) return criada;
   return ok({
     id: criada.id,
     customer_id: criada.customer_id,
@@ -678,13 +681,14 @@ export async function registrarCobrancaAction(
     return fail("SEM_FIADO_VENCIDO", "Este cliente não tem fiado vencido para cobrar.", 422, "customer_id");
   }
 
-  const mensagem = typeof input?.message === "string" ? input.message.trim().slice(0, 1000) : "";
+  const mensagem = typeof input?.message === "string" ? input.message.trim() : "";
+  if (mensagem.length > 1000) return fail("VALIDATION_ERROR", "A mensagem pode ter até 1000 caracteres.", 422, "message");
   await registrarNoHistorico(db, ator, {
     action: "fiado.cobrar",
     establishment_id: lojaId,
     target_type: "cliente",
     target_id: cliente.data.customer.id,
-    summary: `Cobrou ${cliente.data.customer.name} pelo WhatsApp: ${dinheiro(reais(vencidoCent))} vencido há ${maiorAtraso} dias`,
+    summary: `Cobrou ${cliente.data.customer.name} pelo WhatsApp: ${dinheiro(reais(vencidoCent))} vencido há ${diasTexto(maiorAtraso)}`,
     ...(mensagem ? { changes: [{ campo: "Mensagem", antes: null, depois: mensagem }] } : {}),
   });
   return ok({ charged_at: new Date().toISOString() });

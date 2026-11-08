@@ -12,7 +12,7 @@ import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
 
 const schema = z.object({
   establishment_id: z.string().nullish(),
-  message: z.string().optional(),
+  message: z.string().max(1000).optional(),
 });
 
 type Props = { params: Promise<{ id: string }> };
