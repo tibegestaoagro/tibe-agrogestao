@@ -306,7 +306,7 @@ export function DespesaFixaForm({
             Dividida entre todas as lojas ativas. Base: {BASE_DO_CRITERIO[f.tipo]} de cada loja, calculada quando a
             conta do mês nasce.
           </p>
-          {despesa && ehCriterioAutomatico(despesa.split_kind) && despesa.splits.length > 0 && (
+          {despesa && despesa.split_kind === f.tipo && despesa.splits.length > 0 && (
             <div className="space-y-1">
               <p className="font-medium text-texto">
                 Parte do mês{despesa.base_label ? ` (${despesa.base_label})` : ""}

@@ -196,7 +196,7 @@ export function EstabelecimentoForm({
       focarCampoId={err.focarCampoId}
       tentativa={err.tentativa}
     >
-      <fieldset disabled={somenteMedidas} className="contents">
+      <fieldset disabled={somenteMedidas} className="m-0 min-w-0 space-y-4 border-0 p-0">
       <Field label="Nome" required id={err.idDe("name")} error={err.erros.name}>
         {({ id, ...aria }) => (
           <Input
