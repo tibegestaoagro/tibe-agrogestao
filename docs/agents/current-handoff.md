@@ -177,15 +177,13 @@ relatórios em [agente-whatsapp/](agente-whatsapp/), detalhe em
 - `npx prisma migrate deploy` contra o Neon pode ser recusado pelo
   classificador mesmo com autorização. Tente uma vez; se bloquear, dê ao
   usuário o comando e confira com `migrate status` antes do push.
-- O desktop tem dois clones (`C:` e `D:`) e, desde 08/11, o worktree
-  `D:/Projetos/tibe-wt2` com dev server na 3002 (um `next dev` preso na 3000
-  não pode ser morto pelo agente). Roteiro: `TIBE_BASE="http://localhost:3002"
-  npm run navegador -- <roteiro>`; atualize o worktree a cada commit com
-  `git -C D:/Projetos/tibe-wt2 checkout --detach <branch>`.
-- Roteiro preso em recarga é aba sobrando no Chrome de testes, não defeito.
-  Ver o cofre: `a-aba-oculta-e-a-leitura-cedo-imitam-defeito-no-navegador`.
-- O roteiro `manual-emporio` regrava todos os PNGs do manual. Antes do commit,
-  restaure com `git checkout` os que não mudaram de conteúdo.
+- O desktop tem dois clones (`C:` e `D:`) e os worktrees `D:/Projetos/tibe-wt2`
+  (dev server preso na 3002, client do Prisma velho) e `tibe-wt3` (incompleto).
+  O agente não consegue matar `next dev`; dev server novo só em worktree novo,
+  com `npx prisma generate` ANTES de subir; roteiro com `TIBE_BASE`.
+- Roteiro preso em recarga é aba sobrando no Chrome de testes (cofre:
+  `a-aba-oculta-e-a-leitura-cedo-imitam-defeito-no-navegador`). O
+  `manual-emporio` regrava todos os PNGs: restaure os que não mudaram.
 - No notebook: `node -v` precisa ser 24.22.1 ou mais; o
   `.claude/settings.local.json` não vai para o git, então lá a migração em
   produção volta a ser recusada pelo classificador.
