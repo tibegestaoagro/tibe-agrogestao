@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
-import { papelDoEmporio } from "@/lib/emporio/papel";
+import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { veAPagina } from "@/lib/emporio/paginas";
 import { hojeEmBrasilia } from "@/lib/emporio/datas";
 import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
@@ -21,7 +21,7 @@ const ehData = (s: string | undefined): s is string =>
 export default async function FinanceiroCaixaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ loja?: string; lugar?: string; conta?: string; de?: string; ate?: string }>;
+  searchParams: Promise<{ loja?: string; lugar?: string; conta?: string; de?: string; ate?: string; carimbo?: string }>;
 }) {
   const user = await requireFeaturePage("emporio");
   const q = await searchParams;
@@ -42,11 +42,14 @@ export default async function FinanceiroCaixaPage({
   const hoje = hojeEmBrasilia();
   const ate = ehData(q.ate) ? q.ate : hoje;
   const de = ehData(q.de) ? q.de : new Date(Date.parse(`${ate}T00:00:00Z`) - 29 * DIA_MS).toISOString().slice(0, 10);
+  const ehConta = lugarEscolhido?.kind === "conta";
+  const soSemCarimbo = ehConta && q.carimbo === "sem";
   const extrato = lugarEscolhido
     ? await lerExtratoAction(db, user, {
         lugar: { kind: lugarEscolhido.kind, id: lugarEscolhido.id },
         de: new Date(`${de}T00:00:00Z`),
         ate: new Date(`${ate}T00:00:00Z`),
+        apenas_sem_carimbo: soSemCarimbo,
       })
     : null;
 
@@ -56,6 +59,7 @@ export default async function FinanceiroCaixaPage({
     p.set("lugar", `${kind}:${id}`);
     if (q.de && ehData(q.de)) p.set("de", q.de);
     if (q.ate && ehData(q.ate)) p.set("ate", q.ate);
+    if (kind === "conta" && q.carimbo === "sem") p.set("carimbo", "sem");
     return `/emporio/financeiro/caixa?${p.toString()}`;
   }
 
@@ -88,9 +92,16 @@ export default async function FinanceiroCaixaPage({
       {lugarEscolhido && (
         <section className="space-y-3">
           <h2 className="text-lg font-semibold text-texto">Extrato: {lugarEscolhido.name}</h2>
-          <ExtratoPeriodo loja={loja} lugar={lugar} de={de} ate={ate} />
+          <ExtratoPeriodo
+            loja={loja}
+            lugar={lugar}
+            de={de}
+            ate={ate}
+            mostrarFiltroCarimbo={ehConta}
+            soSemCarimbo={soSemCarimbo}
+          />
           {extrato && extrato.ok ? (
-            <ExtratoDoLugar extrato={extrato.data} hoje={hoje} />
+            <ExtratoDoLugar extrato={extrato.data} hoje={hoje} podeCarimbar={pode(papel, "dinheiro")} />
           ) : (
             <p role="alert" className="text-sm text-perigo-tinta">
               {extrato ? extrato.message : ""}

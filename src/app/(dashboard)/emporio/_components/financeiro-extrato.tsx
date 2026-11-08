@@ -14,6 +14,15 @@ import {
   TableCell,
 } from "@/components/ui/table";
 
+import { CarimboBotao } from "./carimbo-botao";
+
+/** O instante do carimbo como "dd/mm" no dia de Brasília (o ISO vem em UTC). */
+function diaMesEmBrasilia(iso: string): string {
+  return new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit" }).format(
+    new Date(iso),
+  );
+}
+
 const ROTULO_DO_LUGAR = { gaveta: "Gaveta", gerencia: "Com a gerência", conta: "Conta" } as const;
 
 /** Escolher o período do extrato: um formulário de GET, que a página server relê. */
@@ -22,11 +31,15 @@ export function ExtratoPeriodo({
   lugar,
   de,
   ate,
+  mostrarFiltroCarimbo = false,
+  soSemCarimbo = false,
 }: {
   loja: string;
   lugar: string;
   de: string;
   ate: string;
+  mostrarFiltroCarimbo?: boolean;
+  soSemCarimbo?: boolean;
 }) {
   return (
     <form method="get" className="grid gap-3 sm:max-w-xl sm:grid-cols-[1fr_1fr_auto] sm:items-end">
@@ -43,6 +56,12 @@ export function ExtratoPeriodo({
       <Button type="submit" variant="outline">
         Ver extrato
       </Button>
+      {mostrarFiltroCarimbo && (
+        <label className="flex min-h-11 items-center gap-2 text-sm text-texto sm:col-span-3 sm:min-h-0">
+          <input type="checkbox" name="carimbo" value="sem" defaultChecked={soSemCarimbo} className="size-4" />
+          Só sem carimbo
+        </label>
+      )}
     </form>
   );
 }
@@ -100,7 +119,17 @@ export function PosicoesTabela({
 }
 
 /** O extrato de um lugar: movimentos (e, na conta, parcelas de cartão) como linhas iguais, com saldo de abertura e de fechamento. */
-export function ExtratoDoLugar({ extrato, hoje }: { extrato: ExtratoView; hoje: string }) {
+export function ExtratoDoLugar({
+  extrato,
+  hoje,
+  podeCarimbar = false,
+}: {
+  extrato: ExtratoView;
+  hoje: string;
+  podeCarimbar?: boolean;
+}) {
+  const ehConta = extrato.place.kind === "conta";
+  const comCarimbo = ehConta && podeCarimbar;
   return (
     <div className="space-y-3">
       <p className="text-sm text-texto-secundario">
@@ -115,6 +144,15 @@ export function ExtratoDoLugar({ extrato, hoje }: { extrato: ExtratoView; hoje: 
           Saldo de fechamento: <strong className="text-texto">{reaisBr(extrato.closing_balance)}</strong>
         </p>
       </div>
+      {ehConta && (
+        <p className="text-sm text-texto-secundario">
+          Sem carimbo no período:{" "}
+          <strong className="text-texto">
+            {reaisBr(extrato.unreconciled_total)} em {extrato.unreconciled_count}{" "}
+            {extrato.unreconciled_count === 1 ? "linha" : "linhas"}
+          </strong>
+        </p>
+      )}
       {extrato.lines.length === 0 ? (
         <EmptyState titulo="Nada neste período">Sem movimentos nem parcelas de cartão entre as datas escolhidas.</EmptyState>
       ) : (
@@ -125,6 +163,7 @@ export function ExtratoDoLugar({ extrato, hoje }: { extrato: ExtratoView; hoje: 
               <TableHead>O quê</TableHead>
               <TableHead>Loja</TableHead>
               <TableHead>Valor</TableHead>
+              {comCarimbo && <TableHead>Carimbo</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -145,6 +184,15 @@ export function ExtratoDoLugar({ extrato, hoje }: { extrato: ExtratoView; hoje: 
                   <TableCell className={entrada ? "text-sucesso-tinta" : "text-perigo-tinta"}>
                     {entrada ? "+" : "-"} {reaisBr(l.amount)}
                   </TableCell>
+                  {comCarimbo && (
+                    <TableCell>
+                      <CarimboBotao
+                        kind={l.kind}
+                        id={l.id}
+                        carimbadoEm={l.reconciled_at ? diaMesEmBrasilia(l.reconciled_at) : null}
+                      />
+                    </TableCell>
+                  )}
                 </TableRow>
               );
             })}

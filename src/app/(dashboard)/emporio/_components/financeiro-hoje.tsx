@@ -49,7 +49,11 @@ function Linha({ rotulo, valor, destaque = false }: { rotulo: string; valor: str
 
 /** A tela "Hoje" do Financeiro: quatro cartões, cada um levando à aba que resolve. */
 export function FinanceiroHoje({ resumo, loja }: { resumo: HojeView; loja: string }) {
-  const { positions, total_balance, payables_due, receivables_due, overdue_fiado, pending_approvals } = resumo;
+  const { positions, total_balance, payables_due, receivables_due, overdue_fiado, pending_approvals, unreconciled } = resumo;
+  const conta = positions.find((p) => p.kind === "conta");
+  const enderecoSemCarimbo = conta
+    ? `${enderecoDaAba("/emporio/financeiro/caixa", loja)}${loja ? "&" : "?"}lugar=conta:${conta.id}&carimbo=sem`
+    : enderecoDaAba("/emporio/financeiro/caixa", loja);
   const aReceberHoje = receivables_due.fiado.total + receivables_due.checks.total + receivables_due.cards.total;
 
   return (
@@ -59,6 +63,15 @@ export function FinanceiroHoje({ resumo, loja }: { resumo: HojeView; loja: strin
           <p className="text-2xl font-semibold text-atencao-tinta">{reaisBr(pending_approvals.total)}</p>
           <p className="text-sm text-texto-secundario">
             {plural(pending_approvals.count, "pedido de pagamento", "pedidos de pagamento")} acima do teto
+          </p>
+        </Cartao>
+      )}
+
+      {unreconciled.count > 0 && (
+        <Cartao titulo="Sem carimbo" href={enderecoSemCarimbo} verTudo="Ver as linhas sem carimbo">
+          <p className="text-2xl font-semibold text-atencao-tinta">{reaisBr(unreconciled.total)}</p>
+          <p className="text-sm text-texto-secundario">
+            {plural(unreconciled.count, "linha", "linhas")} da conta sem conferir com o banco, nos últimos 30 dias
           </p>
         </Cartao>
       )}
