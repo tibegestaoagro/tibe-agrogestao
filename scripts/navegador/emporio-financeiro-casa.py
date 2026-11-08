@@ -130,7 +130,12 @@ hoje_api = api("GET", "/api/v1/emporio/finance/today")
 posicoes = ((hoje_api["body"] or {}).get("data") or {}).get("positions") or []
 confere("a rota today devolve posicoes (a conta entre elas)", hoje_api["status"] == 200 and any(p.get("kind") == "conta" for p in posicoes), [hoje_api["status"], len(posicoes)])
 confere("a tela lista a conta Fin Conta", tem("Fin Conta"), texto_principal(600))
-confere("o fiado vencido da Fin Cliente aparece na casa", tem(CLIENTE), texto_principal(1200))
+lojas_fin = lista_da_api("/api/v1/emporio/establishments")
+loja_fin = next((l for l in lojas_fin if l.get("name") == LOJA1), None)
+ir("/emporio/financeiro?loja=" + (loja_fin or {}).get("id", ""))
+confere("filtrada pela Loja 1, a casa mostra a conta a pagar vencida (Fin Fornecedor, R$ 100,00)", esperar(lambda: tem("Fin Fornecedor") and tem("R$ 100,00"), 30), texto_principal(1500))
+confere("e o fiado vencido de R$ 30,00, de 1 cliente atrasado", tem("1 cliente atrasado") and tem("R$ 30,00"), texto_principal(1500))
+confere("e o cheque de R$ 50,00 e o cartão de R$ 98,00 (2% de R$ 100,00) a receber hoje", tem("Cheques (1 cheque)") and tem("R$ 50,00") and tem("R$ 98,00"), texto_principal(1500))
 
 # --- 2 ---------------------------------------------------------------------------------
 passo("2. Sem Vender nem Equipe no menu; /dashboard volta para a casa")
@@ -138,10 +143,19 @@ links = menu()
 confere("o menu tem o Financeiro", any(h and h.startswith("/emporio/financeiro") for h in links), links)
 confere("o menu nao tem Vender", "/emporio/vender" not in links, links)
 confere("o menu nao tem Equipe", "/emporio/equipe" not in links, links)
-ir("/dashboard")
-confere("/dashboard volta para a casa do Financeiro", caminho() == "/emporio/financeiro", caminho())
+# O redirect do servidor e absoluto e pode apontar para outra porta (a do AUTH_URL):
+# por isso o destino se le com fetch, sem levar a aba para la.
+import http.client
+_c = CTX["cookies"]["financeiro"]
+_h = urllib.parse.urlparse(BASE)
+_con = http.client.HTTPConnection(_h.hostname, _h.port, timeout=120)
+_con.request("GET", "/dashboard", headers={"Cookie": _c["nome"] + "=" + _c["valor"]})
+_r = _con.getresponse()
+destino = urllib.parse.urlparse(_r.getheader("Location") or "").path
+confere("/dashboard volta para a casa do Financeiro (cabecalho Location do redirect)", _r.status in (302, 303, 307, 308) and destino == "/emporio/financeiro", [_r.status, destino])
+_con.close()
 ir("/emporio/vender")
-confere("/emporio/vender nao abre para o Financeiro", caminho() != "/emporio/vender" or eh_404(), caminho())
+confere("/emporio/vender nao vende para o Financeiro (volta para a casa ou diz que o perfil so consulta)", not tem("Total da venda") and (caminho() == "/emporio/financeiro" or tem("Seu perfil só consulta o Empório")), caminho())
 
 # --- 3 e 4 -----------------------------------------------------------------------------
 passo("3 e 4. Paga a conta da compra pela conta bancaria; a gaveta nao e opcao")
@@ -234,12 +248,42 @@ ir("/emporio/caixa")
 confere("Caixa abre para o Gestor", caminho() == "/emporio/caixa", caminho())
 confere("o movimento da compra aparece em Caixa, saindo R$ 50,00", esperar(lambda: tem("- R$ 50,00"), 30), texto_principal(400))
 # O rotulo da origem: hoje a tela mostra o texto cru se ORIGEM_CAIXA_ROTULO nao o conhece.
-confere("a origem do movimento tem rotulo em portugues (nao 'pagamento_compra' cru)", not tem("pagamento_compra"), "a tela mostra 'pagamento_compra' cru em Movimentos")
+confere("a origem do movimento tem rotulo em portugues (nao 'pagamento_compra' cru)", not tem("pagamento_compra") and tem("Pagamento de compra"))
 ir("/emporio/compras")
-confere("abre Nova compra e ha o campo De onde saiu o dinheiro",
-        esperar(lambda: clicar("Nova compra") and esperar(painel_aberto, 5), 60) and esperar(lambda: js("(document.querySelector('[role=dialog]') || {innerText: ''}).innerText").find("De onde saiu o dinheiro") >= 0, 15),
-        js("(document.querySelector('[role=dialog]') || {innerText: ''}).innerText.slice(0, 600)"))
-esc = lambda: (js("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))"), time.sleep(1))
+
+
+def preencher_aria(aria, valor):
+    return js("(() => { const raiz = document.querySelector('[role=dialog]') || document; const el = raiz.querySelector('input[aria-label=' + " + repr("'" + aria + "'") + " + ']'); if (!el) return 'SEM CAMPO'; Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, " + repr(valor) + "); el.dispatchEvent(new Event('input', { bubbles: true })); return el.value; })()")
+
+
+def escolher_por_aria(aria, opcao):
+    xy = _centro("(document.querySelector('[role=dialog]') || document).querySelector('[aria-label=' + " + repr("'" + aria + "'") + " + ']')")
+    if not xy:
+        return "SEM CAMPO"
+    click_at_xy(xy[0], xy[1])
+    time.sleep(1)
+    xy = _centro("Array.from(document.querySelectorAll('[role=option]')).find(o => o.innerText.trim() === " + repr(opcao) + ")")
+    if not xy:
+        return "SEM OPCAO"
+    click_at_xy(xy[0], xy[1])
+    time.sleep(0.8)
+    return True
+
+
+def esc():
+    js("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))")
+    time.sleep(1)
+
+
+confere("abre Nova compra", esperar(lambda: clicar("Nova compra") and esperar(painel_aberto, 5), 60))
+time.sleep(1.5)
+confere("escolhe o produto", escolher_por_aria("Produto do item 1", "Fin Ração") is True)
+confere("o valor total do item e 10", preencher_aria("Valor total do item 1", "10") != "SEM CAMPO")
+time.sleep(1)
+confere("a vista com valor pede De onde saiu o dinheiro", js("((document.querySelector('[role=dialog]') || {}).innerText || '').includes('De onde saiu o dinheiro')"))
+opcoes_compra = opcoes_de("De onde saiu o dinheiro") or []
+confere("o Gestor tem a gaveta da loja entre as origens", "Gaveta da loja" in opcoes_compra, opcoes_compra)
+esc()
 esc()
 
 # --- 7 ---------------------------------------------------------------------------------

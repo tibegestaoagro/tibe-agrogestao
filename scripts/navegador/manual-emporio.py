@@ -636,7 +636,7 @@ figura("compra-receber", "vendedor_centro", "/emporio/compras", [
     (2, "M.B('Receber')", "o botao Receber"),
 ], hd=600, hc=800)
 
-figura("financeiro-hoje", "dono", "/emporio/financeiro", [
+figura("financeiro-hoje", "dono", lambda: "/emporio/financeiro?loja=" + id_da_loja("Loja Centro"), [
     (1, "document.querySelector('nav[aria-label=\"Telas do Financeiro\"]')", "as quatro abas"),
     (2, "M.S('Posição de caixa')", "o cartao Posição de caixa"),
     (3, "M.S('Vence hoje a pagar')", "o cartao Vence hoje a pagar"),
