@@ -249,7 +249,7 @@ confere("a nota da conta bancaria aparece", tem("A conta bancária é da rede in
 confere("o botao 60 dias abre a janela de 60", bool(js("(() => { const a = Array.from(document.querySelectorAll('nav[aria-label=\"Janela da projeção\"] a')).find(x => x.innerText.trim() === '60 dias'); if (!a) return false; a.click(); return true; })()")))
 confere("a janela de 60 dias tem a semana 9", esperar(lambda: tem("Semana 9"), 90), texto_principal(300))
 confere("em 60 dias o cheque de R$ 70,00 aparece na semana 6", esperar(lambda: "cheque " + brl(70) in linha_da_semana(6), 40), linha_da_semana(6))
-confere("em 60 dias a estimativa da despesa fixa vem marcada", tem("Despesas fixas com rateio automático dos meses seguintes são estimativa com a base de hoje.") and tem("estimativa"), texto_principal(300))
+confere("em 60 dias a estimativa da despesa fixa vem marcada", tem("Despesas fixas dos meses sem conta gerada são estimativa (as automáticas, com a base de hoje).") and tem("estimativa"), texto_principal(300))
 
 # --- 4 ---------------------------------------------------------------------------------
 passo("4. Os Relatorios: a receber por idade, a pagar por vencimento e a posicao por lugar")

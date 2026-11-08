@@ -25,11 +25,11 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-08 à tarde (entregas 1, 2 e 3 do financeiro do
-  Empório prontas nas branches; entrega 4 com o plano escrito).
+- Atualizado em: 2026-11-08 à noite (as quatro entregas do financeiro do
+  Empório prontas nas branches; falta a revisão com o usuário e o deploy).
 - `main` em `ed8e37e`, Vercel verde. Nenhuma migração pendente no Neon.
 - Branches empilhadas, sem merge: `emporio-financeiro-spec` (spec) →
-  `emporio-financeiro-1` → `-2` → `-3` (as três prontas) → `-4` (a executar).
+  `emporio-financeiro-1` → `-2` → `-3` → `-4` (as quatro prontas, em origin).
   Evidências por entrega em [financeiro-emporio-relatorio.md](financeiro-emporio-relatorio.md).
 
 ### A missão autônoma do financeiro do Empório (aprovada em 07/11)
@@ -48,41 +48,41 @@ autorização disso foi dada.
 de caixa com extrato), a conta da compra paga no Empório com `CashMovement`,
 o `/financeiro` do Tibé só da fazenda. Migração
 `20261107130000_emporio_financeiro_papel`, só no Docker. `test:m98` 244,
-roteiro `emporio-financeiro-casa` nos dois sentidos, juiz Opus 8/10 na
-rodada 2.
+roteiro `emporio-financeiro-casa` nos dois sentidos, juiz Opus 8/10 (rodada 2).
 
 **Entrega 2 (`emporio-financeiro-2`): pronta.** Vencimento do fiado, limite,
 bloqueio por atraso e por limite, liberação do Gestor, ficha de crédito,
 seção Fiado em Configurações, aba Cobrança com o WhatsApp do aparelho.
 Migração `20261108120000_emporio_financeiro_credito`, só no Docker.
 `test:m99` 197, `test:all` 99/99, roteiro `emporio-financeiro-credito` nos
-dois sentidos, juiz Opus 8/10 na rodada 1. Dívidas 2.36 e 2.37; a 2.38 (a
-liberação é consumida pela primeira venda fiado) foi confirmada em 08/11.
+dois sentidos, juiz Opus 8/10 na rodada 1. Dívidas 2.36 e 2.37; 2.38
+confirmada pelo usuário em 08/11 (a liberação é consumida pela primeira venda).
 
 **Entrega 3 (`emporio-financeiro-3`): pronta.** Acordo de fiado em parcelas,
 alçada de pagamento com aprovação e aviso pelo WhatsApp, carimbo de
 conciliação no extrato. Migração
 `20261108180000_emporio_financeiro_acordo_alcada_carimbo` só no Docker.
-`test:m100` 248, `test:all` 99/100 (m92 verde sozinha), juiz Opus 8/10 na
-rodada 2, roteiro `emporio-financeiro-acordo` nos dois sentidos (90
-conferências), manual com as três figuras. Q238 (recebimento vai ao que vence
-antes) confirmada pelo usuário em 08/11.
+`test:m100` 248, juiz Opus 8/10 na rodada 2, roteiro `emporio-financeiro-acordo`
+nos dois sentidos, manual. Q238 confirmada pelo usuário em 08/11.
 
-**Entrega 4 (`emporio-financeiro-4`): plano escrito, a executar.** Plano em
-`docs/superpowers/plans/2026-11-08-emporio-financeiro-entrega-4.md` (8 tarefas:
-fluxo projetado, três relatórios, rateio automático; `test:m101`; roteiro
-`emporio-financeiro-projecao`). Ledger em `.superpowers/sdd/<plano>/progress.md`.
+**Entrega 4 (`emporio-financeiro-4`): pronta.** Fluxo projetado em 30/60/90
+dias por semana, três relatórios do dinheiro (aba Relatórios), rateio
+automático da despesa fixa por faturamento, área e funcionários. Migração
+`20261108220000_emporio_financeiro_rateio_automatico` só no Docker.
+`test:m101` 239, `test:all` 101/101, juiz Opus 9/10 na rodada 4 (três
+rodadas acharam o mês com conta paga sendo recalculado; corrigido e provado),
+roteiro `emporio-financeiro-projecao` nos dois sentidos, manual inteiro
+verde. Q239 a Q243 a confirmar. Dívidas 2.45 a 2.53.
 
 ### ⏭️ Próximo passo
 
-1. Executar a entrega 4 pelo plano (subagent-driven: Sonnet implementa, Opus
-   revisa a T3 e a T4, juiz Opus no fim), com os mesmos nove critérios; o dev
-   server (worktree `tibe-wt2`) precisa de `git checkout --detach` no HEAD e
-   `npx prisma generate` ANTES de subir de novo, porque a T1 muda o schema.
-   2. Revisão final das quatro branches e relatório ao usuário. 3. Com
-   o usuário, por entrega e na ordem 1, 2, 3, 4: migração no Neon (URL
-   Direct), merge e push na `main` com `AUTORIZADO_PELO_USUARIO=1`, cada um
-   autorizado na conversa.
+1. Revisar com o usuário o relatório de evidências e as decisões a
+   confirmar (Q239 a Q243; 2.38 e Q238 já confirmadas). 2. Com o usuário,
+   por entrega e na ordem 1, 2, 3, 4: migração no Neon (URL Direct), merge
+   e push na `main` com `AUTORIZADO_PELO_USUARIO=1`, cada um autorizado na
+   conversa (cada entrega tem uma migração). 3. Depois do deploy, o cenário
+   de demonstração na conta de testes nova (pendência do usuário) e a
+   Agromax usando a casa do financeiro.
 
 As pastas `research_notes/` e `reports/` (pesquisa de mercado que embasou a
 spec) são ignoradas pelo git de propósito: o repositório é público.
@@ -189,12 +189,12 @@ relatórios em [agente-whatsapp/](agente-whatsapp/), detalhe em
 
 ## Últimas rodadas
 
+- 08/11 (noite): entrega 4 pronta em `emporio-financeiro-4` (juiz 9/10 na
+  rodada 4); as quatro entregas do financeiro esperam a revisão e o deploy.
 - 08/11: entrega 3 pronta em `emporio-financeiro-3` (juiz 8/10 na rodada 2,
-  roteiro e manual à tarde); plano da entrega 4 escrito.
+  roteiro e manual à tarde).
 - 08/11: entregas 1 e 2 prontas em `emporio-financeiro-1` e `-2` (juiz 8/10).
 - 07/11: pesquisa de mercado, entrevista em 24 decisões e spec do financeiro
   do Empório, revisada por builder (branch `emporio-financeiro-spec`).
 - 07/11: planos 1 a 3 do Empório (clientes, fornecedores, escolha, entrega e
   romaneio) em produção, `c3b2606`; handoff arquivado em `historico/2026-11.md`.
-- 06/11: Da Mata limpa para a Agromax; equipe do Empório separada dos usuários
-  do Tibé (`55dfd81`).

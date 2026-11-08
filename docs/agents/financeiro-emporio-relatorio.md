@@ -144,4 +144,55 @@ resposta) e o harness perdeu o IPC; o servidor foi reiniciado na 3003 com o
 
 ## Entrega 4: projeção, relatórios e rateio (branch `emporio-financeiro-4`)
 
-Não começou.
+Plano: [../superpowers/plans/2026-11-08-emporio-financeiro-entrega-4.md](../superpowers/plans/2026-11-08-emporio-financeiro-entrega-4.md)
+(8 tarefas, autoavaliação no próprio plano). Range: `emporio-financeiro-3..`
+HEAD da branch. Ledger (não versionado):
+`.superpowers/sdd/2026-11-08-emporio-financeiro-entrega-4/progress.md`.
+
+**Nove critérios batidos.** Os gates abaixo foram rodados de novo contra o
+HEAD final da branch (depois das quatro rodadas do juiz).
+
+| # | critério | evidência |
+|---|---|---|
+| 1 | plano com autoavaliação | o plano, seção final "Autoavaliação"; pré-voo no ledger com a tabela de conflitos (10 pares) e três rulings |
+| 2 | migração no Docker e `migrate diff` limpo | `20261108220000_emporio_financeiro_rateio_automatico` aplicada (enum `FixedSplitKind` com `faturamento`, `area`, `funcionarios`; `Establishment.area_m2` e `employees_count`); `migrate diff` (URL do Docker inline): `-- This is an empty migration.` |
+| 3 | check, tsc, lint, build | `npm run check`: "Repositorio consistente: 0 falhas."; `npx tsc --noEmit`: vazio, código 0; `npm run lint`: "0 errors, 13 warnings" (os mesmos 13); `npm run build`: código 0, "Compiled successfully", 295 páginas (rodado duas vezes: antes e depois das rodadas do juiz) |
+| 4 | suíte nova e `test:all` | `npm run test:m101`: "M101 verde (239 checagens)" (funções puras; loja: o Financeiro grava só área e funcionários; rateio: faturamento do mês anterior com devolução, área, funcionários, loja sem base com aviso, nenhuma base vira partes iguais, só o mês corrente nasce e o seguinte pelo gatilho uma vez só mesmo em paralelo, editar recalcula só as futuras não pagas, encerrar, Resultado igual ao de um modelo manual, `CRITERIO_SEM_LOJAS`, base que muda no meio do mês não cobra a mais, troca manual para automático recupera a loja; projeção: saldo igual ao Hoje, vencido na semana 1, cartão de hoje fora e de +10 dias na semana 2, cheque em 60 e não em 30, estimativa das fixas pela regra do mês nascido com a base de hoje, `days` 422, 403; relatórios: faixas de idade, a pagar por semana com o vencido na semana 1, posição por lugar por origem, cartão futuro fora; isolamento); `npm run test:all -- --sem-redis`: "101/101 passaram, em ~6 min" (eram 100 antes desta entrega), rodado duas vezes, a segunda no HEAD final |
+| 5 | isolamento | `npm run test:isolation`: "Isolamento multi-tenant validado: 0 falhas." |
+| 6 | roteiro de navegador nos dois sentidos | `TIBE_BASE="http://localhost:3003" npm run navegador -- emporio-financeiro-projecao` (5 passos, cenário "Pro "): íntegro "RESULTADO: 0 falha(s)" (83 conferências); sabotado (`rateio.ts`, `ratearPorPeso` sempre em partes iguais): "RESULTADO: 4 falha(s)", todas no passo 2 (a proporção 3:1 vira 38,46/38,46; a loja sem área não fica com zero; o aviso some na API e na tela); restaurado nos dois clones: 0 falhas, 83 conferências; repetido contra o HEAD final, depois das rodadas do juiz: "RESULTADO: 0 falha(s)", 83 conferências (uma rodada intermediária deu 1 falha porque o texto da nota de estimativa mudou com a correção do juiz, e o roteiro foi atualizado). O rateio automático divide entre todas as lojas ativas da conta (Q240), e o banco de dev tem 24: o roteiro confere a proporção entre as duas lojas Pro, a soma do modelo e o zero da loja sem base |
+| 7 | juiz Opus, 6 critérios | rodada 1: 7/10, reprovado (3 MEDIO: a troca de manual para automático com conta futura paga gravava 1.250 num modelo de 1.000; a projeção só estimava os modelos automáticos, e a manual com o lote de 12 meses acabado sumia; o teto de 500 contas sem aviso; 6 BAIXO); rodada 2: 6/10 (1 ALTO: o mês corrente com conta paga ainda era refeito na troca); rodada 3: 6/10 (1 ALTO: o mês fechado só valia na edição da troca, e renomear o modelo reabria); rodada 4: 9/10, APROVADO (C1 9, C2 10, C3 9, C4 10, C5 10, C6 9), zero CRITICO ou ALTO. Cada rodada gerou commit com o caso na m101, provado nos dois sentidos |
+| 8 | manual e `manual-emporio` | tarefas "Ver o fluxo projetado" e "Relatórios do dinheiro" (casa do financeiro) e "Rateio automático da despesa fixa" (despesas); `FIGURAS=financeiro-projecao,financeiro-relatorios,despesa-rateio-automatico ... manual-emporio`: 0 falhas, 6 PNGs conferidas a olho; o manual inteiro: 124 ok e 1 falha em `financeiro-hoje` (celular), porque as abas novas Projeção e Relatórios ganharam uma linha e a marca saiu da janela; `hc` de 1500 para 1700 e a figura reconferida: 0 falhas; PNGs que não mudaram restauradas com `git checkout -- public/manual` |
+| 9 | dívidas, Q-table, docs/api, handoff | `dividas.md`: 2.45 a 2.53 novas (gráfico, PDF/planilha, conta bancária fora da projeção por loja, loja nova no faturamento, ocorrência só nasce no acesso, conta sem vencimento fora, teto de 500 contas, splits zerados nos automáticos, loja que ganha base no meio do mês); Q239 a Q243 na tabela do módulo, a confirmar; `/docs/api` com as quatro rotas novas e os campos novos (e a permissão da despesa fixa, que dizia OWNER e ADMIN); `npm run test:docs-api`: 0 falhas; handoff atualizado |
+
+Decisões tomadas sem o usuário (todas no ledger e na Q-table):
+
+- Q239: os relatórios do dinheiro ficam na casa do financeiro (aba
+  Relatórios), com uma linha de ligação na página Relatórios do Empório;
+- Q240: o critério automático divide entre TODAS as lojas ativas no momento
+  em que a ocorrência nasce (sem `FixedExpenseSplit` com valor; as linhas
+  ficam zeradas) e por isso exige ver todas as lojas (`CRITERIO_SEM_LOJAS`);
+- Q241: a receber por idade é retrato de hoje, sem período;
+- Q242: por loja, a projeção e a posição por lugar deixam a conta bancária
+  de fora (a conta é da rede), com nota na tela;
+- Q243: no a pagar por vencimento o vencido entra sempre na primeira semana,
+  em destaque, mesmo anterior ao início do período (a spec pedia "vencido em
+  destaque" e o padrão `de` = hoje o escondia);
+- o mês do modelo conta como nascido quando já tem ocorrência: a base que
+  muda no meio do mês (área preenchida depois, loja nova) só entra no mês
+  seguinte ou num editar; nenhuma base em loja alguma vira partes iguais
+  com aviso; `renovar` é inócuo em modelo automático;
+- em modelo automático, o mês (corrente ou futuro) que já tem conta paga é
+  fechado: nenhuma edição (troca de critério, renomear, mudar o valor) cancela
+  nem recalcula as irmãs dele, e o gatilho não mexe nele (juiz, rodadas 1 a
+  3); no manual as partes são fixas por loja e recalcular a irmã não paga é o
+  comportamento de sempre;
+- a projeção e o a pagar por vencimento olham até 5.000 contas e avisam ao
+  bater o teto; a projeção estima as fixas de todos os critérios nos meses
+  sem conta gerada (as automáticas com a base de hoje).
+
+A confirmar com o usuário, além das Q239 a Q243: a receber por idade sem
+período (Q241) e as partes iguais quando nenhuma loja tem base.
+
+Antes do deploy desta entrega (com o usuário): `prisma migrate deploy` no
+Neon com a URL Direct. Não há ajuste de dado: as lojas nascem sem área e sem
+funcionários, e os modelos existentes continuam em percentual ou valor.
