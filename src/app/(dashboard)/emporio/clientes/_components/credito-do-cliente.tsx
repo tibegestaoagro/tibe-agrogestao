@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { CreditoView } from "@/lib/actions/emporio-credito";
 import { reaisBr } from "@/lib/numero-br";
+import { diasTexto } from "@/lib/emporio/fiado";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { CreditoForm } from "./credito-form";
@@ -23,7 +24,7 @@ const SITUACAO: Record<CreditoView["status"], { rotulo: (c: CreditoView) => stri
   em_dia: { rotulo: () => "Em dia", variante: "green" },
   no_limite: { rotulo: () => "No limite", variante: "amber" },
   bloqueado_por_atraso: {
-    rotulo: (c) => `Bloqueado: fiado vencido há ${c.oldest_overdue?.days ?? c.block_after_days} dias`,
+    rotulo: (c) => `Bloqueado: fiado vencido há ${diasTexto(c.oldest_overdue?.days ?? c.block_after_days)}`,
     variante: "red",
   },
 };
@@ -36,7 +37,7 @@ function textoDoLimite(c: CreditoView): string {
 function textoDoPrazo(c: CreditoView): string {
   const r = c.due_rule;
   if (r.kind === "dia_do_mes") return `todo dia ${r.value}`;
-  return `${r.value} dias depois da venda${r.source === "conta" ? ", padrão da conta" : ""}`;
+  return `${diasTexto(r.value)} depois da venda${r.source === "conta" ? ", padrão da conta" : ""}`;
 }
 
 function Dado({ rotulo, children }: { rotulo: string; children: React.ReactNode }) {
@@ -90,7 +91,7 @@ export function CreditoDoCliente({
         <Dado rotulo="Prazo">{textoDoPrazo(credito)}</Dado>
         <Dado rotulo="Vencido mais antigo">
           {credito.oldest_overdue
-            ? `${diaBr(credito.oldest_overdue.due_date)}, há ${credito.oldest_overdue.days} dias`
+            ? `${diaBr(credito.oldest_overdue.due_date)}, há ${diasTexto(credito.oldest_overdue.days)}`
             : "Nada vencido"}
         </Dado>
         <Dado rotulo="Cobrado pela última vez">

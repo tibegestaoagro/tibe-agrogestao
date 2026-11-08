@@ -69,6 +69,11 @@ export function vencimentoEfetivo(
   return entrada.due_date ?? entrada.fiado_due_date;
 }
 
+/** "1 dia", "20 dias": o atraso por extenso, para tela, Histórico e mensagem. */
+export function diasTexto(dias: number): string {
+  return dias === 1 ? "1 dia" : `${dias} dias`;
+}
+
 /** Teto de limite de fiado (a coluna é `Decimal(14,2)`; o teto é menor de propósito: ninguém fia cem milhões). */
 export const LIMITE_MAXIMO_DE_FIADO = 99999999.99;
 

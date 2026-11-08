@@ -37,7 +37,7 @@ function CobrarPainel({
   cliente: Cliente;
   /** A loja filtrada na tela, ou "" para todas. */
   loja: string;
-  aoCobrar: (customerId: string) => void;
+  aoCobrar: (customerId: string, message: string) => void;
 }) {
   const aviso = useAviso();
   const err = useErrosDeFormulario(ORDEM, `cobrar-${cliente.customer_id}`);
@@ -65,7 +65,7 @@ function CobrarPainel({
     window.open(`https://wa.me/${cliente.phone_whatsapp}?text=${encodeURIComponent(message)}`, "_blank", "noopener");
     aviso.sucesso(`Cobrança de ${cliente.customer_name} registrada.`);
     setOpen(false);
-    aoCobrar(cliente.customer_id);
+    aoCobrar(cliente.customer_id, message);
   }
 
   return (
@@ -147,10 +147,10 @@ export function FaixaFiltro({ faixa, loja }: { faixa: string; loja: string }) {
 /** A lista de cobrança: quem tem fiado vencido, do mais atrasado ao menos, com o botão do WhatsApp. */
 export function FinanceiroCobranca({ dados, loja }: { dados: CobrancaView; loja: string }) {
   const router = useRouter();
-  const [cobrados, setCobrados] = useState<Set<string>>(new Set());
+  const [cobrados, setCobrados] = useState<Map<string, string>>(new Map());
 
-  function aoCobrar(id: string) {
-    setCobrados((s) => new Set(s).add(id));
+  function aoCobrar(id: string, message: string) {
+    setCobrados((m) => new Map(m).set(id, message));
     router.refresh();
   }
 
@@ -172,7 +172,8 @@ export function FinanceiroCobranca({ dados, loja }: { dados: CobrancaView; loja:
       </p>
       <ul className="space-y-3">
         {dados.customers.map((c) => {
-          const cobradoHoje = cobrados.has(c.customer_id);
+          const mensagemCobrada = cobrados.get(c.customer_id);
+          const cobradoHoje = mensagemCobrada !== undefined;
           return (
             <li key={c.customer_id} className="rounded-lg border border-borda bg-superficie p-4">
               <div className="flex flex-wrap items-start justify-between gap-2">
@@ -209,7 +210,19 @@ export function FinanceiroCobranca({ dados, loja }: { dados: CobrancaView; loja:
                   </p>
                 )}
                 {cobradoHoje ? (
-                  <Badge variant="green">Cobrado hoje</Badge>
+                  <>
+                    <Badge variant="green">Cobrado hoje</Badge>
+                    {c.phone_whatsapp && (
+                      <a
+                        href={`https://wa.me/${c.phone_whatsapp}?text=${encodeURIComponent(mensagemCobrada)}`}
+                        target="_blank"
+                        rel="noopener"
+                        className="text-sm font-medium text-texto-marca hover:underline"
+                      >
+                        Abrir o WhatsApp
+                      </a>
+                    )}
+                  </>
                 ) : (
                   c.last_charged_at && <Badge variant="blue">Cobrado em {DIA_BR.format(new Date(c.last_charged_at))}</Badge>
                 )}
