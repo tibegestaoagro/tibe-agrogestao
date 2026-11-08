@@ -379,7 +379,7 @@ async function secao2() {
   console.log("  o Histórico");
   const hist = (await prisma.emporioAuditLog.findMany({ where: { tenant_id: A.tenantId, action: "configuracoes.editar" } })) as Dado[];
   check("o Histórico tem configuracoes.editar", hist.length >= 1);
-  check("o changes cita o campo (fiado_due_days)", hist.some((h) => j(h.changes ?? "").includes("fiado_due_days")), j(hist.map((h) => h.changes)));
+  check("o changes guarda o prazo antigo e o novo (30 para 20)", hist.some((h) => { const t = j(h.changes ?? ""); return t.includes("Prazo") && t.includes("30") && t.includes("20"); }), j(hist.map((h) => h.changes)));
 }
 
 // ---------------------------------------------------------------------------
