@@ -69,7 +69,7 @@ export function vencimentoEfetivo(
   return entrada.due_date ?? entrada.fiado_due_date;
 }
 
-/** Teto de limite de fiado: cabe no `Decimal(10,2)` do banco. */
+/** Teto de limite de fiado (a coluna é `Decimal(14,2)`; o teto é menor de propósito: ninguém fia cem milhões). */
 export const LIMITE_MAXIMO_DE_FIADO = 99999999.99;
 
 export const MENSAGEM_DE_COBRANCA_PADRAO =
