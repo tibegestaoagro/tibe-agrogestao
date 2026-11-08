@@ -1359,7 +1359,7 @@ model EmporioSettings {
   fiado_block_after_days   Int       @default(15)
   fiado_default_limit      Decimal?  @db.Decimal(14, 2)
   fiado_collection_message String?
-  /// Entrega 3: pagamento acima deste valor pede aprovação (Q233). Nulo = sem alçada.
+  /// Entrega 3: pagamento acima deste valor pede aprovação (Q227). Nulo = sem alçada.
   payment_approval_limit   Decimal?  @db.Decimal(14, 2)
   logo                     Bytes?
   logo_mime                String?
@@ -3605,7 +3605,7 @@ model EmporioCreditAgreement {
   @@index([tenant_id, customer_id])
 }
 
-/// Entrega 3: pedido de aprovação de pagamento acima da alçada (Q233). Os ids das contas
+/// Entrega 3: pedido de aprovação de pagamento acima da alçada (Q227, aviso pela Q234). Os ids das contas
 /// ficam em `entry_ids`; a aprovação refaz o pagamento na hora, por isso `last_failure`.
 model EmporioPaymentRequest {
   id                   String    @id @default(cuid())
