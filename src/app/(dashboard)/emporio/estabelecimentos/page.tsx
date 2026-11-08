@@ -33,7 +33,8 @@ export default async function EstabelecimentosPage({
   // F6b: criar, arquivar e definir a equipe da loja são da conta; editar os dados é do Gestor da loja.
   const papel = await papelDoEmporio(db, user);
   const podeEscrever = pode(papel, "conta");
-  const podeEditarAlguma = pode(papel, "gestor_da_loja");
+  // O Financeiro não passa em `gestor_da_loja`, mas passa em `dinheiro`: edita só a área e os funcionários.
+  const podeEditarAlguma = pode(papel, "gestor_da_loja") || pode(papel, "dinheiro");
   const [res, usuarios] = await Promise.all([
     listarEstabelecimentosAction(db, user, { incluir_arquivados: mostrarArquivados }),
     db.user.findMany({
@@ -98,8 +99,12 @@ export default async function EstabelecimentosPage({
                 {podeEditarAlguma && (
                   <TableCell>
                     <div className="flex flex-wrap gap-2">
-                      {pode(papel, "gestor_da_loja", l.id) && (
+                      {pode(papel, "gestor_da_loja", l.id) ? (
                         <EstabelecimentoForm loja={l} usuarios={usuarios} podeLiberarNegativo={podeEscrever} />
+                      ) : (
+                        pode(papel, "dinheiro") && (
+                          <EstabelecimentoForm loja={l} usuarios={usuarios} podeLiberarNegativo={false} somenteMedidas />
+                        )
                       )}
                       {podeEscrever && (
                         <>

@@ -35,6 +35,8 @@ export type LojaParaForm = {
   max_discount_pct: number | null;
   default_expense_pct: number | null;
   default_profit_pct: number | null;
+  area_m2: number | null;
+  employees_count: number | null;
 };
 
 export type UsuarioParaForm = { id: string; name: string };
@@ -53,6 +55,8 @@ const ORDEM = [
   "default_expense_pct",
   "default_profit_pct",
   "max_discount_pct",
+  "area_m2",
+  "employees_count",
   "allow_negative_stock",
 ] as const;
 type Campo = (typeof ORDEM)[number];
@@ -65,9 +69,12 @@ export function EstabelecimentoForm({
   loja,
   usuarios,
   podeLiberarNegativo = true,
+  somenteMedidas = false,
 }: {
   loja?: LojaParaForm;
   usuarios: UsuarioParaForm[];
+  /** O Financeiro edita só a área e os funcionários da loja: o resto fica travado e não é enviado. */
+  somenteMedidas?: boolean;
   /** Liberar o estoque negativo é da conta (Dono e Gerente geral): o Gestor edita a loja sem esse campo. */
   podeLiberarNegativo?: boolean;
 }) {
@@ -90,8 +97,12 @@ export function EstabelecimentoForm({
   const [lucro, setLucro] = useState(paraCampo(loja?.default_profit_pct));
   const [desconto, setDesconto] = useState(paraCampo(loja?.max_discount_pct));
   const [negativo, setNegativo] = useState(loja?.allow_negative_stock ?? false);
+  const [area, setArea] = useState(paraCampo(loja?.area_m2));
+  const [funcionarios, setFuncionarios] = useState(paraCampo(loja?.employees_count));
 
   function reiniciar() {
+    setArea(paraCampo(loja?.area_m2));
+    setFuncionarios(paraCampo(loja?.employees_count));
     setName(loja?.name ?? "");
     setAddress(loja?.address ?? "");
     setCity(loja?.city ?? "");
@@ -114,6 +125,8 @@ export function EstabelecimentoForm({
     const d = lerOpcional(despesa);
     const l = lerOpcional(lucro);
     const m = lerOpcional(desconto);
+    const ar = lerOpcional(area);
+    if (ar === "invalido" || (ar !== null && ar < 0)) novos.area_m2 = "Informe a área em m², de 0 a 999.999,99.";
     if (d === "invalido") novos.default_expense_pct = "Não consegui ler esse número.";
     if (l === "invalido") novos.default_profit_pct = "Não consegui ler esse número.";
     if (m === "invalido") novos.max_discount_pct = "Não consegui ler esse número.";
@@ -125,7 +138,13 @@ export function EstabelecimentoForm({
 
     err.limparTudo();
     setLoading(true);
-    const corpo = {
+    const medidas = {
+      area_m2: ar === null ? null : Math.round((ar as number) * 100) / 100,
+      employees_count: funcionarios === "" ? null : Number(funcionarios),
+    };
+    // O Financeiro só edita as duas medidas: a action recusa o patch que traga qualquer outro campo.
+    const corpo = somenteMedidas ? medidas : {
+      ...medidas,
       name: name.trim(),
       address: address.trim() || null,
       city: city.trim() || null,
@@ -177,6 +196,7 @@ export function EstabelecimentoForm({
       focarCampoId={err.focarCampoId}
       tentativa={err.tentativa}
     >
+      <fieldset disabled={somenteMedidas} className="contents">
       <Field label="Nome" required id={err.idDe("name")} error={err.erros.name}>
         {({ id, ...aria }) => (
           <Input
@@ -392,6 +412,49 @@ export function EstabelecimentoForm({
             onValueChange={(v) => {
               setDesconto(v);
               err.limparCampo("max_discount_pct");
+            }}
+          />
+        )}
+      </Field>
+      </fieldset>
+
+      <Field
+        label="Área (m²)"
+        hint="Usados no rateio automático das despesas fixas."
+        id={err.idDe("area_m2")}
+        error={err.erros.area_m2}
+      >
+        {({ id, ...aria }) => (
+          <MoneyInput
+            id={id}
+            {...aria}
+            kind="quantidade"
+            unit="m²"
+            value={area}
+            onValueChange={(v) => {
+              setArea(v);
+              err.limparCampo("area_m2");
+            }}
+          />
+        )}
+      </Field>
+
+      <Field
+        label="Funcionários"
+        hint="Usados no rateio automático das despesas fixas."
+        id={err.idDe("employees_count")}
+        error={err.erros.employees_count}
+      >
+        {({ id, ...aria }) => (
+          <Input
+            id={id}
+            {...aria}
+            inputMode="numeric"
+            autoComplete="off"
+            value={funcionarios}
+            onChange={(e) => {
+              setFuncionarios(e.target.value.replace(/\D/g, ""));
+              err.limparCampo("employees_count");
             }}
           />
         )}

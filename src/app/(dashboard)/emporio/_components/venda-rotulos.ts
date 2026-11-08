@@ -4,6 +4,8 @@
  * módulo client chega ao servidor como referência, não como objeto.
  */
 
+import { RATEIO_ROTULO_SERVIDOR } from "@/lib/emporio/rateio";
+
 /** Forma de pagamento da venda, como o balcão e o detalhe da venda a chamam. */
 export const FORMA_ROTULO: Record<string, string> = {
   dinheiro: "Dinheiro",
@@ -59,8 +61,5 @@ export const TIPO_REGRA_ROTULO: Record<string, string> = {
   embalagem: "Embalagem do estoque",
 };
 
-/** Como o rateio de uma despesa fixa é dividido (`FixedSplitKind`). */
-export const RATEIO_ROTULO: Record<string, string> = {
-  percentual: "Em percentual",
-  valor: "Em reais",
-};
+/** Como o rateio de uma despesa fixa é dividido: a mesma lista do servidor (módulo puro), sem duplicar. */
+export const RATEIO_ROTULO = RATEIO_ROTULO_SERVIDOR;

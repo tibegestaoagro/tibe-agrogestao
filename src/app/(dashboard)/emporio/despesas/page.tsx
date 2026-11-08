@@ -12,6 +12,7 @@ import {
   listarRegrasVariaveisAction,
 } from "@/lib/actions/emporio-despesas";
 import { mesAtualEmBrasilia, textoDoMes } from "@/lib/emporio/mes";
+import { ehCriterioAutomatico } from "@/lib/emporio/rateio";
 import { reaisBr } from "@/lib/numero-br";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -178,10 +179,15 @@ export default async function DespesasPage() {
                         {s.establishment_name}: {d.split_kind === "percentual" ? pctBr(s.value) : reaisBr(s.value)}
                       </span>
                     ))}
+                    {d.avisos.map((a) => (
+                      <span key={a} role="status" className="mt-1 block text-xs text-texto-secundario">
+                        {a}
+                      </span>
+                    ))}
                   </TableCell>
                   <TableCell>
                     {d.generated_until ? mesBr(d.generated_until) : "-"}
-                    {d.needs_renewal && (
+                    {d.needs_renewal && !ehCriterioAutomatico(d.split_kind) && (
                       <Badge variant="amber" className="ml-2">
                         Renovar
                       </Badge>
@@ -201,9 +207,15 @@ export default async function DespesasPage() {
                           due_day: d.due_day,
                           split_kind: d.split_kind,
                           splits: d.splits.map((s) => ({ establishment_id: s.establishment_id, value: s.value })),
+                          base_label: d.base_label,
+                          avisos: d.avisos,
                         }}
                       />
-                      <DespesaFixaAcoes despesaId={d.id} nome={d.name} podeRenovar={d.needs_renewal} />
+                      <DespesaFixaAcoes
+                        despesaId={d.id}
+                        nome={d.name}
+                        podeRenovar={d.needs_renewal && !ehCriterioAutomatico(d.split_kind)}
+                      />
                     </div>
                   </TableCell>
                 </TableRow>

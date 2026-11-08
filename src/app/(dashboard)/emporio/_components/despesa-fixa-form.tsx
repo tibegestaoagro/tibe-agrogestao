@@ -19,7 +19,15 @@ import { useAviso } from "@/components/ui/toast";
 import { apiPatch, apiPost } from "@/lib/client-api";
 import { lerNumeroBr, reaisBr } from "@/lib/numero-br";
 import { paraCampo, pctBr } from "./formato";
+import { ehCriterioAutomatico, type SplitKind } from "@/lib/emporio/rateio";
 import { RATEIO_ROTULO } from "./venda-rotulos";
+
+/** O que cada critério automático usa como peso, na frase do formulário. */
+const BASE_DO_CRITERIO: Record<string, string> = {
+  faturamento: "faturamento do mês anterior",
+  area: "área em m²",
+  funcionarios: "funcionários",
+};
 
 // Ordem visual, de cima para baixo. Os nomes são os da API (`fixed-expenses`).
 const ORDEM = ["name", "category", "amount", "due_day", "starts_on", "split_kind", "splits"] as const;
@@ -33,8 +41,12 @@ export type DespesaFixaParaEditar = {
   category: string;
   amount: number;
   due_day: number;
-  split_kind: "percentual" | "valor";
+  split_kind: SplitKind;
+  /** Nos manuais, a parte de cada loja; nos automáticos, a parte do mês (só leitura aqui). */
   splits: { establishment_id: string; value: number }[];
+  /** Só nos automáticos: de onde vem o peso e os avisos de loja sem base. */
+  base_label?: string | null;
+  avisos?: string[];
 };
 
 /**
@@ -69,10 +81,10 @@ export function DespesaFixaForm({
     valor: despesa ? paraCampo(despesa.amount) : "",
     dia: despesa ? String(despesa.due_day) : "",
     inicio: mesAtual,
-    tipo: (despesa?.split_kind ?? "percentual") as "percentual" | "valor",
+    tipo: (despesa?.split_kind ?? "percentual") as SplitKind,
     partes: Object.fromEntries(
       lojas.map((l) => {
-        const s = despesa?.splits.find((x) => x.establishment_id === l.id);
+        const s = despesa && !ehCriterioAutomatico(despesa.split_kind) ? despesa.splits.find((x) => x.establishment_id === l.id) : undefined;
         const sozinha = !despesa && lojas.length === 1;
         return [l.id, s ? paraCampo(s.value) : sozinha ? "100" : ""];
       }),
@@ -81,6 +93,7 @@ export function DespesaFixaForm({
   const [f, setF] = useState(inicial);
   const set = (parcial: Partial<ReturnType<typeof inicial>>) => setF((a) => ({ ...a, ...parcial }));
 
+  const automatico = ehCriterioAutomatico(f.tipo);
   const valor = lerNumeroBr(f.valor);
   const preenchidas = lojas.filter((l) => f.partes[l.id]?.trim());
   const somaCent = preenchidas.reduce((t, l) => t + cent(lerNumeroBr(f.partes[l.id]) ?? 0), 0);
@@ -103,7 +116,9 @@ export function DespesaFixaForm({
       if (v === null || v <= 0) partesRuins = true;
       else splits.push({ establishment_id: l.id, value: v });
     }
-    if (preenchidas.length === 0) novos.splits = "Escolha ao menos uma loja para a despesa.";
+    if (automatico) {
+      // O servidor calcula as partes quando a conta do mês nasce: não há o que conferir aqui.
+    } else if (preenchidas.length === 0) novos.splits = "Escolha ao menos uma loja para a despesa.";
     else if (partesRuins) novos.splits = "A parte de cada loja deve ser um número maior que zero.";
     else if (faltaCent !== null && faltaCent !== 0) {
       novos.splits =
@@ -125,7 +140,7 @@ export function DespesaFixaForm({
       amount: valor,
       due_day: dia,
       split_kind: f.tipo,
-      splits,
+      splits: automatico ? [] : splits,
     };
     const res = despesa
       ? await apiPatch(`/api/v1/emporio/fixed-expenses/${despesa.id}`, corpo)
@@ -266,7 +281,7 @@ export function DespesaFixaForm({
           <Select
             value={f.tipo}
             onValueChange={(v) => {
-              set({ tipo: v as "percentual" | "valor", partes: Object.fromEntries(lojas.map((l) => [l.id, ""])) });
+              set({ tipo: v as SplitKind, partes: Object.fromEntries(lojas.map((l) => [l.id, ""])) });
               err.limparCampo("split_kind");
               err.limparCampo("splits");
             }}
@@ -285,6 +300,34 @@ export function DespesaFixaForm({
         )}
       </Field>
 
+      {automatico && (
+        <div className="space-y-2 text-sm text-texto-secundario">
+          <p>
+            Dividida entre todas as lojas ativas. Base: {BASE_DO_CRITERIO[f.tipo]} de cada loja, calculada quando a
+            conta do mês nasce.
+          </p>
+          {despesa && ehCriterioAutomatico(despesa.split_kind) && despesa.splits.length > 0 && (
+            <div className="space-y-1">
+              <p className="font-medium text-texto">
+                Parte do mês{despesa.base_label ? ` (${despesa.base_label})` : ""}
+              </p>
+              {despesa.splits.map((s) => (
+                <p key={s.establishment_id} className="flex justify-between gap-2">
+                  <span className="truncate">{lojas.find((l) => l.id === s.establishment_id)?.name ?? "Loja"}</span>
+                  <span className="text-texto">{reaisBr(s.value)}</span>
+                </p>
+              ))}
+            </div>
+          )}
+          {despesa?.avisos?.map((a) => (
+            <p key={a} role="status">
+              {a}
+            </p>
+          ))}
+        </div>
+      )}
+
+      {!automatico && (
       <Field
         label={f.tipo === "percentual" ? "Parte de cada loja (%)" : "Parte de cada loja (R$)"}
         required
@@ -329,6 +372,7 @@ export function DespesaFixaForm({
           </div>
         )}
       </Field>
+      )}
     </FormSheet>
   );
 }
