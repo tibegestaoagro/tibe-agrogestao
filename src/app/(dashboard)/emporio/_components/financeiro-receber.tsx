@@ -152,8 +152,8 @@ export function FinanceiroReceber({
                       numero={c.number}
                       situacao={c.status}
                       contas={contasDoBanco}
-                      podeDepositar={pode(papel, "chave:depositar_cheque", c.establishment_id)}
-                      ehAdmin={pode(papel, "gestor_da_loja", c.establishment_id)}
+                      podeDepositar={pode(papel, "chave:depositar_cheque", c.establishment_id) || pode(papel, "dinheiro")}
+                      ehAdmin={pode(papel, "gestor_da_loja", c.establishment_id) || pode(papel, "dinheiro")}
                     />
                   </TableCell>
                 </TableRow>
