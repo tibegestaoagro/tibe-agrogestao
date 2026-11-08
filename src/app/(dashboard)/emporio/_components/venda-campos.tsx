@@ -13,6 +13,7 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { lerNumeroBr, reaisBr } from "@/lib/numero-br";
+import type { CreditoView } from "@/lib/actions/emporio-credito";
 import type { Falta } from "@/lib/emporio/cliente-cadastro";
 import type { ClienteEscolhido } from "@/lib/emporio/cliente-escolhido";
 import { EscolherCliente } from "./escolher-cliente";
@@ -87,6 +88,27 @@ function InfoDoCartao({ v, p }: { v: EstadoDaVenda; p: EstadoDaVenda["pagamentos
   );
 }
 
+/** "Fiado em aberto: R$ X de R$ L · Bloqueado: vencido há N dias". Só informa. */
+function AvisoDoFiado({ credito }: { credito: CreditoView }) {
+  const situacao =
+    credito.status === "bloqueado_por_atraso"
+      ? ` · Bloqueado: vencido há ${credito.oldest_overdue?.days ?? credito.block_after_days} dias`
+      : credito.status === "no_limite"
+        ? " · No limite"
+        : "";
+  return (
+    <p
+      className={
+        credito.status === "em_dia" ? "text-xs text-texto-secundario" : "text-xs font-medium text-atencao-tinta"
+      }
+    >
+      Fiado em aberto: {reaisBr(credito.owed_total)}
+      {credito.limit !== null ? ` de ${reaisBr(credito.limit)}` : ""}
+      {situacao}
+    </p>
+  );
+}
+
 export function VendaCampos({
   v,
   produtos,
@@ -103,7 +125,13 @@ export function VendaCampos({
   depoisDoCliente,
   avisoDoCliente,
   aoEscolherCliente,
+  creditoDoFiado,
+  depoisDoPagamento,
 }: {
+  /** O crédito do cliente, lido pelo balcão quando há fiado: só informa, a recusa de verdade é do servidor. */
+  creditoDoFiado?: CreditoView | null;
+  /** O que o balcão põe logo abaixo do pagamento (o atalho da recusa de crédito). */
+  depoisDoPagamento?: ReactNode;
   /** Orçamento (entrega 4): não há pagamento a escolher. */
   semPagamento?: boolean;
   /** O que o balcão põe logo abaixo da loja (o orçamento a faturar), na ordem visual do `ORDEM`. */
@@ -457,6 +485,12 @@ export function VendaCampos({
                         value={p.vencimento}
                         onChange={(e) => v.atualizarPagamento(p.key, { vencimento: e.target.value })}
                       />
+                      {creditoDoFiado && p.vencimento === "" && (
+                        <p className="text-xs text-texto-secundario">
+                          Sem data, vence em {creditoDoFiado.suggested_due_date.split("-").reverse().join("/")}
+                        </p>
+                      )}
+                      {creditoDoFiado && <AvisoDoFiado credito={creditoDoFiado} />}
                     </div>
                   )}
                 </div>
@@ -488,6 +522,8 @@ export function VendaCampos({
           )}
         </Field>
       )}
+
+      {depoisDoPagamento}
 
       {v.descontoCent > 0 && (
         <p className="rounded-lg bg-atencao-suave px-3 py-2 text-sm text-atencao-tinta">

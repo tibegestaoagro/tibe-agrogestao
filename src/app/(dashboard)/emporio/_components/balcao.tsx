@@ -15,6 +15,7 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import type { CaixaRegistradoView } from "@/lib/actions/emporio-caixa";
+import type { CreditoView } from "@/lib/actions/emporio-credito";
 import type { OrcamentoView } from "@/lib/actions/emporio-orcamentos";
 import type { Falta } from "@/lib/emporio/cliente-cadastro";
 import { AbrirTurnoForm } from "./abrir-turno-form";
@@ -211,6 +212,25 @@ export function Balcao({
     };
   }, [loja]);
 
+  // O crédito do cliente, lido quando a venda tem cliente de verdade e um pagamento em fiado: só informa
+  // (a recusa de verdade é do servidor). Lido de novo a cada vez que o par cliente + fiado reaparece.
+  const temFiado = v.pagamentos.some((p) => p.kind === "fiado");
+  const clienteDoFiado = temFiado && v.cliente && !v.cliente.fixed ? v.cliente.id : null;
+  const [lidoDoCredito, setLidoDoCredito] = useState<{ clienteId: string; credito: CreditoView } | null>(null);
+  useEffect(() => {
+    if (!clienteDoFiado) return;
+    let vivo = true;
+    void apiGet<CreditoView>(`/api/v1/emporio/customers/${encodeURIComponent(clienteDoFiado)}/credit`).then((res) => {
+      if (vivo && res.ok) setLidoDoCredito({ clienteId: clienteDoFiado, credito: res.data });
+    });
+    return () => {
+      vivo = false;
+    };
+  }, [clienteDoFiado]);
+  const creditoDoFiado = lidoDoCredito && lidoDoCredito.clienteId === clienteDoFiado ? lidoDoCredito.credito : null;
+  // A recusa de crédito do servidor (bloqueio ou limite): mostra o caminho para o Gestor liberar.
+  const [recusaDeCredito, setRecusaDeCredito] = useState(false);
+
   // O vendedor: a escolha só vale se ainda está na lista da loja (trocar de loja a descarta). Quem não é Caixa
   // começa nele mesmo, quando ele vende naquela loja.
   const [vendedorEscolhido, setVendedorEscolhido] = useState("");
@@ -364,6 +384,7 @@ export function Balcao({
     }
 
     err.limparTudo();
+    setRecusaDeCredito(false);
     setEnviando(true);
     // Toda venda precisa de turno aberto: confere os caixas na hora de fechar (podem ter mudado desde que a loja foi escolhida).
     const fresco = await apiGet<CaixaRegistradoView[]>(
@@ -403,6 +424,7 @@ export function Balcao({
     setEnviando(false);
     if (!res.ok) {
       err.doServidor(res);
+      setRecusaDeCredito(res.code === "FIADO_BLOQUEADO" || res.code === "LIMITE_EXCEDIDO");
       if (res.code === "CASH_CLOSED" || res.code === "CASH_REGISTER_REQUIRED") {
         // O servidor discorda da tela: lê de novo os caixas para a escolha refletir o que existe agora.
         retomar.current = res.code === "CASH_CLOSED";
@@ -533,6 +555,17 @@ export function Balcao({
             permitirCadastro
             aoEscolherLoja={lembrarLoja}
             semPagamento={modo === "orcamento"}
+            creditoDoFiado={creditoDoFiado}
+            depoisDoPagamento={
+              recusaDeCredito && err.erros.payments && v.cliente ? (
+                <p className="text-sm text-texto-secundario">
+                  <Link href={`/emporio/clientes/${v.cliente.id}`} className="font-medium text-texto-marca hover:underline">
+                    Abrir a ficha do cliente para o gestor liberar
+                  </Link>
+                  . Ou troque a forma de pagamento.
+                </p>
+              ) : undefined
+            }
             avisoDoCliente={pedido.for_delivery ? faltaDoPedido : null}
             aoEscolherCliente={(c) => {
               // Trocar o cliente limpa a escolha do endereço e mantém a marca.

@@ -12,6 +12,8 @@ import { EstabelecimentoForm } from "../_components/estabelecimento-form";
 import { NovoCaixaBotao } from "../_components/novo-caixa-botao";
 import { ConfiguracoesForm } from "./_components/configuracoes-form";
 import { LogoForm } from "./_components/logo-form";
+import { FiadoForm } from "./_components/fiado-form";
+import { reaisBr } from "@/lib/numero-br";
 
 function enderecoDaLoja(l: EstablishmentView): string {
   const cidade = [l.city, l.state].filter(Boolean).join("/");
@@ -144,6 +146,31 @@ export default async function ConfiguracoesPage() {
               </article>
             ))}
           </div>
+        )}
+      </section>
+
+      <section className="space-y-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <h2 className="text-lg font-semibold text-texto">Fiado</h2>
+          {pode(papel, "dinheiro") && cfg && <FiadoForm fiado={cfg} />}
+        </div>
+        {cfg ? (
+          <dl className="grid gap-3 sm:grid-cols-2">
+            <Linha rotulo="Prazo padrão" valor={`${cfg.fiado_due_days} dias`} />
+            <Linha rotulo="Bloqueia com" valor={`${cfg.fiado_block_after_days} dias de atraso`} />
+            <Linha
+              rotulo="Limite padrão"
+              valor={cfg.fiado_default_limit === null ? "Sem limite de valor" : reaisBr(cfg.fiado_default_limit)}
+            />
+            <div className="sm:col-span-2">
+              <dt className="text-xs text-texto-secundario">Mensagem de cobrança</dt>
+              <dd className="whitespace-pre-line break-words text-sm text-texto">
+                {cfg.fiado_collection_message_effective}
+              </dd>
+            </div>
+          </dl>
+        ) : (
+          <EmptyState titulo="Não consegui ler as configurações">Recarregue a página.</EmptyState>
         )}
       </section>
     </div>

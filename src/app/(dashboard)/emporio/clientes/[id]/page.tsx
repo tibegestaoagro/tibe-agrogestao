@@ -4,6 +4,9 @@ import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { lerClienteAction, type ClienteFichaView } from "@/lib/actions/emporio-clientes";
+import { lerCreditoDoClienteAction } from "@/lib/actions/emporio-credito";
+import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
+import { CreditoDoCliente } from "../_components/credito-do-cliente";
 import { formatarCep, formatarDocumento } from "@/lib/contatos/cadastro";
 import { formatarTelefone } from "@/lib/emporio/telefone";
 import { reaisBr } from "@/lib/numero-br";
@@ -92,6 +95,16 @@ export default async function ClienteFichaPage({ params }: { params: Promise<{ i
   const c = res.data;
   const papel = await papelDoEmporio(db, user);
   const podeArquivar = pode(papel, "gestor_da_loja") && !c.fixed;
+
+  // O Consumidor final não tem crédito, e quem a action recusa (403) não vê a seção.
+  const creditoRes = c.fixed ? null : await lerCreditoDoClienteAction(db, user, c.id);
+  const credito = creditoRes?.ok ? creditoRes.data : null;
+  // Liberar fiado é do Gestor da loja (ou da conta): só as lojas em que o ator passa entram na lista.
+  const lojasQueLibera = credito
+    ? await listarEstabelecimentosAction(db, user).then((r) =>
+        r.ok ? r.data.filter((l) => pode(papel, "gestor_da_loja", l.id)).map((l) => ({ id: l.id, name: l.name })) : [],
+      )
+    : [];
 
   const principal = linhaEndereco(c.address_street, c.address_number, c.address_complement, c.address_district, c.city, c.address_state, c.address_zip);
   const entrega = linhaEndereco(c.delivery_street, c.delivery_number, c.delivery_complement, c.delivery_district, c.delivery_city, c.delivery_state, c.delivery_zip);
@@ -186,6 +199,15 @@ export default async function ClienteFichaPage({ params }: { params: Promise<{ i
           <p className="text-xl font-semibold text-texto">{c.resumo.vendas_ativas}</p>
         </div>
       </section>
+
+      {credito && (
+        <CreditoDoCliente
+          credito={credito}
+          podeMudar={pode(papel, "dinheiro")}
+          lojasQueLibera={lojasQueLibera}
+          agora={new Date().toISOString()}
+        />
+      )}
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-texto">Vendas</h2>
