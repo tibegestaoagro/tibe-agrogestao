@@ -1144,6 +1144,45 @@ figura("historico-filtros", "dono", "/emporio/historico", [
     (3, "document.querySelector('main ul details[open] ul')", "o antes e o depois de uma edicao"),
 ], estado=estado_historico, hd=900, hc=1300)
 
+def estado_acordo():
+    """Abre o painel Fazer acordo da ficha e monta as parcelas (3 de 30 dias)."""
+    for _ in range(10):
+        clicar("Fazer acordo")
+        time.sleep(1.5)
+        if js("!!document.querySelector('[role=dialog]')"):
+            break
+    preencher("Parcelas", "3")
+    clicar("Montar parcelas")
+    time.sleep(1)
+
+
+figura("fiado-acordo", "dono", lambda: "/emporio/clientes/" + id_do_cliente("Chácara Três Irmãos"), [
+    (1, "M.L('Fiados do acordo')", "os fiados do acordo"),
+    (2, "M.B('Montar parcelas')", "o botao Montar parcelas"),
+    (3, "M.L('Parcelas do acordo')", "as parcelas do acordo"),
+    (4, "document.querySelector('[role=dialog] button[type=submit]')", "o botao Fechar o acordo"),
+], estado=estado_acordo, hd=1100, hc=1700)
+
+figura("financeiro-aprovacoes", "dono", "/emporio/financeiro/aprovacoes", [
+    (1, "document.querySelector('nav[aria-label=\"Filtrar pedidos\"]')", "o filtro Esperando e Decididos"),
+    (2, "M.C('pediu em').parentElement", "o valor do pedido, quem pediu e de onde sai"),
+    (3, "M.B('Aprovar')", "o botao Aprovar"),
+    (4, "M.B('Recusar')", "o botao Recusar"),
+], limite=3, hd=800, hc=1100)
+
+
+def id_da_conta_bancaria():
+    pos = api("GET", "/api/v1/emporio/finance/today")["body"]["data"]["positions"]
+    return next(p["id"] for p in pos if p["kind"] == "conta")
+
+
+figura("financeiro-extrato", "dono", lambda: "/emporio/financeiro/caixa?lugar=conta:" + id_da_conta_bancaria(), [
+    (1, "M.C('Só sem carimbo')", "o filtro Só sem carimbo"),
+    (2, "M.C('Sem carimbo no período')", "o total sem carimbo"),
+    (3, "M.TH('Carimbo')", "a coluna Carimbo"),
+    (4, "M.Bs('Carimbar')[0]", "o botao Carimbar"),
+], limite=8, hd=900, hc=1300)
+
 fim_das_figuras = None
 
 

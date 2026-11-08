@@ -580,6 +580,50 @@ export function ParteDeFinanceiroDasLojas() {
         ]}
       />
 
+      <Subtitulo>Aprovar um pagamento</Subtitulo>
+      <Tarefa
+        paraQueServe="Deixar o Dono ou o Gerente geral decidir os pagamentos grandes, antes de o dinheiro sair."
+        passos={[
+          <>O Dono ou o Gerente geral define o <strong>Teto sem aprovação (R$)</strong> em <strong>Configurações</strong>, na seção <strong>Alçada de pagamento</strong>. Sem teto, todo pagamento sai direto.</>,
+          <>Quem não é Dono nem Gerente geral e paga acima do teto não paga: o aviso diz que o pagamento <strong>ficou esperando aprovação</strong>, e as contas continuam em A pagar.</>,
+          <>O Dono ou o Gerente geral abre <strong>Financeiro</strong> e a aba <strong>Aprovações</strong> (o cartão <strong>Esperando aprovação</strong> em Hoje leva para lá). Cada pedido mostra as contas, quem pediu e de onde sai o dinheiro.</>,
+          <>Clique em <strong>Aprovar</strong> e confirme em <strong>Aprovar e pagar</strong>: o pagamento sai naquele momento, com o saldo conferido de novo. Ou clique em <strong>Recusar</strong> e escreva o <strong>Motivo</strong>.</>,
+          <>Em <strong>Decididos</strong> ficam os pedidos aprovados e recusados, com quem decidiu e o motivo.</>,
+        ]}
+        problemas={[
+          {
+            quando: "“Aprovar” falha com saldo insuficiente",
+            fazer: "A falha fica escrita no pedido, que continua esperando. Ponha dinheiro na conta ou na gaveta e aprove de novo, ou recuse.",
+          },
+          {
+            quando: "O Financeiro não vê os botões Aprovar e Recusar",
+            fazer: "É de propósito. Quem pede não decide: só o Dono e o Gerente geral aprovam ou recusam.",
+          },
+        ]}
+      >
+        <Figura id="financeiro-aprovacoes" />
+      </Tarefa>
+
+      <Subtitulo>Conferir o extrato com o carimbo</Subtitulo>
+      <Tarefa
+        paraQueServe="Marcar, linha por linha, o que já foi conferido com o extrato do banco, e ver o que ainda falta."
+        passos={[
+          <>Em <strong>Posição de caixa</strong>, clique em <strong>Ver extrato</strong> numa conta bancária. As contas têm a coluna <strong>Carimbo</strong>.</>,
+          <>Confira a linha com o extrato do banco e clique em <strong>Carimbar</strong>. A linha passa a mostrar <strong>Carimbado em</strong> com o dia.</>,
+          <>Se carimbou por engano, clique em <strong>Retirar</strong>.</>,
+          <>O total <strong>Sem carimbo no período</strong> mostra quanto e em quantas linhas ainda falta conferir. Marque <strong>Só sem carimbo</strong> para esconder as conferidas.</>,
+          <>Em <strong>Hoje</strong>, o cartão <strong>Sem carimbo</strong> avisa quando há linha da conta sem conferir nos últimos 30 dias e leva direto para elas.</>,
+        ]}
+        problemas={[
+          {
+            quando: "Gaveta e gerência não têm a coluna Carimbo",
+            fazer: "É de propósito. O carimbo é a conferência com o banco, e gaveta não tem extrato de banco.",
+          },
+        ]}
+      >
+        <Figura id="financeiro-extrato" />
+      </Tarefa>
+
       <Chamada tipo="atencao">
         <p>
           As compras à vista lançadas antes de 07/11/2026 não tiraram dinheiro de lugar nenhum: o saldo das gavetas e das

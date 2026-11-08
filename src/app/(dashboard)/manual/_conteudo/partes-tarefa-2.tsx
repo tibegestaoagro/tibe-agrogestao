@@ -222,6 +222,34 @@ export function ParteDeFiado() {
       >
         <Figura id="financeiro-cobranca" />
       </Tarefa>
+
+      <Subtitulo>Fazer acordo de fiado</Subtitulo>
+      <Tarefa
+        paraQueServe="Juntar o fiado vencido de um cliente em parcelas que ele consegue pagar, sem juros."
+        passos={[
+          <>Abra <strong>Meu Empório</strong>, depois <strong>Clientes</strong>, e a ficha do cliente. Na seção <strong>Acordos</strong>, clique em <strong>Fazer acordo</strong>.</>,
+          <>Em <strong>Fiados do acordo</strong>, marque os fiados que entram. O <strong>Total do acordo</strong> aparece embaixo.</>,
+          <>Escolha quantas <strong>Parcelas</strong>, a data da <strong>Primeira parcela em</strong> e o intervalo em <strong>A cada (dias)</strong>. Clique em <strong>Montar parcelas</strong>.</>,
+          <>Se precisar, mude a data e o valor de cada parcela. A soma tem de fechar com o total.</>,
+          <>Clique em <strong>Fechar o acordo</strong>. Os fiados escolhidos saem da Cobrança, e as parcelas passam a valer como fiado: vencem, bloqueiam e se recebem em <strong>A receber</strong> como qualquer outro.</>,
+        ]}
+        problemas={[
+          {
+            quando: "O botão Fazer acordo não aparece",
+            fazer: "Só o Dono e o Financeiro fazem acordo. O Gerente geral e o Gestor veem o acordo na ficha, mas não o fazem. Também não aparece se o cliente não tem fiado em aberto.",
+          },
+          {
+            quando: "“As parcelas somam R$ ... e o acordo é de R$ ...”",
+            fazer: "Ajuste os valores até a soma bater com o total, ou clique em Montar parcelas de novo para dividir por igual.",
+          },
+          {
+            quando: "O cliente continua bloqueado depois do acordo",
+            fazer: "Uma parcela do acordo que venceu e não foi paga bloqueia o fiado como qualquer fiado atrasado. Receba a parcela ou peça ao Gestor a liberação do dia.",
+          },
+        ]}
+      >
+        <Figura id="fiado-acordo" />
+      </Tarefa>
     </div>
   );
 }

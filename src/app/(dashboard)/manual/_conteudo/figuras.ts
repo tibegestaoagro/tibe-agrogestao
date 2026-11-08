@@ -168,6 +168,32 @@ export const FIGURAS: Figura[] = [
     ],
   },
   {
+    id: "financeiro-aprovacoes",
+    pagina: "/emporio/financeiro/aprovacoes",
+    papel: "dono",
+    legenda: "A aba Aprovações: o pagamento acima do teto que espera o Dono",
+    alt: "Aba Aprovações do Financeiro com o filtro Esperando e Decididos, um pedido de pagamento com as contas, quem pediu e os botões Aprovar e Recusar",
+    marcas: [
+      { numero: 1, alvo: "o filtro Esperando e Decididos", texto: "Esperando mostra o que precisa de decisão. Decididos guarda o que foi aprovado ou recusado, com quem decidiu e o motivo." },
+      { numero: 2, alvo: "o valor do pedido, com quem pediu e de onde sai o dinheiro", texto: "O pedido traz as contas, o total e a conta ou gaveta de onde o dinheiro sai." },
+      { numero: 3, alvo: "o botão Aprovar", texto: "Paga na hora, com o saldo conferido de novo. Só o Dono e o Gerente geral decidem." },
+      { numero: 4, alvo: "o botão Recusar", texto: "Pede o motivo. Quem pediu vê a recusa e a conta continua em A pagar." },
+    ],
+  },
+  {
+    id: "financeiro-extrato",
+    pagina: "/emporio/financeiro/caixa",
+    papel: "dono",
+    legenda: "O extrato da conta, com o carimbo de conferência",
+    alt: "Extrato de uma conta bancária com o saldo de abertura e de fechamento, o total sem carimbo, o filtro Só sem carimbo e a coluna Carimbo com os botões Carimbar",
+    marcas: [
+      { numero: 1, alvo: "o filtro Só sem carimbo", texto: "Esconde as linhas já conferidas e deixa só as que ainda faltam." },
+      { numero: 2, alvo: "o total sem carimbo no período", texto: "Quanto ainda falta conferir com o extrato do banco, em quantas linhas." },
+      { numero: 3, alvo: "a coluna Carimbo", texto: "Cada linha da conta mostra o dia em que foi carimbada, ou fica sem carimbo." },
+      { numero: 4, alvo: "o botão Carimbar", texto: "Marque a linha depois de conferir com o banco. Retirar desfaz o carimbo." },
+    ],
+  },
+  {
     id: "estoque-por-loja",
     pagina: "/emporio/produtos/[id]",
     papel: "gestor",
@@ -315,6 +341,19 @@ export const FIGURAS: Figura[] = [
       { numero: 1, alvo: "o total vencido", texto: "Quanto está vencido e em quantos clientes." },
       { numero: 2, alvo: "o cliente, o valor e os dias", texto: "Do mais atrasado ao menos atrasado, com as lojas onde a dívida nasceu." },
       { numero: 3, alvo: "o botão Cobrar no WhatsApp", texto: "Abre a mensagem pronta; ao confirmar, a cobrança fica registrada." },
+    ],
+  },
+  {
+    id: "fiado-acordo",
+    pagina: "/emporio/clientes/[id]",
+    papel: "dono",
+    legenda: "Fazer acordo: os fiados em aberto viram parcelas",
+    alt: "Painel Fazer acordo na ficha do cliente, com os fiados marcados, o total do acordo, o botão Montar parcelas e as parcelas com data e valor",
+    marcas: [
+      { numero: 1, alvo: "os fiados do acordo", texto: "Marque os fiados em aberto que entram no acordo. O total aparece embaixo." },
+      { numero: 2, alvo: "o botão Montar parcelas", texto: "Divide o total em parcelas iguais, a partir da data e do intervalo escolhidos." },
+      { numero: 3, alvo: "as parcelas do acordo", texto: "Dá para mudar a data e o valor de cada uma. A soma tem de fechar com o total." },
+      { numero: 4, alvo: "o botão Fechar o acordo", texto: "Grava o acordo. Os fiados saem da cobrança e as parcelas passam a valer como fiado." },
     ],
   },
   {
