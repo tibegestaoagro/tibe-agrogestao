@@ -380,6 +380,25 @@ async function secao2() {
   const hist = (await prisma.emporioAuditLog.findMany({ where: { tenant_id: A.tenantId, action: "configuracoes.editar" } })) as Dado[];
   check("o Histórico tem configuracoes.editar", hist.length >= 1);
   check("o changes guarda o prazo antigo e o novo (30 para 20)", hist.some((h) => { const t = j(h.changes ?? ""); return t.includes("Prazo") && t.includes("30") && t.includes("20"); }), j(hist.map((h) => h.changes)));
+
+  console.log("  o teto do dinheiro (99999999.99) e o Histórico do limite em formato de dinheiro");
+  const cTeto = await cliente(A, "M99 Teto do limite");
+  const tc1 = await chamar(A.tok.fin, R.credit, "PATCH", `emporio/customers/${cTeto.id}/credit`, { fiado_limit: 100000000 }, cTeto.id);
+  check("limite do cliente 100000000: 422 no campo fiado_limit", erro(tc1, 422, undefined, "fiado_limit"), `${tc1.status} ${j(tc1.corpo)}`);
+  const tc2 = await chamar(A.tok.fin, R.credit, "PATCH", `emporio/customers/${cTeto.id}/credit`, { fiado_limit: 99999999.99 }, cTeto.id);
+  check("limite do cliente 99999999.99 (o teto): 200", tc2.status === 200, `${tc2.status} ${j(tc2.corpo)}`);
+  const ts1 = await chamar(A.tok.fin, R.settingsFiado, "PATCH", "emporio/settings/fiado", { fiado_default_limit: 100000000 });
+  check("limite padrão 100000000: 422 no campo fiado_default_limit", erro(ts1, 422, undefined, "fiado_default_limit"), `${ts1.status} ${j(ts1.corpo)}`);
+  const ts2 = await chamar(A.tok.fin, R.settingsFiado, "PATCH", "emporio/settings/fiado", { fiado_default_limit: 99999999.99 });
+  check("limite padrão 99999999.99 (o teto): 200", ts2.status === 200, `${ts2.status} ${j(ts2.corpo)}`);
+
+  await config(A, { fiado_due_days: 20, fiado_block_after_days: 10, fiado_default_limit: null });
+  const idsAntes = new Set(((await prisma.emporioAuditLog.findMany({ where: { tenant_id: A.tenantId, action: "configuracoes.editar" } })) as Dado[]).map((h) => h.id));
+  const tl = await chamar(A.tok.fin, R.settingsFiado, "PATCH", "emporio/settings/fiado", { fiado_default_limit: 500 });
+  check("limite padrão de null para 500: 200", tl.status === 200, `${tl.status} ${j(tl.corpo)}`);
+  const novas = ((await prisma.emporioAuditLog.findMany({ where: { tenant_id: A.tenantId, action: "configuracoes.editar" } })) as Dado[]).filter((h) => !idsAntes.has(h.id));
+  check("a linha nova do Histórico tem o valor novo em dinheiro (R$ 500,00)", novas.length === 1 && j(novas[0]?.changes ?? "").includes("R$ 500,00"), j(novas.map((h) => h.changes)));
+  await config(A, { fiado_due_days: 20, fiado_block_after_days: 10, fiado_default_limit: 0 });
 }
 
 // ---------------------------------------------------------------------------
@@ -470,6 +489,23 @@ async function secao3() {
   const o2 = (await credito(A, A.tok.owner, ce)).corpo?.data?.owed_total;
   check("owed_total do cliente é 30 e não muda com o prazo padrão", perto(o1, 30) && perto(o2, 30), `${o1} -> ${o2}`);
   await config(A);
+
+  console.log("  (h) prazo em dias e dia do mês nunca coexistem");
+  const { prisma } = await import("@/lib/prisma");
+  const ch = await cliente(A, "M99 Regra unica");
+  const juntos = await chamar(A.tok.fin, R.credit, "PATCH", `emporio/customers/${ch.id}/credit`, { fiado_due_days: 10, fiado_due_day: 10 }, ch.id);
+  check("dias e dia juntos: 422 no campo fiado_due_day", erro(juntos, 422, undefined, "fiado_due_day"), `${juntos.status} ${j(juntos.corpo)}`);
+  const [pd, pm] = await Promise.all([
+    chamar(A.tok.fin, R.credit, "PATCH", `emporio/customers/${ch.id}/credit`, { fiado_due_days: 10 }, ch.id),
+    chamar(A.tok.fin, R.credit, "PATCH", `emporio/customers/${ch.id}/credit`, { fiado_due_day: 10 }, ch.id),
+  ]);
+  check("os dois PATCH concorrentes respondem sem 5xx", pd.status < 500 && pm.status < 500 && pd.status !== 0 && pm.status !== 0, `${pd.status} ${pm.status}`);
+  const gh = await credito(A, A.tok.owner, ch);
+  const kind = gh.corpo?.data?.due_rule?.kind;
+  check("o GET mostra UMA das regras (dias ou dia_do_mes), com valor 10", (kind === "dias" || kind === "dia_do_mes") && gh.corpo?.data?.due_rule?.value === 10, j(gh.corpo?.data?.due_rule));
+  const lh = (await prisma.emporioCustomer.findUnique({ where: { id: ch.id } })) as Dado;
+  const preenchidos = [lh?.fiado_due_days, lh?.fiado_due_day].filter((x) => x !== null && x !== undefined).length;
+  check("no banco só um dos dois campos está preenchido, nunca os dois", preenchidos === 1, `dias=${lh?.fiado_due_days} dia=${lh?.fiado_due_day}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -782,6 +818,33 @@ async function secao7() {
     && (await (prisma as Dado).emporioCreditRelease.count({ where: { customer_id: alvo.id } })) === liberacoesAntes
     && (await prisma.emporioAuditLog.count({ where: { tenant_id: A.tenantId, action: "fiado.cobrar" } })) === cobrancasAntes,
     `${limiteAntes} -> ${limiteDepois}`);
+
+  console.log("  o detalhe por loja é recortado pela loja de quem lê (o total, não)");
+  await abrirFixtures(A);
+  const cr = await cliente(A, "M99 Recorte por loja");
+  await vender(A, cr, A.L1, 2, [{ kind: "fiado", amount: 20, due_date: meioDia(somaDias(hojeStr, 20)) }]);
+  await fiadoVencido(A, cr, 20, 5, A.L2);
+  await config(A, { fiado_block_after_days: 15 });
+  const r1 = await liberar(A, A.tok.owner, cr, A.L1, "Recorte: liberação da L1");
+  const r2 = await liberar(A, A.tok.owner, cr, A.L2, "Recorte: liberação da L2");
+  check("(fixture) liberações em L1 e em L2: 201", r1.status === 201 && r2.status === 201, `${r1.status} ${r2.status} ${j(r2.corpo)}`);
+
+  const vF = await credito(A, A.tok.fin, cr);
+  const vV = await credito(A, A.tok.vend, cr);
+  const dF = vF.corpo?.data as Dado;
+  const dV = vV.corpo?.data as Dado;
+  check("(fixture) Financeiro e Vendedor leem: 200", vF.status === 200 && vV.status === 200, `${vF.status} ${vV.status} ${j(vV.corpo)}`);
+  const lojasF = ((dF?.owed_by_store ?? []) as Dado[]).map((x) => x.establishment_id).sort();
+  check("o Financeiro vê as duas lojas no detalhe", j(lojasF) === j([A.L1, A.L2].sort()), j(dF?.owed_by_store));
+  check("o Financeiro vê as liberações das duas lojas", new Set(((dF?.releases ?? []) as Dado[]).map((x) => x.establishment_id)).size === 2, j(dF?.releases));
+  const lojasV = ((dV?.owed_by_store ?? []) as Dado[]).map((x) => x.establishment_id);
+  check("o Vendedor da L1 vê em owed_by_store só a L1", lojasV.length === 1 && lojasV[0] === A.L1, j(dV?.owed_by_store));
+  const relV = (dV?.releases ?? []) as Dado[];
+  check("e em releases só as da L1 (nenhuma da L2, e ao menos uma da L1)", relV.length >= 1 && relV.every((x) => x.establishment_id === A.L1), j(relV));
+  check("owed_total do Vendedor continua somando as duas lojas (70, igual ao do Financeiro)", perto(dV?.owed_total, 70) && perto(dF?.owed_total, 70), `${dV?.owed_total} vs ${dF?.owed_total}`);
+  check("overdue_total do Vendedor continua o das duas lojas (50, o atraso é da L2)", perto(dV?.overdue_total, 50) && perto(dF?.overdue_total, 50), `${dV?.overdue_total} vs ${dF?.overdue_total}`);
+  check("o status do Vendedor é o do Financeiro (bloqueado_por_atraso, mesmo com o atraso fora da loja dele)", dV?.status === "bloqueado_por_atraso" && dV?.status === dF?.status, `${dV?.status} vs ${dF?.status}`);
+  await config(A);
 }
 
 // ---------------------------------------------------------------------------
