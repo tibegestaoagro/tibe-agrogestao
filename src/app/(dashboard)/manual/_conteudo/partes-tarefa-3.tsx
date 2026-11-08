@@ -523,7 +523,7 @@ export function ParteDeFinanceiroDasLojas() {
           <>Em <strong>Hoje</strong>, veja a posição de caixa (cada gaveta, a gerência de cada loja e cada conta bancária), o que vence hoje a pagar e a receber, e o fiado vencido.</>,
           <>Em <strong>A pagar</strong>, marque as contas e clique em <strong>Pagar selecionadas</strong>. Veja a seção abaixo.</>,
           <>Em <strong>A receber</strong>, veja o fiado por cliente, os cheques em carteira e os cartões por data de recebimento.</>,
-          <>Em <strong>Posição de caixa</strong>, clique em <strong>Ver extrato</strong> numa conta bancária para ver as entradas e saídas do período, com o saldo de abertura e o de fechamento.</>,
+          <>Em <strong>Posição de caixa</strong>, clique em <strong>Ver extrato</strong> numa gaveta, na gerência ou numa conta bancária para ver as entradas e saídas do período, com o saldo de abertura e o de fechamento.</>,
           <>Para olhar uma loja só, use o filtro de loja no alto. Ele acompanha você de uma aba para outra.</>,
         ]}
         problemas={[
