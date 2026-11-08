@@ -107,7 +107,7 @@ export default async function EquipePage() {
                     )}
                   </TableCell>
                   <TableCell className="text-sm">
-                    {dono || funcao === "gerente_geral"
+                    {dono || funcao === "gerente_geral" || funcao === "financeiro"
                       ? "Todas"
                       : funcao
                         ? u.establishment_ids.map((i) => nomeDaLoja.get(i) ?? "Loja arquivada").join(", ") || "Nenhuma"
@@ -173,7 +173,7 @@ export default async function EquipePage() {
                       {funcao && <Badge variant="gray">{FUNCAO_ROTULO[funcao]}</Badge>}
                     </TableCell>
                     <TableCell className="text-sm">
-                      {funcao === "gerente_geral"
+                      {funcao === "gerente_geral" || funcao === "financeiro"
                         ? "Todas"
                         : u.establishment_ids.map((i) => nomeDaLoja.get(i) ?? "Loja arquivada").join(", ") || "Nenhuma"}
                     </TableCell>

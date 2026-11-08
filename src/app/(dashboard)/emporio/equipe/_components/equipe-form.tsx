@@ -17,7 +17,7 @@ import { FormSheet } from "@/components/ui/form-sheet";
 import { useErrosDeFormulario } from "@/components/ui/use-erros-de-formulario";
 import { useAviso } from "@/components/ui/toast";
 import { apiPatch, apiPost } from "@/lib/client-api";
-import { FUNCAO_ROTULO, type FuncaoDaEquipe } from "./funcao";
+import { FUNCAO_DE_TODAS_AS_LOJAS, FUNCAO_DESCRICAO, FUNCAO_ROTULO, type FuncaoDaEquipe } from "./funcao";
 
 
 export type MembroParaEditar = {
@@ -102,7 +102,7 @@ export function EquipeForm({
 
     const corpo = {
       emporio_role: funcao,
-      establishment_ids: funcao === "gerente_geral" ? [] : lojasSel,
+      establishment_ids: funcao && FUNCAO_DE_TODAS_AS_LOJAS.includes(funcao) ? [] : lojasSel,
       emporio_keys: funcao === "vendedor" ? chavesSel : [],
     };
 
@@ -235,6 +235,9 @@ export function EquipeForm({
               </Select>
             )}
           </Field>
+          {funcao && FUNCAO_DESCRICAO[funcao] && (
+            <p className="text-xs text-texto-secundario">{FUNCAO_DESCRICAO[funcao]}</p>
+          )}
 
           {(funcao === "gestor" || funcao === "vendedor" || funcao === "caixa") && (
             <Field label="Lojas" required id={err.idDe("establishment_ids")} error={err.erros.establishment_ids}>

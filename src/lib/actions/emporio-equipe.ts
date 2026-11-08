@@ -21,7 +21,7 @@ import type { AppUserRole } from "@/types/next-auth";
 type Ator = { id: string; role: AppUserRole };
 
 type FuncaoEmporio = Exclude<PapelEmporio, "dono">;
-const FUNCOES: readonly string[] = ["gerente_geral", "gestor", "vendedor", "caixa"];
+const FUNCOES: readonly string[] = ["gerente_geral", "financeiro", "gestor", "vendedor", "caixa"];
 
 /** Q118: o papel da conta acompanha a função (Gerente geral é ADMIN, o resto OPERADOR). */
 const roleDaFuncao = (f: FuncaoEmporio): AppUserRole => (f === "gerente_geral" ? "ADMIN" : "OPERADOR");
@@ -61,6 +61,7 @@ async function exigirConta(db: TenantPrismaClient, ator: Ator, oQue: string) {
 
 const NOME_DA_FUNCAO: Record<string, string> = {
   gerente_geral: "gerente geral",
+  financeiro: "financeiro",
   gestor: "gestor",
   vendedor: "vendedor",
   caixa: "caixa",
@@ -105,7 +106,7 @@ async function validarEstado(
   e: { emporio_role: unknown; establishment_ids: unknown; emporio_keys: unknown },
 ) {
   if (!ehFuncao(e.emporio_role)) {
-    return fail("VALIDATION_ERROR", "Escolha a função: gerente geral, gestor, vendedor ou caixa.", 422, "emporio_role");
+    return fail("VALIDATION_ERROR", "Escolha a função: gerente geral, financeiro, gestor, vendedor ou caixa.", 422, "emporio_role");
   }
   const funcao = e.emporio_role;
 
@@ -120,7 +121,7 @@ async function validarEstado(
     return fail("VALIDATION_ERROR", "Só o vendedor recebe chaves. O caixa não tem chaves.", 422, "emporio_keys");
   }
 
-  if (funcao !== "gerente_geral") {
+  if (funcao !== "gerente_geral" && funcao !== "financeiro") {
     const ids = e.establishment_ids;
     if (!Array.isArray(ids) || ids.length === 0 || ids.some((i) => typeof i !== "string")) {
       return fail("VALIDATION_ERROR", "Escolha pelo menos uma loja.", 422, "establishment_ids");
@@ -240,7 +241,7 @@ export async function cadastrarMembroAction(
   const convite = await inviteUserAction(db, tenantId, { name, email, phone: input.phone, role: "OPERADOR" }, "emporio");
   if (!convite.ok) return convite;
 
-  const ids = funcao === "gerente_geral" ? [] : [...new Set(input.establishment_ids as string[])];
+  const ids = funcao === "gerente_geral" || funcao === "financeiro" ? [] : [...new Set(input.establishment_ids as string[])];
   const gravado: FotoDoMembro & { emporio_role: FuncaoEmporio } = {
     emporio_role: funcao,
     emporio_only: funcao === "gerente_geral",
@@ -347,7 +348,7 @@ export async function alterarMembroAction(
   // o papel trata toda a equipe como só do Empório de qualquer jeito.
   const final = {
     emporio_role: nova,
-    establishment_ids: nova === "gerente_geral" ? [] : (input.establishment_ids ?? vinculosAtuais),
+    establishment_ids: nova === "gerente_geral" || nova === "financeiro" ? [] : (input.establishment_ids ?? vinculosAtuais),
     emporio_keys: input.emporio_keys ?? (mudou ? [] : alvo.emporio_keys),
     emporio_only: nova === "gerente_geral",
   };

@@ -25,6 +25,11 @@ export function papelDeFixture(role: "OWNER" | "ADMIN" | "OPERADOR" | "VISUALIZA
   return {};
 }
 
+/** Financeiro: cuida do dinheiro de todas as lojas, sem vínculo com loja (Q215). */
+export function papelFinanceiro() {
+  return { emporio_role: "financeiro" as const, emporio_only: true };
+}
+
 type Vinculavel = {
   userEstablishment: { createMany: (a: { data: { tenant_id: string; user_id: string; establishment_id: string }[]; skipDuplicates?: boolean }) => Promise<unknown> };
 };

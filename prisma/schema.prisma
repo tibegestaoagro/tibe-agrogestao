@@ -61,6 +61,8 @@ enum EmporioRole {
   vendedor
   /// Entrega 2: opera um caixa (abre, vende, sangra, fecha).
   caixa
+  /// Financeiro das lojas, entrega 1 (Q215): cuida do dinheiro de todas as lojas, não vende nem mexe em catálogo.
+  financeiro
 }
 
 /// Módulo 39, F6b (Q131): como a diferença de uma transferência foi resolvida.
@@ -281,6 +283,8 @@ enum CashMovementOrigin {
   malote
   reforco
   entrega_gerencia
+  /// Financeiro das lojas (Q221): compra à vista ou entrada da parcelada.
+  pagamento_compra
 }
 
 /// Entrega 2: o motivo da contagem de um caixa.

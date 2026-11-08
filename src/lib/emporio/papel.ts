@@ -9,7 +9,7 @@ import type { AppUserRole } from "@/types/next-auth";
  * request, nunca do JWT, para mudar na hora.
  */
 
-export type PapelEmporio = "dono" | "gerente_geral" | "gestor" | "vendedor" | "caixa";
+export type PapelEmporio = "dono" | "gerente_geral" | "gestor" | "vendedor" | "caixa" | "financeiro";
 
 /** Q129: as chaves de confiança do Vendedor, com o rótulo da tela. */
 export const EMPORIO_KEYS = [
@@ -69,6 +69,10 @@ const carregar = perRequestCache(async function carregarPapel(
   if (u.emporio_role === "gerente_geral") {
     return { papel: "gerente_geral", lojas: null, chaves: new Set(), soDaLoja: true };
   }
+  // Q215: o Financeiro cuida do dinheiro de todas as lojas, sem vínculo com loja.
+  if (u.emporio_role === "financeiro") {
+    return { papel: "financeiro", lojas: null, chaves: new Set(), soDaLoja: true };
+  }
   const links = await db.userEstablishment.findMany({
     where: { user_id: userId },
     select: { establishment_id: true },
@@ -93,6 +97,8 @@ export type AcaoEmporio =
   | "fora_do_caixa"
   /** Quem muda o pedido para entrega: Dono e Gerente geral sempre; Gestor, Caixa e Vendedor nas lojas deles. */
   | "fatura_na_loja"
+  /** Q215: mexer no dinheiro das lojas (pagar, receber, conciliar): Financeiro, Gerente geral e Dono. */
+  | "dinheiro"
   | `chave:${EmporioKey}`;
 
 const noAlcance = (c: PapelContexto, lojaId?: string) => !lojaId || !c.lojas || c.lojas.has(lojaId);
@@ -105,7 +111,9 @@ export function pode(c: PapelContexto, acao: AcaoEmporio, lojaId?: string): bool
   if (!c.papel) return false;
   const conta = c.papel === "dono" || c.papel === "gerente_geral";
   if (acao === "conta") return conta;
+  if (acao === "dinheiro") return conta || c.papel === "financeiro";
   if (acao === "fora_do_caixa") return c.papel !== "caixa";
+  if (c.papel === "financeiro") return false;
   if (conta) return true;
   if (acao === "gestor_da_loja") return c.papel === "gestor" && noAlcance(c, lojaId);
   if (acao === "vendedor_da_loja") return noAlcance(c, lojaId);
@@ -132,6 +140,7 @@ const FRASES: Record<string, string> = {
   vendedor_da_loja: "Seu acesso não permite fazer isso nessa loja.",
   fora_do_caixa: "O acesso de caixa não inclui isso.",
   fatura_na_loja: "Seu acesso não permite fazer isso nessa loja.",
+  dinheiro: "Só o financeiro, o gerente geral e o dono podem fazer isso.",
 };
 
 /** Frase de recusa por papel (403). `oQue` complementa: "cancelar uma venda". */
@@ -144,6 +153,9 @@ export function recusaDe(acao: AcaoEmporio, oQue?: string) {
     );
   }
   if (oQue && acao === "conta") return fail("FORBIDDEN", `Só o dono e o gerente geral podem ${oQue}.`, 403);
+  if (oQue && acao === "dinheiro") {
+    return fail("FORBIDDEN", `Só o financeiro, o gerente geral e o dono podem ${oQue}.`, 403);
+  }
   if (oQue && acao === "gestor_da_loja") {
     return fail("FORBIDDEN", `Só o gestor da loja pode ${oQue}.`, 403);
   }
@@ -178,4 +190,16 @@ export async function exigir(
 ) {
   const c = await papelDoEmporio(db, ator);
   return pode(c, acao, lojaId) ? null : recusaDe(acao, oQue);
+}
+
+/** Nulo se ALGUMA das ações passa; senão a recusa da primeira da lista. */
+export async function exigirUma(
+  db: TenantPrismaClient,
+  ator: AtorPapel,
+  acoes: AcaoEmporio[],
+  oQue?: string,
+  lojaId?: string,
+) {
+  const c = await papelDoEmporio(db, ator);
+  return acoes.some((a) => pode(c, a, lojaId)) ? null : recusaDe(acoes[0], oQue);
 }
