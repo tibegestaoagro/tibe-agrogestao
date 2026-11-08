@@ -78,6 +78,7 @@
     "test:m95": "tsx scripts/m95-emporio-clientes-fornecedores.test.ts",
     "test:m96": "tsx scripts/m96-emporio-escolha-do-cliente.test.ts",
     "test:m97": "tsx scripts/m97-emporio-entrega-romaneio.test.ts",
+    "test:m98": "tsx scripts/m98-emporio-financeiro-casa.test.ts",
     "test:isolation": "tsx scripts/tenant-isolation.test.ts",
     "test:docs-api": "tsx scripts/docs-api-completeness.test.ts",
     "test:nav": "tsx scripts/nav-build.test.ts",
