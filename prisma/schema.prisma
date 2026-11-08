@@ -608,6 +608,7 @@ model Tenant {
   card_receivables          CardReceivable[]
   emporio_checks            EmporioCheck[]
   emporio_customers         EmporioCustomer[]
+  emporio_credit_releases   EmporioCreditRelease[]
   emporio_suppliers         EmporioSupplier[]
   cash_transfers            CashTransfer[]
   cash_counts               CashCount[]
@@ -670,27 +671,28 @@ model User {
   /// Q129: as chaves de confiança do Vendedor (lista fixa no código).
   emporio_keys         String[]     @default([])
 
-  tenant                     Tenant              @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  tenant                     Tenant                 @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   whatsapp_contacts          WhatsAppContact[]
   password_resets            PasswordResetCode[]
   agent_flows                AgentFlowState[]
   refresh_tokens             RefreshToken[]
   herd_movements             HerdMovement[]
   herd_stays                 HerdStay[]
-  negotiations               Negotiation[]       @relation("NegotiationRecordedBy")
-  negotiations_canceled      Negotiation[]       @relation("NegotiationCanceledBy")
-  stock_movements            StockMovement[]     @relation("StockRecordedBy")
+  negotiations               Negotiation[]          @relation("NegotiationRecordedBy")
+  negotiations_canceled      Negotiation[]          @relation("NegotiationCanceledBy")
+  stock_movements            StockMovement[]        @relation("StockRecordedBy")
   push_subscriptions         PushSubscription[]
-  financial_entries_created  FinancialEntry[]    @relation("FinancialEntryCreatedBy")
-  financial_entries_updated  FinancialEntry[]    @relation("FinancialEntryUpdatedBy")
-  financial_payments_created FinancialPayment[]  @relation("FinancialPaymentCreatedBy")
-  workers_recorded           Worker[]            @relation("WorkerRecordedBy")
-  service_jobs_recorded      ServiceJob[]        @relation("ServiceJobRecordedBy")
-  service_jobs_canceled      ServiceJob[]        @relation("ServiceJobCanceledBy")
-  service_costs_recorded     ServiceJobCost[]    @relation("ServiceCostRecordedBy")
-  shopping_items_created     ShoppingItem[]      @relation("ShoppingItemCreatedBy")
-  establishments_responsible Establishment[]     @relation("EstablishmentResponsible")
-  tenant_feature_users       TenantFeatureUser[] @relation("TenantFeatureUserUser")
+  financial_entries_created  FinancialEntry[]       @relation("FinancialEntryCreatedBy")
+  financial_entries_updated  FinancialEntry[]       @relation("FinancialEntryUpdatedBy")
+  financial_payments_created FinancialPayment[]     @relation("FinancialPaymentCreatedBy")
+  workers_recorded           Worker[]               @relation("WorkerRecordedBy")
+  service_jobs_recorded      ServiceJob[]           @relation("ServiceJobRecordedBy")
+  service_jobs_canceled      ServiceJob[]           @relation("ServiceJobCanceledBy")
+  service_costs_recorded     ServiceJobCost[]       @relation("ServiceCostRecordedBy")
+  shopping_items_created     ShoppingItem[]         @relation("ShoppingItemCreatedBy")
+  establishments_responsible Establishment[]        @relation("EstablishmentResponsible")
+  emporio_credit_releases    EmporioCreditRelease[]
+  tenant_feature_users       TenantFeatureUser[]    @relation("TenantFeatureUserUser")
   user_establishments        UserEstablishment[]
 
   @@index([tenant_id])
@@ -775,6 +777,7 @@ model Establishment {
   responsible               User?                    @relation("EstablishmentResponsible", fields: [responsible_user_id], references: [id], onDelete: SetNull)
   pix_bank_account          BankAccount?             @relation("EstablishmentPixAccount", fields: [pix_bank_account_id], references: [id], onDelete: SetNull)
   sales                     EmporioSale[]
+  credit_releases           EmporioCreditRelease[]
   quotes                    EmporioQuote[]
   cash_movements            CashMovement[]
   card_fee_rules            CardFeeRule[]
@@ -1246,6 +1249,7 @@ model EmporioSale {
   returns           EmporioSaleReturn[]   @relation("ReturnOfSale")
   card_receivables  CardReceivable[]
   checks            EmporioCheck[]
+  credit_release    EmporioCreditRelease?
   variable_expenses SaleVariableExpense[]
   stock_movements   StockMovement[]
   cash_movements    CashMovement[]
@@ -1340,17 +1344,22 @@ model EmporioQuoteItem {
 /// Entrega 1 do Empório: configurações da conta (validade e rodapés do papel,
 /// largura da bobina e logo). Uma linha por tenant, criada na primeira gravação.
 model EmporioSettings {
-  id                  String    @id @default(cuid())
-  tenant_id           String    @unique
-  quote_validity_days Int       @default(7)
-  quote_footer        String?
-  sale_footer         String?
-  receipt_width       Int       @default(80)
-  logo                Bytes?
-  logo_mime           String?
-  logo_updated_at     DateTime?
-  created_at          DateTime  @default(now())
-  updated_at          DateTime  @updatedAt
+  id                       String    @id @default(cuid())
+  tenant_id                String    @unique
+  quote_validity_days      Int       @default(7)
+  quote_footer             String?
+  sale_footer              String?
+  receipt_width            Int       @default(80)
+  /// Entrega 2 do financeiro: prazo padrão do fiado, dias de atraso que bloqueiam o cliente, limite padrão e modelo da mensagem de cobrança.
+  fiado_due_days           Int       @default(30)
+  fiado_block_after_days   Int       @default(15)
+  fiado_default_limit      Decimal?  @db.Decimal(14, 2)
+  fiado_collection_message String?
+  logo                     Bytes?
+  logo_mime                String?
+  logo_updated_at          DateTime?
+  created_at               DateTime  @default(now())
+  updated_at               DateTime  @updatedAt
 
   tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
 }
@@ -3514,19 +3523,47 @@ model EmporioCustomer {
   notes               String?
   /// "consumidor_final": o cliente fixo do sistema, um por conta.
   system_key          String?
+  /// Prazo do fiado só deste cliente: em dias, ou num dia fixo do mês (o dia fixo vence).
+  fiado_due_days      Int?
+  fiado_due_day       Int?
+  fiado_limit         Decimal?           @db.Decimal(14, 2)
   archived_at         DateTime?
   created_at          DateTime           @default(now())
   updated_at          DateTime           @updatedAt
 
-  tenant            Tenant           @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  tenant            Tenant                 @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   sales             EmporioSale[]
   quotes            EmporioQuote[]
   checks            EmporioCheck[]
   financial_entries FinancialEntry[]
+  credit_releases   EmporioCreditRelease[]
 
   @@unique([tenant_id, document])
   @@unique([tenant_id, system_key])
   @@index([tenant_id])
+}
+
+/// Entrega 2 do financeiro: liberação única de crédito a um cliente bloqueado (Q219/Q224).
+/// Vale até `valid_until` e é gasta por UMA venda (`consumed_sale_id`).
+model EmporioCreditRelease {
+  id                  String    @id @default(cuid())
+  tenant_id           String
+  customer_id         String
+  establishment_id    String
+  released_by_user_id String
+  reason              String
+  valid_until         DateTime
+  consumed_sale_id    String?   @unique
+  consumed_at         DateTime?
+  created_at          DateTime  @default(now())
+
+  tenant        Tenant          @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  customer      EmporioCustomer @relation(fields: [customer_id], references: [id], onDelete: Restrict)
+  establishment Establishment   @relation(fields: [establishment_id], references: [id], onDelete: Restrict)
+  released_by   User            @relation(fields: [released_by_user_id], references: [id], onDelete: Restrict)
+  consumed_sale EmporioSale?    @relation(fields: [consumed_sale_id], references: [id], onDelete: SetNull)
+
+  @@index([tenant_id, customer_id, valid_until])
 }
 
 enum EmporioSupplierKind {

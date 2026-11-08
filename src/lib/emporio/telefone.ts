@@ -21,6 +21,20 @@ export function telefoneLocal(texto: string | null | undefined): string | null {
   return d === "" ? null : d;
 }
 
+/**
+ * Número para o link do WhatsApp (wa.me): só dígitos, com o 55. O zero de operadora
+ * na frente só sai quando o que sobra tem 10 ou 11 dígitos. Nunca inventa DDD:
+ * número sem DDD (8 ou 9 dígitos) é nulo.
+ */
+export function telefoneParaWhatsApp(texto: string | null | undefined): string | null {
+  if (!texto) return null;
+  let d = texto.replace(/\D/g, "");
+  if (d.startsWith("0") && (d.slice(1).length === 10 || d.slice(1).length === 11)) d = d.slice(1);
+  if (d.length === 10 || d.length === 11) return `55${d}`;
+  if ((d.length === 12 || d.length === 13) && d.startsWith("55")) return d;
+  return null;
+}
+
 /** Telefone para exibir: "(34) 99876-1234", "(34) 3333-5678", "99876-1234", "3333-5678". */
 export function formatarTelefone(texto: string | null | undefined): string {
   if (!texto) return "sem telefone";

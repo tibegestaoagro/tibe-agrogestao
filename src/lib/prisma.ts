@@ -57,6 +57,7 @@ export const TENANT_SCOPED_MODELS = new Set<string>([
   "CardReceivable",
   "EmporioCheck",
   "EmporioCustomer",
+  "EmporioCreditRelease",
   "EmporioSupplier",
   "CashTransfer",
   "CashCount",
