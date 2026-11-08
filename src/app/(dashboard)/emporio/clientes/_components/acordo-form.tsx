@@ -254,7 +254,7 @@ export function AcordoForm({
       </Button>
 
       <Field
-        label="Parcelas"
+        label="Parcelas do acordo"
         required
         hint="Pode mudar a data e o valor de cada uma. A soma tem de fechar com o total."
         id={err.idDe("installments")}
@@ -267,7 +267,7 @@ export function AcordoForm({
             ) : (
               <>
                 {parcelas.map((p, i) => (
-                  <div key={i} className="grid grid-cols-[2rem_1fr_1fr] items-start gap-2">
+                  <div key={i} className="grid grid-cols-[2rem_minmax(0,1fr)_minmax(0,1fr)] items-start gap-2">
                     <span className="pt-2 text-sm text-texto-secundario">{i + 1}</span>
                     <Input
                       type="date"
