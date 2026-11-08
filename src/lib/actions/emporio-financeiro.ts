@@ -284,16 +284,18 @@ export async function lerExtratoAction(
   }
   const campoId = kind === "conta" ? "bank_account_id" : "id";
   const lugarId = typeof input.lugar.id === "string" ? input.lugar.id.trim() : "";
+  // Primeiro a ação em si (403); a loja do extrato se confere depois de achá-la, e loja que o ator não vê
+  // é 404, como em `lerCaixaAction`: assim o Vendedor da loja A e o Financeiro recebem a mesma resposta
+  // para uma loja de outra conta de cliente.
+  const acoesDaLoja: ["vendedor_da_loja" | "gestor_da_loja", "dinheiro"] = [
+    kind === "gaveta" ? "vendedor_da_loja" : "gestor_da_loja",
+    "dinheiro",
+  ];
+  const oQue = kind === "conta" ? "ver o extrato de uma conta" : kind === "gaveta" ? "ver o extrato da gaveta" : "ver o extrato da gerência";
   const neg =
     kind === "conta"
-      ? await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "ver o extrato de uma conta")
-      : await exigirUma(
-          db,
-          ator,
-          [kind === "gaveta" ? "vendedor_da_loja" : "gestor_da_loja", "dinheiro"],
-          kind === "gaveta" ? "ver o extrato da gaveta" : "ver o extrato da gerência",
-          lugarId || undefined,
-        );
+      ? await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], oQue)
+      : await exigirUma(db, ator, acoesDaLoja, oQue);
   if (neg) return neg;
   if (!lugarId) {
     return fail("VALIDATION_ERROR", kind === "conta" ? "Escolha a conta." : "Escolha a loja.", 422, campoId);
@@ -319,6 +321,8 @@ export async function lerExtratoAction(
   } else {
     const loja = await db.establishment.findFirst({ where: { id: lugarId }, select: { id: true, name: true } });
     if (!loja) return fail("NOT_FOUND", "Estabelecimento não encontrado.", 404, "id");
+    const negLoja = await exigirUma(db, ator, acoesDaLoja, oQue, loja.id);
+    if (negLoja) return fail("NOT_FOUND", "Estabelecimento não encontrado.", 404, "id");
     lugar = { kind, id: loja.id, name: loja.name };
     // O mesmo filtro de `saldoDaGaveta` e `saldoDaGerencia`, que alimentam o bloco 1 do Hoje.
     ondeMovimentos = kind === "gaveta" ? { establishment_id: loja.id } : { manager_establishment_id: loja.id };
@@ -367,8 +371,9 @@ export async function lerExtratoAction(
       direction: m.direction,
       amount: decToNum(m.amount) ?? 0,
       origin: m.origin,
-      establishment_id: m.establishment_id,
-      establishment_name: m.establishment?.name ?? null,
+      // O movimento da gerência grava `manager_establishment_id`, não `establishment_id`: a loja é a do lugar.
+      establishment_id: m.establishment_id ?? m.manager_establishment_id ?? null,
+      establishment_name: m.establishment?.name ?? (m.manager_establishment_id ? lugar.name : null),
       description: m.notes?.trim() || ROTULO_ORIGEM[m.origin] || m.origin,
     })),
     ...parcelas.map((p): ExtratoLinhaView => ({

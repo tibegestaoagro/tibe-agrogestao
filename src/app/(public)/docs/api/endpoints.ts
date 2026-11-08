@@ -965,7 +965,7 @@ export const GROUPS: Group[] = [
       {
         method: "GET",
         path: "/api/v1/emporio/quotes/lookup",
-        auth: "Sessão · emporio:read · quem vende na loja (Caixa incluído, nas lojas dele)",
+        auth: "Sessão · emporio:read · quem vende na loja (Caixa incluído, nas lojas dele) e o Financeiro (todas as lojas, só leitura)",
         description: "Acha o orçamento pelo número impresso, na loja informada: `establishment_id` e `number` (aceita `12` ou `000012`) são obrigatórios (422 no campo que faltar ou vier fora do formato). Devolve a mesma visão de `GET /api/v1/emporio/quotes/:id`. Número que não existe, ou que é de outra loja ou conta: 404 `QUOTE_NOT_FOUND` em `number`. Loja fora do vínculo: 404 em `establishment_id`.",
         response: `200
 { "data": { "id": "cl...", "numero": "000012", "situacao": "aberto", "items": [] }, "meta": {} }`,
