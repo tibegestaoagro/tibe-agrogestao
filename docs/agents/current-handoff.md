@@ -25,13 +25,13 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-08 (entrega 1 do financeiro do Empório pronta na
-  branch; missão autônoma das quatro entregas em curso).
+- Atualizado em: 2026-11-08 (entregas 1 e 2 do financeiro do Empório prontas
+  nas branches; missão autônoma das quatro entregas em curso).
 - `main` em `ed8e37e`, Vercel verde. Nenhuma migração pendente no Neon.
 - Branches empilhadas, sem merge: `emporio-financeiro-spec` (spec) →
   `emporio-financeiro-1` (entrega 1, pronta) → `emporio-financeiro-2` (entrega
-  2, em execução). Evidências por entrega em
-  [financeiro-emporio-relatorio.md](financeiro-emporio-relatorio.md).
+  2, pronta) → `emporio-financeiro-3` (entrega 3, a começar). Evidências por
+  entrega em [financeiro-emporio-relatorio.md](financeiro-emporio-relatorio.md).
 
 ### A missão autônoma do financeiro do Empório (aprovada em 07/11)
 
@@ -56,11 +56,23 @@ Opus rodada 1 reprovou (6/10) e rodada 2 aprovou (8/10) depois de 10
 correções revisadas. Decisões tomadas sem o usuário estão no relatório de
 evidências.
 
-**Entrega 2 (`emporio-financeiro-2`): em execução.** Plano
-[../superpowers/plans/2026-11-08-emporio-financeiro-entrega-2.md](../superpowers/plans/2026-11-08-emporio-financeiro-entrega-2.md)
-(vencimento do fiado, limite, bloqueio, liberação, ficha de crédito, lista de
-cobrança; `test:m99`, roteiro `emporio-financeiro-credito`, migração
-`20261108120000_emporio_financeiro_credito`). Ledger em
+**Entrega 2 (`emporio-financeiro-2`): pronta.** Plano
+[../superpowers/plans/2026-11-08-emporio-financeiro-entrega-2.md](../superpowers/plans/2026-11-08-emporio-financeiro-entrega-2.md).
+Vencimento do fiado (prazo da conta, dias ou dia fixo do cliente), limite,
+bloqueio por atraso e por limite com 409 no campo `payments`, liberação do
+Gestor válida até o fim do dia e consumida pela primeira venda, ficha de
+crédito na página do cliente, seção Fiado em Configurações, aba Cobrança com
+o WhatsApp do aparelho. Migração `20261108120000_emporio_financeiro_credito`
+(campos do fiado em `EmporioSettings` e `EmporioCustomer`, model
+`EmporioCreditRelease`), aplicada só no Docker. Provas: `test:m99` (197
+checagens), `test:all -- --sem-redis` 99/99, roteiro
+`emporio-financeiro-credito` 0 falhas e 9 falhas com o atraso ignorado, juiz
+Opus 8/10 aprovado na rodada 1 (2 MEDIO e 2 BAIXO corrigidos em seguida).
+Dívidas 2.36 a 2.38 (a 2.38 é decisão de produto a confirmar: a liberação é
+consumida pela primeira venda fiado, mesmo uma que caberia).
+
+**Entrega 3 (`emporio-financeiro-3`): a começar** (acordo de fiado, alçada,
+carimbo; `test:m100`). Ledger de cada entrega em
 `.superpowers/sdd/<plano>/progress.md` (não versionado).
 
 ### ⏭️ Próximo passo
@@ -79,14 +91,10 @@ Spec do módulo: [../specs/module-39-meu-emporio.md](../specs/module-39-meu-empo
 (decisões até a Q213). Dívidas do módulo em [dividas.md](dividas.md), de 2.15 a
 2.27 e de 5.19 a 5.22. Manual em `/manual`, roteiro `manual-emporio`.
 
-Os três planos de 06/11 (clientes e fornecedores fora de `Contact`, a escolha
-com busca no servidor, pedido para entrega e romaneio; `test:m95` a `m97`,
-Q191 a Q213) estão em produção desde 07/11, com deploy autorizado na conversa.
-Detalhe em `historico/2026-11.md`. O roteiro `emporio-romaneio` precisa de
-`pypdf` no python do sistema.
-
-As pendências de produto do Empório que esperam o usuário (reforço da
-gerência, pontas da Q187, cupom de 58/80 mm e A4, o teste de cliente) estão em
+Os três planos de 06/11 (clientes e fornecedores, a escolha, entrega e
+romaneio; `test:m95` a `m97`, Q191 a Q213) estão em produção desde 07/11
+(detalhe em `historico/2026-11.md`; `emporio-romaneio` precisa de `pypdf`).
+As pendências de produto do Empório que esperam o usuário estão em
 [pendencias-do-usuario.md](pendencias-do-usuario.md), seção do Empório.
 
 Não ligue recurso nem escreva dado da Da Mata pelo agente: quem faz é o
@@ -115,22 +123,19 @@ Pendente do usuário:
 Todo commit é leitura pública. Fechar exige a conta `tibegestaoagro` (o
 `dilton-pleno` tem `push`, não `admin`).
 
-- O `.env.enc` vazou (commit de 24/08, AES-256-CBC). A reescrita de 02/09 com
-  `git filter-repo` não removeu a exposição: o GitHub ainda serve os objetos por
-  SHA, verificado depois do force-push.
-- Falta, e é do usuário: rotacionar as 22 variáveis (decidido em 02/09, adiado
-  em 27/10 pelo Empório), fechar o repositório e pedir ao Suporte do GitHub a
-  coleta dos objetos órfãos. Na rotação, o agente guia variável por variável e
-  nunca lê nem imprime o valor.
-- ⚠️ O espelho `D:\tmp\tibe-backup-pre-rewrite.git` contém o `.env.enc`. Apague
-  quando a rotação terminar.
+- O `.env.enc` vazou (commit de 24/08, AES-256-CBC); a reescrita de 02/09 com
+  `git filter-repo` não removeu a exposição (o GitHub ainda serve os objetos
+  por SHA). Falta, e é do usuário: rotacionar as 22 variáveis (adiado em
+  27/10), fechar o repositório e pedir ao Suporte do GitHub a coleta dos
+  órfãos. Na rotação, o agente guia variável por variável e nunca lê nem
+  imprime o valor. ⚠️ O espelho `D:\tmp\tibe-backup-pre-rewrite.git` contém o
+  `.env.enc`: apague quando a rotação terminar.
 - Alerta do GitGuardian de 06/11 ("Company Email Password exposed", push de
-  22:27 UTC): o segredo exato não está confirmado. O candidato provável é o par
-  do seed `owner@damata.com.br` / `tibe123`, citado na documentação pública;
-  esse email não existe em produção. Falta o usuário mandar a parte do email que
-  diz o arquivo e o commit. Proposta feita: trocar o email do seed por um
-  domínio de exemplo. Não repita a comparação de senha contra os hashes de
-  produção: o classificador bloqueou.
+  22:27 UTC): segredo não confirmado; o candidato provável é o par do seed
+  `owner@damata.com.br` / `tibe123`, citado na documentação pública (o email
+  não existe em produção). Falta o usuário mandar a parte do email que diz o
+  arquivo e o commit; proposta: trocar o email do seed por um domínio de
+  exemplo. Não repita a comparação de senha contra os hashes de produção.
 
 ### Agente do WhatsApp: Fases 1 a 6 em produção, Fase 7 em canário
 
@@ -141,25 +146,20 @@ relatórios em [agente-whatsapp/](agente-whatsapp/), detalhe em
 
 - O fluxo de produção do n8n (`UAAA96aJFiiFsQCL`) é híbrido desde 18/09: o nó
   `Agente Novo?` manda quatro telefones (o usuário e Lucas, Max e Laíza
-  Agromax) para a rota de turno; o resto segue no `execute-action`. Decidido em
-  29/09: o canário fica com esses quatro até o usuário reabrir o assunto.
+  Agromax) para a rota de turno; o resto segue no `execute-action`. O canário
+  fica com esses quatro até o usuário reabrir o assunto (29/09).
 - Ler, guardar e mudar a lista: `scripts/n8n-workflow.ts` (escrita só com
-  `--confirmar`, cópia antes em `~/.tibe/n8n-copias/`). Escrita no n8n de
-  produção quem roda é o usuário. Antes da primeira escrita, `salvar`.
-- ⚠️ O JSON do fluxo nunca entra no repositório: carrega a chave da Evolution.
-- Ler o canário: `npx tsx scripts/observar-canario.ts [dias]` (só leitura,
-  contra produção).
-- Faltam os passos 9 e 10 do [roteiro](agente-whatsapp/roteiro-do-chip.md)
-  (foto de recibo e o "não" final) e validar no celular três correções de
-  29/09 (compra a prazo pergunta se já pagou; "próximos 100 dias" diz a data;
-  "30 machos de 0 a 8 meses" vai direto à confirmação).
-- As intenções das missões 3 e 4 seguem congeladas no classificador (ver o
-  `CLAUDE.md`).
+  `--confirmar`, cópia antes em `~/.tibe/n8n-copias/`; quem roda é o usuário).
+  ⚠️ O JSON do fluxo nunca entra no repositório: carrega a chave da Evolution.
+- Ler o canário: `npx tsx scripts/observar-canario.ts [dias]` (só leitura).
+- Faltam os passos 9 e 10 do [roteiro](agente-whatsapp/roteiro-do-chip.md) e
+  validar no celular três correções de 29/09 (compra a prazo pergunta se já
+  pagou; "próximos 100 dias" diz a data; "30 machos" vai à confirmação).
+- As intenções das missões 3 e 4 seguem congeladas no classificador.
 
 ### Outras pendências do usuário
 
-- Trocar o nome do cadastro "Owner Da Mata" em Ajustes (a saudação sai sem
-  nome).
+- Trocar o nome do cadastro "Owner Da Mata" em Ajustes (saudação sem nome).
 - O roteiro do estoque no aparelho:
   [roteiro-aparelho-estoque.md](roteiro-aparelho-estoque.md), a partir do
   bloco 0.
@@ -174,10 +174,11 @@ relatórios em [agente-whatsapp/](agente-whatsapp/), detalhe em
 - `npx prisma migrate deploy` contra o Neon pode ser recusado pelo
   classificador mesmo com autorização. Tente uma vez; se bloquear, dê ao
   usuário o comando e confira com `migrate status` antes do push.
-- O desktop tem dois clones (`C:\Projetos\tibe-agrogestão` e
-  `D:\Projetos\tibe-agrogestão`). Se a 3000 estiver ocupada pelo outro, suba
-  este na 3001 e rode `TIBE_BASE="http://localhost:3001" npm run navegador --
-  <roteiro>`.
+- O desktop tem dois clones (`C:` e `D:`) e, desde 08/11, o worktree
+  `D:/Projetos/tibe-wt2` com dev server na 3002 (um `next dev` preso na 3000
+  não pode ser morto pelo agente). Roteiro: `TIBE_BASE="http://localhost:3002"
+  npm run navegador -- <roteiro>`; atualize o worktree a cada commit com
+  `git -C D:/Projetos/tibe-wt2 checkout --detach <branch>`.
 - Roteiro preso em recarga é aba sobrando no Chrome de testes, não defeito.
   Ver o cofre: `a-aba-oculta-e-a-leitura-cedo-imitam-defeito-no-navegador`.
 - O roteiro `manual-emporio` regrava todos os PNGs do manual. Antes do commit,
@@ -188,13 +189,12 @@ relatórios em [agente-whatsapp/](agente-whatsapp/), detalhe em
 
 ## Últimas rodadas
 
-- 08/11: entrega 1 do financeiro do Empório pronta em `emporio-financeiro-1`
-  (juiz Opus 8/10 na rodada 2); plano da entrega 2 escrito.
+- 08/11: entrega 2 do financeiro do Empório pronta em `emporio-financeiro-2`
+  (juiz Opus 8/10 na rodada 1).
+- 08/11: entrega 1 pronta em `emporio-financeiro-1` (juiz 8/10 na rodada 2).
 - 07/11: pesquisa de mercado, entrevista em 24 decisões e spec do financeiro
   do Empório, revisada por builder (branch `emporio-financeiro-spec`).
-- 07/11: plano 3 do Empório (entrega e romaneio) em produção, `c3b2606`; handoff
-  arquivado em `historico/2026-11.md`.
-- 07/11: planos 1 e 2 do Empório (clientes, fornecedores e a escolha) em
-  produção, `ad2a42e`.
+- 07/11: planos 1 a 3 do Empório (clientes, fornecedores, escolha, entrega e
+  romaneio) em produção, `c3b2606`; handoff arquivado em `historico/2026-11.md`.
 - 06/11: Da Mata limpa para a Agromax; equipe do Empório separada dos usuários
   do Tibé (`55dfd81`).
