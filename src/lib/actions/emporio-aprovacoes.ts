@@ -1,6 +1,7 @@
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import type { TenantPrismaClient } from "@/lib/prisma";
 import { runSerializableTenantTransaction } from "@/lib/financial";
+import { decToNum } from "@/lib/serialize";
 import { exigir } from "@/lib/emporio/papel";
 import { dinheiro, registrarNoHistorico } from "@/lib/emporio/historico";
 import type { Ator } from "@/lib/actions/emporio-catalogo";
@@ -24,8 +25,8 @@ export type { PedidoDePagamentoView } from "@/lib/emporio/pedido-pagamento";
 const STATUS = ["pendente", "aprovado", "recusado"] as const;
 type StatusDoPedido = (typeof STATUS)[number];
 
-const NAO_ACHADO = () => fail("NOT_FOUND", "Pedido de pagamento não encontrado.", 404);
-const NAO_PENDENTE = () => fail("PEDIDO_NAO_PENDENTE", "Este pedido já foi decidido.", 409);
+const NAO_ACHADO = () => fail("NOT_FOUND", "Pedido de pagamento não encontrado.", 404, "request_id");
+const NAO_PENDENTE = () => fail("PEDIDO_NAO_PENDENTE", "Este pedido já foi decidido.", 409, "request_id");
 
 export async function listarPedidosDePagamentoAction(
   db: TenantPrismaClient,
@@ -63,8 +64,23 @@ export async function aprovarPedidoDePagamentoAction(
       const p = await tx.emporioPaymentRequest.findFirst({ where: { id } });
       if (!p) throw new RecusaDespesa(NAO_ACHADO());
       if (p.status !== "pendente") throw new RecusaDespesa(NAO_PENDENTE());
-      // O pedido guarda as contas, não o valor: a aprovação paga o aberto ATUAL de cada uma (uma devolução que
-      // baixou a conta depois do pedido reduz o pagamento). `total` do pedido é só o valor do momento do pedido.
+      // A tela mostra `total`: o que o aprovador viu é o que se paga. Se o aberto atual das contas difere do total do
+      // pedido (conta que sumiu, foi paga ou mudou de valor por outro caminho), NÃO paga: o pedido segue pendente,
+      // com a falha gravada, e quem pediu refaz ou o aprovador recusa.
+      const contas = await tx.financialEntry.findMany({
+        where: { id: { in: p.entry_ids } },
+        select: { id: true, status: true, amount: true, payments: { select: { amount: true } } },
+      });
+      const abertoAgoraCent = contas.reduce((soma, c) => {
+        if (c.status !== "pending") return soma;
+        const pago = c.payments.reduce((s, x) => s + Math.round((decToNum(x.amount) ?? 0) * 100), 0);
+        return soma + Math.round((decToNum(c.amount) ?? 0) * 100) - pago;
+      }, 0);
+      const totalPedidoCent = Math.round((decToNum(p.total) ?? 0) * 100);
+      if (contas.length !== p.entry_ids.length || abertoAgoraCent !== totalPedidoCent) {
+        const msg = `O valor das contas mudou desde o pedido: ${dinheiro(abertoAgoraCent / 100)} agora, ${dinheiro(totalPedidoCent / 100)} no pedido. Peça de novo.`;
+        throw new RecusaDespesa(fail("PEDIDO_DESATUALIZADO", msg, 409, "request_id"));
+      }
       // `paid_at` fica de fora de propósito: a data do pagamento é a da aprovação.
       await executarPagamentoDeContas(
         tx,

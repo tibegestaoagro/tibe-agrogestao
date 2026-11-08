@@ -594,6 +594,30 @@ async function secao2() {
   check("os 10 vão ao fiado da venda posterior (vence antes)", perto(pagoFiado.reduce((s, x) => s + n(x.amount), 0), 10), j(pagoFiado.map((x) => x.amount)));
   const aq = (await listarAcordos(A.tok.fin, cq)).corpo?.data?.[0] as Dado;
   check("a parcela do acordo segue intocada", perto(aq?.installments?.[0]?.paid, 0) && perto(aq?.installments?.[0]?.open, 50), j(aq?.installments));
+
+  console.log("  (v) a devolução em dinheiro não devolve duas vezes o que o acordo pagou");
+  const cvv = await cliente(A, "Acordo duas vendas");
+  const fv1 = await fiado(A, cvv, 100, 10);
+  const fv2 = await fiado(A, cvv, 100, 10);
+  const rvv = await acordar(A.tok.fin, cvv, [fv1.entry.id, fv2.entry.id], partes(20000, 2, 5));
+  check("(fixture) acordo de 200 em 2 parcelas de 100: 201", rvv.status === 201, `${rvv.status} ${j(rvv.corpo)}`);
+  const recV = await receber(A, cvv, 100);
+  check("(fixture) o cliente paga a parcela 1 (100): 201", recV.status === 201, `${recV.status} ${j(recV.corpo)}`);
+  const devV = async (vendaId: string, kind: "dinheiro" | "abater_fiado") => {
+    const it = (await A.db.emporioSaleItem.findFirst({ where: { sale_id: vendaId } })) as Dado;
+    return chamar(A.tok.owner, R.saleReturn, "POST", `emporio/sales/${vendaId}/return`,
+      { operation_key: chave("devv"), refund_kind: kind, ...(kind === "dinheiro" ? { cash_register_id: A.reg } : {}), items: [{ sale_item_id: it?.id, quantity: 10 }] }, vendaId);
+  };
+  const dv1v = await devV(fv1.vendaId, "dinheiro");
+  check("devolução em dinheiro da venda 1 (100): aceita", ok2xx(dv1v), `${dv1v.status} ${j(dv1v.corpo)}`);
+  const dv2v = await devV(fv2.vendaId, "dinheiro");
+  check("devolução em dinheiro da venda 2 (100): 422, o que o cliente pagou no acordo já voltou", dv2v.status === 422, `${dv2v.status} ${j(dv2v.corpo)}`);
+  const dv2a = await devV(fv2.vendaId, "abater_fiado");
+  check("a devolução da venda 2 abatendo o fiado: aceita", ok2xx(dv2a), `${dv2a.status} ${j(dv2a.corpo)}`);
+  const acV = (await listarAcordos(A.tok.fin, cvv)).corpo?.data?.[0] as Dado;
+  const p2V = (acV?.installments ?? [])[1] as Dado;
+  check("a parcela 2 passa a status abatida, sem pago nem aberto", p2V?.status === "abatida" && perto(p2V?.paid, 0) && perto(p2V?.open, 0), j(acV?.installments));
+  check("o acordo não tem nada em aberto", perto(acV?.open_total, 0), j(acV));
 }
 
 // ---------------------------------------------------------------------------
@@ -829,6 +853,73 @@ async function secao3() {
   const vendaDepois = (await A.db.emporioSale.findFirst({ where: { id: vp.vendaId } })) as Dado;
   check("a venda segue concluída e a conta da despesa segue pending", vendaDepois?.status === "concluida" && (await status(eVp?.id)) === "pending", j(vendaDepois));
   for (const id of [pedCompra?.id, pedVp?.id]) if (id) await recusar(A.tok.owner, id, { reason: "M100 limpeza" });
+
+  console.log("  (t) a ocorrência de despesa fixa com pedido pendente não se edita nem se encerra pelo modelo");
+  const Dd = await import("@/lib/actions/emporio-despesas");
+  const catT = `M100 Despesa fixa T ${stamp}`;
+  const modelo = await Dd.criarDespesaFixaAction(A.db, A.owner, {
+    name: catT, category: catT, amount: 150, due_day: 28, split_kind: "percentual",
+    starts_on: meioDia(`${hojeStr.slice(0, 7)}-01`), splits: [{ establishment_id: A.L1, value: 100 }],
+  } as Dado);
+  const modeloId = String((modelo as Dado).data?.id ?? "");
+  check("(fixture) o modelo de despesa fixa de 150 nasce", !!(modelo as Dado).ok && !!modeloId, j(modelo));
+  const eT = (await A.db.financialEntry.findFirst({ where: { category: catT, status: "pending" }, orderBy: { due_date: "asc" } })) as Dado;
+  const pT = eT ? await pagar(A.tok.fin, [eT.id]) : null;
+  const pedT = pT?.corpo?.data?.request as Dado;
+  check("(fixture) o Financeiro paga a ocorrência: vira pedido pendente", !!pT && ok2xx(pT) && pT.corpo?.data?.waiting_approval === true && !!pedT?.id, pT ? `${pT.status} ${j(pT.corpo)}` : "o modelo não gerou ocorrência");
+  const edT = (await Dd.editarDespesaFixaAction(A.db, A.owner, modeloId, {
+    name: catT, category: catT, amount: 175, due_day: 28, split_kind: "percentual", splits: [{ establishment_id: A.L1, value: 100 }],
+  } as Dado)) as Dado;
+  check("editar o valor do modelo: 409 CONTA_EM_APROVACAO", !edT.ok && edT.status === 409 && edT.code === "CONTA_EM_APROVACAO", j(edT));
+  const enT = (await Dd.encerrarDespesaFixaAction(A.db, A.owner, modeloId)) as Dado;
+  check("encerrar o modelo: 409 CONTA_EM_APROVACAO", !enT.ok && enT.status === 409 && enT.code === "CONTA_EM_APROVACAO", j(enT));
+  const eTdepois = (await A.db.financialEntry.findFirst({ where: { id: eT?.id } })) as Dado;
+  check("a ocorrência segue pending com o valor de antes (150)", eTdepois?.status === "pending" && perto(n(eTdepois?.amount), 150), j(eTdepois));
+  if (pedT?.id) await recusar(A.tok.owner, pedT.id, { reason: "M100 limpeza" });
+
+  console.log("  (u) aprovar um pedido cuja conta mudou de valor");
+  const eU = await despesa(A, 900);
+  const pU = await pagar(A.tok.fin, [eU.id]);
+  const pedU = pU.corpo?.data?.request as Dado;
+  check("(fixture) pedido pendente de 900", ok2xx(pU) && !!pedU?.id && perto(pedU?.total, 900), `${pU.status} ${j(pU.corpo)}`);
+  await (prisma as Dado).financialEntry.update({ where: { id: eU.id }, data: { amount: 950 } });
+  const aU = await aprovar(A.tok.owner, pedU?.id);
+  check("aprovar com a conta em 950: 409 PEDIDO_DESATUALIZADO", erro(aU, 409, "PEDIDO_DESATUALIZADO"), `${aU.status} ${j(aU.corpo)}`);
+  const efU = await efeitos(eU.id);
+  check("nenhum FinancialPayment nem CashMovement nasceu", efU.pagamentos === 0 && efU.movimentos === 0, j(efU));
+  const dU = await pedidoDb(pedU?.id);
+  check("o pedido segue pendente e o last_failure cita o valor", dU?.status === "pendente" && typeof dU?.last_failure === "string" && /950|900/.test(dU.last_failure), j(dU));
+  if (pedU?.id) await recusar(A.tok.owner, pedU.id, { reason: "M100 limpeza" });
+
+  console.log("  (w) o Hoje de uma loja conta só a gaveta dela e a conta bancária");
+  const Cat = await import("@/lib/actions/emporio-catalogo");
+  const l2 = await Cat.criarEstabelecimentoAction(A.db, A.owner, { name: `M100 A Loja 2 ${stamp}` });
+  if (!l2.ok) throw new Error(`loja 2: ${j(l2)}`);
+  const L2 = l2.data.id as string;
+  const hojeLoja = async (loja: string) => {
+    const r = await chamar(A.tok.fin, R.today, "GET", `emporio/finance/today?establishment_id=${loja}`);
+    return r.corpo?.data?.pending_approvals as Dado;
+  };
+  const antesL1 = await hojeLoja(A.L1);
+  const antesL2 = await hojeLoja(L2);
+  const eW = await Promise.all([despesa(A, 30), despesa(A, 40), despesa(A, 50)]);
+  const mk = (e: Dado, extra: Dado) =>
+    (prisma as Dado).emporioPaymentRequest.create({ data: { tenant_id: A.tenantId, requested_by_user_id: A.fin.id, entry_ids: [e.id], total: n(e.amount), status: "pendente", ...extra } });
+  const reqs = [
+    await mk(eW[0], { establishment_id: A.L1, cash_register_id: A.reg }),
+    await mk(eW[1], { establishment_id: L2 }),
+    await mk(eW[2], { bank_account_id: A.conta }),
+  ];
+  try {
+    const depoisL1 = await hojeLoja(A.L1);
+    const depoisL2 = await hojeLoja(L2);
+    check("a loja 1 conta a gaveta dela e a conta bancária (+2 pedidos, +80)",
+      depoisL1?.count - antesL1?.count === 2 && perto(n(depoisL1?.total) - n(antesL1?.total), 80), j([antesL1, depoisL1]));
+    check("a loja 2 conta a gaveta dela e a conta bancária, mas não a gaveta da loja 1 (+2 pedidos, +90)",
+      depoisL2?.count - antesL2?.count === 2 && perto(n(depoisL2?.total) - n(antesL2?.total), 90), j([antesL2, depoisL2]));
+  } finally {
+    await (prisma as Dado).emporioPaymentRequest.deleteMany({ where: { id: { in: reqs.map((q: Dado) => q.id) } } });
+  }
 }
 
 // ---------------------------------------------------------------------------

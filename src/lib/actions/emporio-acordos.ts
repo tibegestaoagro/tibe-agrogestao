@@ -32,7 +32,8 @@ export type AcordoParcelaView = {
   amount: number;
   paid: number;
   open: number;
-  status: "paga" | "em_dia" | "vencida";
+  /** `abatida`: parcela zerada por devolução abatida no fiado (cancelada, sem nada pago): não é paga nem aberta. */
+  status: "paga" | "em_dia" | "vencida" | "abatida";
 };
 
 /**
@@ -121,7 +122,7 @@ async function montarAcordos(db: TenantPrismaClient, where: Record<string, unkno
           amount: valor / 100,
           paid: pago / 100,
           open: aberto / 100,
-          status: aberto === 0 ? "paga" : diaUtc(venc) < hoje ? "vencida" : "em_dia",
+          status: l.status === "cancelled" ? "abatida" : aberto === 0 ? "paga" : diaUtc(venc) < hoje ? "vencida" : "em_dia",
         };
       });
     const abertoTotal = parcelas.reduce((s, p) => s + centavos(p.open), 0);

@@ -41,8 +41,10 @@ export function AcordosDoCliente({
         <ul className="space-y-3">
           {acordos.map((a) => {
             const pagas = a.installments.filter((p) => p.status === "paga").length;
-            const abertas = a.installments.length - pagas;
-            const proxima = a.installments.find((p) => p.status !== "paga");
+            const abatidas = a.installments.filter((p) => p.status === "abatida").length;
+            // A parcela abatida (zerada por devolução abatida no fiado) não é paga nem aberta.
+            const abertas = a.installments.length - pagas - abatidas;
+            const proxima = a.installments.find((p) => p.status !== "paga" && p.status !== "abatida");
             return (
               <li key={a.id} className="rounded-lg border border-borda bg-superficie p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -57,6 +59,12 @@ export function AcordosDoCliente({
                   {plural(pagas, "parcela paga", "parcelas pagas")}, {plural(abertas, "aberta", "abertas")}
                   {a.status === "ativo" && `. Falta ${reaisBr(a.open_total)}`}
                 </p>
+                {abatidas > 0 && (
+                  <p className="mt-1 flex items-center gap-2 text-sm text-texto-secundario">
+                    <Badge variant="gray">Abatida</Badge>
+                    {plural(abatidas, "parcela abatida por devolução", "parcelas abatidas por devolução")}
+                  </p>
+                )}
                 {proxima && (
                   <p className={proxima.status === "vencida" ? "mt-1 text-sm text-perigo-tinta" : "mt-1 text-sm text-texto"}>
                     Próxima: parcela {proxima.number}, {dataBr(proxima.due_date)}, {reaisBr(proxima.open)}

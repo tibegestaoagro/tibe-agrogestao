@@ -739,7 +739,17 @@ export async function editarDespesaFixaAction(
   const partes = partesDoMes(d.split_kind, d.amount, d.splits);
   const atual = mesAtualEmBrasilia();
 
+  try {
   await transacaoLonga(db, async (tx) => {
+    // Conta com pedido de aprovação pendente não muda de valor, de vencimento nem de estado: a edição mexeria
+    // em toda ocorrência da janela (do mês atual em diante) que não tem pagamento.
+    const daJanela = await tx.fixedExpenseOccurrence.findMany({
+      where: { template_id: id, period: { gte: primeiroDia(compararMeses(mesDaData(t.starts_on), atual) > 0 ? mesDaData(t.starts_on) : atual) } },
+      select: { financial_entry_id: true },
+    });
+    if (await contaEmAprovacao(tx, daJanela.map((o) => o.financial_entry_id))) {
+      throw new RecusaDespesa(fail("CONTA_EM_APROVACAO", EM_APROVACAO, 409, "fixed_expense_id"));
+    }
     await tx.fixedExpenseTemplate.update({
       where: { id },
       data: {
@@ -860,6 +870,10 @@ export async function editarDespesaFixaAction(
       }
     }
   });
+  } catch (err) {
+    if (err instanceof RecusaDespesa) return err.recusa;
+    throw err;
+  }
   const v = await fixaPorId(db, ator, id);
   return v ? ok(v) : NAO_ACHADO("Despesa fixa");
 }
@@ -876,7 +890,17 @@ export async function encerrarDespesaFixaAction(
   if (t.ended_at) return fail("EXPENSE_ENDED", "Essa despesa já foi encerrada.", 409);
 
   const atual = mesAtualEmBrasilia();
+  try {
   await transacaoLonga(db, async (tx) => {
+    // Encerrar cancela as ocorrências futuras sem pagamento. Qualquer ocorrência do modelo num pedido pendente
+    // (a do mês atual inclusive) trava o encerramento: o pedido se decide antes, e a conta não muda de modelo no meio.
+    const aCancelar = await tx.fixedExpenseOccurrence.findMany({
+      where: { template_id: id },
+      select: { financial_entry_id: true },
+    });
+    if (await contaEmAprovacao(tx, aCancelar.map((o) => o.financial_entry_id))) {
+      throw new RecusaDespesa(fail("CONTA_EM_APROVACAO", EM_APROVACAO, 409, "fixed_expense_id"));
+    }
     await tx.fixedExpenseTemplate.update({ where: { id }, data: { ended_at: new Date(), updated_by_user_id: ator.id } });
     await registrarNoHistorico(tx, ator, {
       action: "despesa.fixa",
@@ -898,6 +922,10 @@ export async function encerrarDespesaFixaAction(
       });
     }
   });
+  } catch (err) {
+    if (err instanceof RecusaDespesa) return err.recusa;
+    throw err;
+  }
   const v = await fixaPorId(db, ator, id);
   return v ? ok(v) : NAO_ACHADO("Despesa fixa");
 }

@@ -1910,11 +1910,30 @@ async function gravarDevolucao(
     where: { sale_id: venda.id, refund_kind: { in: ["dinheiro", "troca"] }, id: { not: devolucao.id } },
     _sum: { amount: true },
   });
+  // O recebido das parcelas é do acordo inteiro, então o que já voltou em dinheiro ou troca também é contado no
+  // acordo inteiro (todas as vendas que entraram nele): senão duas vendas dividiriam o mesmo recebido em dobro.
+  let jaVoltouNoAcordoCent = 0;
+  if (receita?.agreement_id) {
+    const origensDoAcordo = await tx.financialEntry.findMany({
+      where: { agreement_id: receita.agreement_id, related_module: "emporio", entry_type: "income", category: { not: CATEGORIA_ACORDO } },
+      select: { related_id: true },
+    });
+    const vendasDoAcordo = origensDoAcordo.map((o) => o.related_id).filter((x): x is string => !!x);
+    const voltouNoAcordo = await tx.emporioSaleReturn.aggregate({
+      where: { sale_id: { in: vendasDoAcordo }, refund_kind: { in: ["dinheiro", "troca"] }, id: { not: devolucao.id } },
+      _sum: { amount: true },
+    });
+    jaVoltouNoAcordoCent = centavos(decToNum(voltouNoAcordo._sum.amount) ?? 0);
+  }
   const recebidoCent =
     centavos(decToNum(recebido?._sum.amount) ?? 0) + centavos(decToNum(recebidoNasParcelas?._sum.amount) ?? 0);
-  const tetoCent =
-    (receita?.agreement_id ? Math.min(recebidoCent, centavos(decToNum(receita.amount) ?? 0)) : recebidoCent) -
-    centavos(decToNum(jaVoltou._sum.amount) ?? 0);
+  // Venda em acordo: teto = min(valor da venda - já voltou desta venda, pago na origem + pago nas parcelas - já voltou em TODAS as vendas do acordo).
+  const tetoCent = receita?.agreement_id
+    ? Math.min(
+        centavos(decToNum(receita.amount) ?? 0) - centavos(decToNum(jaVoltou._sum.amount) ?? 0),
+        recebidoCent - jaVoltouNoAcordoCent,
+      )
+    : recebidoCent - centavos(decToNum(jaVoltou._sum.amount) ?? 0);
   if (d.totalCent > tetoCent) {
     throw new AbortarVenda(
       fail(
@@ -2007,7 +2026,13 @@ async function abaterNoAcordo(tx: Tx, agreementId: string, totalCent: number, to
     const novo = p.valor - parte;
     await tx.financialEntry.update({
       where: { id: p.id },
-      data: novo === p.pago ? { amount: novo / 100, status: "paid", paid_at: agora } : { amount: novo / 100 },
+      // Parcela zerada sem nada pago: cancelada (como o fiado comum), não "paga" de valor 0. Com pagamento, fica paga.
+      data:
+        novo === 0
+          ? { amount: 0, status: "cancelled" }
+          : novo === p.pago
+            ? { amount: novo / 100, status: "paid", paid_at: agora }
+            : { amount: novo / 100 },
     });
   }
 }

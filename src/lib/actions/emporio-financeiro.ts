@@ -194,7 +194,12 @@ export async function lerResumoHojeAction(
   const fiado = await listarFiadoAction(db, ator, { establishment_id: lojaId });
   if (!fiado.ok) return fiado;
   const vencidos = fiado.data.filter((c) => c.overdue_amount > 0);
-  const pedidos = await db.emporioPaymentRequest.findMany({ where: { status: "pendente" }, select: { total: true } });
+  // Com filtro de loja: os pedidos pela gaveta daquela loja, mais os pela conta bancária (a conta não é de loja).
+  const pedidos = await db.emporioPaymentRequest.findMany({
+    where: { status: "pendente", ...(lojaId ? { OR: [{ establishment_id: lojaId }, { establishment_id: null }] } : {}) },
+    select: { total: true },
+  });
+  // `unreconciled` (sem carimbo) não filtra por loja de propósito: conta bancária não é de loja.
   const desdeCarimbo = new Date(hoje.getTime() - 30 * DIA_MS);
   const [movsSem, cartoesSem] = await Promise.all([
     db.cashMovement.findMany({

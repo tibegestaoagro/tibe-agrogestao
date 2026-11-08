@@ -176,8 +176,8 @@ export async function entradasAbertas(
       };
     })
     .filter((e) => e.open_cent > 0)
-    // O mais antigo é a VENDA mais antiga, não o vencimento. Parcelas do mesmo acordo
-    // nascem juntas: entre elas, vale o vencimento.
+    // A ordem da LISTA é por venda (a mais antiga primeiro), com o vencimento desempatando parcelas do mesmo acordo.
+    // A FILA do recebimento é outra: `receberFiadoAction` reordena por vencimento efetivo (Q238).
     .sort(
       (a, b) =>
         a.sold_at.getTime() - b.sold_at.getTime() ||
