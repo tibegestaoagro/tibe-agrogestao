@@ -12,6 +12,7 @@ import { cancelarVendeuPagou, gravarVendeuPagou } from "@/lib/emporio/vendeu-pag
 import { resolverTurno, type TurnoResolvido } from "@/lib/emporio/turno";
 import { vendedoresDaLoja } from "@/lib/emporio/vendedores";
 import { CONSUMIDOR_FINAL } from "@/lib/contatos/cadastro";
+import { regraDePrazo, sugerirVencimento } from "@/lib/emporio/fiado";
 import type { EnderecoDoPedido } from "@/lib/emporio/cliente-cadastro";
 import {
   enderecoDasColunas,
@@ -651,6 +652,8 @@ const CAMPOS_DO_CLIENTE_DA_VENDA = {
   delivery_district: true,
   delivery_city: true,
   delivery_state: true,
+  fiado_due_days: true,
+  fiado_due_day: true,
 } as const;
 
 async function prepararVenda(
@@ -822,6 +825,13 @@ async function prepararVenda(
       if (p.due_date != null) {
         if (!dataValida(p.due_date)) return fail("VALIDATION_ERROR", "Informe um vencimento válido.", 422, "payments");
         venc = p.due_date;
+      } else {
+        // Sem vencimento informado: o do cliente, senão o da conta (nunca fica nulo em venda nova).
+        const conta = await db.emporioSettings.findFirst({ select: { fiado_due_days: true } });
+        venc = sugerirVencimento(
+          regraDePrazo(cliente, { fiado_due_days: conta?.fiado_due_days ?? 30 }),
+          hojeEmBrasilia(soldAt),
+        );
       }
     }
     if (kind === "pix") {

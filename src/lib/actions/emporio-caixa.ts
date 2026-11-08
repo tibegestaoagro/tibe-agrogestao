@@ -7,6 +7,7 @@ import { resolverTurno } from "@/lib/emporio/turno";
 import { CATEGORIA_DIFERENCA_CAIXA, hojeEmBrasilia } from "@/lib/emporio/cartao";
 import { lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
 import { diferencas, dinheiro, registrarNoHistorico } from "@/lib/emporio/historico";
+import { diaUtc, vencimentoEfetivo } from "@/lib/emporio/fiado";
 import { acharLojaParaEscrita } from "@/lib/actions/emporio-estoque";
 import { CATEGORIA_VENDAS } from "@/lib/actions/emporio-vendas";
 
@@ -67,6 +68,8 @@ type EntradaAberta = {
   due_date: Date | null;
   created_at: Date;
   sold_at: Date;
+  /** Vencimento do fiado lido pela regra (`vencimentoEfetivo`): o fiado antigo sem data própria vale a venda mais o prazo padrão. */
+  effective_due_date: Date;
   open_cent: number;
   paid_cent: number;
 };
@@ -75,6 +78,7 @@ type EntradaAberta = {
 export async function entradasAbertas(
   db: TenantPrismaClient,
   where: Record<string, unknown>,
+  opts: { prazoPadraoDias?: number } = {},
 ): Promise<EntradaAberta[]> {
   const entradas = await db.financialEntry.findMany({
     where: { related_module: "emporio", entry_type: "income", category: CATEGORIA_VENDAS, status: "pending", ...where },
@@ -85,6 +89,13 @@ export async function entradasAbertas(
     select: { id: true, sold_at: true },
   });
   const vendidoEm = new Map(vendas.map((v) => [v.id, v.sold_at]));
+  const pagamentosFiado = await db.emporioSalePayment.findMany({
+    where: { sale_id: { in: vendas.map((v) => v.id) }, kind: "fiado" },
+    select: { sale_id: true, due_date: true },
+  });
+  const fiadoDaVenda = new Map(pagamentosFiado.map((p) => [p.sale_id, p.due_date]));
+  const prazoPadrao =
+    opts.prazoPadraoDias ?? (await db.emporioSettings.findFirst({ select: { fiado_due_days: true } }))?.fiado_due_days ?? 30;
   const pagos = await db.financialPayment.findMany({
     where: { entry_id: { in: entradas.map((e) => e.id) } },
     select: { entry_id: true, amount: true },
@@ -94,6 +105,7 @@ export async function entradasAbertas(
   return entradas
     .map((e) => {
       const pago = soma.get(e.id) ?? 0;
+      const vendidoQuando = vendidoEm.get(e.related_id as string) ?? e.created_at;
       return {
         id: e.id,
         related_id: e.related_id,
@@ -102,7 +114,11 @@ export async function entradasAbertas(
         amount: e.amount,
         due_date: e.due_date,
         created_at: e.created_at,
-        sold_at: vendidoEm.get(e.related_id as string) ?? e.created_at,
+        sold_at: vendidoQuando,
+        effective_due_date: vencimentoEfetivo(
+          { due_date: e.due_date, sold_at: hojeEmBrasilia(vendidoQuando), fiado_due_date: fiadoDaVenda.get(e.related_id as string) ?? null },
+          prazoPadrao,
+        ),
         paid_cent: pago,
         open_cent: centavos(decToNum(e.amount) ?? 0) - pago,
       };
@@ -134,15 +150,15 @@ export async function listarFiadoAction(
     select: { id: true, name: true, phone: true },
   });
   const porCliente = new Map(clientesDb.map((c) => [c.id, c]));
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
+  const hoje = hojeEmBrasilia();
 
   const clientes = new Map<string, FiadoClienteView>();
   for (const e of abertas) {
     const id = e.emporio_customer_id as string;
     const c = porCliente.get(id);
     if (!c) continue;
-    const vencido = e.due_date !== null && e.due_date.getTime() < hoje.getTime();
+    const venceEm = e.effective_due_date.toISOString();
+    const vencido = diaUtc(e.effective_due_date) < hoje.getTime();
     const aberto = e.open_cent / 100;
     let cli = clientes.get(id);
     if (!cli) {
@@ -159,9 +175,7 @@ export async function listarFiadoAction(
     }
     cli.owed = arred2(cli.owed + aberto);
     if (vencido) cli.overdue_amount = arred2(cli.overdue_amount + aberto);
-    if (e.due_date && (cli.oldest_due_date === null || e.due_date.toISOString() < cli.oldest_due_date)) {
-      cli.oldest_due_date = e.due_date.toISOString();
-    }
+    if (cli.oldest_due_date === null || venceEm < cli.oldest_due_date) cli.oldest_due_date = venceEm;
     cli.entries.push({
       entry_id: e.id,
       sale_id: e.related_id,
@@ -169,7 +183,7 @@ export async function listarFiadoAction(
       amount: decToNum(e.amount) ?? 0,
       paid: e.paid_cent / 100,
       open: aberto,
-      due_date: isoOrNull(e.due_date),
+      due_date: venceEm,
       overdue: vencido,
     });
   }

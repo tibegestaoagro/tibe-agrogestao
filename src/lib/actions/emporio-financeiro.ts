@@ -165,11 +165,12 @@ export async function lerResumoHojeAction(
   if (!quantas.ok) return quantas;
 
   const visiveis = await lojasDoAtor(db, ator);
-  const abertas = await entradasAbertas(db, {
-    emporio_customer_id: { not: null },
-    due_date: { lte: fimDoDia },
-    ...(lojaId ? { establishment_id: lojaId } : visiveis ? { establishment_id: { in: [...visiveis] } } : {}),
-  });
+  const abertas = (
+    await entradasAbertas(db, {
+      emporio_customer_id: { not: null },
+      ...(lojaId ? { establishment_id: lojaId } : visiveis ? { establishment_id: { in: [...visiveis] } } : {}),
+    })
+  ).filter((e) => e.effective_due_date.getTime() <= fimDoDia.getTime());
   const lojasDoFiltro = lojaId ? { establishment_id: lojaId } : {};
   const cheques = await db.emporioCheck.findMany({
     where: { status: { in: ["recebido", "depositado"] }, good_for: { lte: hoje }, ...lojasDoFiltro },
