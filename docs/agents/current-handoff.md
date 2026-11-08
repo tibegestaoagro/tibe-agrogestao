@@ -184,9 +184,8 @@ relatórios em [agente-whatsapp/](agente-whatsapp/), detalhe em
 - Roteiro preso em recarga é aba sobrando no Chrome de testes (cofre:
   `a-aba-oculta-e-a-leitura-cedo-imitam-defeito-no-navegador`). O
   `manual-emporio` regrava todos os PNGs: restaure os que não mudaram.
-- No notebook: `node -v` precisa ser 24.22.1 ou mais; o
-  `.claude/settings.local.json` não vai para o git, então lá a migração em
-  produção volta a ser recusada pelo classificador.
+- No notebook: `node -v` 24.22.1 ou mais; sem o `.claude/settings.local.json`
+  (não vai ao git), a migração em produção volta a ser recusada pelo classificador.
 
 ## Últimas rodadas
 
