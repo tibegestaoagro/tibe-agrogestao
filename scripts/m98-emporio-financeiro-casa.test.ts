@@ -47,6 +47,7 @@ const meioDia = (dia: string) => new Date(`${dia}T12:00:00Z`);
 const diaDe = (d: Date | string) => new Date(d).toISOString().slice(0, 10);
 const perto = (a: unknown, b: number, tol = 0.011) => typeof a === "number" && !Number.isNaN(a) && Math.abs(a - b) < tol;
 const n = (x: unknown) => Number(x);
+const msgDe = (x: unknown): string | undefined => (x as { message?: string }).message;
 
 // ---------------------------------------------------------------------------
 // Seção 1 (pura): a matriz do papel Financeiro
@@ -78,11 +79,11 @@ async function secao1Pura() {
   check("o gestor continua passando em `gestor_da_loja` na loja dele", P.pode(ctx("gestor", ["L"]), "gestor_da_loja", "L") === true);
 
   console.log("  a recusa de `dinheiro`");
-  const r = P.recusaDe("dinheiro");
+  const r = P.recusaDe("dinheiro") as Dado;
   check("recusaDe('dinheiro'): FORBIDDEN 403 com a frase da spec",
     r.ok === false && r.code === "FORBIDDEN" && r.status === 403 && r.message === "Só o financeiro, o gerente geral e o dono podem fazer isso.", j(r));
   check("recusaDe('dinheiro', oQue) usa o oQue",
-    P.recusaDe("dinheiro", "pagar contas").message === "Só o financeiro, o gerente geral e o dono podem pagar contas.");
+    msgDe(P.recusaDe("dinheiro", "pagar contas")) === "Só o financeiro, o gerente geral e o dono podem pagar contas.");
 
   console.log("  páginas e destino");
   const Pg = await import("@/lib/emporio/paginas");
@@ -135,8 +136,7 @@ let M: { A: Mundo; B: Mundo } | null = null;
 
 async function montar(rotulo: string): Promise<Mundo> {
   const { prisma, prismaForTenant, scoped } = await import("@/lib/prisma");
-  const { papelDeFixture, vincularTodas } = await import("./_emporio-papel");
-  const PapelFix = (await import("./_emporio-papel")) as Dado;
+  const { papelDeFixture, papelFinanceiro, vincularTodas } = await import("./_emporio-papel");
   const { abrirTurnoDeTeste } = await import("./_emporio-turno");
   const bcrypt = (await import("bcryptjs")).default;
   const Cat = await import("@/lib/actions/emporio-catalogo");
@@ -159,7 +159,7 @@ async function montar(rotulo: string): Promise<Mundo> {
     });
     return { id: u.id, role, email: u.email };
   };
-  const papelFin = typeof PapelFix.papelFinanceiro === "function" ? PapelFix.papelFinanceiro() : { emporio_role: "financeiro", emporio_only: true };
+  const papelFin = papelFinanceiro();
   const owner = await mk("own", "OWNER");
   const gestor = await mk("gest", "OPERADOR", { emporio_role: "gestor", emporio_keys: [] });
   const gestor2 = await mk("gest2", "OPERADOR", { emporio_role: "gestor", emporio_keys: [] });
@@ -168,8 +168,8 @@ async function montar(rotulo: string): Promise<Mundo> {
   const fin = await mk("fin", "OPERADOR", papelFin);
 
   const db = prismaForTenant(t.id) as Dado;
-  const l1 = await Cat.criarEstabelecimentoAction(db, owner, { name: `M98 ${rotulo} Loja 1`, kind: "ponto_venda" });
-  const l2 = await Cat.criarEstabelecimentoAction(db, owner, { name: `M98 ${rotulo} Loja 2`, kind: "ponto_venda" });
+  const l1 = await Cat.criarEstabelecimentoAction(db, owner, { name: `M98 ${rotulo} Loja 1`});
+  const l2 = await Cat.criarEstabelecimentoAction(db, owner, { name: `M98 ${rotulo} Loja 2`});
   if (!l1.ok || !l2.ok) throw new Error(`lojas: ${j([l1, l2])}`);
   const L1 = l1.data.id as string;
   const L2 = l2.data.id as string;
@@ -320,9 +320,9 @@ async function secao1Banco() {
   check("exigirUma: nulo para o dono", (await P.exigirUma(A.db, A.owner, [...acoes])) === null);
   const neg = (await P.exigirUma(A.db, A.vend, [...acoes])) as Dado;
   check("exigirUma: nenhuma passa (vendedor) recusa FORBIDDEN 403", neg && neg.ok === false && neg.code === "FORBIDDEN" && neg.status === 403, j(neg));
-  check("exigirUma: a recusa é a da PRIMEIRA ação da lista", neg?.message === P.recusaDe("gestor_da_loja").message && neg?.message !== P.recusaDe("dinheiro").message, j(neg));
+  check("exigirUma: a recusa é a da PRIMEIRA ação da lista", neg?.message === msgDe(P.recusaDe("gestor_da_loja")) && neg?.message !== msgDe(P.recusaDe("dinheiro")), j(neg));
   const neg2 = (await P.exigirUma(A.db, A.vend, ["dinheiro", "gestor_da_loja"])) as Dado;
-  check("exigirUma: invertida a lista, vira a recusa de `dinheiro`", neg2?.message === P.recusaDe("dinheiro").message, j(neg2));
+  check("exigirUma: invertida a lista, vira a recusa de `dinheiro`", neg2?.message === msgDe(P.recusaDe("dinheiro")), j(neg2));
   const neg3 = (await P.exigirUma(A.db, A.vend, [...acoes], "pagar contas")) as Dado;
   check("exigirUma com oQue: a frase leva o oQue", typeof neg3?.message === "string" && neg3.message.includes("pagar contas"), j(neg3));
   check("exigirUma: o financeiro NÃO passa só por `gestor_da_loja`", (await P.exigirUma(A.db, A.fin, ["gestor_da_loja"])) !== null);
