@@ -12,7 +12,9 @@ const schema = z.object({
   category: z.string().nullish(),
   amount: z.number({ error: "Informe o valor da despesa." }).optional(),
   due_day: z.number({ error: "Informe o dia do vencimento." }).optional(),
-  split_kind: z.string({ error: "Escolha como dividir entre as lojas." }).optional(),
+  split_kind: z
+    .enum(["percentual", "valor", "faturamento", "area", "funcionarios"], { error: "Escolha como dividir entre as lojas." })
+    .optional(),
   splits: z
     .array(
       z.object({

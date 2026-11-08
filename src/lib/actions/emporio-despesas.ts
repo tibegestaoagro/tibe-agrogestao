@@ -17,6 +17,15 @@ import {
   type PedidoDePagamentoView,
 } from "@/lib/emporio/pedido-pagamento";
 import { CATEGORIAS_RESERVADAS } from "@/lib/emporio/vendeu-pagou";
+import { faturamentoLiquidoDoMes } from "@/lib/actions/emporio-resultado";
+import {
+  CRITERIOS_AUTOMATICOS,
+  ehCriterioAutomatico,
+  ratearPorPeso,
+  RATEIO_ROTULO_SERVIDOR,
+  type CriterioAutomatico,
+  type SplitKind,
+} from "@/lib/emporio/rateio";
 import {
   compararMeses,
   diaDoMes,
@@ -375,10 +384,15 @@ export type DespesaFixaView = {
   category: string;
   amount: number;
   due_day: number;
-  split_kind: "percentual" | "valor";
+  split_kind: SplitKind;
   starts_on: string;
   ended_at: string | null;
+  /** No critério automático: todas as lojas participantes, com a parte do mês corrente (ou a estimativa de agora). */
   splits: { establishment_id: string; establishment_name: string; value: number }[];
+  /** Só no critério automático: de onde vem o peso ("Faturamento de outubro/2026", "Área (m²)", "Funcionários"). */
+  base_label: string | null;
+  /** Só no critério automático: loja sem base (recebeu zero) e divisão em partes iguais. */
+  avisos: string[];
   /** Último mês com conta gerada (AAAA-MM), ou nulo. */
   generated_until: string | null;
   /** Quantos meses, do atual em diante, já têm conta gerada. */
@@ -394,42 +408,162 @@ const INCLUDE_FIXA = {
 
 type FixaRow = Prisma.FixedExpenseTemplateGetPayload<{ include: typeof INCLUDE_FIXA }>;
 
+// ---------------------------------------------------------------------------
+// Rateio automático (entrega 4 do financeiro): faturamento, área, funcionários
+// ---------------------------------------------------------------------------
+
+/** Nota da conta futura que a troca para critério automático cancelou: o gatilho de leitura a refaz quando o mês chega. */
+export const NOTA_VIROU_AUTOMATICO = "Rateio passou a automático";
+
+const NOMES_DOS_MESES = [
+  "janeiro", "fevereiro", "março", "abril", "maio", "junho",
+  "julho", "agosto", "setembro", "outubro", "novembro", "dezembro",
+];
+const mesPorExtenso = (m: MesCivil) => `${NOMES_DOS_MESES[m.mes - 1]}/${m.ano}`;
+
+type LojaDoRateio = { id: string; name: string; area_m2: unknown; employees_count: number | null };
+
+/** As lojas que dividem uma despesa automática: todas as não arquivadas, na ordem de criação (o resto dos centavos vai para a primeira com peso). */
+async function lojasDoRateio(db: TenantPrismaClient): Promise<LojaDoRateio[]> {
+  return db.establishment.findMany({
+    where: { archived_at: null },
+    select: { id: true, name: true, area_m2: true, employees_count: true },
+    orderBy: [{ created_at: "asc" }, { id: "asc" }],
+  });
+}
+
+/**
+ * O peso de cada loja no critério e de onde ele vem. `mes` é o mês da ocorrência: no faturamento, a base é o
+ * faturamento líquido do mês anterior. `semBase` lista as lojas de peso zero.
+ */
+export async function basesDasLojas(
+  db: TenantPrismaClient,
+  kind: CriterioAutomatico,
+  lojas: LojaDoRateio[],
+  mes: MesCivil,
+): Promise<{ pesos: number[]; base_label: string; semBase: string[] }> {
+  let pesos: number[];
+  let base_label: string;
+  if (kind === "faturamento") {
+    const anterior = somarMeses(mes, -1);
+    pesos = await Promise.all(lojas.map(async (l) => Math.max(0, await faturamentoLiquidoDoMes(db, l.id, anterior))));
+    base_label = `Faturamento de ${mesPorExtenso(anterior)}`;
+  } else if (kind === "area") {
+    pesos = lojas.map((l) => Math.max(0, centavos(decToNum(l.area_m2) ?? 0)));
+    base_label = "Área (m²)";
+  } else {
+    pesos = lojas.map((l) => Math.max(0, l.employees_count ?? 0));
+    base_label = "Funcionários";
+  }
+  return { pesos, base_label, semBase: lojas.filter((_, i) => pesos[i] <= 0).map((l) => l.name) };
+}
+
+/** O valor de cada loja, em centavos, na ordem dos pesos. */
+export function partesAutomaticas(totalCent: number, pesos: number[]): { partes: number[]; iguais: boolean } {
+  return ratearPorPeso(totalCent, pesos);
+}
+
+/** Bases mais divisão do mês: a parte de cada loja (em centavos), o rótulo da base e os avisos. */
+async function ratearOMes(
+  db: TenantPrismaClient,
+  kind: CriterioAutomatico,
+  totalCent: number,
+  lojas: LojaDoRateio[],
+  mes: MesCivil,
+): Promise<{ partes: Map<string, number>; base_label: string; avisos: string[] }> {
+  const b = await basesDasLojas(db, kind, lojas, mes);
+  const { partes, iguais } = partesAutomaticas(totalCent, b.pesos);
+  const anterior = mesPorExtenso(somarMeses(mes, -1));
+  const aviso = (nome: string) =>
+    kind === "faturamento"
+      ? `${nome} sem faturamento em ${anterior}: recebeu zero.`
+      : kind === "area"
+        ? `${nome} sem área cadastrada: recebeu zero.`
+        : `${nome} sem funcionários cadastrados: recebeu zero.`;
+  return {
+    partes: new Map(lojas.map((l, i) => [l.id, partes[i]])),
+    base_label: b.base_label,
+    avisos: iguais ? ["Nenhuma loja tem base: dividida em partes iguais."] : b.semBase.map(aviso),
+  };
+}
+
+/** Quem vê todas as lojas da conta (o rateio automático divide entre todas). */
+function veTodas(visiveis: Set<string> | null, lojas: { id: string }[]): boolean {
+  return !visiveis || lojas.every((l) => visiveis.has(l.id));
+}
+
 async function viewsDasFixas(db: TenantPrismaClient, ator: Ator, linhas: FixaRow[]): Promise<DespesaFixaView[]> {
   if (linhas.length === 0) return [];
   const visiveis = await lojasDoAtor(db, ator);
   const ocorrencias = await db.fixedExpenseOccurrence.findMany({
     where: { template_id: { in: linhas.map((l) => l.id) } },
-    select: { template_id: true, period: true },
+    select: { template_id: true, period: true, establishment_id: true, financial_entry: { select: { amount: true, status: true } } },
   });
   const atual = mesAtualEmBrasilia();
-  return linhas.map((t) => {
-    const meses = new Set(
-      ocorrencias.filter((o) => o.template_id === t.id).map((o) => textoDoMes(mesDaData(o.period))),
-    );
-    const daquiPraFrente = [...meses].filter((m) => m >= textoDoMes(atual));
-    const ultimo = [...meses].sort().pop() ?? null;
-    return {
-      id: t.id,
-      name: t.name,
-      category: t.category,
-      amount: decToNum(t.amount) ?? 0,
-      due_day: t.due_day,
-      split_kind: t.split_kind,
-      starts_on: diaIso(t.starts_on),
-      ended_at: isoOrNull(t.ended_at),
-      splits: t.splits
-        .filter((s) => !visiveis || visiveis.has(s.establishment_id))
-        .map((s) => ({
-          establishment_id: s.establishment_id,
-          establishment_name: s.establishment.name,
-          value: decToNum(s.value) ?? 0,
-        })),
-      generated_until: ultimo,
-      months_ahead: daquiPraFrente.length,
-      needs_renewal: !t.ended_at && daquiPraFrente.length < 3,
-      created_at: t.created_at.toISOString(),
-    };
-  });
+  const automaticas = linhas.some((t) => ehCriterioAutomatico(t.split_kind));
+  const lojas = automaticas ? await lojasDoRateio(db) : [];
+  // A mesma base serve a todos os modelos do mesmo critério e mês.
+  const divisoes = new Map<string, ReturnType<typeof ratearOMes>>();
+
+  return Promise.all(
+    linhas.map(async (t) => {
+      const meses = new Set(
+        ocorrencias.filter((o) => o.template_id === t.id).map((o) => textoDoMes(mesDaData(o.period))),
+      );
+      const daquiPraFrente = [...meses].filter((m) => m >= textoDoMes(atual));
+      const ultimo = [...meses].sort().pop() ?? null;
+      const amount = decToNum(t.amount) ?? 0;
+
+      let splits: DespesaFixaView["splits"];
+      let base_label: string | null = null;
+      let avisos: string[] = [];
+      if (ehCriterioAutomatico(t.split_kind)) {
+        const mesRef = compararMeses(mesDaData(t.starts_on), atual) > 0 ? mesDaData(t.starts_on) : atual;
+        const chave = `${t.split_kind}|${textoDoMes(mesRef)}|${centavos(amount)}`;
+        if (!divisoes.has(chave)) divisoes.set(chave, ratearOMes(db, t.split_kind, centavos(amount), lojas, mesRef));
+        const d = await divisoes.get(chave)!;
+        base_label = d.base_label;
+        avisos = d.avisos;
+        const doMes = new Map(
+          ocorrencias
+            .filter((o) => o.template_id === t.id && textoDoMes(mesDaData(o.period)) === textoDoMes(mesRef))
+            .map((o) => [o.establishment_id, o.financial_entry.status === "cancelled" ? 0 : centavos(decToNum(o.financial_entry.amount) ?? 0)]),
+        );
+        splits = lojas
+          .filter((l) => !visiveis || visiveis.has(l.id))
+          .map((l) => ({
+            establishment_id: l.id,
+            establishment_name: l.name,
+            value: (doMes.get(l.id) ?? d.partes.get(l.id) ?? 0) / 100,
+          }));
+      } else {
+        splits = t.splits
+          .filter((s) => !visiveis || visiveis.has(s.establishment_id))
+          .map((s) => ({
+            establishment_id: s.establishment_id,
+            establishment_name: s.establishment.name,
+            value: decToNum(s.value) ?? 0,
+          }));
+      }
+      return {
+        id: t.id,
+        name: t.name,
+        category: t.category,
+        amount,
+        due_day: t.due_day,
+        split_kind: t.split_kind,
+        starts_on: diaIso(t.starts_on),
+        ended_at: isoOrNull(t.ended_at),
+        splits,
+        base_label,
+        avisos,
+        generated_until: ultimo,
+        months_ahead: daquiPraFrente.length,
+        needs_renewal: !t.ended_at && !ehCriterioAutomatico(t.split_kind) && daquiPraFrente.length < 3,
+        created_at: t.created_at.toISOString(),
+      };
+    }),
+  );
 }
 
 async function fixaPorId(db: TenantPrismaClient, ator: Ator, id: string): Promise<DespesaFixaView | null> {
@@ -445,6 +579,7 @@ async function fixaVisivelParaEscrita(db: TenantPrismaClient, ator: Ator, id: st
   if (!t) return null;
   const visiveis = await lojasDoAtor(db, ator);
   if (visiveis && !t.splits.every((s) => visiveis.has(s.establishment_id))) return null;
+  if (visiveis && ehCriterioAutomatico(t.split_kind) && !veTodas(visiveis, await lojasDoRateio(db))) return null;
   return t;
 }
 
@@ -455,11 +590,19 @@ export async function listarDespesasFixasAction(
 ): Promise<ActionResult<DespesaFixaView[]>> {
   const neg = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "mexer nas despesas da loja");
   if (neg) return neg;
+  await garantirOcorrenciasDoMes(db, ator);
   const visiveis = await lojasDoAtor(db, ator);
+  // O modelo automático divide entre todas as lojas: quem não vê todas não o enxerga.
+  const vePartes = visiveis ? veTodas(visiveis, await lojasDoRateio(db)) : true;
   const linhas = await db.fixedExpenseTemplate.findMany({
     where: {
       ...(opts.incluir_encerradas ? {} : { ended_at: null }),
-      ...(visiveis ? { splits: { some: { establishment_id: { in: [...visiveis] } } } } : {}),
+      ...(visiveis
+        ? {
+            ...(vePartes ? {} : { split_kind: { in: ["percentual", "valor"] as ("percentual" | "valor")[] } }),
+            splits: { some: { establishment_id: { in: [...visiveis] } } },
+          }
+        : {}),
     },
     include: INCLUDE_FIXA,
     orderBy: [{ created_at: "desc" }, { id: "desc" }],
@@ -472,8 +615,11 @@ type FixaDados = {
   category: string;
   amount: number;
   due_day: number;
-  split_kind: "percentual" | "valor";
+  split_kind: SplitKind;
+  /** No critério automático: todas as lojas não arquivadas, com `value` 0 (a parte nasce do rateio do mês). */
   splits: { establishment_id: string; value: number }[];
+  /** Só no critério automático: as lojas já carregadas, com a base que o rateio usa. */
+  lojas: LojaDoRateio[];
 };
 
 async function validarFixa(db: TenantPrismaClient, ator: Ator, raw: Record<string, unknown>): Promise<ActionResult<FixaDados>> {
@@ -494,10 +640,38 @@ async function validarFixa(db: TenantPrismaClient, ator: Ator, raw: Record<strin
     return fail("VALIDATION_ERROR", "O dia do vencimento deve ser de 1 a 31.", 422, "due_day");
   }
 
-  if (raw.split_kind !== "percentual" && raw.split_kind !== "valor") {
-    return fail("VALIDATION_ERROR", "Escolha como dividir entre as lojas: por percentual ou por valor.", 422, "split_kind");
+  const kindRecebido = raw.split_kind;
+  if (
+    typeof kindRecebido !== "string" ||
+    !(kindRecebido === "percentual" || kindRecebido === "valor" || ehCriterioAutomatico(kindRecebido))
+  ) {
+    return fail("VALIDATION_ERROR", "Escolha como dividir entre as lojas.", 422, "split_kind");
   }
-  const splitKind = raw.split_kind;
+  const splitKind: SplitKind = kindRecebido;
+
+  if (ehCriterioAutomatico(splitKind)) {
+    const lojas = await lojasDoRateio(db);
+    if (lojas.length === 0) {
+      return fail("VALIDATION_ERROR", "Cadastre ao menos uma loja para dividir a despesa.", 422, "split_kind");
+    }
+    if (!veTodas(await lojasDoAtor(db, ator), lojas)) {
+      return fail(
+        "CRITERIO_SEM_LOJAS",
+        "O rateio automático divide entre todas as lojas. Só quem vê todas as lojas pode usá-lo.",
+        403,
+        "split_kind",
+      );
+    }
+    return ok({
+      name,
+      category,
+      amount,
+      due_day: raw.due_day,
+      split_kind: splitKind,
+      splits: lojas.map((l) => ({ establishment_id: l.id, value: 0 })),
+      lojas,
+    });
+  }
 
   if (!Array.isArray(raw.splits) || raw.splits.length === 0) {
     return fail("VALIDATION_ERROR", "Escolha ao menos uma loja para a despesa.", 422, "splits");
@@ -533,7 +707,14 @@ async function validarFixa(db: TenantPrismaClient, ator: Ator, raw: Record<strin
       "splits",
     );
   }
-  return ok({ name, category, amount, due_day: raw.due_day, split_kind: splitKind, splits });
+  return ok({ name, category, amount, due_day: raw.due_day, split_kind: splitKind, splits, lojas: [] });
+}
+
+/** O valor de cada loja num mês, em centavos, nos critérios manuais; o automático nasce de `ratearOMes`. */
+function partesManuais(d: FixaDados): Map<string, number> {
+  return d.split_kind === "percentual" || d.split_kind === "valor"
+    ? partesDoMes(d.split_kind, d.amount, d.splits)
+    : new Map();
 }
 
 /** O valor de cada loja num mês, em centavos. No percentual, o centavo que sobra fica na primeira loja. */
@@ -571,10 +752,15 @@ function canceladaAMao(notas: string | null): boolean {
   return (notas ?? "").startsWith("Cancelada: ") || (notas ?? "").includes(`${SEPARADOR_NOTA}Cancelada: `);
 }
 
+/** Tira a marca da conta cancelada pelo rateio (`NOTA_SAIU_DO_RATEIO` ou `NOTA_VIROU_AUTOMATICO`) quando ela volta. */
 function semNotaSaiuDoRateio(notas: string | null): string | null {
-  if (notas === null || notas === NOTA_SAIU_DO_RATEIO) return null;
-  const fim = `${SEPARADOR_NOTA}${NOTA_SAIU_DO_RATEIO}`;
-  return notas.endsWith(fim) ? notas.slice(0, -fim.length) : notas;
+  if (notas === null) return null;
+  for (const marca of [NOTA_SAIU_DO_RATEIO, NOTA_VIROU_AUTOMATICO]) {
+    if (notas === marca) return null;
+    const fim = `${SEPARADOR_NOTA}${marca}`;
+    if (notas.endsWith(fim)) return notas.slice(0, -fim.length);
+  }
+  return notas;
 }
 
 async function criarOcorrencia(
@@ -649,7 +835,8 @@ export type CriarDespesaFixaInput = {
   due_day: number;
   split_kind: string;
   starts_on?: Date | null;
-  splits: { establishment_id: string; value: number }[];
+  /** Obrigatório nos critérios `percentual` e `valor`; no automático é ignorado. */
+  splits?: { establishment_id: string; value: number }[];
 };
 
 export async function criarDespesaFixaAction(
@@ -672,7 +859,16 @@ export async function criarDespesaFixaAction(
   }
 
   const d = dados.data;
-  const partes = partesDoMes(d.split_kind, d.amount, d.splits);
+  // Automática: só nasce a ocorrência do mês corrente, e só se o modelo já começou. Os meses seguintes
+  // nascem quando alguém lê, com a base daquele momento (`garantirOcorrenciasDoMes`).
+  const mesDaPrimeira = compararMeses(inicio, mesAtualEmBrasilia()) > 0 ? inicio : mesAtualEmBrasilia();
+  const automatica = ehCriterioAutomatico(d.split_kind);
+  const nascerAgora = !automatica || compararMeses(mesDaPrimeira, mesAtualEmBrasilia()) === 0;
+  const partes = ehCriterioAutomatico(d.split_kind)
+    ? nascerAgora
+      ? (await ratearOMes(db, d.split_kind, centavos(d.amount), d.lojas, mesDaPrimeira)).partes
+      : new Map<string, number>()
+    : partesManuais(d);
   const id = await transacaoLonga(db, async (tx) => {
     const t = await tx.fixedExpenseTemplate.create({
       data: scoped({
@@ -689,17 +885,25 @@ export async function criarDespesaFixaAction(
     await tx.fixedExpenseSplit.createMany({
       data: d.splits.map((s) => scoped({ template_id: t.id, establishment_id: s.establishment_id, value: s.value })),
     });
-    for (let n = 0; n < MESES_GERADOS; n++) {
-      for (const s of d.splits) {
-        await criarOcorrencia(tx, t, s.establishment_id, somarMeses(inicio, n), partes.get(s.establishment_id) ?? 0);
+    if (automatica) {
+      if (nascerAgora) {
+        for (const s of d.splits) {
+          await criarOcorrencia(tx, t, s.establishment_id, mesDaPrimeira, partes.get(s.establishment_id) ?? 0);
+        }
+      }
+    } else {
+      for (let n = 0; n < MESES_GERADOS; n++) {
+        for (const s of d.splits) {
+          await criarOcorrencia(tx, t, s.establishment_id, somarMeses(inicio, n), partes.get(s.establishment_id) ?? 0);
+        }
       }
     }
     await registrarNoHistorico(tx, ator, {
       action: "despesa.fixa",
-      establishment_id: d.splits.length === 1 ? d.splits[0].establishment_id : null,
+      establishment_id: !automatica && d.splits.length === 1 ? d.splits[0].establishment_id : null,
       target_type: "despesa_fixa",
       target_id: t.id,
-      summary: `Criou a despesa fixa ${d.name} de ${dinheiro(d.amount)} por mês`,
+      summary: `Criou a despesa fixa ${d.name} de ${dinheiro(d.amount)} por mês${automatica ? ` (${RATEIO_ROTULO_SERVIDOR[d.split_kind].toLowerCase()})` : ""}`,
     });
     return t.id;
   });
@@ -733,11 +937,25 @@ export async function editarDespesaFixaAction(
   // Mudar o valor ou o tipo de divisão sem mandar o rateio novo deixaria o rateio antigo incoerente: a validação recusa em `splits`.
   for (const c of Object.keys(mesclado)) if (p[c] !== undefined) mesclado[c] = p[c];
   if (p.category === null || p.category === "") mesclado.category = mesclado.name;
+  // As partes do modelo automático (todas 0) não valem para um critério manual: a pessoa precisa mandar o rateio.
+  const eraAutomatico = ehCriterioAutomatico(t.split_kind);
+  if (eraAutomatico && p.splits === undefined) mesclado.splits = [];
   const dados = await validarFixa(db, ator, mesclado);
   if (!dados.ok) return dados;
   const d = dados.data;
-  const partes = partesDoMes(d.split_kind, d.amount, d.splits);
+  const automatico = ehCriterioAutomatico(d.split_kind);
   const atual = mesAtualEmBrasilia();
+  const proximo = somarMeses(atual, 1);
+  // Automático: a base de agora, só para as ocorrências que já existem (a do mês corrente e a do seguinte).
+  const partesDoMesAuto = new Map<string, Map<string, number>>();
+  if (ehCriterioAutomatico(d.split_kind)) {
+    for (const m of [atual, proximo]) {
+      partesDoMesAuto.set(textoDoMes(m), (await ratearOMes(db, d.split_kind, centavos(d.amount), d.lojas, m)).partes);
+    }
+  }
+  const partesManual = partesManuais(d);
+  const partesDe = (m: MesCivil) => partesDoMesAuto.get(textoDoMes(m)) ?? partesManual;
+  const lojaUnica = !automatico && d.splits.length === 1 ? d.splits[0].establishment_id : null;
 
   try {
   await transacaoLonga(db, async (tx) => {
@@ -765,14 +983,17 @@ export async function editarDespesaFixaAction(
     await tx.fixedExpenseSplit.createMany({
       data: d.splits.map((s) => scoped({ template_id: id, establishment_id: s.establishment_id, value: s.value })),
     });
-    const rateioAntes = await rateioEmTexto(
-      tx,
-      t.splits.map((s) => ({ establishment_id: s.establishment_id, value: decToNum(s.value) ?? 0 })),
-    );
-    const rateioDepois = await rateioEmTexto(tx, d.splits);
+    // No critério automático o "rateio" do Histórico é o próprio critério: as partes mudam a cada mês.
+    const rateioAntes = eraAutomatico
+      ? [RATEIO_ROTULO_SERVIDOR[t.split_kind]]
+      : await rateioEmTexto(
+          tx,
+          t.splits.map((s) => ({ establishment_id: s.establishment_id, value: decToNum(s.value) ?? 0 })),
+        );
+    const rateioDepois = automatico ? [RATEIO_ROTULO_SERVIDOR[d.split_kind]] : await rateioEmTexto(tx, d.splits);
     await registrarNoHistorico(tx, ator, {
       action: "despesa.fixa",
-      establishment_id: d.splits.length === 1 ? d.splits[0].establishment_id : null,
+      establishment_id: lojaUnica,
       target_type: "despesa_fixa",
       target_id: id,
       summary: `Editou a despesa fixa ${t.name}`,
@@ -787,7 +1008,10 @@ export async function editarDespesaFixaAction(
         },
         { name: d.name, category: d.category, amount: d.amount, due_day: d.due_day, split_kind: d.split_kind, rateio: rateioDepois },
         ROTULOS_FIXA,
-        { amount: (x) => (x == null ? null : dinheiro(x as number)) },
+        {
+          amount: (x) => (x == null ? null : dinheiro(x as number)),
+          split_kind: (x) => (typeof x === "string" && ehCriterioAutomatico(x) ? RATEIO_ROTULO_SERVIDOR[x] : x),
+        },
       ),
     });
 
@@ -795,9 +1019,11 @@ export async function editarDespesaFixaAction(
       where: { template_id: id },
       select: { id: true, establishment_id: true, period: true, financial_entry_id: true },
     });
-    if (ocorrencias.length === 0) return;
+    const completaOsDoze = eraAutomatico && !automatico;
+    if (ocorrencias.length === 0 && !completaOsDoze) return;
     const inicioJanela = compararMeses(mesDaData(t.starts_on), atual) > 0 ? mesDaData(t.starts_on) : atual;
-    const ultimo = ocorrencias.map((o) => mesDaData(o.period)).sort(compararMeses).pop() as MesCivil;
+    const ultimoExistente = ocorrencias.map((o) => mesDaData(o.period)).sort(compararMeses).pop() ?? somarMeses(inicioJanela, -1);
+    const ultimo = automatico && compararMeses(ultimoExistente, proximo) > 0 ? proximo : ultimoExistente;
     const pagas = await comPagamento(tx, ocorrencias.map((o) => o.financial_entry_id));
     const porChave = new Map(ocorrencias.map((o) => [`${o.establishment_id}|${textoDoMes(mesDaData(o.period))}`, o]));
     const nova = { id, category: d.category, due_day: d.due_day };
@@ -828,16 +1054,38 @@ export async function editarDespesaFixaAction(
       };
     };
 
+    // De manual para automático, as contas futuras sem pagamento (do mês seguinte em diante) deixam de existir
+    // até o mês chegar: o gatilho de leitura as refaz, com a base daquele momento.
+    if (!eraAutomatico && automatico) {
+      for (const o of ocorrencias) {
+        if (compararMeses(mesDaData(o.period), atual) <= 0) continue;
+        if (pagas.has(o.financial_entry_id) || lancamentos.get(o.financial_entry_id)?.status === "cancelled") continue;
+        const notas = lancamentos.get(o.financial_entry_id)?.notes ?? null;
+        await tx.financialEntry.update({
+          where: { id: o.financial_entry_id },
+          data: {
+            status: "cancelled",
+            notes: notas ? `${notas}${SEPARADOR_NOTA}${NOTA_VIROU_AUTOMATICO}` : NOTA_VIROU_AUTOMATICO,
+            updated_by_user_id: ator.id,
+          },
+        });
+        lancamentos.set(o.financial_entry_id, { id: o.financial_entry_id, status: "cancelled", notes: notas ? `${notas}${SEPARADOR_NOTA}${NOTA_VIROU_AUTOMATICO}` : NOTA_VIROU_AUTOMATICO });
+      }
+    }
+
     for (let m = inicioJanela; compararMeses(m, ultimo) <= 0; m = somarMeses(m, 1)) {
+      const partes = partesDe(m);
       for (const s of d.splits) {
         const parte = partes.get(s.establishment_id) ?? 0;
         const existente = porChave.get(`${s.establishment_id}|${textoDoMes(m)}`);
         if (!existente) {
-          await criarOcorrencia(tx, nova, s.establishment_id, m, parte);
+          // Automático: o mês seguinte só nasce pela leitura, com a base daquele momento.
+          if (!automatico || compararMeses(m, atual) === 0) await criarOcorrencia(tx, nova, s.establishment_id, m, parte);
           continue;
         }
         if (pagas.has(existente.financial_entry_id)) continue;
         const lancamento = lancamentos.get(existente.financial_entry_id);
+        if (automatico && compararMeses(m, atual) > 0 && (lancamento?.notes ?? "").includes(NOTA_VIROU_AUTOMATICO)) continue;
         const voltaAoRateio = lancamento?.status === "cancelled" && !canceladaAMao(lancamento.notes);
         if (lancamento?.status === "cancelled" && !(voltaAoRateio && parte > 0)) continue;
         const vencimento = diaDoMes(m, d.due_day);
@@ -867,6 +1115,22 @@ export async function editarDespesaFixaAction(
           where: { id: o.financial_entry_id },
           data: cancelarPorRateio(o.financial_entry_id),
         });
+      }
+    }
+
+    // De automático para manual: completa os 12 meses como o "renovar" faz.
+    if (completaOsDoze) {
+      const feitas = await tx.fixedExpenseOccurrence.findMany({
+        where: { template_id: id },
+        select: { establishment_id: true, period: true },
+      });
+      const chaves = new Set(feitas.map((o) => `${o.establishment_id}|${textoDoMes(mesDaData(o.period))}`));
+      for (let i = 0; i < MESES_GERADOS; i++) {
+        const m = somarMeses(inicioJanela, i);
+        for (const s of d.splits) {
+          if (chaves.has(`${s.establishment_id}|${textoDoMes(m)}`)) continue;
+          await criarOcorrencia(tx, nova, s.establishment_id, m, partesManual.get(s.establishment_id) ?? 0);
+        }
       }
     }
   });
@@ -941,6 +1205,13 @@ export async function renovarDespesaFixaAction(
   if (!t) return NAO_ACHADO("Despesa fixa");
   if (t.ended_at) return fail("EXPENSE_ENDED", "Essa despesa foi encerrada: cadastre uma nova.", 409);
 
+  // Modelo automático não se renova: o mês seguinte nasce pela leitura. Só garante o mês corrente.
+  if (ehCriterioAutomatico(t.split_kind)) {
+    await garantirOcorrenciasDoMes(db, ator);
+    const v = await fixaPorId(db, ator, id);
+    return v ? ok({ ...v, created: 0 }) : NAO_ACHADO("Despesa fixa");
+  }
+
   const atual = mesAtualEmBrasilia();
   const comeco = compararMeses(mesDaData(t.starts_on), atual) > 0 ? mesDaData(t.starts_on) : atual;
   const splits = t.splits.map((s) => ({ establishment_id: s.establishment_id, value: decToNum(s.value) ?? 0 }));
@@ -976,6 +1247,101 @@ export async function renovarDespesaFixaAction(
     // Duas renovações ao mesmo tempo: a segunda esbarra no único por modelo, loja e mês.
     if (ehErroUnico(err)) return fail("CONFLICT", "A despesa foi renovada ao mesmo tempo. Tente de novo.", 409);
     throw err;
+  }
+}
+
+/**
+ * O gatilho de leitura do rateio automático: faz nascer, em `mes` (o atual por padrão), a ocorrência de cada
+ * loja que ainda não a tem, com a base daquele momento, e refaz a conta que a troca de critério cancelou.
+ * Barato quando não há o que fazer (leituras só); idempotente: o único `(modelo, loja, mês)` protege dois
+ * leitores ao mesmo tempo, e o que perde a corrida (`P2002`) não faz nada. Nunca lança: a leitura segue.
+ * Devolve quantas ocorrências nasceram.
+ */
+export async function garantirOcorrenciasDoMes(
+  db: TenantPrismaClient,
+  ator: Ator,
+  mes: MesCivil = mesAtualEmBrasilia(),
+): Promise<number> {
+  try {
+    const modelos = await db.fixedExpenseTemplate.findMany({
+      where: { ended_at: null, split_kind: { in: [...CRITERIOS_AUTOMATICOS] }, starts_on: { lte: primeiroDia(mes) } },
+      select: { id: true, name: true, category: true, due_day: true, amount: true, split_kind: true },
+    });
+    if (modelos.length === 0) return 0;
+    const lojas = await lojasDoRateio(db);
+    if (lojas.length === 0) return 0;
+    const feitas = await db.fixedExpenseOccurrence.findMany({
+      where: { template_id: { in: modelos.map((m) => m.id) }, period: primeiroDia(mes) },
+      select: {
+        template_id: true,
+        establishment_id: true,
+        financial_entry_id: true,
+        financial_entry: { select: { status: true, notes: true } },
+      },
+    });
+
+    let nasceram = 0;
+    for (const m of modelos) {
+      const kind = m.split_kind;
+      if (!ehCriterioAutomatico(kind)) continue;
+      const doModelo = feitas.filter((o) => o.template_id === m.id);
+      const faltam = lojas.filter((l) => !doModelo.some((o) => o.establishment_id === l.id));
+      const refazer = doModelo.filter(
+        (o) => o.financial_entry.status === "cancelled" && (o.financial_entry.notes ?? "").includes(NOTA_VIROU_AUTOMATICO),
+      );
+      if (faltam.length === 0 && refazer.length === 0) continue;
+
+      const { partes } = await ratearOMes(db, kind, centavos(decToNum(m.amount) ?? 0), lojas, mes);
+      const aCriar = faltam.filter((l) => (partes.get(l.id) ?? 0) > 0);
+      const aRefazer = refazer.filter((o) => (partes.get(o.establishment_id) ?? 0) > 0);
+      if (aCriar.length === 0 && aRefazer.length === 0) continue;
+
+      const nomes = new Map(lojas.map((l) => [l.id, l.name]));
+      try {
+        await transacaoLonga(db, async (tx) => {
+          const nasceu: string[] = [];
+          for (const l of aCriar) {
+            if (await criarOcorrencia(tx, m, l.id, mes, partes.get(l.id) ?? 0)) nasceu.push(l.id);
+          }
+          for (const o of aRefazer) {
+            const entrada = o.financial_entry;
+            await tx.financialEntry.update({
+              where: { id: o.financial_entry_id },
+              data: {
+                status: "pending",
+                amount: (partes.get(o.establishment_id) ?? 0) / 100,
+                due_date: diaDoMes(mes, m.due_day),
+                notes: semNotaSaiuDoRateio(entrada.notes),
+                paid_at: null,
+                updated_by_user_id: ator.id,
+              },
+            });
+            nasceu.push(o.establishment_id);
+          }
+          await registrarNoHistorico(tx, ator, {
+            action: "despesa.fixa",
+            target_type: "despesa_fixa",
+            target_id: m.id,
+            summary: `A ocorrência de ${mesPorExtenso(mes)} do ${m.name} nasceu pelo rateio ${RATEIO_ROTULO_SERVIDOR[kind].toLowerCase()}: ${nasceu
+              .map((id) => `${nomes.get(id)} ${dinheiro((partes.get(id) ?? 0) / 100)}`)
+              .join(", ")}`,
+            changes: nasceu.map((id) => ({
+              campo: nomes.get(id) ?? "loja",
+              antes: null,
+              depois: dinheiro((partes.get(id) ?? 0) / 100),
+            })),
+          });
+          nasceram += nasceu.length;
+        });
+      } catch (e) {
+        // Outro leitor chegou antes: a transação inteira volta e a ocorrência dele vale.
+        if (!ehErroUnico(e)) throw e;
+      }
+    }
+    return nasceram;
+  } catch (e) {
+    console.warn("garantirOcorrenciasDoMes falhou", e);
+    return 0;
   }
 }
 
@@ -1139,6 +1505,7 @@ export async function listarContasAPagarAction(
 ): Promise<ActionResult<ContaAPagarView[]>> {
   const f = await filtroDeContasAPagar(db, ator, opts);
   if (!f.ok) return f;
+  await garantirOcorrenciasDoMes(db, ator);
   const linhas = await db.financialEntry.findMany({
     where: f.data.where,
     include: INCLUDE_CONTA,

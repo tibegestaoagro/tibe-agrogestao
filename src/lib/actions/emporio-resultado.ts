@@ -16,6 +16,7 @@ import {
   type MesCivil,
 } from "@/lib/emporio/mes";
 import { lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
+import { garantirOcorrenciasDoMes } from "@/lib/actions/emporio-despesas";
 
 /**
  * Meu Empório, F4a e F4b: o Resultado da Loja (Módulo 39, Q26, Q101), a visão
@@ -99,6 +100,35 @@ export type ResultadoDaLojaView = {
 type Janela = { de: Date; ate: Date };
 type Margem = Awaited<ReturnType<typeof margemDaJanela>>;
 
+/** Vendas líquidas em centavos: `net_amount` das vendas menos o valor das devoluções. */
+function faturamentoLiquidoCent(vendas: { net_amount: unknown }[], devolucoes: { amount: unknown }[]): number {
+  return (
+    vendas.reduce((s, v) => s + centavos(decToNum(v.net_amount) ?? 0), 0) -
+    devolucoes.reduce((s, d) => s + centavos(decToNum(d.amount) ?? 0), 0)
+  );
+}
+
+/**
+ * O faturamento líquido de uma loja num mês, em centavos: a mesma soma de vendas do `margemDaJanela`
+ * (vendas concluídas por `sold_at` no mês, menos as devoluções por `returned_at`), que é a base do rateio
+ * automático da despesa fixa.
+ */
+export async function faturamentoLiquidoDoMes(db: TenantPrismaClient, lojaId: string, mes: MesCivil): Promise<number> {
+  const de = inicioDoMesInstante(mes);
+  const ate = inicioDoMesInstante(somarMeses(mes, 1));
+  const [vendas, devolucoes] = await Promise.all([
+    db.emporioSale.findMany({
+      where: { establishment_id: lojaId, status: "concluida", sold_at: { gte: de, lt: ate } },
+      select: { net_amount: true },
+    }),
+    db.emporioSaleReturn.findMany({
+      where: { returned_at: { gte: de, lt: ate }, sale: { establishment_id: lojaId } },
+      select: { amount: true },
+    }),
+  ]);
+  return faturamentoLiquidoCent(vendas, devolucoes);
+}
+
 /** Vendas, custo e "Vendeu, Pagou" de uma janela: a conta da margem, usada no mês e nos últimos 30 dias. */
 async function margemDaJanela(db: TenantPrismaClient, lojaId: string, j: Janela) {
   const vendas = await db.emporioSale.findMany({
@@ -140,7 +170,8 @@ async function margemDaJanela(db: TenantPrismaClient, lojaId: string, j: Janela)
           select: { amount: true },
         });
 
-  let vendasCent = vendas.reduce((s, v) => s + centavos(decToNum(v.net_amount) ?? 0), 0);
+  const devolvidoCent = devolucoes.reduce((s, d) => s + centavos(decToNum(d.amount) ?? 0), 0);
+  const vendasCent = faturamentoLiquidoCent(vendas, devolucoes);
   let custoCent = 0;
   let itensEstimados = 0;
   for (const v of vendas) {
@@ -149,14 +180,11 @@ async function margemDaJanela(db: TenantPrismaClient, lojaId: string, j: Janela)
       if (i.cost_estimated || i.cost_provisional) itensEstimados++;
     }
   }
-  let devolvidoCent = 0;
   for (const d of devolucoes) {
-    devolvidoCent += centavos(decToNum(d.amount) ?? 0);
     for (const i of d.items) {
       custoCent -= Math.round((decToNum(i.sale_item.unit_cost) ?? 0) * (decToNum(i.base_qty) ?? 0) * 100);
     }
   }
-  vendasCent -= devolvidoCent;
 
   const regras = new Map<string, number>();
   let regrasCent = 0;
@@ -308,6 +336,7 @@ async function lerVisao(db: TenantPrismaClient, ator: Ator, input: ResultadoInpu
   const mes = lerMes(input?.month);
   if (!mes) return fail("VALIDATION_ERROR", "Informe o mês no formato AAAA-MM.", 422, "month");
 
+  await garantirOcorrenciasDoMes(db, ator);
   const visiveis = await lojasDoAtor(db, ator);
   const janela: Janela = { de: inicioDoMesInstante(mes), ate: inicioDoMesInstante(somarMeses(mes, 1)) };
 

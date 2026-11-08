@@ -21,9 +21,12 @@ const schema = z.object({
   category: z.string().nullish(),
   amount: z.number({ error: "Informe o valor da despesa." }),
   due_day: z.number({ error: "Informe o dia do vencimento." }),
-  split_kind: z.string({ error: "Escolha como dividir entre as lojas." }),
+  split_kind: z.enum(["percentual", "valor", "faturamento", "area", "funcionarios"], {
+    error: "Escolha como dividir entre as lojas.",
+  }),
   starts_on: dataIso.nullish(),
-  splits: z.array(splitDaDespesaSchema, { error: "Escolha as lojas da despesa." }),
+  // Obrigatório nos critérios manuais (a action recusa a falta); o automático divide entre todas as lojas.
+  splits: z.array(splitDaDespesaSchema, { error: "Escolha as lojas da despesa." }).optional(),
 });
 
 async function GETHandler(request: Request) {

@@ -16,7 +16,12 @@ import {
   type ChequeView,
   type FiadoClienteView,
 } from "@/lib/actions/emporio-caixa";
-import { lerQuantidadeDeContasAPagar, listarContasAPagarAction, type ContaAPagarView } from "@/lib/actions/emporio-despesas";
+import {
+  garantirOcorrenciasDoMes,
+  lerQuantidadeDeContasAPagar,
+  listarContasAPagarAction,
+  type ContaAPagarView,
+} from "@/lib/actions/emporio-despesas";
 
 /**
  * Meu Empório, financeiro das lojas, entrega 1: a casa do Financeiro (Q215).
@@ -138,6 +143,7 @@ export async function lerResumoHojeAction(
 ): Promise<ActionResult<HojeView>> {
   const neg = await exigir(db, ator, "dinheiro", "ver a posição de caixa");
   if (neg) return neg;
+  await garantirOcorrenciasDoMes(db, ator);
   const lojaId = typeof opts?.establishment_id === "string" && opts.establishment_id ? opts.establishment_id : undefined;
   if (lojaId && !(await db.establishment.findFirst({ where: { id: lojaId }, select: { id: true } }))) {
     return fail("NOT_FOUND", "Estabelecimento não encontrado.", 404, "establishment_id");
