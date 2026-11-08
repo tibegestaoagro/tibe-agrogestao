@@ -203,7 +203,7 @@ export function FinanceiroCobranca({ dados, loja }: { dados: CobrancaView; loja:
                   <CobrarPainel cliente={c} loja={loja} aoCobrar={aoCobrar} />
                 ) : (
                   <p className="text-sm text-texto-secundario">
-                    Sem telefone no cadastro.{" "}
+                    {c.phone ? "Telefone sem DDD no cadastro." : "Sem telefone no cadastro."}{" "}
                     <Link href={`/emporio/clientes/${c.customer_id}`} className="font-medium text-texto-marca hover:underline">
                       Completar em Clientes
                     </Link>

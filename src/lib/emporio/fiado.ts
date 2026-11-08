@@ -78,8 +78,9 @@ export function diasTexto(dias: number): string {
 export const LIMITE_MAXIMO_DE_FIADO = 99999999.99;
 
 export const MENSAGEM_DE_COBRANCA_PADRAO =
-  "Olá, {nome}! Aqui é da {loja}. Consta um fiado de {valor} vencido há {dias} dias. Pode nos ajudar a acertar? Obrigado!";
+  "Olá, {nome}! Aqui é da {loja}. Consta um fiado de {valor} vencido há {dias}. Pode nos ajudar a acertar? Obrigado!";
 
+/** `{dias}` sai por extenso ("1 dia", "20 dias"): o modelo não precisa saber o plural. */
 export function mensagemDeCobranca(
   modelo: string | null,
   dados: { nome: string; valor: string; dias: number; loja: string },
@@ -89,6 +90,6 @@ export function mensagemDeCobranca(
   return texto
     .replaceAll("{nome}", () => dados.nome)
     .replaceAll("{valor}", () => dados.valor)
-    .replaceAll("{dias}", () => String(dados.dias))
+    .replaceAll("{dias}", () => diasTexto(dados.dias))
     .replaceAll("{loja}", () => dados.loja);
 }

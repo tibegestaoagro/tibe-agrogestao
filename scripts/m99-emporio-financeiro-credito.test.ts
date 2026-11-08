@@ -109,7 +109,9 @@ async function secao1Pura() {
   check("modelo nulo usa o padrão, com nome, valor, dias e loja", m.includes("Zé") && m.includes("R$ 30,00") && m.includes("19 dias") && m.includes("Loja 1"), m);
   check("a mensagem pronta não deixa marcador sem trocar", !/\{(nome|valor|dias|loja)\}/.test(m), m);
   const m2 = F.mensagemDeCobranca("Oi {nome}, {valor} há {dias} ({loja}). {nome}!", { nome: "Ana", valor: "R$ 5,00", dias: 3, loja: "L" }) as string;
-  check("modelo próprio: troca todas as ocorrências", m2 === "Oi Ana, R$ 5,00 há 3 (L). Ana!", m2);
+  check("modelo próprio: troca todas as ocorrências, e {dias} sai por extenso", m2 === "Oi Ana, R$ 5,00 há 3 dias (L). Ana!", m2);
+  const m1 = F.mensagemDeCobranca(null, { nome: "Zé", valor: "R$ 30,00", dias: 1, loja: "Loja 1" }) as string;
+  check("um dia de atraso sai no singular: 'há 1 dia.'", m1.includes("vencido há 1 dia.") && !m1.includes("1 dias"), m1);
   check("o texto padrão traz os quatro marcadores", ["{nome}", "{loja}", "{valor}", "{dias}"].every((x) => String(F.MENSAGEM_DE_COBRANCA_PADRAO).includes(x)));
 
   console.log("  o telefone para o WhatsApp");
@@ -336,7 +338,7 @@ async function secao2() {
   check("a mensagem efetiva é o texto padrão", d0?.fiado_collection_message_effective === F.MENSAGEM_DE_COBRANCA_PADRAO, String(d0?.fiado_collection_message_effective));
 
   console.log("  o Financeiro muda");
-  const modelo = "Oi {nome}, tudo bem? Falta acertar {valor} ({dias} dias).";
+  const modelo = "Oi {nome}, tudo bem? Falta acertar {valor} ({dias}).";
   const p1 = await chamar(A.tok.fin, R.settingsFiado, "PATCH", "emporio/settings/fiado", {
     fiado_due_days: 20, fiado_block_after_days: 10, fiado_default_limit: 500, fiado_collection_message: modelo,
   });

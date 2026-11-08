@@ -165,7 +165,7 @@ export function FiadoForm({ fiado }: { fiado: FiadoParaForm }) {
 
       <Field
         label="Mensagem de cobrança"
-        hint="Use {nome}, {valor}, {dias} e {loja}. Até 500 caracteres. Em branco, vale a mensagem padrão."
+        hint="Use {nome}, {valor}, {dias} (sai por extenso, como 20 dias) e {loja}. Até 500 caracteres. Em branco, vale a mensagem padrão."
         id={err.idDe("fiado_collection_message")}
         error={err.erros.fiado_collection_message}
       >

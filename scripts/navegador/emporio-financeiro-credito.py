@@ -31,7 +31,7 @@ BLOQUEADO = "Cred Bloqueado"
 LIMITE = "Cred Limite"
 SEMTEL = "Cred Semtel"
 RACAO = "Cred Ração"
-MENSAGEM = "Oi {nome}, o fiado de {valor} venceu há {dias} dias na {loja}."
+MENSAGEM = "Oi {nome}, o fiado de {valor} venceu há {dias} na {loja}."
 HOJE = datetime.date.today()
 SET = "(el, v) => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, v); el.dispatchEvent(new Event('input', { bubbles: true })); }"
 

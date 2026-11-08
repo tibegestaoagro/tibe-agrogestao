@@ -343,9 +343,9 @@ export const GROUPS: Group[] = [
         method: "GET",
         path: "/api/v1/emporio/settings",
         auth: "Sessão · emporio:read · qualquer papel no Empório",
-        description: "Configurações da conta: validade e rodapé do orçamento, rodapé da venda, largura da bobina e se há logo, mais as do fiado: `fiado_due_days` (prazo padrão), `fiado_block_after_days` (dias de atraso que bloqueiam o fiado), `fiado_default_limit` (limite padrão em reais, `null` = sem limite), `fiado_collection_message` (o modelo gravado, `null` = o padrão) e `fiado_collection_message_effective` (o texto que vale, com os marcadores `{nome}`, `{loja}`, `{valor}` e `{dias}`). Sem nada gravado, devolve os padrões (7 dias, bobina de 80 mm, fiado de 30 dias, bloqueio após 15) sem criar a linha.",
+        description: "Configurações da conta: validade e rodapé do orçamento, rodapé da venda, largura da bobina e se há logo, mais as do fiado: `fiado_due_days` (prazo padrão), `fiado_block_after_days` (dias de atraso que bloqueiam o fiado), `fiado_default_limit` (limite padrão em reais, `null` = sem limite), `fiado_collection_message` (o modelo gravado, `null` = o padrão) e `fiado_collection_message_effective` (o texto que vale, com os marcadores `{nome}`, `{loja}`, `{valor}` e `{dias}`, este por extenso, como `20 dias`). Sem nada gravado, devolve os padrões (7 dias, bobina de 80 mm, fiado de 30 dias, bloqueio após 15) sem criar a linha.",
         response: `200
-{ "data": { "quote_validity_days": 7, "quote_footer": null, "sale_footer": null, "receipt_width": 80, "has_logo": false, "logo_updated_at": null, "fiado_due_days": 30, "fiado_block_after_days": 15, "fiado_default_limit": null, "fiado_collection_message": null, "fiado_collection_message_effective": "Olá, {nome}! Aqui é da {loja}. Consta um fiado de {valor} vencido há {dias} dias. Pode nos ajudar a acertar? Obrigado!" }, "meta": {} }`,
+{ "data": { "quote_validity_days": 7, "quote_footer": null, "sale_footer": null, "receipt_width": 80, "has_logo": false, "logo_updated_at": null, "fiado_due_days": 30, "fiado_block_after_days": 15, "fiado_default_limit": null, "fiado_collection_message": null, "fiado_collection_message_effective": "Olá, {nome}! Aqui é da {loja}. Consta um fiado de {valor} vencido há {dias}. Pode nos ajudar a acertar? Obrigado!" }, "meta": {} }`,
       },
       {
         method: "PATCH",
@@ -354,7 +354,7 @@ export const GROUPS: Group[] = [
         description: "Grava as regras do fiado da conta. Chave ausente mantém. `fiado_due_days`: prazo padrão, 1 a 365. `fiado_block_after_days`: dias de atraso que bloqueiam o fiado do cliente, 1 a 365. `fiado_default_limit`: de 0 a 99999999.99, `null` tira o limite (zero é \"ninguém compra fiado\" sem um limite próprio). `fiado_collection_message`: até 500 caracteres, vazio volta ao texto padrão. Recusa 422 no campo. Devolve as configurações inteiras, como o GET. Entra no Histórico como `configuracoes.editar`, com o campo, o antes e o depois.",
         request: `{ "fiado_due_days": 45, "fiado_block_after_days": 20, "fiado_default_limit": 2000 }`,
         response: `200
-{ "data": { "quote_validity_days": 7, "quote_footer": null, "sale_footer": null, "receipt_width": 80, "has_logo": false, "logo_updated_at": null, "fiado_due_days": 45, "fiado_block_after_days": 20, "fiado_default_limit": 2000, "fiado_collection_message": null, "fiado_collection_message_effective": "Olá, {nome}! Aqui é da {loja}. Consta um fiado de {valor} vencido há {dias} dias. Pode nos ajudar a acertar? Obrigado!" }, "meta": {} }`,
+{ "data": { "quote_validity_days": 7, "quote_footer": null, "sale_footer": null, "receipt_width": 80, "has_logo": false, "logo_updated_at": null, "fiado_due_days": 45, "fiado_block_after_days": 20, "fiado_default_limit": 2000, "fiado_collection_message": null, "fiado_collection_message_effective": "Olá, {nome}! Aqui é da {loja}. Consta um fiado de {valor} vencido há {dias}. Pode nos ajudar a acertar? Obrigado!" }, "meta": {} }`,
       },
       {
         method: "PATCH",
@@ -363,7 +363,7 @@ export const GROUPS: Group[] = [
         description: "Grava os campos enviados. `quote_validity_days`: inteiro de 1 a 365. Rodapés: até 500 caracteres, vazio vira `null`. `receipt_width`: 80 ou 58. Recusa 422 no campo. Entra no Histórico como `configuracoes.editar`.",
         request: `{ "quote_validity_days": 10, "quote_footer": "Pague no Pix", "receipt_width": 58 }`,
         response: `200
-{ "data": { "quote_validity_days": 10, "quote_footer": "Pague no Pix", "sale_footer": null, "receipt_width": 58, "has_logo": false, "logo_updated_at": null, "fiado_due_days": 30, "fiado_block_after_days": 15, "fiado_default_limit": null, "fiado_collection_message": null, "fiado_collection_message_effective": "Olá, {nome}! Aqui é da {loja}. Consta um fiado de {valor} vencido há {dias} dias. Pode nos ajudar a acertar? Obrigado!" }, "meta": {} }`,
+{ "data": { "quote_validity_days": 10, "quote_footer": "Pague no Pix", "sale_footer": null, "receipt_width": 58, "has_logo": false, "logo_updated_at": null, "fiado_due_days": 30, "fiado_block_after_days": 15, "fiado_default_limit": null, "fiado_collection_message": null, "fiado_collection_message_effective": "Olá, {nome}! Aqui é da {loja}. Consta um fiado de {valor} vencido há {dias}. Pode nos ajudar a acertar? Obrigado!" }, "meta": {} }`,
       },
       {
         method: "GET",
@@ -1164,7 +1164,7 @@ export const GROUPS: Group[] = [
         auth: "Sessão · emporio:read · Financeiro, Gerente geral e Dono (os outros papéis: 403)",
         description: "A lista de cobrança do fiado vencido, do cliente mais atrasado ao menos. Query: `establishment_id` (opcional; fora do alcance: 404) e `faixa` (`1-15`, `16-30`, `31-60` ou `60+`, pelos dias do vencido mais antigo do cliente; outra: 422 em `faixa`). `message_template` é o modelo que vale (o da conta ou o padrão). Cada cliente traz o `overdue_total`, os `oldest_days`, o vencido por loja em `stores`, o `message` já preenchido e `whatsapp_url` (`https://wa.me/...` com o texto; `null` quando o cadastro não tem um telefone que sirva, e `phone_whatsapp` também). `last_charged_at` vem do `POST /api/v1/emporio/customers/:id/collections`. O Tibé não envia a mensagem: o link abre o WhatsApp do aparelho de quem cobra.",
         response: `200
-{ "data": { "message_template": "Olá, {nome}! Aqui é da {loja}. Consta um fiado de {valor} vencido há {dias} dias. Pode nos ajudar a acertar? Obrigado!", "customers": [{ "customer_id": "cl...", "customer_name": "Zé da Silva", "phone": "34 99876-1234", "phone_whatsapp": "5534998761234", "whatsapp_url": "https://wa.me/5534998761234?text=Ol%C3%A1...", "message": "Olá, Zé da Silva! Aqui é da Loja Centro. Consta um fiado de R$ 320,00 vencido há 20 dias. Pode nos ajudar a acertar? Obrigado!", "overdue_total": 320, "oldest_days": 20, "stores": [{ "establishment_id": "cl...", "establishment_name": "Loja Centro", "overdue": 320 }], "last_charged_at": null }] }, "meta": {} }`,
+{ "data": { "message_template": "Olá, {nome}! Aqui é da {loja}. Consta um fiado de {valor} vencido há {dias}. Pode nos ajudar a acertar? Obrigado!", "customers": [{ "customer_id": "cl...", "customer_name": "Zé da Silva", "phone": "34 99876-1234", "phone_whatsapp": "5534998761234", "whatsapp_url": "https://wa.me/5534998761234?text=Ol%C3%A1...", "message": "Olá, Zé da Silva! Aqui é da Loja Centro. Consta um fiado de R$ 320,00 vencido há 20 dias. Pode nos ajudar a acertar? Obrigado!", "overdue_total": 320, "oldest_days": 20, "stores": [{ "establishment_id": "cl...", "establishment_name": "Loja Centro", "overdue": 320 }], "last_charged_at": null }] }, "meta": {} }`,
       },
       {
         method: "GET",

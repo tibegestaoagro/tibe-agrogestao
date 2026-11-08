@@ -559,10 +559,16 @@ export function Balcao({
             depoisDoPagamento={
               recusaDeCredito && err.erros.payments && v.cliente ? (
                 <p className="text-sm text-texto-secundario">
-                  <Link href={`/emporio/clientes/${v.cliente.id}`} className="font-medium text-texto-marca hover:underline">
+                  {/* Em outra aba: a venda montada vive só no estado do balcão e se perderia na navegação. */}
+                  <Link
+                    href={`/emporio/clientes/${v.cliente.id}`}
+                    target="_blank"
+                    rel="noopener"
+                    className="font-medium text-texto-marca hover:underline"
+                  >
                     Abrir a ficha do cliente para o gestor liberar
-                  </Link>
-                  . Ou troque a forma de pagamento.
+                  </Link>{" "}
+                  (abre em outra aba; a venda fica aqui). Ou troque a forma de pagamento.
                 </p>
               ) : undefined
             }
