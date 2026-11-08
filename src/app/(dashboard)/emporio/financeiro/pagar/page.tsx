@@ -8,14 +8,12 @@ import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
 import { lerCaixaAction } from "@/lib/actions/emporio-caixa";
 import { listarContasAPagarAction } from "@/lib/actions/emporio-despesas";
 import { reaisBr } from "@/lib/numero-br";
+import { hojeEmBrasilia } from "@/lib/emporio/datas";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ContasAPagar } from "../../_components/contas-a-pagar";
 import { paraCaixasDaLoja } from "../../_components/caixas-da-loja";
 import { FinanceiroAbas } from "../../_components/financeiro-abas";
 import { LojaFiltro } from "../../_components/loja-filtro";
-
-/** Hoje em Brasília como "AAAA-MM-DD". */
-const hojeEmBrasilia = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
 
 /** Financeiro, "A pagar": as contas do Empório em aberto, por vencimento, com pagar, adiar e cancelar. */
 export default async function FinanceiroPagarPage({
@@ -78,6 +76,7 @@ export default async function FinanceiroPagarPage({
           caixas={caixasDaLoja}
           usuarioId={user.id}
           podeGaveta={podeGaveta}
+          podeAdiarECancelar={pode(papel, "dinheiro")}
         />
       )}
     </div>

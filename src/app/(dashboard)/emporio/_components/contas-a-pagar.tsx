@@ -45,7 +45,10 @@ export function ContasAPagar({
   caixas,
   usuarioId,
   podeGaveta = true,
+  podeAdiarECancelar,
 }: {
+  /** Adiar e cancelar conta exigem `dinheiro` no servidor: a página decide e passa. */
+  podeAdiarECancelar: boolean;
   /** Falso para quem não passa em `gestor_da_loja` (o Financeiro): o dinheiro da gaveta é da loja. */
   podeGaveta?: boolean;
   contas: ContaDaLista[];
@@ -137,8 +140,10 @@ export function ContasAPagar({
                 <TableCell>
                   <div className="flex flex-wrap gap-2">
                     {c.can_correct && <CorrigirContaForm entryId={c.entry_id} nome={c.name} valor={c.open_amount} />}
-                    <AdiarVencimentoForm entryId={c.entry_id} nome={c.name} vencimento={c.due_date} />
-                    {c.paid_amount === 0 && <CancelarContaForm entryId={c.entry_id} nome={c.name} />}
+                    {podeAdiarECancelar && (
+                      <AdiarVencimentoForm entryId={c.entry_id} nome={c.name} vencimento={c.due_date} />
+                    )}
+                    {podeAdiarECancelar && c.paid_amount === 0 && <CancelarContaForm entryId={c.entry_id} nome={c.name} />}
                   </div>
                 </TableCell>
               </TableRow>

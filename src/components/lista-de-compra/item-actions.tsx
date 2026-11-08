@@ -126,7 +126,7 @@ export default function ItemActions({
     }
 
     setLoading(true);
-    const res = await apiPost(`/api/v1/shopping-items/${item.id}/purchase`, {
+    const res = await apiPost<{ a_pagar_na_loja?: boolean }>(`/api/v1/shopping-items/${item.id}/purchase`, {
       amount: valor,
       quantity: numero,
       property_id: daLoja ? null : propertyId,
@@ -138,7 +138,11 @@ export default function ItemActions({
     setLoading(false);
     if (!res.ok) return err.doServidor(res);
 
-    aviso.sucesso("Compra registrada e item riscado da lista.");
+    aviso.sucesso(
+      res.data?.a_pagar_na_loja
+        ? "Compra registrada e item riscado da lista. Ela ficou nas contas a pagar da loja, vencendo hoje: pague em Meu Empório > Financeiro, dizendo de onde saiu o dinheiro."
+        : "Compra registrada e item riscado da lista.",
+    );
     setOpen(false);
     router.refresh();
   }

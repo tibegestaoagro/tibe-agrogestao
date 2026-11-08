@@ -52,6 +52,8 @@ export default async function CaixaPage() {
   // O Financeiro (ação `dinheiro`) cuida da conta Pix e da taxa de cartão de todas as lojas, como as actions já aceitam.
   const ehDinheiro = pode(papel, "dinheiro");
   const veContas = ehGestor || ehDinheiro;
+  // Cadastrar conta bancária, informar o saldo inicial e arquivar: do dono da conta ou do Financeiro.
+  const mexeNaConta = ehConta || ehDinheiro;
 
   const [caixaRes, contasRes, regrasRes, contasDoBanco, implantados, comTurno, entregasRes] = await Promise.all([
     lerCaixaAction(db, user),
@@ -242,7 +244,7 @@ export default async function CaixaPage() {
         <section className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-semibold text-texto">Contas bancárias</h2>
-            {ehConta && <ContaForm />}
+            {mexeNaConta && <ContaForm />}
           </div>
           {contas.length === 0 ? (
             <EmptyState titulo="Nenhuma conta cadastrada">
@@ -280,10 +282,10 @@ export default async function CaixaPage() {
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-2">
-                        {ehConta && !c.archived_at && !contaComSaldoInicial.has(c.id) && (
+                        {mexeNaConta && !c.archived_at && !contaComSaldoInicial.has(c.id) && (
                           <SaldoInicialForm tipo="conta" destinoId={c.id} destinoNome={c.name} />
                         )}
-                        {ehConta && <ContaArquivarBotao contaId={c.id} arquivada={!!c.archived_at} />}
+                        {mexeNaConta && <ContaArquivarBotao contaId={c.id} arquivada={!!c.archived_at} />}
                       </div>
                     </TableCell>
                   </TableRow>

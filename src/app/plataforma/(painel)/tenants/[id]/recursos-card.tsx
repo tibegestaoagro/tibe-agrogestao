@@ -13,6 +13,7 @@ const FUNCAO_DO_EMPORIO: Record<string, string> = {
   gestor: "Gestor",
   vendedor: "Vendedor",
   caixa: "Caixa",
+  financeiro: "Financeiro",
 };
 
 /** Rótulo e efeito de cada recurso em teste. Hoje só o Empório (Módulo 39). */

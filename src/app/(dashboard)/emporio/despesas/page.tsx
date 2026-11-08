@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
-import { papelDoEmporio } from "@/lib/emporio/papel";
+import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { veAPagina } from "@/lib/emporio/paginas";
 import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
 import { lerCaixaAction } from "@/lib/actions/emporio-caixa";
@@ -45,7 +45,10 @@ export default async function DespesasPage() {
 
   const db = await getTenantDb();
   // F6b: as despesas da loja são do Gestor da loja para cima; o Vendedor volta ao início.
-  if (!veAPagina(await papelDoEmporio(db, user), "/emporio/despesas")) redirect("/emporio");
+  const papel = await papelDoEmporio(db, user);
+  if (!veAPagina(papel, "/emporio/despesas")) redirect("/emporio");
+  // O Financeiro paga só pela conta bancária: a gaveta é da loja.
+  const podeGaveta = pode(papel, "gestor_da_loja");
   const [lojasRes, contasRes, fixasRes, regrasRes, caixaRes, produtosDb] = await Promise.all([
     listarEstabelecimentosAction(db, user),
     listarContasAPagarAction(db, user, { status: "pending" }),
@@ -74,7 +77,9 @@ export default async function DespesasPage() {
   const nomeDaApresentacao = new Map(todosProdutos.flatMap((p) => p.presentations.map((a) => [a.id, a.name] as const)));
 
   const origens = [
-    ...caixa.drawers.map((d) => ({ valor: `loja:${d.establishment_id}`, rotulo: `Gaveta: ${d.name} (${reaisBr(d.balance)})` })),
+    ...(podeGaveta
+      ? caixa.drawers.map((d) => ({ valor: `loja:${d.establishment_id}`, rotulo: `Gaveta: ${d.name} (${reaisBr(d.balance)})` }))
+      : []),
     ...caixa.accounts.map((a) => ({ valor: `conta:${a.bank_account_id}`, rotulo: `Conta: ${a.name} (${reaisBr(a.balance)})` })),
   ];
 
@@ -126,6 +131,8 @@ export default async function DespesasPage() {
             hoje={hoje}
             caixas={caixasDaLoja}
             usuarioId={user.id}
+            podeGaveta={podeGaveta}
+            podeAdiarECancelar={pode(papel, "dinheiro")}
           />
         )}
       </section>

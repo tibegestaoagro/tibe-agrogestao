@@ -2,9 +2,9 @@ import Link from "next/link";
 import type { HojeView, PosicaoView } from "@/lib/actions/emporio-financeiro";
 import { reaisBr } from "@/lib/numero-br";
 import { EmptyState } from "@/components/ui/empty-state";
+import { dataBr } from "@/lib/emporio/datas";
 import { enderecoDaAba } from "./financeiro-abas";
 
-const dataBr = (iso: string) => iso.slice(0, 10).split("-").reverse().join("/");
 const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
 
 const ROTULO_DO_LUGAR: Record<PosicaoView["kind"], string> = {

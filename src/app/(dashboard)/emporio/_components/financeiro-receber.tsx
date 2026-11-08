@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { AReceberView } from "@/lib/actions/emporio-financeiro";
 import { pode, type PapelContexto } from "@/lib/emporio/papel";
 import { reaisBr } from "@/lib/numero-br";
+import { dataBr } from "@/lib/emporio/datas";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
@@ -17,7 +18,6 @@ import { ReceberFiadoForm } from "./receber-fiado-form";
 import type { CaixaDaLoja } from "./caixas-da-loja";
 import { CHEQUE_SITUACAO_ROTULO } from "./venda-rotulos";
 
-const dataBr = (iso: string) => iso.slice(0, 10).split("-").reverse().join("/");
 const DATA_UTC = new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC" });
 
 /** As três seções de "A receber": fiado por cliente, cheques em carteira e cartões por data. */
