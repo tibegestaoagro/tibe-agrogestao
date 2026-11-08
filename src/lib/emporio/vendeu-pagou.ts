@@ -1,6 +1,8 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { scoped } from "@/lib/prisma";
 import { decToNum } from "@/lib/serialize";
+import { ok, fail, type ActionResult } from "@/lib/actions/types";
+import { contaEmAprovacao, EM_APROVACAO } from "@/lib/emporio/pedido-pagamento";
 import { createLinkedEntry } from "@/lib/financial";
 import { custoMedio } from "@/lib/emporio/custo-medio";
 import { mesDoInstante, ultimoDia } from "@/lib/emporio/mes";
@@ -164,12 +166,22 @@ export async function gravarVendeuPagou(tx: Tx, ator: { id: string }, v: VendaPa
  * paga fica, e a baixa da embalagem é cancelada. Devolução parcial não chama
  * isto.
  */
-export async function cancelarVendeuPagou(tx: Tx, saleId: string, agora: Date, motivo: string): Promise<void> {
+export async function cancelarVendeuPagou(
+  tx: Tx,
+  saleId: string,
+  agora: Date,
+  motivo: string,
+): Promise<ActionResult<null>> {
   const despesas = await tx.saleVariableExpense.findMany({
     where: { sale_id: saleId, canceled_at: null },
     select: { id: true, financial_entry_id: true },
   });
-  if (despesas.length === 0) return;
+  if (despesas.length === 0) return ok(null);
+  // Conta com pedido de aprovação pendente não some por outro caminho (Q227): a recusa vem antes de qualquer escrita.
+  const contaIds = despesas.map((d) => d.financial_entry_id).filter((x): x is string => !!x);
+  if (await contaEmAprovacao(tx, contaIds)) {
+    return fail("CONTA_EM_APROVACAO", EM_APROVACAO, 409, "sale_id");
+  }
   await tx.saleVariableExpense.updateMany({
     where: { id: { in: despesas.map((d) => d.id) } },
     data: { canceled_at: agora },
@@ -187,4 +199,5 @@ export async function cancelarVendeuPagou(tx: Tx, saleId: string, agora: Date, m
       data: { status: "cancelled" },
     });
   }
+  return ok(null);
 }

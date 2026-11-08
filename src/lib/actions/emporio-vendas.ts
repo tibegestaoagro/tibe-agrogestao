@@ -1511,7 +1511,8 @@ export async function cancelarVendaAction(
         data: { status: "cancelled" },
       });
       // F4a (Q99): o "Vendeu, Pagou" não pago some com a venda; o pago fica.
-      await cancelarVendeuPagou(tx, id, agora, motivo);
+      const vp = await cancelarVendeuPagou(tx, id, agora, motivo);
+      if (!vp.ok) throw new AbortarVenda(vp);
 
       const lancamento = await tx.financialEntry.findFirst({
         where: { related_module: "emporio", entry_type: "income", related_id: id },

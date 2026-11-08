@@ -30,6 +30,19 @@ export const INCLUDE_PEDIDO = { requested_by: { select: { id: true, name: true }
 
 const diaIso = (d: Date) => d.toISOString().slice(0, 10);
 
+export const EM_APROVACAO = "Esta conta está esperando aprovação de pagamento.";
+
+/** Alguma das contas já está num pedido pendente? Pagar, cancelar (inclusive pela compra ou pela venda), adiar e corrigir recusam. */
+export async function contaEmAprovacao(tx: object, ids: string[]): Promise<boolean> {
+  const leitor = tx as Prisma.TransactionClient;
+  if (ids.length === 0) return false;
+  const p = await leitor.emporioPaymentRequest.findFirst({
+    where: { status: "pendente", entry_ids: { hasSome: ids } },
+    select: { id: true },
+  });
+  return !!p;
+}
+
 /** Monta as visões de uma lista de pedidos com poucas leituras (contas, lugares e decisores de uma vez). */
 export async function viewsDosPedidos(db: TenantPrismaClient, linhas: PedidoRow[]): Promise<PedidoDePagamentoView[]> {
   if (linhas.length === 0) return [];
@@ -124,16 +137,21 @@ export async function avisarAprovadores(db: TenantPrismaClient, pedido: PedidoDe
     const base = (process.env.NEXTAUTH_URL ?? "http://localhost:3000").replace(/\/+$/, "");
     for (const u of aprovadores) {
       if (!u.phone) continue;
-      await notify(
-        { tenant_id: u.tenant_id, user_id: u.id, phone: u.phone, email: u.email },
-        {
-          pushTitle: "Pagamento esperando aprovação",
-          pushBody: `${pedido.requested_by.name} pediu para pagar ${total} a ${aQuem}`,
-          pushUrl: "/emporio/financeiro/aprovacoes",
-          whatsappText: `${pedido.requested_by.name} pediu aprovação para pagar ${total} a ${aQuem}${maisContas}, vencimento ${venc}. Aprove em ${base}/emporio/financeiro/aprovacoes`,
-        },
-        "conversa",
-      );
+      // Um try por destinatário: a falha de um não cala os seguintes.
+      try {
+        await notify(
+          { tenant_id: u.tenant_id, user_id: u.id, phone: u.phone, email: u.email },
+          {
+            pushTitle: "Pagamento esperando aprovação",
+            pushBody: `${pedido.requested_by.name} pediu para pagar ${total} a ${aQuem}`,
+            pushUrl: "/emporio/financeiro/aprovacoes",
+            whatsappText: `${pedido.requested_by.name} pediu aprovação para pagar ${total} a ${aQuem}${maisContas}, vencimento ${venc}. Aprove em ${base}/emporio/financeiro/aprovacoes`,
+          },
+          "conversa",
+        );
+      } catch (err) {
+        console.warn("[emporio] não foi possível avisar um aprovador do pedido de pagamento", err);
+      }
     }
   } catch (err) {
     console.warn("[emporio] não foi possível avisar os aprovadores do pedido de pagamento", err);

@@ -7,6 +7,7 @@ import { createLinkedEntry, runSerializableTenantTransaction, type TenantTransac
 import { lacradoEfetivo, lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
 import { saldoDoCaixa, saldosDasContas } from "@/lib/actions/emporio-caixa";
 import { resolverTurno } from "@/lib/emporio/turno";
+import { contaEmAprovacao, EM_APROVACAO } from "@/lib/emporio/pedido-pagamento";
 
 /**
  * Meu Empório, F2a: compras (Módulo 39, Q38, Q39, Q61 a Q63, Q70).
@@ -730,6 +731,9 @@ export async function cancelarCompraAction(
         where: { related_module: "emporio", related_id: id, status: { not: "cancelled" } },
         select: { id: true, status: true },
       });
+      if (await contaEmAprovacao(tx, lancs.map((l) => l.id))) {
+        throw new AbortarCompra(fail("CONTA_EM_APROVACAO", EM_APROVACAO, 409, "purchase_id"));
+      }
       const comPagamento = lancs.some((l) => l.status === "paid");
       const pagos = lancs.length
         ? await tx.financialPayment.count({ where: { entry_id: { in: lancs.map((l) => l.id) } } })

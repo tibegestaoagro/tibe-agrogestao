@@ -63,6 +63,9 @@ export async function aprovarPedidoDePagamentoAction(
       const p = await tx.emporioPaymentRequest.findFirst({ where: { id } });
       if (!p) throw new RecusaDespesa(NAO_ACHADO());
       if (p.status !== "pendente") throw new RecusaDespesa(NAO_PENDENTE());
+      // O pedido guarda as contas, não o valor: a aprovação paga o aberto ATUAL de cada uma (uma devolução que
+      // baixou a conta depois do pedido reduz o pagamento). `total` do pedido é só o valor do momento do pedido.
+      // `paid_at` fica de fora de propósito: a data do pagamento é a da aprovação.
       await executarPagamentoDeContas(
         tx,
         ator,

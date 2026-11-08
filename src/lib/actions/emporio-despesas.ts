@@ -9,7 +9,13 @@ import { lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
 import { acharLojaParaEscrita } from "@/lib/actions/emporio-estoque";
 import { saldoDoCaixa, saldosDasContas } from "@/lib/actions/emporio-caixa";
 import { resolverTurno } from "@/lib/emporio/turno";
-import { avisarAprovadores, viewDoPedidoDePagamento, type PedidoDePagamentoView } from "@/lib/emporio/pedido-pagamento";
+import {
+  avisarAprovadores,
+  contaEmAprovacao,
+  EM_APROVACAO,
+  viewDoPedidoDePagamento,
+  type PedidoDePagamentoView,
+} from "@/lib/emporio/pedido-pagamento";
 import { CATEGORIAS_RESERVADAS } from "@/lib/emporio/vendeu-pagou";
 import {
   compararMeses,
@@ -1249,16 +1255,6 @@ export type PagamentoDeContasView =
 
 type Pagos = { entry_id: string; amount: number; financial_payment_id: string }[];
 
-const EM_APROVACAO = "Esta conta está esperando aprovação de pagamento.";
-
-/** Alguma das contas já está num pedido pendente? Pagar, cancelar, adiar e corrigir recusam. */
-async function contaEmAprovacao(leitor: Tx, ids: string[]): Promise<boolean> {
-  const p = await leitor.emporioPaymentRequest.findFirst({
-    where: { status: "pendente", entry_ids: { hasSome: ids } },
-    select: { id: true },
-  });
-  return !!p;
-}
 
 /** Acha, confere e soma o aberto das contas; recusa (RecusaDespesa) a que não é do ator, ou já foi paga ou cancelada. */
 async function carregarContasDoPagamento(leitor: TenantPrismaClient, ator: Ator, ids: string[]) {
@@ -1435,12 +1431,20 @@ export async function pagarDespesasAction(
       if (limite != null && !daConta) {
         const { totalCent } = await carregarContasDoPagamento(leitor, ator, ids);
         if (totalCent > centavos(decToNum(limite) ?? 0)) {
+          // Da gaveta, o turno se resolve agora e o caixa resolvido vai no pedido: na aprovação ele não emperra em ESCOLHA_O_CAIXA.
+          // O saldo continua só conferido na aprovação.
+          let caixaDoPedido: string | null = null;
+          if (lojaId) {
+            const r = await resolverTurno(tx, ator, lojaId, idOuNulo(input.cash_register_id) ?? undefined, "exige");
+            if (!r.ok) throw new RecusaDespesa(r);
+            caixaDoPedido = r.turno?.cash_register_id ?? null;
+          }
           const pedido = await tx.emporioPaymentRequest.create({
             data: scoped({
               requested_by_user_id: ator.id,
               entry_ids: ids,
               establishment_id: lojaId,
-              cash_register_id: idOuNulo(input.cash_register_id),
+              cash_register_id: caixaDoPedido,
               bank_account_id: contaId,
               total: totalCent / 100,
               status: "pendente",
