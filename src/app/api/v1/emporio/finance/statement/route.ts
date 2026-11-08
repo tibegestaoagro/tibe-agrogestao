@@ -2,24 +2,13 @@ import { z } from "zod";
 import { apiErroDeZod } from "@/lib/api";
 import { withApi } from "@/lib/route";
 import { lerExtratoAction } from "@/lib/actions/emporio-financeiro";
-import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
+import { diaIso, guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
 
 /**
  * GET /api/v1/emporio/finance/statement  ?kind=conta|gaveta|gerencia (padrão conta) &id= &de= &ate= (AAAA-MM-DD) &apenas_sem_carimbo=1
  * o extrato do lugar no período, de até 92 dias. `id` é a conta, ou a loja (gaveta e gerência);
  * `bank_account_id` segue valendo como sinônimo de `kind=conta&id=`.
  */
-
-const diaIso = (campo: string) =>
-  z
-    .string({ error: `Informe a data ${campo === "de" ? "inicial" : "final"}.` })
-    .regex(/^\d{4}-\d{2}-\d{2}$/, "Informe uma data válida (AAAA-MM-DD).")
-    .refine((v) => {
-      const t = Date.parse(`${v}T00:00:00Z`);
-      // O Date.parse aceita 2026-02-31 e rola para março: só vale a data que volta igual.
-      return !Number.isNaN(t) && new Date(t).toISOString().slice(0, 10) === v;
-    }, "Informe uma data válida (AAAA-MM-DD).")
-    .transform((v) => new Date(`${v}T00:00:00Z`));
 
 const schema = z
   .object({

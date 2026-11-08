@@ -130,7 +130,7 @@ export type APagarPorVencimentoView = {
   total: number;
 };
 
-/** As contas pendentes do Empório que vencem no período, por semana de 7 dias a partir de `de` e por nome. */
+/** As contas pendentes do Empório que vencem até o fim do período, por semana de 7 dias a partir de `de` e por nome; o vencido antes de `de` entra na primeira semana, em destaque. */
 export async function lerAPagarPorVencimentoAction(
   db: TenantPrismaClient,
   ator: Ator,
@@ -148,7 +148,6 @@ export async function lerAPagarPorVencimentoAction(
   const contas = await listarContasAPagarAction(db, ator, {
     establishment_id: al.lojaId,
     status: "pending",
-    de,
     ate: new Date(ate.getTime() + DIA_MS - 1),
     limit: 500,
   });
@@ -170,7 +169,8 @@ export async function lerAPagarPorVencimentoAction(
   let vencidoTotal = 0;
   for (const c of contas.data) {
     if (!c.due_date) continue;
-    const semana = semanas.find((s) => c.due_date! >= s.de && c.due_date! <= s.ate);
+    // O que venceu antes de `de` entra na primeira semana (no padrão, `de` é hoje: o vencido é justo o que importa).
+    const semana = c.due_date < semanas[0].de ? semanas[0] : semanas.find((s) => c.due_date! >= s.de && c.due_date! <= s.ate);
     if (!semana) continue;
     const valor = centavos(c.open_amount);
     const vencida = c.due_date < hojeTxt;
@@ -246,15 +246,27 @@ export async function lerPosicaoPorLugarAction(
   const ateInstante = new Date(ate.getTime() + DIA_MS + MEIA_NOITE_SP_EM_UTC_MS);
   const posicoes = await lerPosicoes(db, { lojaId: al.lojaId, visiveis: al.visiveis, comContas: !al.lojaId });
 
+  // Uma consulta por tabela, distribuída em memória por lugar.
+  const movimentos = await db.cashMovement.groupBy({
+    by: ["establishment_id", "manager_establishment_id", "bank_account_id", "origin", "direction"],
+    where: { occurred_at: { gte: desde, lt: ateInstante } },
+    _sum: { amount: true },
+  });
+  // A parcela de cartão futura não está no saldo (que soma até hoje): fica fora do período também.
+  const hojeDia = hojeEmBrasilia();
+  const cartaoAte = ate.getTime() < hojeDia.getTime() ? ate : hojeDia;
+  const cartoes = await db.cardReceivable.groupBy({
+    by: ["bank_account_id"],
+    where: { canceled_at: null, expected_on: { gte: de, lte: cartaoAte } },
+    _sum: { net_amount: true },
+  });
+  const cartaoDaConta = new Map(cartoes.map((c) => [c.bank_account_id, centavos(decToNum(c._sum.net_amount) ?? 0)]));
+
   const places: PosicaoPorLugarView["places"] = [];
   for (const p of posicoes) {
-    const onde =
-      p.kind === "gaveta" ? { establishment_id: p.id } : p.kind === "gerencia" ? { manager_establishment_id: p.id } : { bank_account_id: p.id };
-    const linhas = await db.cashMovement.groupBy({
-      by: ["origin", "direction"],
-      where: { ...onde, occurred_at: { gte: desde, lt: ateInstante } },
-      _sum: { amount: true },
-    });
+    const doLugar = movimentos.filter((l) =>
+      p.kind === "gaveta" ? l.establishment_id === p.id : p.kind === "gerencia" ? l.manager_establishment_id === p.id : l.bank_account_id === p.id,
+    );
     const porOrigem = new Map<string, { entradas: number; saidas: number }>();
     const somar = (origin: string, entrada: boolean, cent: number) => {
       const o = porOrigem.get(origin) ?? { entradas: 0, saidas: 0 };
@@ -262,13 +274,9 @@ export async function lerPosicaoPorLugarAction(
       else o.saidas += cent;
       porOrigem.set(origin, o);
     };
-    for (const l of linhas) somar(l.origin, l.direction === "entrada", centavos(decToNum(l._sum.amount) ?? 0));
+    for (const l of doLugar) somar(l.origin, l.direction === "entrada", centavos(decToNum(l._sum.amount) ?? 0));
     if (p.kind === "conta") {
-      const cartao = await db.cardReceivable.aggregate({
-        where: { bank_account_id: p.id, canceled_at: null, expected_on: { gte: de, lte: ate } },
-        _sum: { net_amount: true },
-      });
-      const v = centavos(decToNum(cartao._sum.net_amount) ?? 0);
+      const v = cartaoDaConta.get(p.id) ?? 0;
       if (v > 0) somar("cartao", true, v);
     }
     const byOrigin = [...porOrigem.entries()]

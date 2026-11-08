@@ -16,7 +16,8 @@ exigirBancoLocal();
  * Seção 5: os três relatórios (a receber por idade, a pagar por vencimento, posição por lugar).
  * Seção 6: isolamento entre tenants.
  *
- * Tenants: A (loja e rateio), P (projeção e relatórios, um mundo controlado), E (estimativa de despesa fixa), B (isolamento).
+ * Tenants: A (loja e rateio), P (projeção e relatórios, um mundo controlado), E (estimativa de despesa fixa), F (estimativa
+ * depois da revisão: base de hoje, mês nascido, troca de critério), B (isolamento).
  * As fixtures passam pelas actions e por Prisma (datas); o que está sob prova passa pela ROTA quando há rota.
  * A suíte nasce vermelha: as rotas e as regras das Tasks 1, 3 e 4 ainda não existem.
  */
@@ -162,7 +163,7 @@ type Mundo = {
   presId: string;
 };
 
-let M: { A: Mundo; P: Mundo; E: Mundo; B: Mundo } | null = null;
+let M: { A: Mundo; P: Mundo; E: Mundo; F: Mundo; B: Mundo } | null = null;
 
 const PADRAO = { fiado_due_days: 30, fiado_block_after_days: 365, fiado_default_limit: null, fiado_collection_message: null, payment_approval_limit: null };
 
@@ -800,6 +801,56 @@ async function secao4Estimativa() {
   check("a ocorrência que nasceu aparece como conta a pagar (entries) na semana do vencimento", !!semSeg && n(semSeg.payables?.entries) >= 1000 - 0.01, j(semSeg?.payables));
 }
 
+/** Despesas fixas automáticas na projeção (depois da revisão da Task 4): base de hoje, mês nascido, troca de critério. */
+async function secao4Fixas() {
+  secaoAtual = "4";
+  console.log("\nSeção 4 (cont.): a estimativa das fixas automáticas, depois da revisão");
+  const { F } = M!;
+  const fim = emDias(89);
+  const meses28 = [1, 2, 3].map((k) => somaMes(mesCorrente, k)).filter((ym) => `${ym}-28` <= fim).length;
+  const estimado = async (qs = "") => somaSemanas((await proj(F, F.tok.fin, `?days=90${qs}`)).corpo?.data, (s) => s.payables?.fixed_estimated);
+  const criar = async (name: string, split_kind: string, amount: number, extra: Dado = {}) => {
+    const r = await chamar(F.tok.owner, R.fixed, "POST", "emporio/fixed-expenses", {
+      name, category: name, amount, due_day: 28, starts_on: `${mesCorrente}-01`, split_kind, ...extra,
+    });
+    check(`(fixture) ${name}: 201`, r.status === 201, `${r.status} ${j(r.corpo)}`);
+    return String(r.corpo?.data?.id ?? "");
+  };
+
+  console.log("  (a) a base de hoje, por loja, e não a do mês estimado");
+  const cli = await cliente(F, "Fixas faturamento");
+  await vender(F, cli, F.L1, 10, [{ kind: "dinheiro", amount: 100 }], { sold_at: new Date(`${mesAnterior}-10T12:00:00Z`) });
+  await vender(F, cli, F.L2, 10, [{ kind: "dinheiro", amount: 100 }]);
+  const antesL1 = await estimado(`&establishment_id=${F.L1}`);
+  const antesL2 = await estimado(`&establishment_id=${F.L2}`);
+  await criar("M101 Fixa faturamento", "faturamento", 1000);
+  const depoisL1 = await estimado(`&establishment_id=${F.L1}`);
+  const depoisL2 = await estimado(`&establishment_id=${F.L2}`);
+  check("a base de hoje é o faturamento do mês anterior (só a Loja 1): ela leva tudo em cada mês seguinte", perto(depoisL1 - antesL1, 1000 * meses28), `${depoisL1 - antesL1} esperado ${1000 * meses28}`);
+  check("a Loja 2 (sem faturamento no mês anterior) não leva nada, apesar de vender neste mês", perto(depoisL2 - antesL2, 0), String(depoisL2 - antesL2));
+
+  console.log("  (b) mês nascido não ganha estimativa quando uma loja ganha base depois");
+  const Dd = await import("@/lib/actions/emporio-despesas");
+  await F.db.establishment.update({ where: { id: F.L1 }, data: { area_m2: 60 } });
+  const antesTodas = await estimado();
+  await criar("M101 Fixa area", "area", 1000);
+  const nasc = await garantirSeguro(Dd, F.db, F.owner, civil(mesCorrente));
+  check("(fixture) o gatilho do mês corrente roda", nasc >= 0, String(nasc));
+  await F.db.establishment.update({ where: { id: F.L2 }, data: { area_m2: 100 } });
+  const depoisTodas = await estimado();
+  check("a Loja 2 ganhou área depois do mês nascer: só os meses seguintes são estimados (nada por cima da conta real do mês corrente)", perto(depoisTodas - antesTodas, 1000 * meses28), `${depoisTodas - antesTodas} esperado ${1000 * meses28}`);
+
+  console.log("  (c) a troca de manual para automático não faz os meses seguintes sumirem");
+  const antesTroca = await estimado();
+  const man = await criar("M101 Fixa manual", "valor", 600, { splits: [{ establishment_id: F.L1, value: 600 }] });
+  const comManual = await estimado();
+  check("(fixture) o modelo manual não é estimado (as contas dos meses seguintes já existem)", perto(comManual - antesTroca, 0), String(comManual - antesTroca));
+  const tr = await chamar(F.tok.owner, R.fixedId, "PATCH", `emporio/fixed-expenses/${man}`, { split_kind: "area" }, man);
+  check("(fixture) trocar o modelo para área: 200", tr.status === 200, `${tr.status} ${j(tr.corpo)}`);
+  const apos = await estimado();
+  check("depois da troca, cada mês seguinte da janela é estimado com 600", perto(apos - comManual, 600 * meses28), `${apos - comManual} esperado ${600 * meses28}`);
+}
+
 // ---------------------------------------------------------------------------
 // Seção 5: os relatórios
 // ---------------------------------------------------------------------------
@@ -865,6 +916,12 @@ async function secao5() {
   check("filtro pela Loja 2: nada a pagar (total 0)", rpL2.status === 200 && perto(rpL2.corpo?.data?.total, 0), `${rpL2.status} ${j(rpL2.corpo).slice(0, 160)}`);
   const rpL1 = await porVenc(P.tok.fin, `?establishment_id=${P.L1}&de=${de}&ate=${ate}`);
   check("filtro pela Loja 1: o mesmo que sem filtro", rpL1.status === 200 && perto(rpL1.corpo?.data?.total, n(vp?.total)), `${rpL1.status} ${rpL1.corpo?.data?.total} vs ${vp?.total}`);
+  console.log("  (b2) no padrão (de = hoje) o vencido aparece na primeira semana");
+  const rpPadrao = await porVenc(P.tok.fin, `?de=${hojeStr}&ate=${emDias(30)}`);
+  const vpp = rpPadrao.corpo?.data as Dado;
+  check("de = hoje: o vencido de 70 entra em overdue_total", rpPadrao.status === 200 && perto(vpp?.overdue_total, 70), `${rpPadrao.status} ${vpp?.overdue_total}`);
+  check("de = hoje: a primeira semana está overdue e traz os 70", vpp?.weeks?.[0]?.overdue === true && (vpp?.weeks?.[0]?.items ?? []).some((i: Dado) => perto(i.total, 70)), j(vpp?.weeks?.[0]));
+  check("de = hoje: o total é a soma das semanas", perto(vpp?.total, (vpp?.weeks ?? []).reduce((s: number, x: Dado) => s + n(x.total), 0)), String(vpp?.total));
   const rpLongo = await porVenc(P.tok.fin, `?de=${emDias(0)}&ate=${emDias(400)}`);
   check("período de mais de 366 dias: 422 no campo ate", erro(rpLongo, 422, undefined, "ate"), `${rpLongo.status} ${j(rpLongo.corpo)}`);
   const rpV = await porVenc(P.tok.vend, `?de=${de}&ate=${ate}`);
@@ -891,6 +948,9 @@ async function secao5() {
   check("a conta mostra cartao com a entrada da parcela do período (líquido da de hoje)", perto(origem(conta, "cartao")?.entradas, X.cartaoHoje), `${j(origem(conta, "cartao"))} esperado ${X.cartaoHoje}`);
   check("a gaveta da Loja 1 mostra venda com entrada de 50", perto(origem(gaveta, "venda")?.entradas, 50), j(gaveta?.period));
   check("cada origem traz label e o período tem entradas e saídas", (conta?.period?.by_origin ?? []).every((x: Dado) => typeof x.label === "string" && x.label !== "") && typeof conta?.period?.entradas === "number" && typeof conta?.period?.saidas === "number", j(conta?.period));
+  const rlFut = await porLugar(P.tok.fin, `?de=${emDias(-30)}&ate=${emDias(30)}`);
+  const contaFut = ((rlFut.corpo?.data?.places ?? []) as Dado[]).find((p) => p.kind === "conta" && p.id === P.conta);
+  check("ate no futuro: a parcela de cartão de daqui a 10 dias fica fora do período (não está no saldo)", rlFut.status === 200 && perto(origem(contaFut, "cartao")?.entradas, X.cartaoHoje), `${rlFut.status} ${j(origem(contaFut, "cartao"))} esperado ${X.cartaoHoje}`);
   const rlL1 = await porLugar(P.tok.fin, `?establishment_id=${P.L1}&${qs}`);
   const placesL1 = (rlL1.corpo?.data?.places ?? []) as Dado[];
   check("filtro pela Loja 1: a gaveta e a gerência dela, sem a conta bancária", rlL1.status === 200 && placesL1.some((p) => p.kind === "gaveta") && placesL1.some((p) => p.kind === "gerencia") && !placesL1.some((p) => p.kind === "conta"), `${rlL1.status} ${j(placesL1.map((p) => p.kind))}`);
@@ -968,7 +1028,7 @@ async function main() {
     await comBanco(async () => {
       await rodar("montagem", async () => {
         secaoAtual = "montagem";
-        M = { A: await montar("A"), P: await montar("P"), E: await montar("E"), B: await montar("B") };
+        M = { A: await montar("A"), P: await montar("P"), E: await montar("E"), F: await montar("F"), B: await montar("B") };
       });
       if (!M) {
         check("a montagem dos tenants terminou (sem ela as seções 2 a 6 não rodam)", false);
@@ -978,6 +1038,7 @@ async function main() {
       await rodar("3", secao3);
       await rodar("4", secao4);
       await rodar("4 estimativa", secao4Estimativa);
+      await rodar("4 fixas", secao4Fixas);
       await rodar("5", secao5);
       await rodar("6", secao6);
     });

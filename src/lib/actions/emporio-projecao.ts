@@ -12,6 +12,7 @@ import { lerPosicoes } from "@/lib/actions/emporio-financeiro";
 import {
   basesDasLojas,
   garantirOcorrenciasDoMes,
+  NOTA_VIROU_AUTOMATICO,
   listarContasAPagarAction,
   partesAutomaticas,
 } from "@/lib/actions/emporio-despesas";
@@ -163,7 +164,8 @@ export async function lerFluxoProjetadoAction(
 
 /**
  * A despesa fixa de rateio automático ainda não nasceu nos meses seguintes: entra como estimativa com a base de
- * agora, na semana do vencimento. O mês que já tem a ocorrência da loja entra pela lista de contas, não aqui.
+ * agora, na semana do vencimento. O mês que já nasceu (tem ocorrência que a troca de critério não cancelou) entra
+ * pela lista de contas, não aqui.
  * Devolve se alguma estimativa maior que zero entrou.
  */
 async function estimarFixas(
@@ -196,9 +198,25 @@ async function estimarFixas(
 
   const feitas = await db.fixedExpenseOccurrence.findMany({
     where: { template_id: { in: modelos.map((m) => m.id) }, period: { in: meses.map(primeiroDia) } },
-    select: { template_id: true, establishment_id: true, period: true },
+    select: { template_id: true, period: true, financial_entry: { select: { status: true, notes: true } } },
   });
-  const tem = new Set(feitas.map((o) => `${o.template_id}|${o.establishment_id}|${textoDoMes(mesDaData(o.period))}`));
+  // O mês nasceu quando existe ocorrência dele que não foi cancelada pela troca de manual para automático: a mesma
+  // regra do gatilho (`garantirOcorrenciasDoMes`). Nascido, a conta real já está na lista e nada é estimado.
+  const nasceu = new Set(
+    feitas
+      .filter((o) => !(o.financial_entry.status === "cancelled" && (o.financial_entry.notes ?? "").includes(NOTA_VIROU_AUTOMATICO)))
+      .map((o) => `${o.template_id}|${textoDoMes(mesDaData(o.period))}`),
+  );
+
+  // A base de hoje, uma vez por critério: a estimativa de todos os meses usa a mesma.
+  const basesPorCriterio = new Map<string, Awaited<ReturnType<typeof basesDasLojas>>>();
+  const basesDe = async (kind: (typeof CRITERIOS_AUTOMATICOS)[number]) => {
+    const guardada = basesPorCriterio.get(kind);
+    if (guardada) return guardada;
+    const b = await basesDasLojas(db, kind, lojas, mesDeHoje);
+    basesPorCriterio.set(kind, b);
+    return b;
+  };
 
   const hojeTxt = dia(ctx.hoje);
   let estimou = false;
@@ -211,13 +229,11 @@ async function estimarFixas(
       if (vencimento < hojeTxt) continue;
       const i = ctx.semanaDoDia(vencimento);
       if (i < 0) continue;
-      const faltam = lojas.filter((l) => !tem.has(`${modelo.id}|${l.id}|${textoDoMes(mes)}`));
-      if (faltam.length === 0) continue;
-      const bases = await basesDasLojas(db, kind, lojas, mes);
+      if (nasceu.has(`${modelo.id}|${textoDoMes(mes)}`)) continue;
+      const bases = await basesDe(kind);
       const { partes } = partesAutomaticas(centavos(decToNum(modelo.amount) ?? 0), bases.pesos);
       let soma = 0;
       lojas.forEach((l, k) => {
-        if (!faltam.includes(l)) return;
         if (ctx.lojaId ? l.id !== ctx.lojaId : ctx.visiveis && !ctx.visiveis.has(l.id)) return;
         soma += partes[k];
       });
