@@ -139,6 +139,8 @@ const TROCO = 300;
 
 const MEMBROS = [
   { chave: "gerente", name: "Marcos Oliveira", email: "gerente.demo.emporio@example.com", funcao: "gerente_geral", lojas: [] as ChaveLoja[], keys: [] as string[] },
+  // O Financeiro vê o dinheiro de todas as lojas (sem loja vinculada) e não vende.
+  { chave: "financeiro", name: "Patrícia Lima", email: "financeiro.demo.emporio@example.com", funcao: "financeiro", lojas: [] as ChaveLoja[], keys: [] as string[] },
   { chave: "gestor", name: "Fernanda Souza", email: "gestor.demo.emporio@example.com", funcao: "gestor", lojas: ["centro", "rodovia"] as ChaveLoja[], keys: [] as string[] },
   { chave: "vendCentro", name: "Rafael Almeida", email: "vendedor.centro.demo.emporio@example.com", funcao: "vendedor", lojas: ["centro"] as ChaveLoja[], keys: ["devolver_trocar", "contagem"] },
   // O email é o de quando ela era Vendedora: quando a equipe ocupava os 5 assentos do plano, o Caixa ficou com o dela.
@@ -822,7 +824,7 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
   }
   // Saldo inicial da conta (o Dono) e troco do Caixa 1 de cada loja (o Gerente
   // geral: entrega 2, do Gestor para cima), antes do primeiro turno, que abre às 8h.
-  const saldoConta = await caixa.saldoInicialCaixaAction(db, dono, { bank_account_id: contaId, amount: 30000, occurred_at: dia(30, 7) });
+  const saldoConta = await caixa.saldoInicialCaixaAction(db, dono, { bank_account_id: contaId, amount: 200000, occurred_at: dia(30, 7) });
   if (!saldoConta.ok && saldoConta.code !== "OPENING_ALREADY_DONE") throw new Error(`saldo da conta: ${saldoConta.message}`);
   for (const c of ["centro", "rodovia"] as const) {
     const r = await caixa.saldoInicialCaixaAction(db, gerente, { establishment_id: lojas[c], amount: TROCO, occurred_at: dia(30, 7, 30) });
@@ -1016,7 +1018,7 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
     });
     const totalC = itens.reduce((s, i) => s + cents(i.item_total), 0) + cents(c.frete);
     let payment: compras.CompraInput["payment"];
-    if (c.pagamento === "a_vista") payment = { kind: "a_vista" };
+    if (c.pagamento === "a_vista") payment = { kind: "a_vista", paid_from: { bank_account_id: contaId } };
     else if (c.pagamento === "a_prazo") payment = { kind: "a_prazo", due_date: c.chave === "A-20" ? dia(8, 12) : dia(-8, 12) };
     else {
       const entrada = c.chave === "A-10" ? Math.round(totalC * 0.3) : 0;
@@ -1025,6 +1027,7 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
       payment = {
         kind: "parcelada",
         down_payment: entrada / 100,
+        ...(entrada > 0 ? { paid_from: { bank_account_id: contaId } } : {}),
         installments: [
           { amount: p1 / 100, due_date: c.chave === "C-25" ? dia(5, 12) : dia(-10, 12) },
           { amount: (resto - p1) / 100, due_date: c.chave === "C-25" ? dia(-25, 12) : dia(-40, 12) },

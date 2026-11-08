@@ -557,8 +557,8 @@ export const GROUPS: Group[] = [
         method: "POST",
         path: "/api/v1/emporio/purchases",
         auth: "Sessão · emporio:write · OWNER, ADMIN e OPERADOR",
-        description: "Cria a compra. `supplier_id` (fornecedor do Empório; antes era `contact_id`, de Contatos) é opcional: de outra conta 404, arquivado 422, ambos no campo `supplier_id`. Com fornecedor do tipo `propriedade` (uma propriedade do Dono), `payment` é opcional e IGNORADO: a compra entra só com o custo no estoque, `payment_kind` fica nulo e nenhum lançamento nasce. Nos demais casos `payment` é obrigatório (422 `payment`), e a conta a pagar aponta o fornecedor (`emporio_supplier_id`). `operation_key` é obrigatória e única na conta: repetir a chave devolve a compra gravada com 200, sem escrever nada (primeira vez: 201). Cada item traz `presentation_id` (a quantidade é de apresentações) ou só a quantidade na unidade-base, e `item_total`. O frete é rateado pelo valor dos itens e o `unit_cost` sai por unidade-base, frete incluído. Com `received: true` o estoque entra na hora (lacrado ou avulso conforme o produto); senão, só no recebimento. `payment.kind`: `a_vista` (um lançamento pago), `a_prazo` (um a pagar, exige `due_date`) ou `parcelada` (`down_payment` opcional pago mais um a pagar por item de `installments`). Parcelas que não fecham total + frete menos a entrada: 422 `installments`. Item inválido (quantidade zero, valor negativo, fracionado em `unidade`, apresentação de outro produto): 422 `items`. Despesa na categoria \"Mercadorias para revenda\", `related_module` `emporio`.",
-        request: `{ "operation_key": "k-123", "establishment_id": "cl...", "supplier_id": null, "purchased_at": "2026-10-27T12:00:00.000Z", "received": true, "freight": 20, "items": [{ "emporio_product_id": "cl...", "presentation_id": "cl...", "quantity": 4, "item_total": 200 }], "payment": { "kind": "a_vista" } }`,
+        description: "Cria a compra. `supplier_id` (fornecedor do Empório; antes era `contact_id`, de Contatos) é opcional: de outra conta 404, arquivado 422, ambos no campo `supplier_id`. Com fornecedor do tipo `propriedade` (uma propriedade do Dono), `payment` é opcional e IGNORADO: a compra entra só com o custo no estoque, `payment_kind` fica nulo e nenhum lançamento nasce. Nos demais casos `payment` é obrigatório (422 `payment`), e a conta a pagar aponta o fornecedor (`emporio_supplier_id`). `operation_key` é obrigatória e única na conta: repetir a chave devolve a compra gravada com 200, sem escrever nada (primeira vez: 201). Cada item traz `presentation_id` (a quantidade é de apresentações) ou só a quantidade na unidade-base, e `item_total`. O frete é rateado pelo valor dos itens e o `unit_cost` sai por unidade-base, frete incluído. Com `received: true` o estoque entra na hora (lacrado ou avulso conforme o produto); senão, só no recebimento. `payment.kind`: `a_vista` (um lançamento pago), `a_prazo` (um a pagar, exige `due_date`) ou `parcelada` (`down_payment` opcional pago mais um a pagar por item de `installments`). Parcelas que não fecham total + frete menos a entrada: 422 `installments`. Item inválido (quantidade zero, valor negativo, fracionado em `unidade`, apresentação de outro produto): 422 `items`. Despesa na categoria \"Mercadorias para revenda\", `related_module` `emporio`. `payment.paid_from` (desde 07/11/2026) diz de onde saiu o dinheiro da parte paga na hora (à vista, ou a entrada da parcelada): `{ establishment_id, cash_register_id? }` (a gaveta do turno aberto da loja da compra) OU `{ bank_account_id }` (a conta; só Gestor da loja, Financeiro, Gerente geral e Dono). Obrigatório quando há parte paga: sem lugar ou com dois, 422 `paid_from`; gaveta de outra loja, 422 `paid_from`; conta arquivada, 422 `paid_from`; turno fechado, `CASH_CLOSED`; saldo menor que o valor, 409 `INSUFFICIENT_CASH`. Gera um movimento `pagamento_compra` na gaveta ou na conta. A prazo não leva `paid_from`.",
+        request: `{ "operation_key": "k-123", "establishment_id": "cl...", "supplier_id": null, "purchased_at": "2026-10-27T12:00:00.000Z", "received": true, "freight": 20, "items": [{ "emporio_product_id": "cl...", "presentation_id": "cl...", "quantity": 4, "item_total": 200 }], "payment": { "kind": "a_vista", "paid_from": { "bank_account_id": "cl..." } } }`,
         response: `201
 { "data": { "id": "cl...", "status": "recebida", "total": 220, "items": [{ "base_quantity": 40, "unit_cost": 5.5 }], "entries": [{ "amount": 220, "status": "paid" }] }, "meta": {} }`,
       },
@@ -1067,7 +1067,7 @@ export const GROUPS: Group[] = [
         method: "GET",
         path: "/api/v1/emporio/payables",
         auth: "Sessão · emporio:read · só OWNER e ADMIN; com vínculo, só as lojas dele",
-        description: "Contas a pagar do \"Vendeu, Pagou\" (`origin` `vendeu_pagou`) e das despesas fixas (`despesa_fixa`), por vencimento. Filtros: `establishment_id`, `status` (`pending` por padrão, `paid`, `cancelled`, `all`), `de` e `ate` (vencimento), `limit`. `can_correct` diz se ainda dá para corrigir o valor.",
+        description: "Contas a pagar do \"Vendeu, Pagou\" (`origin` `vendeu_pagou`), das despesas fixas (`despesa_fixa`) e das compras a prazo ou parceladas (`compra`, desde 07/11/2026: traz `purchase_id` e `supplier_name`, e `can_correct` é sempre falso), por vencimento. Filtros: `establishment_id`, `status` (`pending` por padrão, `paid`, `cancelled`, `all`), `de` e `ate` (vencimento), `limit`. `can_correct` diz se ainda dá para corrigir o valor.",
         response: `200
 { "data": [{ "entry_id": "cl...", "origin": "vendeu_pagou", "name": "Comissão", "establishment_id": "cl...", "amount": 5, "paid_amount": 0, "open_amount": 5, "due_date": "2026-11-30", "status": "pending", "sale_id": "cl...", "can_correct": true }], "meta": {} }`,
       },
@@ -1081,10 +1081,52 @@ export const GROUPS: Group[] = [
 { "data": { "entry_id": "cl...", "amount": 4.5, "can_correct": true }, "meta": {} }`,
       },
       {
+        method: "PATCH",
+        path: "/api/v1/emporio/payables/:id/due-date",
+        auth: "Sessão · emporio:write · Gestor da loja, Financeiro, Gerente geral e Dono",
+        description: "Adia o vencimento de uma conta pendente (`due_date`, AAAA-MM-DD). Conta que não está pendente: 422 `NOT_PENDING` em `due_date`; data inválida: 422 `due_date`; conta que não é do Empório: 404.",
+        request: `{ "due_date": "2026-12-10" }`,
+        response: `200
+{ "data": { "entry_id": "cl...", "origin": "compra", "due_date": "2026-12-10", "status": "pending" }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/payables/:id/cancel",
+        auth: "Sessão · emporio:write · Gestor da loja, Financeiro, Gerente geral e Dono",
+        description: "Cancela uma conta sem pagamento, com `reason` (422 `reason` se vazio). Conta com pagamento registrado: 422 `ENTRY_HAS_PAYMENTS`; já cancelada: 409 `ENTRY_CANCELED`; conta que não é do Empório: 404. Nada é apagado.",
+        request: `{ "reason": "Compra lançada em duplicidade" }`,
+        response: `200
+{ "data": { "entry_id": "cl...", "origin": "compra", "status": "cancelled" }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/emporio/finance/today",
+        auth: "Sessão · emporio:read · Financeiro, Gerente geral e Dono (os outros papéis: 403)",
+        description: "A tela \"Hoje\" do dinheiro, de todas as lojas (filtro `establishment_id` opcional). `positions`: saldo por gaveta, gerência e conta, com `total_balance`; `payables_due`: contas a pagar vencidas ou que vencem hoje (`count`, `total`, `items`); `receivables_due`: fiado, cheques e cartões que vencem hoje (`count` e `total` de cada); `overdue_fiado`: clientes com fiado vencido e o total. Tudo calculado na leitura.",
+        response: `200
+{ "data": { "positions": [{ "kind": "conta", "id": "cl...", "name": "Conta principal", "establishment_id": null, "balance": 5000 }], "total_balance": 5000, "payables_due": { "count": 1, "total": 220, "items": [] }, "receivables_due": { "fiado": { "count": 1, "total": 80 }, "checks": { "count": 0, "total": 0 }, "cards": { "count": 1, "total": 95.5 } }, "overdue_fiado": { "customers": 1, "total": 80 } }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/emporio/finance/receivables",
+        auth: "Sessão · emporio:read · Financeiro, Gerente geral e Dono (os outros papéis: 403)",
+        description: "Tudo o que está a receber, de todas as lojas (filtro `establishment_id` opcional): `fiado` por cliente, `checks` em carteira e `cards` (parcelas de cartão não canceladas com `expected_on` de hoje em diante; `received` só é verdadeiro para as de hoje).",
+        response: `200
+{ "data": { "fiado": [], "checks": [], "cards": [{ "id": "cl...", "sale_id": "cl...", "establishment_id": "cl...", "establishment_name": "Loja Centro", "bank_account_id": "cl...", "bank_account_name": "Conta principal", "installment": 1, "installments": 2, "gross_amount": 100, "net_amount": 97.5, "expected_on": "2026-11-08", "received": false }] }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/emporio/finance/statement",
+        auth: "Sessão · emporio:read · Financeiro, Gerente geral e Dono (os outros papéis: 403)",
+        description: "Extrato de uma conta bancária no período. Query obrigatória: `bank_account_id`, `de` e `ate` (AAAA-MM-DD, inclusivos, até 92 dias; 422 no campo que falhar, inclusive data que não existe, como 2026-02-31). Devolve o saldo de abertura, as linhas (movimentos da conta e parcelas de cartão do período, com `kind` `movimento` ou `cartao`) e o saldo de fechamento. Conta de outra conta de cliente: 404.",
+        response: `200
+{ "data": { "account": { "id": "cl...", "name": "Conta principal", "bank": null }, "opening_balance": 5000, "lines": [{ "kind": "movimento", "id": "cl...", "occurred_on": "2026-11-05", "direction": "saida", "amount": 220, "origin": "pagamento_compra", "establishment_id": "cl...", "establishment_name": "Loja Centro", "description": "Pagamento de compra" }], "closing_balance": 4780 }, "meta": {} }`,
+      },
+      {
         method: "POST",
         path: "/api/v1/emporio/payables/pay",
         auth: "Sessão · emporio:write · só OWNER e ADMIN",
-        description: "Paga várias contas de uma vez, cada uma pelo valor dela, saindo da gaveta (`from.establishment_id`) OU da conta (`from.bank_account_id`): um pagamento e um movimento `pagamento_despesa` por conta. Da gaveta, o dinheiro sai de um turno aberto da loja (`cash_register_id` opcional, recusas `CASH_CLOSED` e `CASH_REGISTER_REQUIRED` como na venda), e o saldo que conta é o do caixa desse turno. Saldo menor que o total: 409 `INSUFFICIENT_CASH` em `from`. Conta de fora do Empório, já paga ou cancelada: 422 `entry_ids`. `paid_at` opcional (padrão agora). Pagar pelo Financeiro (fora do Empório) quita a conta mas não tira do caixa do Empório (dívida 2.26).",
+        description: "Paga várias contas de uma vez, cada uma pelo valor dela, saindo da gaveta (`from.establishment_id`) OU da conta (`from.bank_account_id`): um pagamento e um movimento `pagamento_despesa` por conta. Da gaveta, o dinheiro sai de um turno aberto da loja (`cash_register_id` opcional, recusas `CASH_CLOSED` e `CASH_REGISTER_REQUIRED` como na venda), e o saldo que conta é o do caixa desse turno. Saldo menor que o total: 409 `INSUFFICIENT_CASH` em `from`. Conta de fora do Empório, já paga ou cancelada: 422 `entry_ids`. `paid_at` opcional (padrão agora). O `/financeiro` do Tibé recusa quitar conta do Empório (422 `ENTRY_DO_EMPORIO`) desde 07/11/2026: a conta só se paga por aqui.",
         request: `{ "entry_ids": ["cl...", "cl..."], "from": { "establishment_id": "cl..." } }`,
         response: `201
 { "data": { "total": 9.5, "from": { "establishment_id": "cl...", "bank_account_id": null }, "payments": [{ "entry_id": "cl...", "amount": 5, "financial_payment_id": "cl..." }] }, "meta": {} }`,
@@ -2546,7 +2588,7 @@ export const GROUPS: Group[] = [
         method: "GET",
         path: "/api/v1/financial-entries",
         auth: "Sessão · financeiro:read",
-        description: "Lista lançamentos. Filtros: start, end (sobre due_date), entry_type, category, related_module, status, area (fazenda | emporio | tudo, padrão tudo; emporio é o lançamento com establishment_id; inválido: 422 `area`).",
+        description: "Lista lançamentos. Filtros: start, end (sobre due_date), entry_type, category, related_module, status, area (fazenda | emporio | tudo; inválido: 422 `area`). `area`: aceito e ignorado desde 07/11/2026: o Financeiro do Tibé é só da fazenda; o Empório tem o seu em /api/v1/emporio/finance.",
         response: `200
 { "data": [{ "id": "cl...", "entry_type": "expense", "category": "Insumo (fertilizer) - NPK", "amount": 1800, "status": "pending" }], "meta": { "total": 1 } }`,
       },
@@ -2670,7 +2712,7 @@ export const GROUPS: Group[] = [
         method: "GET",
         path: "/api/v1/financial/cash-flow",
         auth: "Sessão · financeiro:read",
-        description: "Saldo por período (regime de caixa), agrupado por dia ou mês. Query: start, end, group_by=day|month, related_module, area (fazenda | emporio | tudo, padrão tudo; 422 `area`).",
+        description: "Saldo por período (regime de caixa), agrupado por dia ou mês. Query: start, end, group_by=day|month, related_module, area (fazenda | emporio | tudo; 422 `area`). `area`: aceito e ignorado desde 07/11/2026: o Financeiro do Tibé é só da fazenda; o Empório tem o seu em /api/v1/emporio/finance.",
         response: `200
 { "data": [{ "period": "2026-06", "income": 8000, "expense": 5200, "balance": 2800 }], "meta": { "group_by": "month" } }`,
       },
@@ -2678,7 +2720,7 @@ export const GROUPS: Group[] = [
         method: "GET",
         path: "/api/v1/financial/dre",
         auth: "Sessão · financeiro:read",
-        description: "Receita e despesa agrupadas por módulo, com resultado por módulo e total geral. Query: start, end, area (fazenda | emporio | tudo, padrão tudo; 422 `area`).",
+        description: "Receita e despesa agrupadas por módulo, com resultado por módulo e total geral. Query: start, end, area (fazenda | emporio | tudo; 422 `area`). `area`: aceito e ignorado desde 07/11/2026: o Financeiro do Tibé é só da fazenda; o Empório tem o seu em /api/v1/emporio/finance.",
         response: `200
 { "data": { "period": { "start": "2026-06-01", "end": "2026-06-30" }, "by_module": [{ "module": "rebanho", "total_income": 4500, "total_expense": 245, "result": 4255 }], "total_result": 4255 } }`,
       },
@@ -2686,7 +2728,7 @@ export const GROUPS: Group[] = [
         method: "GET",
         path: "/api/v1/financial/upcoming",
         auth: "Sessão · financeiro:read",
-        description: "Lançamentos pending com due_date nos próximos 7 dias. Query: area (fazenda | emporio | tudo, padrão tudo; 422 `area`).",
+        description: "Lançamentos pending com due_date nos próximos 7 dias. Query: area (fazenda | emporio | tudo; 422 `area`). `area`: aceito e ignorado desde 07/11/2026: o Financeiro do Tibé é só da fazenda; o Empório tem o seu em /api/v1/emporio/finance.",
         response: `200
 { "data": [{ "id": "cl...", "entry_type": "expense", "category": "Combustível", "amount": 350, "due_date": "...", "related_module": "geral" }] }`,
       },
@@ -2694,7 +2736,7 @@ export const GROUPS: Group[] = [
         method: "GET",
         path: "/api/v1/financial/report/link",
         auth: "Sessão · financeiro:read",
-        description: "Gera um link assinado (HMAC, válido por 1h) para o PDF do relatório financeiro do período. Query: start, end, area (fazenda | emporio | tudo, padrão tudo; 422 `area`): a área vai dentro do token e o PDF a respeita. Usado pelo botão \"Exportar relatório\".",
+        description: "Gera um link assinado (HMAC, válido por 1h) para o PDF do relatório financeiro do período. Query: start, end, area (fazenda | emporio | tudo; 422 `area`). `area`: aceito e ignorado desde 07/11/2026: o Financeiro do Tibé é só da fazenda; o Empório tem o seu em /api/v1/emporio/finance. Usado pelo botão \"Exportar relatório\".",
         response: `200
 { "data": { "report_url": "https://.../api/v1/financial/report?token=...", "expires_in_seconds": 3600 } }`,
       },
@@ -2702,7 +2744,7 @@ export const GROUPS: Group[] = [
         method: "GET",
         path: "/api/v1/financial/report",
         auth: "Público: autorização pelo token assinado, não por sessão (o link pode ser aberto fora do navegador logado, ex: WhatsApp)",
-        description: "Gera o PDF sob demanda a partir do token e transmite direto na resposta (Content-Type: application/pdf). Não há armazenamento: o arquivo não fica salvo em nenhum lugar.",
+        description: "Gera o PDF sob demanda a partir do token e transmite direto na resposta (Content-Type: application/pdf). Não há armazenamento: o arquivo não fica salvo em nenhum lugar. O PDF é sempre da fazenda (o `area` do token é ignorado desde 07/11/2026).",
         response: `200: corpo binário (application/pdf), Content-Disposition: attachment
 401 se o token for inválido ou tiver expirado`,
       },

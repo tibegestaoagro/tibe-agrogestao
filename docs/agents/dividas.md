@@ -101,6 +101,14 @@ redescobertos como defeito.
 | 2.25 | taxa de cartão por número de parcelas (2x, 3x...), antecipação do recebível do cartão e cheque no recebimento de fiado | Q89, Q91, F3b | tabela de taxa por faixa de parcelas na regra; antecipação como transferência com custo; o cheque do recebimento sem venda por trás |
 | 2.26 | "Vendeu, Pagou" informado (valor digitado na venda) e despesa fixa semanal e anual. O terceiro item (conta do Empório paga pelo Financeiro sem sair da gaveta ou da conta) **fechado em 07/11/2026** (entrega 1 do financeiro do Empório): o Tibé recusa a conta do Empório com `ENTRY_DO_EMPORIO` | Q97, Q100, F4a | campo opcional no balcão por regra informada; periodicidade no modelo |
 | 2.27 | **não vai existir: decisão Q222 de 07/11/2026, o Empório tem financeiro próprio.** O Financeiro do Tibé é só da fazenda e o `area` das rotas é aceito e ignorado | Q106, F4b, Q222 | nada: o filtro "Fazenda / Empório / Tudo" foi retirado |
+| 2.28 | conciliação por OFX do banco e por NSU com o arquivo da adquirente (hoje a conciliação é por carimbo manual) | Q226 | importador de OFX e do arquivo da adquirente, com casamento por valor, data e NSU. Falta saber qual adquirente a Agromax usa |
+| 2.29 | fiado descontado por expectativa de recebimento no fluxo projetado | Q228 | estimar a taxa de recebimento por cliente e aplicá-la nas projeções de 30, 60 e 90 dias |
+| 2.30 | DRE formal em três blocos, por loja e consolidada | Q235 | entra quando a nota fiscal entrar (2.21); o Resultado da Loja segue como DRE simplificada |
+| 2.31 | juros e multa no fiado: campo reservado, regra desligada | Q218 | ligar a regra e decidir taxa, carência e texto que não ameace (CDC) |
+| 2.32 | crediário com parcelas na venda e vencimento na safra: o prazo por cliente e o acordo deixam o lugar | Q214, Q223, Q230 | parcelas na venda, limite por safra e vencimento atrelado à colheita; só vale com cliente que use |
+| 2.33 | lembrete automático de cobrança pelo WhatsApp | Q225 | consentimento do cliente, texto padrão que não ameace e chip que não seja o do agente |
+| 2.34 | importação do XML da nota do fornecedor | Q229 | casar item da nota com produto do estoque; vai na frente de nota fiscal |
+| 2.35 | "vencido" calculado com o fuso do servidor em `listarFiadoAction` e com o dia de São Paulo em `lerResumoHojeAction`; entre 21h e 24h os dois blocos discordam | entrega 1 do financeiro, revisão da task 5 | usar o mesmo "hoje" (dia de São Paulo) nas duas leituras |
 
 ## 3. Rede de segurança com furo
 
