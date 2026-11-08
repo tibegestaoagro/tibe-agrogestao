@@ -766,6 +766,18 @@ export async function editarDespesaFixaAction(
     const pagas = await comPagamento(tx, ocorrencias.map((o) => o.financial_entry_id));
     const porChave = new Map(ocorrencias.map((o) => [`${o.establishment_id}|${textoDoMes(mesDaData(o.period))}`, o]));
     const nova = { id, category: d.category, due_day: d.due_day };
+    // Conta cancelada à mão (`cancelarContaAction`) não volta a ser cobrada, e vencimento adiado (`adiarVencimentoContaAction`)
+    // não é desfeito: com o mesmo dia de vencimento do modelo, o `due_date` da conta fica como está;
+    // se o `due_day` mudou nesta edição, recalcula (a pessoa pediu outro dia).
+    const lancamentos = new Map(
+      (
+        await tx.financialEntry.findMany({
+          where: { id: { in: ocorrencias.map((o) => o.financial_entry_id) } },
+          select: { id: true, status: true },
+        })
+      ).map((e) => [e.id, e.status]),
+    );
+    const mudouODia = d.due_day !== t.due_day;
 
     for (let m = inicioJanela; compararMeses(m, ultimo) <= 0; m = somarMeses(m, 1)) {
       for (const s of d.splits) {
@@ -776,6 +788,7 @@ export async function editarDespesaFixaAction(
           continue;
         }
         if (pagas.has(existente.financial_entry_id)) continue;
+        if (lancamentos.get(existente.financial_entry_id) === "cancelled") continue;
         const vencimento = diaDoMes(m, d.due_day);
         await tx.financialEntry.update({
           where: { id: existente.financial_entry_id },
@@ -784,7 +797,7 @@ export async function editarDespesaFixaAction(
               ? {
                   amount: parte / 100,
                   category: d.category,
-                  due_date: vencimento,
+                  ...(mudouODia ? { due_date: vencimento } : {}),
                   status: "pending",
                   paid_at: null,
                   updated_by_user_id: ator.id,
@@ -970,15 +983,33 @@ const SO_DO_EMPORIO = [{ sale_variable_expense: { isNot: null } }, { fixed_occur
 
 /**
  * As contas do Empório: as duas formas de sempre mais a conta de compra não cancelada.
- * `FinancialEntry` não tem relação com `EmporioPurchase` (só `related_id`), então os
- * ids das compras vêm antes, pelo client escopado do tenant.
+ * `FinancialEntry` não tem relação com `EmporioPurchase` (só `related_id`).
  */
-async function filtroDoEmporio(db: TenantPrismaClient, lojas: string[] | null) {
-  const compras = await db.emporioPurchase.findMany({
-    where: { canceled_at: null, ...(lojas ? { establishment_id: { in: lojas } } : {}) },
-    select: { id: true },
+const SEM_AS_DUAS_FORMAS = { sale_variable_expense: { is: null }, fixed_occurrence: { is: null } };
+
+/** Cláusula de `where` com as contas do Empório; as de compra já vêm conferidas (ver `filtroDoEmporio`). */
+type FiltroDoEmporio = { OR: Prisma.FinancialEntryWhereInput[] };
+
+/**
+ * A conta de compra é a despesa do Empório sem as duas formas de sempre (por construção, vem de uma compra).
+ * Os `related_id` dessas linhas, e só eles, são conferidos contra `EmporioPurchase` não cancelada (do tenant,
+ * pelo client escopado): sem lista ilimitada de ids de compra.
+ */
+async function filtroDoEmporio(
+  db: TenantPrismaClient,
+  base: Prisma.FinancialEntryWhereInput,
+): Promise<FiltroDoEmporio> {
+  const candidatas = await db.financialEntry.findMany({
+    where: { ...base, related_module: "emporio", entry_type: "expense", ...SEM_AS_DUAS_FORMAS },
+    select: { related_id: true },
   });
-  return [...SO_DO_EMPORIO, ...(compras.length > 0 ? [{ related_id: { in: compras.map((c) => c.id) } }] : [])];
+  const ids = [...new Set(candidatas.map((c) => c.related_id).filter((x): x is string => !!x))];
+  const vivas = ids.length
+    ? await db.emporioPurchase.findMany({ where: { id: { in: ids }, canceled_at: null }, select: { id: true } })
+    : [];
+  return {
+    OR: [...SO_DO_EMPORIO, ...(vivas.length > 0 ? [{ related_id: { in: vivas.map((c) => c.id) } }] : [])],
+  };
 }
 
 export async function listarContasAPagarAction(
@@ -1007,19 +1038,21 @@ export async function listarContasAPagarAction(
   if (dataValida(opts.ate)) vencimento.lte = opts.ate;
   const limite = opts.limit && opts.limit > 0 ? Math.min(Math.floor(opts.limit), 500) : 200;
 
-  const lojasDaLista = opts.establishment_id ? [opts.establishment_id] : visiveis ? [...visiveis] : null;
+  const filtros: Prisma.FinancialEntryWhereInput = {
+    ...(opts.establishment_id
+      ? { establishment_id: opts.establishment_id }
+      : visiveis
+        ? { establishment_id: { in: [...visiveis] } }
+        : {}),
+    ...(status === "all" ? {} : { status }),
+    ...(Object.keys(vencimento).length > 0 ? { due_date: vencimento } : {}),
+  };
   const linhas = await db.financialEntry.findMany({
     where: {
       related_module: "emporio",
       entry_type: "expense",
-      OR: await filtroDoEmporio(db, lojasDaLista),
-      ...(opts.establishment_id
-        ? { establishment_id: opts.establishment_id }
-        : visiveis
-          ? { establishment_id: { in: [...visiveis] } }
-          : {}),
-      ...(status === "all" ? {} : { status }),
-      ...(Object.keys(vencimento).length > 0 ? { due_date: vencimento } : {}),
+      ...(await filtroDoEmporio(db, filtros)),
+      ...filtros,
     },
     include: INCLUDE_CONTA,
     orderBy: [{ due_date: "asc" }, { created_at: "asc" }],

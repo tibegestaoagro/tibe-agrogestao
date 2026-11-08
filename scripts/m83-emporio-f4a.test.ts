@@ -681,6 +681,27 @@ async function comBanco() {
       }
       check("encerrar: o mês atual segue pendente, a paga fica e as demais depois do mês atual são canceladas", encOk, encDet);
 
+      // editar o modelo não desfaz o que foi feito à mão numa conta: cancelamento e vencimento adiado
+      const rT6 = await criarFixa(admin, { name: "M83 T6", amount: 100, due_day: 10, split_kind: "percentual", splits: split2(50, 50) });
+      check("cria T6 (R$ 100, dia 10, 50/50) para o caso do cancelamento e do adiamento", rT6.ok, j(rT6));
+      const T6 = fixaId(rT6);
+      const t6c = await entradaFixa(T6, L5.id, prox);
+      const t6a = await entradaFixa(T6, L6.id, prox);
+      const rCanc6 = await dd("cancelarContaAction", admin, { entry_id: t6c?.id ?? "x", reason: "m83 cancelada à mão" });
+      check("cancela a conta do mês seguinte da Loja 5 (T6)", rCanc6.ok, j(rCanc6));
+      const novoVenc = new Date(`${somaMeses(prox, 1)}-25T12:00:00Z`);
+      const rAd6 = await dd("adiarVencimentoContaAction", admin, { entry_id: t6a?.id ?? "x", due_date: novoVenc });
+      check("adia o vencimento da conta do mês seguinte da Loja 6 (T6)", rAd6.ok, j(rAd6));
+      const rEd6 = await dd("editarDespesaFixaAction", admin, T6, { name: "M83 T6", category: "M83 T6", amount: 200, due_day: 10, split_kind: "percentual", splits: split2(50, 50) });
+      check("edita o valor do modelo T6 para R$ 200", rEd6.ok, j(rEd6));
+      const t6cDepois = await entrada(t6c?.id ?? "x");
+      const t6aDepois = await entrada(t6a?.id ?? "x");
+      check("a conta cancelada à mão segue cancelada (editar o modelo não a ressuscita)", t6cDepois?.status === "cancelled", j(t6cDepois?.status));
+      check("a conta com vencimento adiado mantém o vencimento adiado", diaDe(t6aDepois?.due_date as Date) === diaDe(novoVenc), `${diaDe(t6aDepois?.due_date as Date)} contra ${diaDe(novoVenc)}`);
+      check("e o valor novo chegou à conta adiada (R$ 100)", perto(n(t6aDepois?.amount), 100) && t6aDepois?.status === "pending", j([t6aDepois?.amount, t6aDepois?.status]));
+      const t6seguinte = await entradaFixa(T6, L6.id, somaMeses(prox, 2));
+      check("uma conta que ninguém mexeu recebe o valor novo (R$ 100)", perto(n(t6seguinte?.amount), 100), String(t6seguinte?.amount));
+
       // renovar: modelo que começou há 10 meses gerou só até o mês +1
       const inicio = somaMeses(mes, -10);
       const rT5 = await criarFixa(admin, { name: "M83 T5", amount: 50, due_day: 20, split_kind: "valor", starts_on: primeiroDia(inicio), splits: [{ establishment_id: L5.id, value: 50 }] });

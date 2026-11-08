@@ -216,7 +216,7 @@ async function comBanco() {
         { emporio_product_id: R1.id, presentation_id: R1.p["Quilo"], quantity: 5, item_total: 60 },
       ],
     });
-    check("OPERADOR registra a compra", rc.ok, j(rc));
+    check("compra à vista paga da conta registra (o fixture a lança como Gerente geral: o Vendedor não paga da conta)", rc.ok, j(rc));
     const idR = compraId(rc);
     const itens = await db.emporioPurchaseItem.findMany({ where: { purchase_id: idR } });
     const iSaca = itens.find((i) => i.presentation_id === R1.p["Saca 10 kg"]);

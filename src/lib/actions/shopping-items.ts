@@ -497,7 +497,7 @@ export async function registrarCompraDoItemAction(
     property_id?: string | null;
     /** Módulo 39 (Q68): compra numa loja do Empório. Também vale o do próprio item. */
     establishment_id?: string | null;
-    /** Só no caminho da loja: de onde saiu o dinheiro (a compra à vista do Empório exige). */
+    /** Só no caminho da loja: de onde saiu o dinheiro. Com ele a compra é à vista; sem ele, a prazo (contas a pagar da loja). */
     paid_from?: { establishment_id?: string | null; bank_account_id?: string | null; cash_register_id?: string | null } | null;
     /** Obrigatório no caminho da loja (a compra do Empório exige quem comprou). */
     ator?: Ator;
@@ -621,6 +621,7 @@ async function registrarCompraDoItemNaLoja(
     recorded_by_user_id?: string | null;
     contact_id?: string | null;
     occurred_at?: Date | null;
+    due_date?: Date | null;
     notes?: string | null;
   },
 ): Promise<
@@ -671,10 +672,11 @@ async function registrarCompraDoItemNaLoja(
     freight: 0,
     items: [{ emporio_product_id: produto.id, quantity: quantidade, item_total: input.amount }],
     // Sem dizer de onde saiu o dinheiro, a compra não vira pagamento: fica nas contas a pagar da loja, vencendo na data
-    // da compra, e quem paga (Gestor ou Financeiro) escolhe o lugar.
+    // que o usuário deu (o agente pergunta "Quando vence?") ou, sem ela, na da compra; quem paga (Gestor ou Financeiro)
+    // escolhe o lugar.
     payment: input.paid_from
       ? { kind: "a_vista", paid_from: input.paid_from }
-      : { kind: "a_prazo", due_date: input.occurred_at ?? new Date() },
+      : { kind: "a_prazo", due_date: input.due_date ?? input.occurred_at ?? new Date() },
     notes: input.notes ?? null,
   });
   if (!compra.ok) return fail(compra.code, compra.message, compra.status, compra.field);

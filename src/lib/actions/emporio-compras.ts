@@ -445,7 +445,8 @@ export async function criarCompraAction(
       const negConta = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "pagar da conta bancária", loja.id);
       if (negConta) return negConta;
       const conta = await db.bankAccount.findFirst({ where: { id: contaId }, select: { name: true, archived_at: true } });
-      if (!conta || conta.archived_at) return NAO_ACHADO("Conta", "paid_from");
+      if (!conta) return NAO_ACHADO("Conta", "paid_from");
+      if (conta.archived_at) return fail("VALIDATION_ERROR", "Essa conta está arquivada.", 422, "paid_from");
       contaNome = conta.name;
     }
     lugar = {

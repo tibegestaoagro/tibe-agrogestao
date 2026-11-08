@@ -32,9 +32,9 @@ const schema = z.object({
     .nullish(),
   quantity: z.number().positive("A quantidade precisa ser maior que zero").nullish(),
   property_id: z.string().nullish(),
-  /** Módulo 39 (Q68): compra numa loja do Empório (à vista, recebida). */
+  /** Módulo 39 (Q68): compra numa loja do Empório (recebida; sem `paid_from`, fica a prazo nas contas a pagar da loja). */
   establishment_id: z.string().nullish(),
-  /** De onde saiu o dinheiro da compra na loja (a gaveta da loja OU uma conta); a compra do Empório exige. */
+  /** De onde saiu o dinheiro da compra na loja (a gaveta da loja OU uma conta): com ele a compra é à vista; sem ele, a prazo. */
   paid_from: z
     .object({
       establishment_id: z.string().nullish(),
