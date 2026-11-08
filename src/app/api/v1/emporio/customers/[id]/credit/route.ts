@@ -3,6 +3,7 @@ import { apiErroDeZod } from "@/lib/api";
 import { readJson } from "@/lib/api-guard";
 import { withApi } from "@/lib/route";
 import { definirCreditoDoClienteAction, lerCreditoDoClienteAction } from "@/lib/actions/emporio-credito";
+import { LIMITE_MAXIMO_DE_FIADO } from "@/lib/emporio/fiado";
 import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
 
 /**
@@ -12,7 +13,11 @@ import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
  */
 
 const schema = z.object({
-  fiado_limit: z.number({ error: "O limite deve ser zero ou mais." }).min(0, "O limite deve ser zero ou mais.").nullish(),
+  fiado_limit: z
+    .number({ error: "O limite deve ser de zero a R$ 99.999.999,99." })
+    .min(0, "O limite deve ser de zero a R$ 99.999.999,99.")
+    .max(LIMITE_MAXIMO_DE_FIADO, "O limite deve ser de zero a R$ 99.999.999,99.")
+    .nullish(),
   fiado_due_days: z
     .number({ error: "O prazo deve ser de 1 a 365 dias." })
     .int("O prazo deve ser de 1 a 365 dias.")

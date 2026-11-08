@@ -38,6 +38,15 @@ export function inicioDoDiaEmSaoPaulo(momento: Date): Date {
   return new Date(Date.UTC(ano, mes - 1, dia));
 }
 
+/**
+ * O último milissegundo do dia de `momento` em São Paulo (23:59:59.999 locais). É um INSTANTE,
+ * para validade de coisa que expira no fim do dia; a meia-noite de SP é 03:00 UTC (sem horário
+ * de verão desde 2019).
+ */
+export function fimDoDiaEmSaoPaulo(momento: Date): Date {
+  return new Date(inicioDoDiaEmSaoPaulo(momento).getTime() + 86_400_000 + 3 * 3_600_000 - 1);
+}
+
 /** O dia de calendário de uma data lida em UTC, como número comparável. */
 function diaUtc(data: Date): number {
   return Date.UTC(data.getUTCFullYear(), data.getUTCMonth(), data.getUTCDate());

@@ -3,6 +3,7 @@ import { apiErroDeZod } from "@/lib/api";
 import { readJson } from "@/lib/api-guard";
 import { withApi } from "@/lib/route";
 import { salvarConfiguracoesDoFiadoAction } from "@/lib/actions/emporio-configuracoes";
+import { LIMITE_MAXIMO_DE_FIADO } from "@/lib/emporio/fiado";
 import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
 
 /** PATCH /api/v1/emporio/settings/fiado: wrapper fino, a regra vive na action. */
@@ -10,7 +11,11 @@ import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
 const schema = z.object({
   fiado_due_days: z.number({ error: "O prazo padrão deve ser de 1 a 365 dias." }).optional(),
   fiado_block_after_days: z.number({ error: "O bloqueio deve ser de 1 a 365 dias de atraso." }).optional(),
-  fiado_default_limit: z.number({ error: "O limite padrão deve ser zero ou mais." }).nullish(),
+  fiado_default_limit: z
+    .number({ error: "O limite padrão deve ser de zero a R$ 99.999.999,99." })
+    .min(0, "O limite padrão deve ser de zero a R$ 99.999.999,99.")
+    .max(LIMITE_MAXIMO_DE_FIADO, "O limite padrão deve ser de zero a R$ 99.999.999,99.")
+    .nullish(),
   fiado_collection_message: z.string({ error: "A mensagem de cobrança aceita até 500 caracteres." }).nullish(),
 });
 

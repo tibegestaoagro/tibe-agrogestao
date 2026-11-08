@@ -69,6 +69,9 @@ export function vencimentoEfetivo(
   return entrada.due_date ?? entrada.fiado_due_date;
 }
 
+/** Teto de limite de fiado: cabe no `Decimal(10,2)` do banco. */
+export const LIMITE_MAXIMO_DE_FIADO = 99999999.99;
+
 export const MENSAGEM_DE_COBRANCA_PADRAO =
   "Olá, {nome}! Aqui é da {loja}. Consta um fiado de {valor} vencido há {dias} dias. Pode nos ajudar a acertar? Obrigado!";
 

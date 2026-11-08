@@ -2,9 +2,9 @@ import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { isoOrNull } from "@/lib/serialize";
 import { exigir, papelDoEmporio, type AtorPapel } from "@/lib/emporio/papel";
-import { diferencas, registrarNoHistorico } from "@/lib/emporio/historico";
+import { dinheiro, diferencas, registrarNoHistorico } from "@/lib/emporio/historico";
 import { decToNum } from "@/lib/serialize";
-import { MENSAGEM_DE_COBRANCA_PADRAO } from "@/lib/emporio/fiado";
+import { LIMITE_MAXIMO_DE_FIADO, MENSAGEM_DE_COBRANCA_PADRAO } from "@/lib/emporio/fiado";
 
 /**
  * Meu Empório, entrega 1: configurações da conta (validade e rodapé do papel,
@@ -194,8 +194,8 @@ export async function salvarConfiguracoesDoFiadoAction(
   }
   if (input.fiado_default_limit !== undefined) {
     const v = input.fiado_default_limit;
-    if (v !== null && (typeof v !== "number" || !Number.isFinite(v) || v < 0)) {
-      return fail("VALIDATION_ERROR", "O limite padrão deve ser zero ou mais.", 422, "fiado_default_limit");
+    if (v !== null && (typeof v !== "number" || !Number.isFinite(v) || v < 0 || v > LIMITE_MAXIMO_DE_FIADO)) {
+      return fail("VALIDATION_ERROR", "O limite padrão deve ser de zero a R$ 99.999.999,99.", 422, "fiado_default_limit");
     }
     dados.fiado_default_limit = v === null ? null : Math.round(Number((v * 100).toPrecision(12))) / 100;
   }
@@ -217,7 +217,9 @@ export async function salvarConfiguracoesDoFiadoAction(
       select: SELECAO,
     });
     const so = (v: Record<string, unknown>) => Object.fromEntries(CAMPOS_DO_FIADO.map((c) => [c, v[c]]));
-    const mudancas = diferencas(so({ ...antes }), so({ ...viewConfiguracoes(l) }), ROTULOS);
+    const mudancas = diferencas(so({ ...antes }), so({ ...viewConfiguracoes(l) }), ROTULOS, {
+      fiado_default_limit: (v) => (v == null ? null : dinheiro(Number(v))),
+    });
     if (mudancas.length > 0) {
       await registrarNoHistorico(tx, ator, {
         action: "configuracoes.editar",

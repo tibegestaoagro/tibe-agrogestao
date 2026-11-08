@@ -13,6 +13,7 @@ import { resolverTurno, type TurnoResolvido } from "@/lib/emporio/turno";
 import { vendedoresDaLoja } from "@/lib/emporio/vendedores";
 import { CONSUMIDOR_FINAL } from "@/lib/contatos/cadastro";
 import { regraDePrazo, sugerirVencimento } from "@/lib/emporio/fiado";
+import { estadoDeCredito, liberacaoValida } from "@/lib/actions/emporio-credito";
 import type { EnderecoDoPedido } from "@/lib/emporio/cliente-cadastro";
 import {
   enderecoDasColunas,
@@ -527,7 +528,12 @@ type Preparada = {
   quote: { id: string; number: number } | null;
   /** As nove colunas do pedido para entrega, já resolvidas contra o cliente da venda. */
   pedido: PedidoParaEntregaColunas;
+  /** A liberação pontual do Gestor que esta venda em fiado consome (a transação a marca, e recusa se outra venda chegou antes). */
+  credit_release_id: string | null;
 };
+
+const FIADO_BLOQUEADO_CONSUMIDA = () =>
+  fail("FIADO_BLOQUEADO", "A liberação deste cliente já foi usada em outra venda. Peça uma nova ao gestor.", 409, "payments");
 
 const QUOTE_NOT_FOUND = () => fail("QUOTE_NOT_FOUND", "Orçamento não encontrado nesta loja.", 404, "quote_id");
 const QUOTE_ALREADY_INVOICED = (numeroDaVenda: number) =>
@@ -865,6 +871,38 @@ async function prepararVenda(
     );
   }
 
+  // Crédito do fiado: o atraso e o limite valem na conta inteira (todas as lojas). A liberação
+  // pontual do Gestor, válida nesta loja, dispensa as duas conferências e é consumida na gravação.
+  let creditReleaseId: string | null = null;
+  const fiadoPreparado = pagamentos.find((x) => x.kind === "fiado");
+  if (fiadoPreparado && !ehConsumidorFinal) {
+    const estado = await estadoDeCredito(db, customerId);
+    const liberacao = await liberacaoValida(db, customerId, loja.data.id, new Date());
+    if (liberacao) {
+      creditReleaseId = liberacao.id;
+    } else if (estado.blocked_by_delay && estado.oldest_overdue) {
+      return fail(
+        "FIADO_BLOQUEADO",
+        `Cliente com fiado vencido há ${estado.oldest_overdue.days} dias. Peça a liberação ao gestor.`,
+        409,
+        "payments",
+      );
+    } else if (estado.limit !== null) {
+      const limiteCent = centavos(estado.limit);
+      const fiadoCent = centavos(fiadoPreparado.amount);
+      if (estado.owed_cent + fiadoCent > limiteCent) {
+        return fail(
+          "LIMITE_EXCEDIDO",
+          limiteCent === 0
+            ? "Este cliente não compra fiado: o limite dele é zero."
+            : `O limite de fiado do cliente é ${brl(estado.limit)} e ele já deve ${brl(estado.owed_cent / 100)}: cabem ${brl(Math.max(0, limiteCent - estado.owed_cent) / 100)}.`,
+          409,
+          "payments",
+        );
+      }
+    }
+  }
+
   return ok({
     loja: { id: loja.data.id, name: loja.data.name, allow_negative_stock: loja.data.allow_negative_stock },
     chave,
@@ -881,6 +919,7 @@ async function prepararVenda(
     seller_user_id: vendedorId,
     quote: orcamento?.quote ?? null,
     pedido: pedido.data,
+    credit_release_id: creditReleaseId,
   });
 }
 
@@ -1057,6 +1096,15 @@ async function gravarVenda(
       const atual = await tx.emporioQuote.findFirst({ where: { id: p.quote.id }, select: { sale: { select: { number: true } } } });
       throw new AbortarVenda(atual?.sale ? QUOTE_ALREADY_INVOICED(atual.sale.number) : QUOTE_NOT_FOUND());
     }
+  }
+
+  // A liberação do fiado: consumida só se ninguém a usou entre o preparo e aqui.
+  if (p.credit_release_id) {
+    const consumida = await tx.emporioCreditRelease.updateMany({
+      where: scoped({ id: p.credit_release_id, consumed_sale_id: null }),
+      data: { consumed_sale_id: venda.id, consumed_at: new Date() },
+    });
+    if (consumida.count === 0) throw new AbortarVenda(FIADO_BLOQUEADO_CONSUMIDA());
   }
 
   await tx.emporioSaleItem.createMany({

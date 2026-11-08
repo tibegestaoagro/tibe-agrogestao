@@ -112,11 +112,14 @@ export async function itensDoEmporioNoDia(
   }
 
   // --- emporio_fiado --------------------------------------------------------
-  const abertas = await entradasAbertas(db, {
-    establishment_id: { in: ids },
-    emporio_customer_id: { not: null },
-    due_date: { not: null, lte: limite },
-  });
+  // O vencimento efetivo (fiado antigo sem data vale a venda mais o prazo padrão) não existe no banco:
+  // o corte da janela é feito aqui, depois da leitura.
+  const abertas = (
+    await entradasAbertas(db, {
+      establishment_id: { in: ids },
+      emporio_customer_id: { not: null },
+    })
+  ).filter((e) => e.effective_due_date.getTime() <= limite.getTime());
   if (abertas.length > 0) {
     const clientes = await db.emporioCustomer.findMany({
       where: { id: { in: [...new Set(abertas.map((e) => e.emporio_customer_id as string))] } },
@@ -126,16 +129,16 @@ export async function itensDoEmporioNoDia(
     type Grupo = { cliente: string; loja: string; vencido: boolean; total: number; data: Date };
     const grupos = new Map<string, Grupo>();
     for (const e of abertas) {
-      if (!e.due_date || !e.emporio_customer_id || !e.establishment_id) continue;
-      const vencido = diasAte(e.due_date, agora) < 0;
+      if (!e.emporio_customer_id || !e.establishment_id) continue;
+      const vencido = diasAte(e.effective_due_date, agora) < 0;
       const chave = `${e.emporio_customer_id}:${e.establishment_id}:${vencido ? "vencido" : "a_vencer"}`;
       const g = grupos.get(chave);
       if (!g) {
-        grupos.set(chave, { cliente: e.emporio_customer_id, loja: e.establishment_id, vencido, total: e.open_cent, data: e.due_date });
+        grupos.set(chave, { cliente: e.emporio_customer_id, loja: e.establishment_id, vencido, total: e.open_cent, data: e.effective_due_date });
       } else {
         g.total += e.open_cent;
         // Vencido: o mais antigo. A vencer: o mais próximo. Nos dois casos, o menor.
-        if (e.due_date.getTime() < g.data.getTime()) g.data = e.due_date;
+        if (e.effective_due_date.getTime() < g.data.getTime()) g.data = e.effective_due_date;
       }
     }
     for (const [chave, g] of grupos) {
