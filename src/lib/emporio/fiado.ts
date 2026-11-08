@@ -77,9 +77,10 @@ export function mensagemDeCobranca(
   dados: { nome: string; valor: string; dias: number; loja: string },
 ): string {
   const texto = modelo && modelo.trim() !== "" ? modelo : MENSAGEM_DE_COBRANCA_PADRAO;
+  // Função no lugar da string: `replaceAll` com string lê `$&`, `$'` e `$$` como padrão, e nome e loja são texto digitado.
   return texto
-    .replaceAll("{nome}", dados.nome)
-    .replaceAll("{valor}", dados.valor)
-    .replaceAll("{dias}", String(dados.dias))
-    .replaceAll("{loja}", dados.loja);
+    .replaceAll("{nome}", () => dados.nome)
+    .replaceAll("{valor}", () => dados.valor)
+    .replaceAll("{dias}", () => String(dados.dias))
+    .replaceAll("{loja}", () => dados.loja);
 }
