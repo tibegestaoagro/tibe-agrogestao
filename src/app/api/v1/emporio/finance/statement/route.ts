@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { apiErroDeZod } from "@/lib/api";
 import { withApi } from "@/lib/route";
-import { extratoDaContaAction } from "@/lib/actions/emporio-financeiro";
+import { lerExtratoDaContaAction } from "@/lib/actions/emporio-financeiro";
 import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
 
 /** GET /api/v1/emporio/finance/statement  ?bank_account_id= &de= &ate= (AAAA-MM-DD)  o extrato da conta no período, de até 92 dias. */
@@ -29,7 +29,7 @@ async function GETHandler(request: Request) {
     ate: sp.get("ate") ?? undefined,
   });
   if (!parsed.success) return apiErroDeZod(parsed.error);
-  return respostaDaAction(await extratoDaContaAction(g.db, g.user, parsed.data));
+  return respostaDaAction(await lerExtratoDaContaAction(g.db, g.user, parsed.data));
 }
 
 export const GET = withApi(GETHandler);

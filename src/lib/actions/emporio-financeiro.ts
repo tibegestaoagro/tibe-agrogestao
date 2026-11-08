@@ -115,7 +115,7 @@ const ROTULO_ORIGEM: Record<string, string> = {
 };
 
 /** O que existe hoje em cada lugar, com o que vence hoje a pagar e a receber. */
-export async function resumoHojeAction(
+export async function lerResumoHojeAction(
   db: TenantPrismaClient,
   ator: Ator,
   opts: { establishment_id?: string } = {},
@@ -199,7 +199,7 @@ export async function resumoHojeAction(
 }
 
 /** O fiado por cliente, os cheques em carteira e as parcelas de cartão que ainda vão cair (ou caem hoje). */
-export async function contasAReceberAction(
+export async function listarContasAReceberAction(
   db: TenantPrismaClient,
   ator: Ator,
   opts: { establishment_id?: string } = {},
@@ -246,7 +246,7 @@ export async function contasAReceberAction(
  * (linhas iguais, como o banco mostra). `de` e `ate` são o dia de calendário,
  * como meia-noite UTC; o período é de `de` ao fim de `ate`, em São Paulo.
  */
-export async function extratoDaContaAction(
+export async function lerExtratoDaContaAction(
   db: TenantPrismaClient,
   ator: Ator,
   input: { bank_account_id: string; de: Date; ate: Date },
