@@ -176,10 +176,10 @@ relatórios em [agente-whatsapp/](agente-whatsapp/), detalhe em
 - `npx prisma migrate deploy` contra o Neon pode ser recusado pelo
   classificador mesmo com autorização. Tente uma vez; se bloquear, dê ao
   usuário o comando e confira com `migrate status` antes do push.
-- Dois clones (`C:` e `D:`) e o worktree `D:/Projetos/tibe-wt2` (dev server
-  na 3003; a 3002 ficou presa a um processo morto; `tibe-wt3` sobrou
-  incompleto). O agente só mata `next dev` que ele subiu; depois do kill,
-  apague `.next`. Roteiro com `TIBE_BASE="http://localhost:3003"` (nunca
+- Dois clones (`C:` e `D:`); os worktrees `tibe-wt2` e `tibe-wt3` foram
+  removidos em 08/11 à noite (nenhum dev server de pé). Para a próxima prova
+  viva: `npm run dev` no clone, `npx prisma generate` antes se houver migração
+  nova; roteiro com `TIBE_BASE="http://localhost:<porta>"` (nunca
   `127.0.0.1`: o cookie é de `localhost`); não suponha a conta vazia.
 - Roteiro preso em recarga é aba sobrando no Chrome de testes (cofre:
   `a-aba-oculta-e-a-leitura-cedo-imitam-defeito-no-navegador`). O
