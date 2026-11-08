@@ -229,6 +229,11 @@ const R = {
   today: () => import("@/app/api/v1/emporio/finance/today/route"),
   receivables: () => import("@/app/api/v1/emporio/finance/receivables/route"),
   statement: () => import("@/app/api/v1/emporio/finance/statement/route"),
+  quote: () => import("@/app/api/v1/emporio/quotes/[id]/route"),
+  quotes: () => import("@/app/api/v1/emporio/quotes/route"),
+  checkDeposit: () => import("@/app/api/v1/emporio/checks/[id]/deposit/route"),
+  checkClear: () => import("@/app/api/v1/emporio/checks/[id]/clear/route"),
+  checkReturn: () => import("@/app/api/v1/emporio/checks/[id]/return/route"),
   receive: () => import("@/app/api/v1/emporio/receivables/receive/route"),
   bankAccounts: () => import("@/app/api/v1/emporio/bank-accounts/route"),
   pix: () => import("@/app/api/v1/emporio/establishments/[id]/pix-account/route"),
@@ -417,6 +422,24 @@ async function secao3() {
   check("o resumo cita o fornecedor e a conta bancária", /Pagou a compra de M98 Fornecedor A .*pela conta /.test(String(hCompra?.summary)), String(hCompra?.summary));
   const l2 = await listaPagar(A.tok.fin);
   check("a conta paga some das pendentes", !l2.itens.some((x) => x.entry_id === e1.id));
+
+  console.log("  pagar duas contas de uma vez: uma linha de Histórico por conta, cada uma com o alvo certo");
+  const cDup = await comprar(A, A.tok.gestor, { supplier_id: A.fornecedor });
+  const compraDup = cDup.corpo?.data?.id as string;
+  const eDup = await entradaDaCompra(A, compraDup);
+  const Dd = await import("@/lib/actions/emporio-despesas");
+  const rFixa = await Dd.criarDespesaFixaAction(A.db, A.owner, {
+    name: "M98 Aluguel duplo", category: "Aluguel", amount: 40, due_day: 28, split_kind: "percentual",
+    starts_on: meioDia(`${hojeStr.slice(0, 7)}-01`), splits: [{ establishment_id: A.L1, value: 100 }],
+  } as Dado);
+  if (!rFixa.ok) throw new Error(`fixa: ${j(rFixa)}`);
+  const fixa = (await A.db.financialEntry.findFirst({ where: { category: "Aluguel", establishment_id: A.L1, status: "pending" }, orderBy: { due_date: "asc" } })) as Dado;
+  const pgDup = await pagar(A.tok.fin, { entry_ids: [eDup?.id, fixa.id], from: { bank_account_id: A.conta } });
+  check("pagar a conta da compra e uma despesa fixa no mesmo POST: 201", pgDup.status === 201, `${pgDup.status} ${j(pgDup.corpo)}`);
+  const histDup = (await prisma.emporioAuditLog.findMany({ where: { tenant_id: A.tenantId, action: "despesa.pagar", target_id: { in: [compraDup, fixa.id] } } })) as Dado[];
+  check("o Histórico ganha DUAS linhas despesa.pagar", histDup.length === 2, j(histDup.map((h) => [h.target_type, h.target_id])));
+  check("uma aponta a compra (target_type compra, target_id da compra)", histDup.some((h) => h.target_type === "compra" && h.target_id === compraDup), j(histDup.map((h) => [h.target_type, h.target_id])));
+  check("a outra aponta a despesa (target_type despesa, target_id da entry da fixa)", histDup.some((h) => h.target_type === "despesa" && h.target_id === fixa.id), j(histDup.map((h) => [h.target_type, h.target_id])));
 
   console.log("  o gestor só da loja, conta da compra de OUTRA loja");
   const c2 = await comprar(A, A.tok.gestor, { supplier_id: A.fornecedor });
@@ -766,6 +789,69 @@ async function secao5() {
   check("o Gestor também lê o extrato (`gestor_da_loja` ou `dinheiro`): 200", exGestor.status === 200, `${exGestor.status}`);
   const exVend = await chamar(A.tok.vend, R.statement, "GET", `emporio/finance/statement?bank_account_id=${A.conta}&de=${de}&ate=${ate}`);
   check("o Vendedor não lê o extrato: 403", exVend.status === 403, `${exVend.status}`);
+
+  console.log("  Posição de caixa: o extrato da gaveta e da gerência");
+  const posHoje = ((await chamar(A.tok.fin, R.today, "GET", "emporio/finance/today")).corpo?.data?.positions ?? []) as Dado[];
+  for (const kind of ["gaveta", "gerencia"] as const) {
+    for (const L of [A.L1, A.L2]) {
+      const e = await chamar(A.tok.fin, R.statement, "GET", `emporio/finance/statement?kind=${kind}&id=${L}&de=${de}&ate=${ate}`);
+      const d = e.corpo?.data as Dado;
+      const p = posHoje.find((q) => q.kind === kind && (q.id === L || q.establishment_id === L));
+      check(`Financeiro lê o extrato da ${kind} da loja ${L === A.L1 ? "L1" : "L2"}: 200 com place.kind ${kind}`, e.status === 200 && d?.place?.kind === kind, `${e.status} ${j(e.corpo)}`);
+      check(`o fechamento da ${kind} de ${L === A.L1 ? "L1" : "L2"} bate com o saldo de Hoje`, !!p && perto(d?.closing_balance, p.balance), `${d?.closing_balance} vs ${j(p)}`);
+    }
+  }
+  const gavL1 = await chamar(A.tok.fin, R.statement, "GET", `emporio/finance/statement?kind=gaveta&id=${A.L1}&de=${de}&ate=${ate}`);
+  check("o extrato da gaveta traz account nulo e linhas", gavL1.corpo?.data?.account === null && (gavL1.corpo?.data?.lines ?? []).length > 0, j(gavL1.corpo?.data?.account));
+  const gerL1 = await chamar(A.tok.fin, R.statement, "GET", `emporio/finance/statement?kind=gerencia&id=${A.L1}&de=${de}&ate=${ate}`);
+  check("o extrato da gerência da L1 mostra o saldo inicial de 50", perto(gerL1.corpo?.data?.closing_balance, 50) && (gerL1.corpo?.data?.lines ?? []).some((l: Dado) => perto(n(l.amount), 50)), j(gerL1.corpo?.data));
+  const exConta2 = await chamar(A.tok.fin, R.statement, "GET", `emporio/finance/statement?bank_account_id=${A.conta}&de=${de}&ate=${ate}`);
+  check("bank_account_id segue valendo: 200 com place.kind conta", exConta2.status === 200 && exConta2.corpo?.data?.place?.kind === "conta", `${exConta2.status}`);
+  const gavSemId = await chamar(A.tok.fin, R.statement, "GET", `emporio/finance/statement?kind=gaveta&de=${de}&ate=${ate}`);
+  check("kind=gaveta sem id: 422 com field", gavSemId.status === 422 && typeof gavSemId.corpo?.error?.field === "string", `${gavSemId.status} ${j(gavSemId.corpo)}`);
+  const gavVend = await chamar(A.tok.vend, R.statement, "GET", `emporio/finance/statement?kind=gaveta&id=${A.L1}&de=${de}&ate=${ate}`);
+  check("o Vendedor da L1 lê a gaveta da própria loja: 200", gavVend.status === 200, `${gavVend.status}`);
+  const gavVendL2 = await chamar(A.tok.vend, R.statement, "GET", `emporio/finance/statement?kind=gaveta&id=${A.L2}&de=${de}&ate=${ate}`);
+  check("o Vendedor da L1 não alcança a gaveta da L2: 404 no campo id", erro(gavVendL2, 404, undefined, "id"), `${gavVendL2.status} ${j(gavVendL2.corpo)}`);
+  const gerVend = await chamar(A.tok.vend, R.statement, "GET", `emporio/finance/statement?kind=gerencia&id=${A.L1}&de=${de}&ate=${ate}`);
+  check("o Vendedor não lê a gerência: 403", gerVend.status === 403, `${gerVend.status}`);
+  const gerGestor = await chamar(A.tok.gestor, R.statement, "GET", `emporio/finance/statement?kind=gerencia&id=${A.L1}&de=${de}&ate=${ate}`);
+  check("o Gestor da L1 lê a gerência da própria loja: 200", gerGestor.status === 200, `${gerGestor.status}`);
+
+  console.log("  o Financeiro lê orçamento de qualquer loja e não salva");
+  const Orc = await import("@/lib/actions/emporio-orcamentos");
+  const cliOrc = await prisma.emporioCustomer.create({ data: { tenant_id: A.tenantId, name: `M98 Cliente orçamento ${stamp}`, person_kind: "pf", document: "39053344705", phone: "11999990000" } as Dado });
+  const orc = await Orc.salvarOrcamentoAction(A.db, A.owner, { operation_key: chave("orc"), establishment_id: A.L2, customer_id: cliOrc.id, items: [{ emporio_product_id: A.prodId, presentation_id: A.presId, quantity: 2 }] } as Dado);
+  if (!orc.ok) throw new Error(`orçamento: ${j(orc)}`);
+  const orcId = (orc.data as Dado).id as string;
+  const lerFin = await chamar(A.tok.fin, R.quote, "GET", `emporio/quotes/${orcId}`, undefined, orcId);
+  check("o Financeiro lê o orçamento da L2: 200", lerFin.status === 200 && lerFin.corpo?.data?.id === orcId, `${lerFin.status} ${j(lerFin.corpo)}`);
+  const lerVend = await chamar(A.tok.vend, R.quote, "GET", `emporio/quotes/${orcId}`, undefined, orcId);
+  check("o Vendedor da L1 segue sem ler orçamento da L2: 403 ou 404", lerVend.status === 403 || lerVend.status === 404, `${lerVend.status}`);
+  const salvaFin = await chamar(A.tok.fin, R.quotes, "POST", "emporio/quotes", { operation_key: chave("orc"), establishment_id: A.L2, customer_id: cliOrc.id, items: [{ emporio_product_id: A.prodId, presentation_id: A.presId, quantity: 1 }] });
+  check("o Financeiro NÃO salva orçamento: 403", salvaFin.status === 403, `${salvaFin.status} ${j(salvaFin.corpo)}`);
+
+  console.log("  cheques: o Financeiro compensa e marca devolvido; o Vendedor sem a chave não");
+  await vender(2, [{ kind: "cheque", amount: 20, check: { number: "9101", bank: "Banco M98", good_for: meioDia(somaDias(hojeStr, 20)) } }]);
+  await vender(3, [{ kind: "cheque", amount: 30, check: { number: "9102", bank: "Banco M98", good_for: meioDia(somaDias(hojeStr, 20)) } }]);
+  const chq = async (num: string) => (await A.db.emporioCheck.findFirst({ where: { number: num } })) as Dado;
+  const c1 = await chq("9101");
+  const c2 = await chq("9102");
+  for (const c of [c1, c2]) {
+    const dep = await chamar(A.tok.gestor, R.checkDeposit, "POST", `emporio/checks/${c?.id}/deposit`, { bank_account_id: A.conta }, c?.id);
+    check(`(fixture) o Gestor deposita o cheque ${c?.number}: 200`, dep.status === 200, `${dep.status} ${j(dep.corpo)}`);
+  }
+  const clVend = await chamar(A.tok.vend, R.checkClear, "POST", `emporio/checks/${c1?.id}/clear`, undefined, c1?.id);
+  check("o Vendedor sem a chave não compensa cheque: 403", clVend.status === 403, `${clVend.status} ${j(clVend.corpo)}`);
+  const rtVend = await chamar(A.tok.vend, R.checkReturn, "POST", `emporio/checks/${c2?.id}/return`, { reason: "sem fundo" }, c2?.id);
+  check("o Vendedor sem a chave não marca cheque devolvido: 403", rtVend.status === 403, `${rtVend.status} ${j(rtVend.corpo)}`);
+  check("as recusas não mexeram nos cheques", (await chq("9101"))?.status === "depositado" && (await chq("9102"))?.status === "depositado");
+  const clFin = await chamar(A.tok.fin, R.checkClear, "POST", `emporio/checks/${c1?.id}/clear`, undefined, c1?.id);
+  check("o Financeiro compensa o cheque: 200", clFin.status === 200, `${clFin.status} ${j(clFin.corpo)}`);
+  check("o cheque ficou compensado", (await chq("9101"))?.status === "compensado");
+  const rtFin = await chamar(A.tok.fin, R.checkReturn, "POST", `emporio/checks/${c2?.id}/return`, { reason: "sem fundo" }, c2?.id);
+  check("o Financeiro marca o cheque como devolvido: 200", rtFin.status === 200, `${rtFin.status} ${j(rtFin.corpo)}`);
+  check("o cheque ficou devolvido", (await chq("9102"))?.status === "devolvido", String((await chq("9102"))?.status));
 
   console.log("  quem NÃO entra na casa");
   for (const [quem, tok] of [["Vendedor", A.tok.vend], ["Caixa", A.tok.caixa], ["Gestor", A.tok.gestor]] as const) {
