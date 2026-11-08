@@ -2,7 +2,7 @@ import { z } from "zod";
 import { apiErroDeZod } from "@/lib/api";
 import { withApi } from "@/lib/route";
 import { hojeEmBrasilia } from "@/lib/emporio/cartao";
-import { posicaoPorLugarAction } from "@/lib/actions/emporio-relatorios-financeiro";
+import { lerPosicaoPorLugarAction } from "@/lib/actions/emporio-relatorios-financeiro";
 import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
 
 /** GET /api/v1/emporio/finance/reports/cash-by-place  ?establishment_id= &de= &ate= (AAAA-MM-DD; padrão: dos últimos 30 dias a hoje)  o saldo e o movimento de cada lugar. */
@@ -33,7 +33,7 @@ async function GETHandler(request: Request) {
   });
   if (!parsed.success) return apiErroDeZod(parsed.error);
   return respostaDaAction(
-    await posicaoPorLugarAction(g.db, g.user, {
+    await lerPosicaoPorLugarAction(g.db, g.user, {
       establishment_id: sp.get("establishment_id") ?? undefined,
       de: parsed.data.de,
       ate: parsed.data.ate,

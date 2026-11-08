@@ -7,9 +7,9 @@ import { veAPagina } from "@/lib/emporio/paginas";
 import { hojeEmBrasilia } from "@/lib/emporio/datas";
 import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
 import {
-  aReceberPorIdadeAction,
-  aPagarPorVencimentoAction,
-  posicaoPorLugarAction,
+  lerAReceberPorIdadeAction,
+  lerAPagarPorVencimentoAction,
+  lerPosicaoPorLugarAction,
 } from "@/lib/actions/emporio-relatorios-financeiro";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FinanceiroAbas } from "../../_components/financeiro-abas";
@@ -55,9 +55,9 @@ export default async function FinanceiroRelatoriosPage({
   const posDe = deUrl || somarDias(posAte, -29);
 
   const [receber, pagar, posicao] = await Promise.all([
-    aReceberPorIdadeAction(db, user, { establishment_id: estab }),
-    aPagarPorVencimentoAction(db, user, { establishment_id: estab, de: paraData(pagarDe), ate: paraData(pagarAte) }),
-    posicaoPorLugarAction(db, user, { establishment_id: estab, de: paraData(posDe), ate: paraData(posAte) }),
+    lerAReceberPorIdadeAction(db, user, { establishment_id: estab }),
+    lerAPagarPorVencimentoAction(db, user, { establishment_id: estab, de: paraData(pagarDe), ate: paraData(pagarAte) }),
+    lerPosicaoPorLugarAction(db, user, { establishment_id: estab, de: paraData(posDe), ate: paraData(posAte) }),
   ]);
 
   const falhou = (titulo: string, message: string) => <EmptyState titulo={titulo}>{message}</EmptyState>;

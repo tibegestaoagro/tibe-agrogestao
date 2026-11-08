@@ -68,7 +68,7 @@ export type AReceberPorIdadeView = {
 };
 
 /** O fiado e as parcelas de acordo em aberto, por cliente e faixa de atraso. É o retrato de hoje: não tem período. */
-export async function aReceberPorIdadeAction(
+export async function lerAReceberPorIdadeAction(
   db: TenantPrismaClient,
   ator: Ator,
   input: { establishment_id?: string } = {},
@@ -131,7 +131,7 @@ export type APagarPorVencimentoView = {
 };
 
 /** As contas pendentes do Empório que vencem no período, por semana de 7 dias a partir de `de` e por nome. */
-export async function aPagarPorVencimentoAction(
+export async function lerAPagarPorVencimentoAction(
   db: TenantPrismaClient,
   ator: Ator,
   input: { establishment_id?: string; de: Date; ate: Date },
@@ -229,7 +229,7 @@ export type PosicaoPorLugarView = {
  * O saldo de hoje de cada lugar e o que se moveu nele no período, por origem. A conta soma também as parcelas
  * de cartão do período (origem `cartao`): a parcela não tem movimento de caixa, então não conta em dobro.
  */
-export async function posicaoPorLugarAction(
+export async function lerPosicaoPorLugarAction(
   db: TenantPrismaClient,
   ator: Ator,
   input: { establishment_id?: string; de: Date; ate: Date },

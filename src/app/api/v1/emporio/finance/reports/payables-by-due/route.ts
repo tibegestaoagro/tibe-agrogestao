@@ -2,7 +2,7 @@ import { z } from "zod";
 import { apiErroDeZod } from "@/lib/api";
 import { withApi } from "@/lib/route";
 import { hojeEmBrasilia } from "@/lib/emporio/cartao";
-import { aPagarPorVencimentoAction } from "@/lib/actions/emporio-relatorios-financeiro";
+import { lerAPagarPorVencimentoAction } from "@/lib/actions/emporio-relatorios-financeiro";
 import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
 
 /** GET /api/v1/emporio/finance/reports/payables-by-due  ?establishment_id= &de= &ate= (AAAA-MM-DD; padrão: de hoje a hoje + 30)  o a pagar por semana e por nome. */
@@ -33,7 +33,7 @@ async function GETHandler(request: Request) {
   });
   if (!parsed.success) return apiErroDeZod(parsed.error);
   return respostaDaAction(
-    await aPagarPorVencimentoAction(g.db, g.user, {
+    await lerAPagarPorVencimentoAction(g.db, g.user, {
       establishment_id: sp.get("establishment_id") ?? undefined,
       de: parsed.data.de,
       ate: parsed.data.ate,
