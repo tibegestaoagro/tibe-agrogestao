@@ -463,6 +463,23 @@ async function comBanco() {
       const pCielo = (await pagamentosDe(idDe(rCielo)))[0];
       check("com acquirer_id escolhido a venda segue, na taxa daquela adquirente (1,2%)", rCielo.ok && !!pCielo && perto(n(pCielo.fee_pct), 1.2), j([rCielo, pCielo]));
 
+      // Q251: sem bandeira informada, o pagamento e o recebível guardam brand nulo (nunca "qualquer")
+      const rcSem = await recebiveisDe(idDe(rSem));
+      check("venda sem brand: brand nulo no pagamento e no recebível", pSem?.brand === null && rcSem.length === 1 && rcSem.every((r) => r.brand === null), j([pSem?.brand, rcSem.map((r) => r.brand)]));
+
+      // fallback de adquirente: só a ativa com linha da MODALIDADE (Stone só débito, Cielo só parcelado)
+      const L8 = L5;
+      const cielo8 = await mkAdq("Cielo L5");
+      await taxa({ loja: L8, acq: cielo8.id, brand: "qualquer", kind: "credito_parcelado", de: 2, ate: 12, pct: 6 });
+      const rDebSem = await vender(vend, L8, 2, [cartao("debito", 100)]);
+      const pDebSem = (await pagamentosDe(idDe(rDebSem)))[0];
+      check("Stone (débito) e Cielo (só parcelado): débito sem acquirer_id resolve a Stone sem recusar", rDebSem.ok && pDebSem?.acquirer_id === STONE5, j([rDebSem, pDebSem]));
+
+      // taxa fixa que não cabe no pagamento
+      await taxa({ loja: L7, acq: cielo.id, brand: "amex", kind: "debito", de: 1, ate: 1, pct: 0, fixo: 150 });
+      const rFixa = await vender(vend, L7, 2, [cartao("debito", 100, { acquirer_id: cielo.id, brand: "amex" })]);
+      check("taxa fixa maior que o pagamento: VALIDATION_ERROR em payments", recusa(rFixa, "VALIDATION_ERROR", "payments") && !rFixa.ok && rFixa.message.includes("taxa fixa"), j(rFixa));
+
       // leitura
       const lida = await vv("lerVendaAction", admin, S3X);
       const pl = lista(dados(lida)?.payments)[0];

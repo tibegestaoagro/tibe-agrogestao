@@ -606,7 +606,7 @@ type PagamentoPreparado = {
     fee_amount: number;
     days: number;
     acquirer_id: string;
-    brand: Bandeira | "qualquer";
+    brand: Bandeira | null;
     fee_fixed_amount: number;
     fee_rate_id: string;
   } | null;
@@ -921,7 +921,10 @@ async function prepararVenda(
       const dia = hojeEmBrasilia(soldAt).toISOString().slice(0, 10);
       let adquirenteId = typeof p.acquirer_id === "string" && p.acquirer_id.trim() ? p.acquirer_id.trim() : null;
       if (adquirenteId === null) {
-        const candidatas = adquirentesComTaxa(linhasDaLoja.linhas, dia);
+        const candidatas = adquirentesComTaxa(
+          linhasDaLoja.linhas.filter((l) => l.kind === kind && !linhasDaLoja!.arquivadas.has(l.acquirer_id)),
+          dia,
+        );
         if (candidatas.length === 0) {
           return fail(
             "VALIDATION_ERROR",
@@ -954,6 +957,14 @@ async function prepararVenda(
         }
         return fail("VALIDATION_ERROR", mensagem, 422, "payments");
       }
+      if (Math.round(linha.fee_fixed * 100) >= centavos(p.amount)) {
+        return fail(
+          "VALIDATION_ERROR",
+          `A taxa fixa de ${brl(linha.fee_fixed)} não cabe num pagamento de ${brl(arred2(p.amount))}.`,
+          422,
+          "payments",
+        );
+      }
       cartao = {
         installments,
         parcelas,
@@ -961,7 +972,7 @@ async function prepararVenda(
         fee_amount: taxaDoPagamentoCent(centavos(p.amount), linha) / 100,
         days: linha.days,
         acquirer_id: adquirenteId,
-        brand: bandeira ?? "qualquer",
+        brand: bandeira,
         fee_fixed_amount: linha.fee_fixed,
         fee_rate_id: linha.id,
       };

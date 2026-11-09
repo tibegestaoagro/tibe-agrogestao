@@ -1381,7 +1381,7 @@ export async function definirRegraCartaoAction(
   ator: Ator,
   input: DefinirRegraCartaoInput,
 ): Promise<ActionResult<RegraCartaoView>> {
-  const neg = await exigir(db, ator, "gestor_da_loja", "definir a regra de cartão");
+  const neg = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "definir a regra de cartão");
   if (neg) return neg;
   const loja = await acharLojaParaEscrita(db, ator, input?.establishment_id);
   if (!loja.ok) return loja;
