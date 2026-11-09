@@ -22,7 +22,7 @@ exigirBancoLocal();
  * O que o contrato calava e esta suíte ASSUME:
  * - o Resultado é lido por `resultadoDaLojaAction(db, ator, { establishment_id, month })`
  *   (o plano o chama de "lerResultadoAction"; o nome real do código vale);
- * - `listarContasAPagarAction`/`contarContasAPagarAction` aceitam `{ establishment_id }`;
+ * - `listarContasAPagarAction`/`lerQuantidadeDeContasAPagar` aceitam `{ establishment_id }`;
  *   a contagem devolve um número ou um objeto com um número (`count`, `total`, `pending`);
  * - `pagarDespesasAction` recebe `{ entry_ids, from: { bank_account_id } }`;
  * - `lerImpressoDaVendaAction` traz `frete`, `total` e `origem` (a suíte os
@@ -297,18 +297,18 @@ async function comBanco() {
     await rodar("seção 4", async () => {
       const list = async (ator: Ator = admin, cli: "A" | "B" = "A") =>
         lista(dados(await (cli === "A" ? dd : ddB)("listarContasAPagarAction", ator, { establishment_id: L3.id })));
-      const achar = async () => (await list()).find((x) => x.id === freteS3);
+      const achar = async () => (await list()).find((x) => x.entry_id === freteS3);
       const c0 = await achar();
       check("a conta do frete aparece com origin frete", c0?.origin === "frete", j(c0));
       check("traz sale_id e sale_number da venda", c0?.sale_id === S3 && c0?.sale_number === (await db.emporioSale.findFirst({ where: { id: S3 } }))?.number, j(c0));
       check("can_correct verdadeiro (pendente sem pagamento)", c0?.can_correct === true, j(c0));
-      const rCont = await dd("contarContasAPagarAction", admin, { establishment_id: L3.id });
+      const rCont = await dd("lerQuantidadeDeContasAPagar", admin, { establishment_id: L3.id });
       const num = typeof dados(rCont) === "number" ? dados(rCont) : (acha(dados(rCont), "count") ?? acha(dados(rCont), "total") ?? acha(dados(rCont), "pending"));
-      check("contarContasAPagarAction conta a conta do frete (o número bate com a lista)", rCont.ok && num === (await list()).length && num >= 2, `${j(rCont)} lista ${(await list()).length}`);
+      check("lerQuantidadeDeContasAPagar conta a conta do frete (o número bate com a lista)", rCont.ok && num === (await list()).length && num >= 2, `${j(rCont)} lista ${(await list()).length}`);
 
       const rPg = await dd("pagarDespesasAction", admin, { entry_ids: [freteS3], from: { bank_account_id: conta } });
       check("pagarDespesasAction paga a conta do frete", rPg.ok && (await db.financialEntry.findFirst({ where: { id: freteS3 } }))?.status === "paid", j(rPg));
-      const c1 = await achar();
+      const c1 = lista(dados(await dd("listarContasAPagarAction", admin, { establishment_id: L3.id, status: "all" }))).find((x) => x.entry_id === freteS3);
       check("depois de paga: a conta segue listada (paid) e can_correct é falso", !!c1 && c1.can_correct === false, j(c1));
 
       // venda cancelada: a conta do frete (pendente) não aparece como pendente

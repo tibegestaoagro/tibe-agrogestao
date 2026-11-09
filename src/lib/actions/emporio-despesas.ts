@@ -16,6 +16,7 @@ import {
   viewDoPedidoDePagamento,
   type PedidoDePagamentoView,
 } from "@/lib/emporio/pedido-pagamento";
+import { CATEGORIA_FRETE } from "@/lib/emporio/frete";
 import { CATEGORIAS_RESERVADAS } from "@/lib/emporio/vendeu-pagou";
 import { faturamentoLiquidoDoMes } from "@/lib/emporio/faturamento";
 import {
@@ -1379,7 +1380,7 @@ export async function garantirOcorrenciasDoMes(
 
 export type ContaAPagarView = {
   entry_id: string;
-  origin: "vendeu_pagou" | "despesa_fixa" | "compra";
+  origin: "vendeu_pagou" | "despesa_fixa" | "compra" | "frete";
   /** Da compra: o nome do fornecedor, ou "Compra sem fornecedor". */
   name: string;
   category: string | null;
@@ -1390,7 +1391,10 @@ export type ContaAPagarView = {
   open_amount: number;
   due_date: string | null;
   status: "pending" | "paid" | "cancelled";
+  /** Da regra do Vendeu, Pagou ou do frete: a venda que gerou a conta. */
   sale_id: string | null;
+  /** Número da venda (só `origin: "frete"`). */
+  sale_number: number | null;
   sale_variable_expense_id: string | null;
   template_id: string | null;
   period: string | null;
@@ -1415,17 +1419,24 @@ type ContaRow = Prisma.FinancialEntryGetPayload<{ include: typeof INCLUDE_CONTA 
  * A linha que não é de "Vendeu, Pagou" nem de despesa fixa é a conta de uma
  * compra: quem chama já a filtrou (`filtroDoEmporio`, `acharContaDoEmporio`).
  */
-function viewDaConta(e: ContaRow): ContaAPagarView {
+function viewDaConta(e: ContaRow, saleNumber: number | null = null): ContaAPagarView {
   const sve = e.sale_variable_expense;
   const occ = e.fixed_occurrence;
-  const compra = !sve && !occ;
+  const frete = !sve && !occ && e.category === CATEGORIA_FRETE;
+  const compra = !sve && !occ && !frete;
   const valorCent = centavos(decToNum(e.amount) ?? 0);
   const pagoCent = e.payments.reduce((s, p) => s + centavos(decToNum(p.amount) ?? 0), 0);
   const aberto = e.status === "cancelled" ? 0 : Math.max(0, valorCent - pagoCent);
   return {
     entry_id: e.id,
-    origin: sve ? "vendeu_pagou" : occ ? "despesa_fixa" : "compra",
-    name: sve ? sve.rule.name : occ ? occ.template.name : (e.emporio_supplier?.name ?? "Compra sem fornecedor"),
+    origin: sve ? "vendeu_pagou" : occ ? "despesa_fixa" : frete ? "frete" : "compra",
+    name: sve
+      ? sve.rule.name
+      : occ
+        ? occ.template.name
+        : frete
+          ? CATEGORIA_FRETE
+          : (e.emporio_supplier?.name ?? "Compra sem fornecedor"),
     purchase_id: compra ? e.related_id : null,
     supplier_name: compra ? (e.emporio_supplier?.name ?? null) : null,
     category: e.category,
@@ -1436,12 +1447,32 @@ function viewDaConta(e: ContaRow): ContaAPagarView {
     open_amount: aberto / 100,
     due_date: e.due_date ? diaIso(e.due_date) : null,
     status: e.status as ContaAPagarView["status"],
-    sale_id: sve ? sve.sale_id : null,
+    sale_id: sve ? sve.sale_id : frete ? e.related_id : null,
+    sale_number: frete ? saleNumber : null,
     sale_variable_expense_id: sve?.id ?? null,
     template_id: occ ? occ.template_id : null,
     period: occ ? textoDoMes(mesDaData(occ.period)) : null,
     can_correct: !compra && e.status === "pending" && pagoCent === 0,
   };
+}
+
+/** Os números das vendas das contas de frete (`FinancialEntry` não tem relação com `EmporioSale`, só `related_id`). */
+async function numerosDasVendasDoFrete(db: TenantPrismaClient, linhas: ContaRow[]): Promise<Map<string, number>> {
+  const ids = [
+    ...new Set(
+      linhas
+        .filter((e) => !e.sale_variable_expense && !e.fixed_occurrence && e.category === CATEGORIA_FRETE && e.related_id)
+        .map((e) => e.related_id as string),
+    ),
+  ];
+  if (ids.length === 0) return new Map();
+  const vendas = await db.emporioSale.findMany({ where: { id: { in: ids } }, select: { id: true, number: true } });
+  return new Map(vendas.map((v) => [v.id, v.number]));
+}
+
+async function viewsDasContas(db: TenantPrismaClient, linhas: ContaRow[]): Promise<ContaAPagarView[]> {
+  const numeros = await numerosDasVendasDoFrete(db, linhas);
+  return linhas.map((e) => viewDaConta(e, e.related_id ? (numeros.get(e.related_id) ?? null) : null));
 }
 
 const SO_DO_EMPORIO = [{ sale_variable_expense: { isNot: null } }, { fixed_occurrence: { isNot: null } }];
@@ -1472,8 +1503,18 @@ async function filtroDoEmporio(
   const vivas = ids.length
     ? await db.emporioPurchase.findMany({ where: { id: { in: ids }, canceled_at: null }, select: { id: true } })
     : [];
+  // A terceira forma: a conta do frete de uma venda concluída.
+  const vendasVivas = ids.length
+    ? await db.emporioSale.findMany({ where: { id: { in: ids }, status: "concluida" }, select: { id: true } })
+    : [];
   return {
-    OR: [...SO_DO_EMPORIO, ...(vivas.length > 0 ? [{ related_id: { in: vivas.map((c) => c.id) } }] : [])],
+    OR: [
+      ...SO_DO_EMPORIO,
+      ...(vivas.length > 0 ? [{ related_id: { in: vivas.map((c) => c.id) } }] : []),
+      ...(vendasVivas.length > 0
+        ? [{ category: CATEGORIA_FRETE, related_id: { in: vendasVivas.map((v) => v.id) } }]
+        : []),
+    ],
   };
 }
 
@@ -1543,7 +1584,7 @@ export async function listarContasAPagarAction(
     orderBy: [{ due_date: "asc" }, { created_at: "asc" }],
     take: f.data.limite,
   });
-  return ok(linhas.map(viewDaConta));
+  return ok(await viewsDasContas(db, linhas));
 }
 
 /** Quantas contas o filtro alcança, sem o teto da lista. */
@@ -1572,10 +1613,15 @@ async function acharContaDoEmporio(
   if (!e) return null;
   if (!e.sale_variable_expense && !e.fixed_occurrence) {
     // Sem as duas formas de sempre, só vale a conta de uma compra não cancelada.
-    const compra = e.related_id
-      ? await db.emporioPurchase.findFirst({ where: { id: e.related_id, canceled_at: null }, select: { id: true } })
-      : null;
-    if (!compra) return null;
+    const compra =
+      e.related_id && e.category !== CATEGORIA_FRETE
+        ? await db.emporioPurchase.findFirst({ where: { id: e.related_id, canceled_at: null }, select: { id: true } })
+        : null;
+    const frete =
+      e.related_id && e.category === CATEGORIA_FRETE
+        ? await db.emporioSale.findFirst({ where: { id: e.related_id, status: "concluida" }, select: { id: true } })
+        : null;
+    if (!compra && !frete) return null;
   }
   if (!semVisibilidade && e.establishment_id && !(await lojaVisivel(db, ator, e.establishment_id))) return null;
   return e;
@@ -1651,7 +1697,7 @@ export async function corrigirDespesaAction(
     throw err;
   }
   const atualizada = await acharContaDoEmporio(db, ator, entry_id);
-  const v = atualizada ? viewDaConta(atualizada) : null;
+  const v = atualizada ? (await viewsDasContas(db, [atualizada]))[0] : null;
   return v ? ok(v) : NAO_ACHADO("Conta", "entry_id");
 }
 
@@ -1956,7 +2002,7 @@ export async function adiarVencimentoContaAction(
     throw err;
   }
   const atualizada = await acharContaDoEmporio(db, ator, input.entry_id);
-  return atualizada ? ok(viewDaConta(atualizada)) : NAO_ACHADO("Conta", "entry_id");
+  return atualizada ? ok((await viewsDasContas(db, [atualizada]))[0]) : NAO_ACHADO("Conta", "entry_id");
 }
 
 export type CancelarContaInput = { entry_id: string; reason: string };
@@ -2004,5 +2050,5 @@ export async function cancelarContaAction(
     throw err;
   }
   const atualizada = await acharContaDoEmporio(db, ator, input.entry_id);
-  return atualizada ? ok(viewDaConta(atualizada)) : NAO_ACHADO("Conta", "entry_id");
+  return atualizada ? ok((await viewsDasContas(db, [atualizada]))[0]) : NAO_ACHADO("Conta", "entry_id");
 }

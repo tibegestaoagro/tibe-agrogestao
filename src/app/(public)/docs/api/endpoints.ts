@@ -990,6 +990,15 @@ export const GROUPS: Group[] = [
       },
       {
         method: "POST",
+        path: "/api/v1/emporio/sales/:id/replace",
+        auth: "Sessão · emporio:write · só OWNER e ADMIN",
+        description: "Editar a venda (Q249): cancela a antiga e registra a nova numa transação só. O corpo é o do POST de venda, sem `establishment_id` (a loja é a da venda antiga); `operation_key` obrigatória (repetir devolve a nova com 200) e `reason` opcional. `sold_at`, `seller_user_id` e `quote_id` assumem os da antiga quando ausentes. A antiga fica `cancelada` com `canceled_reason` \"Substituída pela venda nº N\" e `replaced_by`; a nova traz `replaces`. O estoque, a gaveta e o financeiro da antiga voltam como no cancelamento. Recusas da venda nova (ex.: 422 `payments`) desfazem tudo e a antiga segue concluída. Já cancelada: 409 `SALE_CANCELED`; com devolução: 409 `SALE_HAS_RETURNS`; venda de troca: 409 `SALE_IS_EXCHANGE`; e as recusas do cancelamento (`VENDA_EM_ACORDO`, `SALE_HAS_DEPOSITED_CHECK`, `CASH_CLOSED`, `CASH_REGISTER_REQUIRED`).",
+        request: `{ "operation_key": "k-11", "items": [{ "emporio_product_id": "cl...", "presentation_id": "cl...", "quantity": 1 }], "freight_amount": 20, "origin": "ecommerce", "payments": [{ "kind": "pix", "amount": 120 }], "reason": "Faltou o frete" }`,
+        response: `201
+{ "data": { "id": "cl...", "replaces": { "id": "cl...", "number": 41 }, "freight_amount": 20, "total_amount": 120 }, "meta": {} }`,
+      },
+      {
+        method: "POST",
         path: "/api/v1/emporio/sales/:id/return",
         auth: "Sessão · emporio:write · OWNER, ADMIN e OPERADOR com a loja no vínculo",
         description: "Devolução parcial. `operation_key` obrigatória (repetir devolve a gravada com 200). `refund_kind`: `dinheiro` (despesa paga mais saída da gaveta) ou `abater_fiado` (reduz o lançamento da venda, que precisa ter saldo em aberto: 422 `amount`). Cada item traz `sale_item_id` e `quantity` até o vendido menos o devolvido (422 `items`); `loss_reason` marca avariado e grava também a perda. A mercadoria volta pelo custo da venda. Venda cancelada: 409 `SALE_CANCELED`. Em dinheiro, a saída cai num turno aberto da loja: `cash_register_id` opcional, com as recusas `CASH_CLOSED` e `CASH_REGISTER_REQUIRED` da venda.",
@@ -1137,7 +1146,7 @@ export const GROUPS: Group[] = [
         method: "GET",
         path: "/api/v1/emporio/payables",
         auth: "Sessão · emporio:read · só OWNER e ADMIN; com vínculo, só as lojas dele",
-        description: "Contas a pagar do \"Vendeu, Pagou\" (`origin` `vendeu_pagou`), das despesas fixas (`despesa_fixa`) e das compras a prazo ou parceladas (`compra`, desde 07/11/2026: traz `purchase_id` e `supplier_name`, e `can_correct` é sempre falso), por vencimento. Filtros: `establishment_id`, `status` (`pending` por padrão, `paid`, `cancelled`, `all`), `de` e `ate` (vencimento), `limit`. `can_correct` diz se ainda dá para corrigir o valor.",
+        description: "Contas a pagar do \"Vendeu, Pagou\" (`origin` `vendeu_pagou`), das despesas fixas (`despesa_fixa`) e das compras a prazo ou parceladas (`compra`, desde 07/11/2026: traz `purchase_id` e `supplier_name`, e `can_correct` é sempre falso) e do frete cobrado do cliente (`frete`, desde 09/11/2026: a conta \"Frete de entrega\" de uma venda concluída, com `sale_id` e `sale_number`; `can_correct` vale enquanto pendente e sem pagamento), por vencimento. Filtros: `establishment_id`, `status` (`pending` por padrão, `paid`, `cancelled`, `all`), `de` e `ate` (vencimento), `limit`. `can_correct` diz se ainda dá para corrigir o valor.",
         response: `200
 { "data": [{ "entry_id": "cl...", "origin": "vendeu_pagou", "name": "Comissão", "establishment_id": "cl...", "amount": 5, "paid_amount": 0, "open_amount": 5, "due_date": "2026-11-30", "status": "pending", "sale_id": "cl...", "can_correct": true }], "meta": {} }`,
       },
@@ -1288,7 +1297,7 @@ export const GROUPS: Group[] = [
         method: "GET",
         path: "/api/v1/emporio/result",
         auth: "Sessão · emporio:read · só OWNER e ADMIN; com vínculo, só as lojas dele (404 `establishment_id` nas outras)",
-        description: "Resultado da Loja no mês (F4a, Q101), calculado na leitura. Query: `establishment_id` (ou `all`, a visão somada de todas as lojas não arquivadas, só para quem não tem vínculo: 403 `FORBIDDEN`; a resposta ganha `stores`, uma linha por loja), `month` (AAAA-MM, 422 `month`). Devolve `sales`, `cost`, `variable_expenses` (regras mais `card_fees`), `margin` e `margin_pct`, `losses` (perdas e quebras, linha própria), `fixed_expenses`, `result`, `break_even` (`status` `ok`, `sem_dados` ou `nao_se_paga`; `amount` e `missing`, nunca negativo), `tracking` (vendas por dia, acumulado e projeção linear) e `estimated` com `estimated_reasons`.",
+        description: "Resultado da Loja no mês (F4a, Q101), calculado na leitura. Query: `establishment_id` (ou `all`, a visão somada de todas as lojas não arquivadas, só para quem não tem vínculo: 403 `FORBIDDEN`; a resposta ganha `stores`, uma linha por loja), `month` (AAAA-MM, 422 `month`). Devolve `sales`, `cost`, `variable_expenses` (regras mais `card_fees`), `margin` e `margin_pct`, `losses` (perdas e quebras, linha própria), `fixed_expenses`, `freight` (desde 09/11/2026, o frete de entrega como repasse: `received` é o frete cobrado nas vendas do mês, `paid` o valor das contas \"Frete de entrega\" não canceladas, `difference` a diferença; fora de `variable_expenses` e da margem, e a visão `stores` traz o mesmo por loja), `result` (margem menos perdas e fixas, mais `freight.difference`), `break_even` (`status` `ok`, `sem_dados` ou `nao_se_paga`; `amount` e `missing`, nunca negativo), `tracking` (vendas por dia, acumulado e projeção linear) e `estimated` com `estimated_reasons`.",
         response: `200
 { "data": { "month": "2026-11", "sales": 12000, "cost": 6000, "variable_expenses": 600, "margin": 5400, "margin_pct": 45, "losses": 100, "fixed_expenses": 3000, "result": 2300, "break_even": { "status": "ok", "amount": 6666.67, "missing": 0, "margin_pct_used": 45, "basis": "mes" }, "estimated": false, "estimated_reasons": [] }, "meta": {} }`,
       },

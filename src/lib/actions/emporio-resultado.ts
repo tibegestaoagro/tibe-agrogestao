@@ -3,6 +3,7 @@ import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { decToNum } from "@/lib/serialize";
 import { exigirUma } from "@/lib/emporio/papel";
 import { CATEGORIA_TAXAS_CARTAO } from "@/lib/emporio/cartao";
+import { CATEGORIA_FRETE } from "@/lib/emporio/frete";
 import {
   diaDoInstante,
   diasNoMes,
@@ -63,6 +64,8 @@ export type LojaDoResultadoView = {
   margin_pct: number | null;
   losses: number;
   fixed_expenses: number;
+  /** Frete de entrega (repasse): já dentro de `result`. */
+  freight: { received: number; paid: number; difference: number };
   result: number;
 };
 
@@ -85,6 +88,8 @@ export type ResultadoDaLojaView = {
   losses_detail: { stock_losses: number; transfer_differences: number; cash_count_differences: number };
   fixed_expenses: number;
   fixed_expenses_items: { name: string; establishment_id: string; amount: number; due_date: string; status: string }[];
+  /** Frete cobrado do cliente (repasse): fora da margem, a diferença entra no resultado. */
+  freight: { received: number; paid: number; difference: number };
   result: number;
   break_even: PontoDeEquilibrioView;
   tracking: {
@@ -111,6 +116,7 @@ async function margemDaJanela(db: TenantPrismaClient, lojaId: string, j: Janela)
       id: true,
       sold_at: true,
       net_amount: true,
+      freight_amount: true,
       items: { select: { unit_cost: true, base_qty: true, cost_estimated: true, cost_provisional: true } },
     },
   });
@@ -143,6 +149,22 @@ async function margemDaJanela(db: TenantPrismaClient, lojaId: string, j: Janela)
           },
           select: { amount: true },
         });
+
+  const fretes =
+    ids.length === 0
+      ? []
+      : await db.financialEntry.findMany({
+          where: {
+            related_module: "emporio",
+            entry_type: "expense",
+            category: CATEGORIA_FRETE,
+            status: { not: "cancelled" },
+            related_id: { in: ids },
+          },
+          select: { amount: true },
+        });
+  const freteRecebidoCent = vendas.reduce((s, v) => s + centavos(decToNum(v.freight_amount) ?? 0), 0);
+  const fretePagoCent = fretes.reduce((s, f) => s + centavos(decToNum(f.amount) ?? 0), 0);
 
   const devolvidoCent = devolucoes.reduce((s, d) => s + centavos(decToNum(d.amount) ?? 0), 0);
   const vendasCent = faturamentoLiquidoCent(vendas, devolucoes);
@@ -182,6 +204,8 @@ async function margemDaJanela(db: TenantPrismaClient, lojaId: string, j: Janela)
     taxasCent,
     vendeuPagouCent,
     margemCent: vendasCent - custoCent - vendeuPagouCent,
+    freteRecebidoCent,
+    fretePagoCent,
     itensEstimados,
     embalagensProvisorias,
   };
@@ -202,6 +226,8 @@ function somarMargens(ms: Margem[]): Margem {
     taxasCent: soma((m) => m.taxasCent),
     vendeuPagouCent: soma((m) => m.vendeuPagouCent),
     margemCent: soma((m) => m.margemCent),
+    freteRecebidoCent: soma((m) => m.freteRecebidoCent),
+    fretePagoCent: soma((m) => m.fretePagoCent),
     itensEstimados: soma((m) => m.itensEstimados),
     embalagensProvisorias: soma((m) => m.embalagensProvisorias),
   };
@@ -361,7 +387,8 @@ export async function resultadoDaLojaAction(
   const fixasNaoPagas = soma((a) => a.fixasNaoPagas);
   const fixas = apuradas.flatMap((a) => a.fixas).sort((a, b) => (a.due_date as Date).getTime() - (b.due_date as Date).getTime());
 
-  const resultadoCent = m.margemCent - perdasCent - fixasCent;
+  const freteDifCent = m.freteRecebidoCent - m.fretePagoCent;
+  const resultadoCent = m.margemCent - perdasCent - fixasCent + freteDifCent;
 
   // Ponto de equilíbrio (Q26): no somado, o recuo de 30 dias também sai da soma das lojas.
   let base = { vendasCent: m.vendasCent, margemCent: m.margemCent, n: m.vendas.length };
@@ -485,6 +512,11 @@ export async function resultadoDaLojaAction(
       due_date: (f.due_date as Date).toISOString().slice(0, 10),
       status: f.status,
     })),
+    freight: {
+      received: reais(m.freteRecebidoCent),
+      paid: reais(m.fretePagoCent),
+      difference: reais(freteDifCent),
+    },
     result: reais(resultadoCent),
     break_even: pe,
     tracking: { days: dias, days_in_month: nDias, days_elapsed: decorridos, projected_sales: projetado },
@@ -502,7 +534,12 @@ export async function resultadoDaLojaAction(
         margin_pct: a.m.vendasCent > 0 ? pct2((a.m.margemCent / a.m.vendasCent) * 100) : null,
         losses: reais(a.perdasCent),
         fixed_expenses: reais(a.fixasCent),
-        result: reais(a.m.margemCent - a.perdasCent - a.fixasCent),
+        freight: {
+          received: reais(a.m.freteRecebidoCent),
+          paid: reais(a.m.fretePagoCent),
+          difference: reais(a.m.freteRecebidoCent - a.m.fretePagoCent),
+        },
+        result: reais(a.m.margemCent - a.perdasCent - a.fixasCent + a.m.freteRecebidoCent - a.m.fretePagoCent),
       };
     });
   }

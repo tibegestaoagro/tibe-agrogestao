@@ -20,11 +20,12 @@ const ORIGEM_ROTULO: Record<ContaDaLista["origin"], string> = {
   vendeu_pagou: "Vendeu, Pagou",
   despesa_fixa: "Despesa fixa",
   compra: "Compra",
+  frete: "Frete de entrega",
 };
 
 export type ContaDaLista = {
   entry_id: string;
-  origin: "vendeu_pagou" | "despesa_fixa" | "compra";
+  origin: "vendeu_pagou" | "despesa_fixa" | "compra" | "frete";
   name: string;
   /** Da compra: o fornecedor (o `name` já o traz; fica para a frase da origem). */
   supplier_name?: string | null;

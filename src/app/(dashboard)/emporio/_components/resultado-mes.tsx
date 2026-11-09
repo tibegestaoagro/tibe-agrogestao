@@ -150,6 +150,17 @@ export function ResultadoMes({ r }: { r: ResultadoDaLojaView }) {
               )
             }
           />
+          <Linha
+            rotulo="Frete de entrega (repasse)"
+            valor={reaisBr(r.freight.difference)}
+            nota="O frete cobrado do cliente menos o que a transportadora cobra: fora da margem"
+            detalhe={
+              <>
+                <Item rotulo="Frete recebido do cliente" valor={reaisBr(r.freight.received)} />
+                <Item rotulo="Frete pago à transportadora" valor={reaisBr(r.freight.paid)} />
+              </>
+            }
+          />
           <Linha rotulo="= Resultado" forte valor={reaisBr(r.result)} tom={tomDoResultado} />
         </div>
       </section>
