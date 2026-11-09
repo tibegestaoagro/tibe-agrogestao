@@ -19,17 +19,18 @@ const FILTROS = [
 export default async function FinanceiroAprovacoesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; before?: string }>;
 }) {
   const user = await requireFeaturePage("emporio");
-  const { status: statusDaUrl = "" } = await searchParams;
+  const { status: statusDaUrl = "", before = "" } = await searchParams;
   const db = await getTenantDb();
   const papel = await papelDoEmporio(db, user);
   if (!veAPagina(papel, "/emporio/financeiro")) notFound();
 
   const status = statusDaUrl === "decididos" ? "decididos" : "pendente";
-  const res = await listarPedidosDePagamentoAction(db, user, status === "pendente" ? { status: "pendente" } : {});
-  const pedidos = res.ok ? (status === "pendente" ? res.data : res.data.filter((p) => p.status !== "pendente")) : [];
+  const res = await listarPedidosDePagamentoAction(db, user, status === "pendente" ? { status: "pendente" } : { status: "decididos", before: before || undefined });
+  const pedidos = res.ok ? res.data : [];
+  const ultimo = pedidos.length === 200 ? pedidos[pedidos.length - 1]?.decided_at : null;
 
   return (
     <div className="space-y-6">
@@ -67,6 +68,14 @@ export default async function FinanceiroAprovacoesPage({
       ) : (
         <EmptyState titulo="Não foi possível ler os pedidos">{res.message}</EmptyState>
       )}
+      {status === "decididos" && ultimo ? (
+        <Link
+          href={`/emporio/financeiro/aprovacoes?status=decididos&before=${encodeURIComponent(ultimo)}`}
+          className="inline-flex min-h-11 items-center text-sm font-medium text-primaria hover:underline"
+        >
+          Ver mais antigos
+        </Link>
+      ) : null}
     </div>
   );
 }

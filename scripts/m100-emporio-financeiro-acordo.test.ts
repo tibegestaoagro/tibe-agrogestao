@@ -920,6 +920,37 @@ async function secao3() {
   } finally {
     await (prisma as Dado).emporioPaymentRequest.deleteMany({ where: { id: { in: reqs.map((q: Dado) => q.id) } } });
   }
+
+  // Dívida 2.43: decididos paginados no banco (200 por página, cursor `before`).
+  const Apr = await import("@/lib/actions/emporio-aprovacoes");
+  const base = Date.now() - 3_000_000_000;
+  const dec = (i: number, status: string) => ({
+    tenant_id: A.tenantId, requested_by_user_id: A.fin.id, entry_ids: ["x"], total: n(1), status,
+    establishment_id: i % 3 ? A.L1 : L2, decided_at: new Date(base + i * 1000), decided_by_user_id: A.owner.id,
+  });
+  const dados: Dado[] = Array.from({ length: 205 }, (_, i) => dec(i, i % 2 ? "aprovado" : "recusado"));
+  dados.push({ ...dec(999, "pendente"), decided_at: null });
+  const criados = await (prisma as Dado).emporioPaymentRequest.createManyAndReturn({ data: dados, select: { id: true } });
+  try {
+    const p1 = await Apr.listarPedidosDePagamentoAction(A.db, A.owner, { status: "decididos" });
+    const d1: Dado[] = p1.ok ? p1.data : [];
+    check("decididos: a primeira página traz 200, sem pendente, do mais novo ao mais antigo",
+      d1.length === 200 && d1.every((p) => p.status !== "pendente" && p.decided_at), j(d1.length));
+    // Outros pedidos decididos do tenant (seções anteriores) podem preceder os 205: segue o cursor até esgotar.
+    const vistos = new Set<string>(d1.map((p) => p.id));
+    let pag = d1;
+    for (let i = 0; i < 10 && pag.length === 200; i++) {
+      const pn = await Apr.listarPedidosDePagamentoAction(A.db, A.owner, { status: "decididos", before: pag[199].decided_at });
+      pag = pn.ok ? pn.data : [];
+      pag.forEach((p) => vistos.add(p.id));
+    }
+    check("decididos: o cursor `before` alcança os 205 pedidos, inclusive o mais antigo",
+      criados.slice(0, 205).every((c: Dado) => vistos.has(c.id)), j(vistos.size));
+    const r = await chamar(A.tok.fin, R.requests, "GET", "emporio/finance/payment-requests?status=decididos&before=nao-e-data");
+    check("decididos: cursor inválido na rota é 422", r.status === 422, j(r.corpo));
+  } finally {
+    await (prisma as Dado).emporioPaymentRequest.deleteMany({ where: { id: { in: criados.map((q: Dado) => q.id) } } });
+  }
 }
 
 // ---------------------------------------------------------------------------

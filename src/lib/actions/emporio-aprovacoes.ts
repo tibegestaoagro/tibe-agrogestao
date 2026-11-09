@@ -31,13 +31,27 @@ const NAO_PENDENTE = () => fail("PEDIDO_NAO_PENDENTE", "Este pedido já foi deci
 export async function listarPedidosDePagamentoAction(
   db: TenantPrismaClient,
   ator: Ator,
-  opts: { status?: StatusDoPedido } = {},
+  opts: { status?: StatusDoPedido | "decididos"; before?: string } = {},
 ): Promise<ActionResult<PedidoDePagamentoView[]>> {
   const neg = await exigir(db, ator, "dinheiro", "ver os pedidos de pagamento");
   if (neg) return neg;
   const status = opts?.status;
-  if (status !== undefined && !STATUS.includes(status)) {
-    return fail("VALIDATION_ERROR", "Escolha um estado válido: pendente, aprovado ou recusado.", 422, "status");
+  if (status !== undefined && status !== "decididos" && !STATUS.includes(status)) {
+    return fail("VALIDATION_ERROR", "Escolha um estado válido: pendente, aprovado, recusado ou decididos.", 422, "status");
+  }
+  if (status === "decididos") {
+    // Cursor `before`: decided_at do último item da página anterior (ISO).
+    const antes = opts?.before ? new Date(opts.before) : null;
+    if (antes && Number.isNaN(antes.getTime())) {
+      return fail("VALIDATION_ERROR", "Cursor inválido: use uma data ISO8601.", 422, "before");
+    }
+    const decididos = await db.emporioPaymentRequest.findMany({
+      where: { status: { in: ["aprovado", "recusado"] }, ...(antes ? { decided_at: { lt: antes } } : {}) },
+      include: INCLUDE_PEDIDO,
+      orderBy: [{ decided_at: "desc" }, { id: "desc" }],
+      take: 200,
+    });
+    return ok(await viewsDosPedidos(db, decididos));
   }
   const linhas = await db.emporioPaymentRequest.findMany({
     where: status ? { status } : {},
