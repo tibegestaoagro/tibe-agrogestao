@@ -56,21 +56,6 @@ export default async function VendaPage({ params }: { params: Promise<{ id: stri
   const podeEscrever = pode(papel, "chave:devolver_trocar", venda.establishment_id);
   const ehAdmin = pode(papel, "gestor_da_loja", venda.establishment_id);
 
-  // As parcelas do cartão com a data e o líquido de fato (Q261): a view da venda traz só o previsto.
-  const parcelasDoCartao = await db.cardReceivable.findMany({
-    where: { sale_id: venda.id, canceled_at: null },
-    select: {
-      sale_payment_id: true,
-      installment: true,
-      installments: true,
-      expected_on: true,
-      effective_on: true,
-      effective_net: true,
-      anticipation_id: true,
-    },
-    orderBy: [{ installment: "asc" }],
-  });
-
   const ativa = venda.status === "concluida";
   const devolviveis = venda.items.filter((i) => i.returnable_qty > 0);
   const podeDevolver = podeEscrever && ativa && devolviveis.length > 0;
@@ -356,17 +341,16 @@ export default async function VendaPage({ params }: { params: Promise<{ id: stri
                         líquido {reaisBr(Math.round((p.amount - p.fee_amount) * 100) / 100)}
                         {p.installments && p.installments > 1 ? ` em ${p.installments} parcelas` : ""}
                       </span>
-                      {parcelasDoCartao
-                        .filter((c) => c.sale_payment_id === p.id)
+                      {p.receivables
                         .map((c) => {
-                          const antecipada = c.anticipation_id !== null;
+                          const antecipada = c.anticipated;
                           return (
                             <span key={c.installment} className="block text-xs text-texto-secundario">
                               {c.installments > 1 ? `Parcela ${c.installment}/${c.installments}: ` : "Cai em "}
-                              {DATA.format(c.effective_on)}, {reaisBr(Number(c.effective_net))}
+                              {DATA.format(new Date(c.effective_on))}, {reaisBr(c.effective_net)}
                               {antecipada && (
                                 <Badge variant="blue" className="ml-1">
-                                  antecipada (previsto {DATA.format(c.expected_on)})
+                                  antecipada (previsto {DATA.format(new Date(c.expected_on))})
                                 </Badge>
                               )}
                             </span>

@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAviso } from "@/components/ui/toast";
 import { useErrosDeFormulario } from "@/components/ui/use-erros-de-formulario";
 import { apiPatch, apiPost } from "@/lib/client-api";
+import { REGRA_DIA_UTIL_PADRAO } from "@/lib/emporio/cartao";
 import { lerNumeroBr } from "@/lib/numero-br";
 
 /** Ordem VISUAL, com o nome que a API usa. */
@@ -47,7 +48,7 @@ export function AdquirenteForm({ adquirente }: { adquirente?: AdquirenteEditavel
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [nome, setNome] = useState(adquirente?.name ?? "");
-  const [regra, setRegra] = useState<string>(adquirente?.business_day_rule ?? "dias_corridos");
+  const [regra, setRegra] = useState<string>(adquirente?.business_day_rule ?? REGRA_DIA_UTIL_PADRAO);
   const [devolve, setDevolve] = useState<string>(adquirente?.refunds_mdr_on_cancel === false ? "nao" : "sim");
   const [automatica, setAutomatica] = useState<string>(adquirente?.auto_anticipation_enabled ? "sim" : "nao");
   const [pct, setPct] = useState(paraCampo(adquirente?.auto_anticipation_pct_month ?? null));
@@ -56,7 +57,7 @@ export function AdquirenteForm({ adquirente }: { adquirente?: AdquirenteEditavel
 
   function reabrir() {
     setNome(adquirente?.name ?? "");
-    setRegra(adquirente?.business_day_rule ?? "dias_corridos");
+    setRegra(adquirente?.business_day_rule ?? REGRA_DIA_UTIL_PADRAO);
     setDevolve(adquirente?.refunds_mdr_on_cancel === false ? "nao" : "sim");
     setAutomatica(adquirente?.auto_anticipation_enabled ? "sim" : "nao");
     setPct(paraCampo(adquirente?.auto_anticipation_pct_month ?? null));

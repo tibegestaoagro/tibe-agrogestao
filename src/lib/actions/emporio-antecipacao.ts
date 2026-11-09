@@ -55,6 +55,8 @@ const INCLUDE_OPERACAO = {
       effective_net: true,
       anticipation_fee: true,
       reconciled_at: true,
+      canceled_at: true,
+      sale: { select: { status: true } },
     },
   },
 } as const;
@@ -90,7 +92,11 @@ function viewDaOperacao(o: OperacaoRow): AntecipacaoView {
     effective_pct_month: pctMes,
     receivables_count: o.receivables.length,
     undone_at: isoOrNull(o.undone_at),
-    can_undo: o.kind === "pontual" && o.undone_at === null && !conciliada,
+    can_undo:
+      o.kind === "pontual" &&
+      o.undone_at === null &&
+      !conciliada &&
+      !o.receivables.some((r) => r.canceled_at !== null || r.sale.status === "cancelada"),
   };
 }
 
@@ -314,7 +320,19 @@ export async function desfazerAntecipacaoAction(
     await runSerializableTenantTransaction(db, async (tx) => {
       const op = await tx.cardAnticipation.findFirst({
         where: { id },
-        include: { receivables: { select: { id: true, establishment_id: true, expected_on: true, net_amount: true, reconciled_at: true } } },
+        include: {
+          receivables: {
+            select: {
+              id: true,
+              establishment_id: true,
+              expected_on: true,
+              net_amount: true,
+              reconciled_at: true,
+              canceled_at: true,
+              sale: { select: { status: true } },
+            },
+          },
+        },
       });
       if (!op) throw new AbortarAntecipacao(NAO_ACHADA());
 
@@ -342,6 +360,15 @@ export async function desfazerAntecipacaoAction(
       }
       if (op.undone_at) {
         throw new AbortarAntecipacao(fail("ANTECIPACAO_DESFEITA", "Essa antecipação já foi desfeita.", 409));
+      }
+      if (op.receivables.some((r) => r.canceled_at !== null || r.sale.status === "cancelada")) {
+        throw new AbortarAntecipacao(
+          fail(
+            "ANTECIPACAO_VENDA_CANCELADA",
+            "Essa antecipação tem parcela de venda cancelada: o estorno já foi feito pelo valor recebido e o custo da antecipação fica. Não dá para desfazer.",
+            409,
+          ),
+        );
       }
       if (op.receivables.some((r) => r.reconciled_at !== null)) {
         throw new AbortarAntecipacao(

@@ -107,14 +107,17 @@ export function taxaDoPagamentoCent(valorCent: number, linha: Pick<LinhaDeTaxa, 
 
 export type RegraDiaUtil = "proximo_dia_util" | "dias_corridos";
 
+/** Q260: a regra de dia útil padrão. Todo fallback (servidor, prévia, painel) usa esta constante. */
+export const REGRA_DIA_UTIL_PADRAO: RegraDiaUtil = "proximo_dia_util";
+
 export const CATEGORIA_ANTECIPACAO = "Antecipação de recebíveis";
 
 /**
  * Datas previstas: a 1ª em `vendidoEm` + `dias`, cada seguinte 30 dias depois da 1ª (corridos,
  * sem encadear). Com `proximo_dia_util`, cada data que cai em fim de semana ou feriado vai
- * para o próximo dia útil; o padrão `dias_corridos` mantém o comportamento antigo.
+ * para o próximo dia útil; o padrão (Q260) é `proximo_dia_util`.
  */
-export function datasDasParcelas(vendidoEm: Date, dias: number, n: number, regra: RegraDiaUtil = "dias_corridos"): Date[] {
+export function datasDasParcelas(vendidoEm: Date, dias: number, n: number, regra: RegraDiaUtil = REGRA_DIA_UTIL_PADRAO): Date[] {
   const primeira = somarDias(inicioDoDiaEmSaoPaulo(vendidoEm), dias);
   return Array.from({ length: n }, (_, i) => {
     const dia = somarDias(primeira, 30 * i);

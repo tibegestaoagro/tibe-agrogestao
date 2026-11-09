@@ -499,7 +499,7 @@ export type ContaView = {
 
 /**
  * Saldo das contas, em centavos (Q90): os `CashMovement` mais as parcelas do
- * cartão não canceladas que já caíram (`expected_on` até hoje em Brasília).
+ * cartão não canceladas que já caíram (`effective_on` até hoje em Brasília, pelo `effective_net`).
  * Nada disso é gravado: a data decide, sem job.
  */
 export async function saldosDasContas(db: TenantPrismaClient): Promise<Map<string, number>> {

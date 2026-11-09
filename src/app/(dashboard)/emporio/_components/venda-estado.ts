@@ -6,6 +6,7 @@ import {
   adquirentesComTaxa,
   datasDasParcelas,
   hojeEmBrasilia,
+  REGRA_DIA_UTIL_PADRAO,
   resolverTaxa,
   ROTULO_DA_BANDEIRA,
   type Bandeira,
@@ -512,7 +513,7 @@ export function useVenda({
       new Date(`${diaDaTaxa}T12:00:00Z`),
       linha.days,
       parcelas,
-      config?.business_day_rule ?? "dias_corridos",
+      config?.business_day_rule ?? REGRA_DIA_UTIL_PADRAO,
     );
     return { linha, parcelas, primeira: datas[0], datas, config, dia: diaDaTaxa };
   }

@@ -138,7 +138,7 @@ async function secao1() {
     const tres = datasDasParcelas(new Date("2026-11-09T15:00:00Z"), 30, 3, "proximo_dia_util") as Date[];
     check("3x de 30 dias a partir de 2026-11-09: 12-09, 01-08 e 02-10 (Carnaval e domingo)", j(tres.map(iso)) === j(["2026-12-09", "2027-01-08", "2027-02-10"]), j(tres));
     const padrao = datasDasParcelas(sab, 1, 1) as Date[];
-    check("sem a regra o padrão é dias corridos (chamadores antigos)", j(padrao.map(iso)) === j(["2026-11-15"]), j(padrao));
+    check("sem a regra o padrão é o próximo dia útil (Q260)", j(padrao.map(iso)) === j(["2026-11-16"]), j(padrao));
   } else check("datasDasParcelas existe", false);
   if (typeof custoAntecipacaoCent === "function") {
     check("custoAntecipacaoCent(10000, 2,5% a.m., 30 dias) = 250", custoAntecipacaoCent(10000, 2.5, u("2026-11-10"), u("2026-12-10")) === 250, String(custoAntecipacaoCent(10000, 2.5, u("2026-11-10"), u("2026-12-10"))));
@@ -427,6 +427,7 @@ async function comBanco() {
       if (rc.length !== 3) return;
       const saldo0 = await saldoDe(conta);
       const cards0 = await ff("listarContasAReceberAction", admin, { establishment_id: L3.id });
+      check("o gestor da loja (sem Financeiro) não lê o a receber: FORBIDDEN", recusa(await ff("listarContasAReceberAction", gestor, { establishment_id: L3.id }), "FORBIDDEN"));
       const proj0 = await pj("lerFluxoProjetadoAction", admin, { establishment_id: L3.id, days: 90 });
       const aReceber0 = cartoesDaProjecao(proj0);
       check("antes: o saldo da conta não conta parcela futura", saldo0 === 0, String(saldo0));
@@ -579,6 +580,29 @@ async function comBanco() {
         check("desfazer com uma parcela carimbada: 409 ANTECIPACAO_CONCILIADA", recusa(await aa("desfazerAntecipacaoAction", admin, dados(rOk2).id), "ANTECIPACAO_CONCILIADA", undefined, 409));
         const aindaAtiva = (await dbx.cardAnticipation.findFirst({ where: { id: dados(rOk2).id } })) as Dado;
         check("a operação conciliada segue de pé", !!aindaAtiva && !aindaAtiva.undone_at, j(aindaAtiva));
+      }
+      // venda cancelada depois de antecipar: desfazer é recusado (revisão I1)
+      const VC = await novaVenda(aq.id);
+      if (VC.rc.length === 3) {
+        const idsC = VC.rc.map((p) => p.id as string);
+        const SC = VC.rc.reduce((s, p) => s + cent(p.net_amount), 0);
+        const rAntC = await antecipar(idsC, (SC - 900) / 100);
+        check("antecipar as três parcelas de uma venda que será cancelada: ok", rAntC.ok, j(rAntC));
+        if (rAntC.ok) {
+          const opC = dados(rAntC).id as string;
+          const rCanC = await vv("cancelarVendaAction", gestor, idDe(VC.r), { reason: "m104 desfazer depois de cancelar" });
+          check("o gestor cancela a venda antecipada", rCanC.ok, j(rCanC));
+          const saldoCancelada = await saldoDe(conta);
+          const lstC = await aa("listarAntecipacoesAction", admin, {});
+          const viewC = lista(dados(lstC)).find((x) => x.id === opC);
+          check("com a venda cancelada, can_undo é falso", !!viewC && viewC.can_undo === false, j(viewC));
+          check("desfazer com a venda cancelada: 409 ANTECIPACAO_VENDA_CANCELADA", recusa(await aa("desfazerAntecipacaoAction", admin, opC), "ANTECIPACAO_VENDA_CANCELADA", undefined, 409));
+          const ddC = await despesas({ category: CAT_ANT, related_id: opC });
+          check("a despesa da antecipação continua paga", ddC.length === 1 && ddC[0].status === "paid", j(ddC));
+          check("o saldo da conta não muda com a recusa", (await saldoDe(conta)) === saldoCancelada, `${saldoCancelada} -> ${await saldoDe(conta)}`);
+          const opAindaC = (await dbx.cardAnticipation.findFirst({ where: { id: opC } })) as Dado;
+          check("a operação segue sem undone_at", !!opAindaC && !opAindaC.undone_at, j(opAindaC));
+        }
       }
       // a automática não se desfaz
       if (AUTO_ANT_ID) check("desfazer a automática: VALIDATION_ERROR", recusa(await aa("desfazerAntecipacaoAction", admin, AUTO_ANT_ID), "VALIDATION_ERROR"));

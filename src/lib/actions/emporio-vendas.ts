@@ -42,6 +42,7 @@ import {
   CATEGORIA_ANTECIPACAO,
   CATEGORIA_TAXAS_CARTAO,
   BANDEIRAS,
+  REGRA_DIA_UTIL_PADRAO,
   ROTULO_DA_BANDEIRA,
   adquirentesComTaxa,
   custoAntecipacaoCent,
@@ -168,6 +169,22 @@ export type VendaPagamentoView = {
   fee_fixed_amount: number | null;
   fee_rate_id: string | null;
   check: { id: string; number: string; bank: string; good_for: string; status: string } | null;
+  /** Parcelas vivas do cartão (Q261), com o previsto e o efetivo (a antecipação muda o efetivo). */
+  receivables: VendaParcelaCartaoView[];
+};
+
+export type VendaParcelaCartaoView = {
+  id: string;
+  installment: number;
+  installments: number;
+  gross_amount: number;
+  net_amount: number;
+  fee_amount: number;
+  expected_on: string;
+  effective_on: string;
+  effective_net: number;
+  anticipated: boolean;
+  anticipation_fee: number | null;
 };
 
 export type DevolucaoView = {
@@ -249,7 +266,14 @@ const INCLUDE_VENDA = {
     },
     orderBy: { id: "asc" },
   },
-  payments: { include: { check: true, acquirer: { select: { name: true } } }, orderBy: { created_at: "asc" } },
+  payments: {
+    include: {
+      check: true,
+      acquirer: { select: { name: true } },
+      card_receivables: { where: { canceled_at: null }, orderBy: { installment: "asc" } },
+    },
+    orderBy: { created_at: "asc" },
+  },
   returns: { include: { items: true, exchange_sale: { select: { id: true } } }, orderBy: { created_at: "asc" } },
 } as const;
 
@@ -389,6 +413,19 @@ async function montarVendas(db: TenantPrismaClient, linhas: VendaRow[]): Promise
         brand: p.brand,
         fee_fixed_amount: decToNum(p.fee_fixed_amount),
         fee_rate_id: p.fee_rate_id,
+        receivables: p.card_receivables.map((c) => ({
+          id: c.id,
+          installment: c.installment,
+          installments: c.installments,
+          gross_amount: decToNum(c.gross_amount) ?? 0,
+          net_amount: decToNum(c.net_amount) ?? 0,
+          fee_amount: decToNum(c.fee_amount) ?? 0,
+          expected_on: c.expected_on.toISOString(),
+          effective_on: c.effective_on.toISOString(),
+          effective_net: decToNum(c.effective_net) ?? 0,
+          anticipated: c.anticipation_id !== null,
+          anticipation_fee: decToNum(c.anticipation_fee),
+        })),
         check: p.check
           ? {
               id: p.check.id,
@@ -1052,7 +1089,7 @@ async function prepararVenda(
         configDaAdquirente.auto_since !== null &&
         configDaAdquirente.auto_since <= dia;
       cartao = {
-        regra_dia_util: configDaAdquirente?.business_day_rule ?? "proximo_dia_util",
+        regra_dia_util: configDaAdquirente?.business_day_rule ?? REGRA_DIA_UTIL_PADRAO,
         auto:
           autoVale && configDaAdquirente
             ? { pct_mes: configDaAdquirente.auto_pct_month as number, dias_uteis: configDaAdquirente.auto_business_days }

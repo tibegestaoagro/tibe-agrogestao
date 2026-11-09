@@ -74,7 +74,7 @@ export default async function CaixaPage() {
     ? caixaRes.data
     : { drawers: [], accounts: [], card_receivables: [], checks: [], movements: [] };
   const aReceberDaConta = new Map(caixa.accounts.map((a) => [a.bank_account_id, a.to_receive]));
-  const totalAReceber = caixa.card_receivables.reduce((s, p) => s + Math.round(p.net_amount * 100), 0) / 100;
+  const totalAReceber = caixa.card_receivables.reduce((s, p) => s + Math.round(p.effective_net * 100), 0) / 100;
   const nomeDaLojaCheque = (id: string) => caixa.drawers.find((d) => d.establishment_id === id)?.name ?? "Loja";
 
   // A gaveta não transfere mais: o lugar da loja é a gerência (só o Gestor dela enxerga o saldo).
@@ -310,12 +310,19 @@ export default async function CaixaPage() {
                 <TableBody>
                   {caixa.card_receivables.map((p) => (
                     <TableRow key={p.id}>
-                      <TableCell>{dataBr(p.expected_on)}</TableCell>
+                      <TableCell>
+                        {dataBr(p.effective_on)}
+                        {p.expected_on !== p.effective_on && (
+                          <span className="block text-xs text-texto-secundario">
+                            antecipada, previsto {dataBr(p.expected_on)}
+                          </span>
+                        )}
+                      </TableCell>
                       <TableCell>{p.bank_account_name}</TableCell>
                       <TableCell>
                         {p.installment}/{p.installments}
                       </TableCell>
-                      <TableCell>{reaisBr(p.net_amount)}</TableCell>
+                      <TableCell>{reaisBr(p.effective_net)}</TableCell>
                       <TableCell>
                         <Link href={`/emporio/vendas/${p.sale_id}`} className="font-medium text-texto-marca hover:underline">
                           Ver a venda

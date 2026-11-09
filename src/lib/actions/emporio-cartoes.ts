@@ -8,6 +8,7 @@ import { diferencas, registrarNoHistorico } from "@/lib/emporio/historico";
 import { runSerializableTenantTransaction } from "@/lib/financial";
 import {
   BANDEIRAS,
+  REGRA_DIA_UTIL_PADRAO,
   ROTULO_DA_BANDEIRA,
   hojeEmBrasilia,
   somarDias,
@@ -116,7 +117,7 @@ type ConfigCompleta = {
 };
 
 const CONFIG_PADRAO: ConfigCompleta = {
-  business_day_rule: "proximo_dia_util",
+  business_day_rule: REGRA_DIA_UTIL_PADRAO,
   refunds_mdr_on_cancel: true,
   auto_anticipation_enabled: false,
   auto_anticipation_pct_month: null,
