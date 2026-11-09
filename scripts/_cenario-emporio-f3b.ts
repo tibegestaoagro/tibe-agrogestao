@@ -66,6 +66,7 @@ async function limpar(tenant_id: string) {
   await prisma.presentationPrice.deleteMany({ where: { tenant_id, establishment_id: { in: lojas } } });
   await prisma.emporioProduct.deleteMany({ where: { tenant_id, id: { in: emporio } } });
   await prisma.product.deleteMany({ where: { tenant_id, id: { in: produtos } } });
+  await prisma.fixedExpenseSplit.deleteMany({ where: { tenant_id, establishment_id: { in: lojas } } });
   await prisma.userEstablishment.deleteMany({ where: { tenant_id, establishment_id: { in: lojas } } });
   await prisma.establishment.deleteMany({ where: { tenant_id, id: { in: lojas } } });
   await prisma.bankAccount.deleteMany({ where: { tenant_id, id: { in: contas } } });

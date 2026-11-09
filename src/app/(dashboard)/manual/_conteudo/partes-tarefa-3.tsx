@@ -60,6 +60,24 @@ export function ParteDeConfiguracoes() {
         </Chamada>
       </Tarefa>
 
+      <Subtitulo>Cartões: adquirentes e taxas</Subtitulo>
+      <Tarefa
+        paraQueServe="Dizer quanto cada máquina de cartão cobra e em quantos dias o dinheiro cai, por loja, adquirente, bandeira e forma de pagamento."
+        passos={[
+          <>Em <strong>Configurações</strong>, na seção <strong>Cartões: adquirentes e taxas</strong>, o Dono ou o Gerente geral clica em <strong>Nova adquirente</strong> e dá o nome da empresa da maquininha (Cielo, Stone, Rede).</>,
+          <>Quem gere a loja clica em <strong>Nova taxa</strong> e escolhe a loja, a adquirente, a bandeira (ou Qualquer bandeira, para as que não têm taxa própria) e a modalidade: débito, crédito à vista ou crédito parcelado.</>,
+          "No parcelado, informe a faixa de parcelas (de 2 a 6x, de 7 a 12x). Digite a taxa em %, a taxa fixa em reais se houver, o prazo em dias, a conta que recebe e a data em que a taxa começa a valer.",
+          <>Quando a taxa muda, clique em <strong>Nova vigência</strong> na linha: a antiga termina na véspera da data escolhida e a nova vale a partir dela. As vendas já feitas guardam a taxa que valia.</>,
+          <>Linha que nenhuma venda usou pode ser corrigida em <strong>Editar</strong> ou apagada em <strong>Remover</strong>. Linha com o selo <strong>em uso</strong> só se encerra, com <strong>Encerrar</strong>.</>,
+        ]}
+        problemas={[
+          {
+            quando: "A recusa aparece embaixo de Vale a partir de",
+            fazer: "Já existe taxa para a mesma loja, adquirente, bandeira, modalidade e faixa de parcelas naquelas datas. Use Nova vigência na linha que vale, em vez de criar outra.",
+          },
+        ]}
+      />
+
       <Subtitulo>Impressão, validade do orçamento e logo</Subtitulo>
       <Tarefa
         paraQueServe="Ajustar o que vale para todas as lojas da conta: a validade do orçamento, a bobina, os rodapés e o logo. Só o Dono e o Gerente geral mudam isso."

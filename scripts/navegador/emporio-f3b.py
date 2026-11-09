@@ -124,6 +124,8 @@ por_aria("Quantidade do item 1", "5")
 time.sleep(0.5)
 clicar("+ Crédito")
 time.sleep(0.8)
+clicar("Visa/Master")  # entrega 1 das taxas de cartão: a bandeira é obrigatória no balcão
+time.sleep(0.8)
 confere("a tela mostra a taxa e o líquido antes de fechar", tem("Taxa 3") and tem("R$ 97,00"))
 confere("toda venda tem cliente: escolhe Consumidor final", escolher_cliente("Consumidor final") is True)
 fechar_venda()
@@ -139,6 +141,8 @@ time.sleep(0.5)
 clicar("+ Parcelado")
 time.sleep(0.8)
 confere("escolhe 3x", escolher_por_id("parcelas-", "3x") is True)
+clicar("Visa/Master")  # entrega 1 das taxas de cartão: a bandeira é obrigatória no balcão
+time.sleep(0.8)
 confere("escolhe Consumidor final", escolher_cliente("Consumidor final") is True)
 fechar_venda()
 confere("venda parcelada registrada", esperar(lambda: "Parcelado" in resumo(), 90), resumo()[:200])
@@ -165,7 +169,8 @@ confere("o cheque está na carteira, recebido, e a gaveta não mudou", any(c.get
 passo("4. Depositar e compensar o cheque pelo caixa")
 ir("/emporio/caixa")
 # Q163: a seção "Transferir entre caixas" virou "Transferir dinheiro" (da gerência ao banco).
-confere("seções novas no caixa", all(tem(x) for x in ["A receber do cartão", "Cheques", "Transferir dinheiro", "Taxas de cartão"]))
+# Entrega 1 das taxas de cartão: o bloco de taxas saiu do Caixa para Configurações (Q258).
+confere("seções novas no caixa", all(tem(x) for x in ["A receber do cartão", "Cheques", "Transferir dinheiro"]) and not tem("Taxas de cartão"))
 confere("abre Depositar do cheque 000123", clicar_no_bloco("000123", "Depositar"))
 time.sleep(1.5)
 escolher("Conta do depósito", "F3b Banco")

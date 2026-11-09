@@ -14,7 +14,7 @@ export function ParteDePrimeirosPassos() {
         <>Abra <strong>Meu Empório</strong> no menu. O cartão <strong>Primeiros passos</strong> aparece no alto.</>,
         "Faça primeiro os itens essenciais: sem eles o resultado da loja fica marcado como estimado.",
         "Clique em cada item. Ele abre o formulário certo: cadastre a loja, os produtos, o preço e o estoque inicial.",
-        "Depois faça os recomendados: contas bancárias, regra de cartão, despesas fixas e Equipe.",
+        "Depois faça os recomendados: contas bancárias, taxas de cartão (em Configurações, Cartões), despesas fixas e Equipe.",
         "Quando os essenciais terminam, o cartão some sozinho.",
         <>Antes da primeira venda, abra <Link className="underline" href={`${B}/configuracoes`}>Configurações</Link>: preencha o cabeçalho de cada loja (CNPJ, endereço e telefones) e envie o logo. É o que sai no papel da venda e do orçamento. O cartão Primeiros passos não lembra disso.</>,
       ]}

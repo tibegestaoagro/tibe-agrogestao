@@ -18,6 +18,7 @@ export function ParteDeVender() {
         <>No campo <strong>Cliente</strong>, clique em <strong>Escolher cliente</strong> e busque pelo nome, pelo CPF ou CNPJ, ou por um pedaço do telefone. Quem não quer se identificar entra como <strong>Consumidor final</strong>, que fica sempre no alto da janela. Para cadastrar na hora, clique em <strong>Cadastrar novo cliente</strong>: na pessoa física, nome e telefone; na jurídica, também o CNPJ e o endereço principal.</>,
         <>Se aparecer <strong>Cadastro incompleto</strong>: se quiser, clique em <strong>Completar cadastro</strong>; a venda passa assim mesmo.</>,
         <>Em <strong>Pagamento</strong>, toque em <strong>+ Dinheiro</strong>, <strong>+ PIX</strong>, <strong>+ Débito</strong>, <strong>+ Crédito</strong>, <strong>+ Parcelado</strong>, <strong>+ Cheque</strong> ou <strong>+ Fiado</strong> e digite o valor. Dá para dividir em mais de uma forma. A soma precisa fechar o total, e só o dinheiro dá troco.</>,
+        <>No cartão, escolha a <strong>bandeira</strong> (Visa/Master, Elo, Hipercard, Amex ou Outra): nenhuma vem marcada, e o botão <strong>Fechar a venda</strong> só libera depois. Se a loja tem mais de uma adquirente (Cielo, Stone, Rede), escolha também a <strong>adquirente</strong>. A tela mostra a taxa e o valor líquido antes de fechar, e a venda guarda a taxa que valia na hora.</>,
         <>Se a loja cobra a entrega do cliente, digite o valor em <strong>Frete cobrado do cliente (opcional)</strong>. O cliente paga os itens mais o frete, e a soma do pagamento precisa fechar o <strong>Total com frete</strong>. Em <strong>Origem da venda</strong>, escolha <strong>Balcão</strong> ou <strong>E-commerce</strong>.</>,
         <>Confira o <strong>Vendedor</strong>. Ele já vem com o seu nome: se outro colega atendeu, escolha o nome dele. O Caixa escolhe quem atendeu em toda venda.</>,
         <>Clique em <strong>Fechar a venda</strong>. A venda cai no caixa aberto da loja.</>,
@@ -54,7 +55,7 @@ export function ParteDeVender() {
         },
         {
           quando: "O cartão é recusado",
-          fazer: "A loja não tem regra para essa forma de cartão (débito, crédito ou parcelado). O Gestor cadastra a taxa e o prazo.",
+          fazer: <>A loja não tem taxa para essa combinação de adquirente, bandeira e forma de cartão (débito, crédito ou parcelado, com o número de parcelas). O Gestor cadastra em <Link className="underline" href={`${B}/configuracoes#cartoes`}>Configurações</Link>, em Cartões.</>,
         },
         {
           quando: "O desconto é recusado: “O desconto de X% passa do limite de Y% desta loja. Peça ao gestor da loja.”",
@@ -439,7 +440,7 @@ export function ParteDeCaixa() {
       <Tarefa
         paraQueServe="Acompanhar o dinheiro que está a caminho."
         passos={[
-          <>Em <strong>A receber do cartão</strong>, veja cada parcela com a data e o valor líquido, já sem a taxa. Quando a data chega, ela entra no saldo da conta sozinha.</>,
+          <>Em <strong>A receber do cartão</strong>, veja cada parcela com a bandeira, a adquirente, a data e o valor líquido, já sem a taxa. Quando a data chega, ela entra no saldo da conta sozinha.</>,
           <>Em <strong>Cheques</strong>, cada cheque passa por: recebido, depositado, compensado ou devolvido.</>,
           "Quando você deposita um cheque, escolha a conta. Quando o banco compensa, marque como compensado.",
           "Se o cheque voltar, marque como devolvido: a dívida reabre no fiado do cliente.",

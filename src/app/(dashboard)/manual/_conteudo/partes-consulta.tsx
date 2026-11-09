@@ -78,7 +78,7 @@ const PERGUNTAS: { pergunta: string; resposta: React.ReactNode }[] = [
   },
   {
     pergunta: "Por que o cartão foi recusado?",
-    resposta: "Falta a regra daquela forma de cartão (débito, crédito à vista ou parcelado) na loja, com a taxa e o prazo. Sem ela, a margem sairia errada. O Gestor cadastra a regra.",
+    resposta: "Falta a taxa daquela combinação de adquirente, bandeira e forma de cartão (débito, crédito à vista ou parcelado, por faixa de parcelas) na loja, com o prazo. Sem ela, a margem sairia errada. Quem gere a loja cadastra em Configurações, em Cartões.",
   },
   {
     pergunta: "Por que não consigo vender fiado?",

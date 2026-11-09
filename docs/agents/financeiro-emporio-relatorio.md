@@ -211,3 +211,19 @@ Frete cobrado do cliente na venda (Q244 a Q247), origem balcão ou e-commerce
 
 Dívidas abertas: 2.54 (relatório por origem) e 2.55 (frete ao editar venda em
 acordo ou com devolução).
+
+## Entrega 1 das taxas de cartão, 09/11
+
+Adquirente e bandeira por venda, taxa por faixa de parcelas e taxa fixa, com
+vigência em datas, em Configurações (Q250 a Q258). Evidências:
+
+| prova | resultado |
+|---|---|
+| `test:m103` | 89 checks |
+| roteiro `emporio-cartoes` | 48 checks, 0 falhas (Caixa sem o bloco de taxas, balcão com bandeira e adquirente, prévia 4,5% e líquido R$ 95,50, detalhe, recibo, Cartões a receber, Configurações: criar, sobreposição recusada no campo, nova vigência, em uso) |
+| sabotagem (`resolverTaxa` ignora a bandeira) | 3 falhas, 45 ok (os passos de bandeira sem taxa própria: Amex no parcelado e Elo na Cielo); desfeita, volta a 48 ok |
+| `emporio-f3b` (roteiro antigo do cartão) | 41 checks, 0 falhas, depois de ajustar o roteiro à bandeira obrigatória e ao bloco de taxas fora do Caixa |
+
+Dívidas: 2.25 parcialmente fechada (a taxa por parcelas saiu), 2.28 destravada
+(a adquirente é a Stone), e novas 2.56 (taxa por parcela no recebível e dia
+útil), 2.57 (antecipação) e 2.58 (extrato da Stone).
