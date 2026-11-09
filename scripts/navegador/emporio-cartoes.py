@@ -123,8 +123,14 @@ confere("o link leva a #cartoes", js("Array.from(document.querySelectorAll('main
 passo("2. Balcão com uma adquirente: sem bandeira não fecha")
 abrir_balcao_com_racao(5)
 clicar("+ Parcelado")
-esperar(lambda: tem("Adquirente: Stone Crt"), 30)
-confere("a adquirente única aparece como texto", tem("Adquirente: Stone Crt"))
+# Desde a dívida 2.59 (09/11/2026) o primeiro pagamento mostra a adquirente única num <Field>
+# "Adquirente" (um <p> com o nome, sem seletor), para a recusa do servidor ter onde cair.
+def adquirente_unica():
+    return js("(() => { const l = Array.from(document.querySelectorAll('label')).find(x => x.innerText.replace('*','').trim() === 'Adquirente'); const el = l && document.getElementById(l.htmlFor); return !!el && el.tagName === 'P' && el.innerText.trim() === 'Stone Crt'; })()")
+
+
+esperar(adquirente_unica, 30)
+confere("a adquirente única aparece como texto, sem seletor", adquirente_unica() is True)
 confere("as bandeiras aparecem sem nenhuma marcada", js("Array.from(document.querySelectorAll('button[aria-pressed]')).filter(b => ['Visa/Master','Elo','Hipercard','Amex','Outra'].includes(b.innerText.trim())).every(b => b.getAttribute('aria-pressed') === 'false')") is True)
 confere("pede a bandeira para mostrar a taxa", tem("Escolha a bandeira para ver a taxa"))
 escolher_cliente("Consumidor final")

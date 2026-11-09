@@ -227,3 +227,33 @@ vigência em datas, em Configurações (Q250 a Q258). Evidências:
 Dívidas: 2.25 parcialmente fechada (a taxa por parcelas saiu), 2.28 destravada
 (a adquirente é a Stone), e novas 2.56 (taxa por parcela no recebível e dia
 útil), 2.57 (antecipação) e 2.58 (extrato da Stone).
+
+## Entregas 2 e 3 do cartão e dívidas, 09/11
+
+Dia útil bancário, taxa e efetivos por parcela, antecipação pontual e automática
+com Desfazer, cancelamento como a Stone (Q259 a Q267), e as dívidas 2.37, 2.43,
+2.51, 2.56, 2.57 e 2.59 fechadas. Evidências:
+
+| prova | resultado |
+|---|---|
+| `test:m104` | verde (suíte escrita da spec antes da implementação; a seção 6 reproduz a corrida do fiado, dívida 2.37) |
+| roteiro `emporio-antecipacao` (Configurações: regra de dia útil e automática com recusa nos campos; balcão: prévia da Stone e da Rede; venda antecipada e detalhe com taxa fixa; antecipar 3 parcelas recebendo R$ 280,00 de R$ 291,00; saldo; Resultado; Desfazer) | 64 checks, 0 falhas |
+| sabotagem (o saldo da conta lê `net_amount` em vez de `effective_net`, em `saldosDasContas`) | 2 falhas, 62 ok (o saldo R$ 291,00 em vez de R$ 280,00, na API e na posição de caixa); desfeita, volta a 64 ok |
+| roteiro `emporio-cartoes` (entrega 1) | 48 checks, 0 falhas, depois de ajustar um check à tela nova (ver abaixo) |
+| `npm run check`, `tsc`, `lint` | limpos na rodada do manual |
+
+O que o roteiro provou e a suíte não: a prévia do balcão ("Antecipado: cai em ...,
+líquido estimado R$ X") é igual ao líquido que a venda grava na operação
+automática; o custo da antecipação da automática entra na linha do Resultado
+junto com o da pontual, e Desfazer tira só o da pontual (a automática se desfaz
+cancelando a venda). As datas não dependem do dia da semana: o roteiro calcula o
+dia útil esperado e confere que a 1ª parcela da Stone cai em dia útil.
+
+Ajuste de roteiro antigo: desde a dívida 2.59 o primeiro pagamento mostra a
+adquirente única num campo "Adquirente" (um parágrafo com o nome, sem seletor),
+e não mais na linha "Adquirente: Stone Crt". O check do `emporio-cartoes` foi
+reescrito para a tela nova, que é a pretendida.
+
+Dívidas abertas: 2.60 (feriado estadual e municipal), 2.61 (custo efetivo do
+cartão como indicador) e 2.62 (uma despesa de taxa por venda decide a devolução
+no cancelamento quando há adquirentes mistas).

@@ -67,6 +67,8 @@ export function ParteDeConfiguracoes() {
           <>Em <strong>Configurações</strong>, na seção <strong>Cartões: adquirentes e taxas</strong>, o Dono ou o Gerente geral clica em <strong>Nova adquirente</strong> e dá o nome da empresa da maquininha (Cielo, Stone, Rede).</>,
           <>Quem gere a loja clica em <strong>Nova taxa</strong> e escolhe a loja, a adquirente, a bandeira (ou Qualquer bandeira, para as que não têm taxa própria) e a modalidade: débito, crédito à vista ou crédito parcelado.</>,
           "No parcelado, informe a faixa de parcelas (de 2 a 6x, de 7 a 12x). Digite a taxa em %, a taxa fixa em reais se houver, o prazo em dias, a conta que recebe e a data em que a taxa começa a valer.",
+          <>Na linha da adquirente, <strong>Editar</strong> define como ela se comporta. Em <strong>Regra de dia útil</strong>, escolha <strong>Próximo dia útil</strong> para a data de cada parcela pular fim de semana e feriado nacional, ou <strong>Dias corridos</strong>. Em <strong>Devolve a taxa no cancelamento</strong>, diga se a adquirente devolve a taxa quando a venda é cancelada.</>,
+          <>Se a adquirente já antecipa sozinha as vendas no crédito, ligue <strong>Antecipação automática</strong> e preencha a taxa em % ao mês, os dias úteis até cair e a data a partir da qual vale. Só as vendas dessa data em diante nascem antecipadas, com o custo já descontado.</>,
           <>Quando a taxa muda, clique em <strong>Nova vigência</strong> na linha: a antiga termina na véspera da data escolhida e a nova vale a partir dela. As vendas já feitas guardam a taxa que valia.</>,
           <>Linha que nenhuma venda usou pode ser corrigida em <strong>Editar</strong> ou apagada em <strong>Remover</strong>. Linha com o selo <strong>em uso</strong> só se encerra, com <strong>Encerrar</strong>.</>,
         ]}
@@ -540,7 +542,7 @@ export function ParteDeFinanceiroDasLojas() {
           <>Abra <strong>Meu Empório</strong> e depois <strong>Financeiro</strong>. Quem tem só essa função já cai aqui ao entrar.</>,
           <>Em <strong>Hoje</strong>, veja a posição de caixa (cada gaveta, a gerência de cada loja e cada conta bancária), o que vence hoje a pagar e a receber, e o fiado vencido.</>,
           <>Em <strong>A pagar</strong>, marque as contas e clique em <strong>Pagar selecionadas</strong>. Veja a seção abaixo.</>,
-          <>Em <strong>A receber</strong>, veja o fiado por cliente, os cheques em carteira e os cartões por data de recebimento.</>,
+          <>Em <strong>A receber</strong>, veja o fiado por cliente, os cheques em carteira e os cartões por data de recebimento. Quem gere a loja ou cuida do dinheiro marca parcelas de cartão ali mesmo e clica em <strong>Antecipar</strong> para registrar o que a adquirente pagou antes do prazo, e em <strong>Desfazer</strong> para voltar atrás. O custo da antecipação aparece no Resultado, na linha <strong>Antecipação de recebíveis</strong>.</>,
           <>Em <strong>Posição de caixa</strong>, clique em <strong>Ver extrato</strong> numa gaveta, na gerência ou numa conta bancária para ver as entradas e saídas do período, com o saldo de abertura e o de fechamento.</>,
           <>Para olhar uma loja só, use o filtro de loja no alto. Ele acompanha você de uma aba para outra.</>,
           <>Em <strong>Configurações</strong>, na seção <strong>Fiado</strong>, defina o prazo, os dias de atraso que bloqueiam o cliente, o limite padrão e a mensagem de cobrança. Na aba <strong>Cobrança</strong>, cobre quem está atrasado pelo WhatsApp.</>,
