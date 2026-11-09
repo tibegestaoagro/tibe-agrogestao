@@ -4,7 +4,16 @@ import { decToNum, isoOrNull } from "@/lib/serialize";
 import { exigir, exigirUma, papelDoEmporio, pode, recusaDe } from "@/lib/emporio/papel";
 import { createLinkedEntry, runSerializableTenantTransaction, type TenantTransactionClient } from "@/lib/financial";
 import { resolverTurno } from "@/lib/emporio/turno";
-import { CATEGORIA_DIFERENCA_CAIXA, hojeEmBrasilia } from "@/lib/emporio/cartao";
+import { CATEGORIA_DIFERENCA_CAIXA, VIGENCIA_DESDE_SEMPRE, hojeEmBrasilia } from "@/lib/emporio/cartao";
+import {
+  criarTaxaAction,
+  editarTaxaAction,
+  garantirAdquirenteMaquininha,
+  listarTaxasAction,
+  novaVigenciaAction,
+  removerTaxaAction,
+  type TaxaView,
+} from "@/lib/actions/emporio-cartoes";
 import { lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
 import { diferencas, dinheiro, registrarNoHistorico } from "@/lib/emporio/historico";
 import { diaUtc, vencimentoEfetivo } from "@/lib/emporio/fiado";
@@ -1278,11 +1287,22 @@ export async function saldoInicialCaixaAction(
 }
 
 // ---------------------------------------------------------------------------
-// Taxas de cartão (F3b, Q89)
+// Taxas de cartão, formato antigo (F3b, Q89)
+//
+// @deprecated Usada pelos cenários e suítes antigos; tela e rota usam
+// emporio-cartoes.ts. Aqui a regra antiga é a linha `qualquer` da faixa padrão
+// (2 a 12 parcelas no parcelado, 1 nas demais) da adquirente "Maquininha".
 // ---------------------------------------------------------------------------
 
 const FORMAS_DE_CARTAO = ["debito", "credito_vista", "credito_parcelado"] as const;
 type FormaDeCartao = (typeof FORMAS_DE_CARTAO)[number];
+
+const faixaPadrao = (kind: FormaDeCartao) => ({
+  installments_from: kind === "credito_parcelado" ? 2 : 1,
+  installments_to: kind === "credito_parcelado" ? 12 : 1,
+});
+
+const ADQUIRENTE_PADRAO = "Maquininha";
 
 export type RegraCartaoView = {
   id: string;
@@ -1296,59 +1316,48 @@ export type RegraCartaoView = {
   bank_account_name: string | null;
 };
 
-const INCLUDE_REGRA = {
-  establishment: { select: { name: true } },
-  bank_account: { select: { name: true } },
-} as const;
-
-type RegraRow = {
-  id: string;
-  establishment_id: string;
-  kind: FormaDeCartao;
-  fee_pct: unknown;
-  days: number;
-  bank_account_id: string;
-  establishment: { name: string };
-  bank_account: { name: string };
-};
-
-function viewDaRegra(r: RegraRow, veConta: boolean): RegraCartaoView {
+function viewDaRegra(t: TaxaView, nomeDaLoja: string): RegraCartaoView {
   return {
-    id: r.id,
-    establishment_id: r.establishment_id,
-    establishment_name: r.establishment.name,
-    kind: r.kind,
-    fee_pct: decToNum(r.fee_pct as never) ?? 0,
-    days: r.days,
-    bank_account_id: r.bank_account_id,
-    bank_account_name: veConta ? r.bank_account.name : null,
+    id: t.id,
+    establishment_id: t.establishment_id,
+    establishment_name: nomeDaLoja,
+    kind: t.kind,
+    fee_pct: t.fee_pct,
+    days: t.days,
+    bank_account_id: t.bank_account_id,
+    bank_account_name: t.bank_account_name,
   };
 }
 
+const ehDaRegraAntiga = (t: TaxaView) => {
+  const f = faixaPadrao(t.kind);
+  return (
+    t.acquirer_name.toLowerCase() === ADQUIRENTE_PADRAO.toLowerCase() &&
+    t.brand === "qualquer" &&
+    t.installments_from === f.installments_from &&
+    t.installments_to === f.installments_to
+  );
+};
+
+/** @deprecated Usada pelos cenários e suítes antigos; tela e rota usam emporio-cartoes.ts. */
 export async function listarRegrasCartaoAction(
   db: TenantPrismaClient,
   ator: Ator,
   opts: { establishment_id?: string } = {},
 ): Promise<ActionResult<RegraCartaoView[]>> {
-  const visiveis = await lojasDoAtor(db, ator);
-  if (opts.establishment_id && visiveis && !visiveis.has(opts.establishment_id)) {
-    return NAO_ACHADO("Estabelecimento", "establishment_id");
-  }
-  const regras = await db.cardFeeRule.findMany({
-    where: opts.establishment_id ? { establishment_id: opts.establishment_id } : filtroDeLojas(visiveis),
-    include: INCLUDE_REGRA,
-    orderBy: [{ establishment: { name: "asc" } }, { kind: "asc" }],
+  const res = await listarTaxasAction(db, ator, {
+    establishment_id: opts?.establishment_id,
+    vigentes_em: hojeEmBrasilia(),
   });
-  const papelRegras = await papelDoEmporio(db, ator);
-  const veConta = pode(papelRegras, "gestor_da_loja") || pode(papelRegras, "dinheiro");
-  return ok(regras.map((r) => viewDaRegra(r, veConta)));
+  if (!res.ok) return res;
+  const linhas = res.data.filter(ehDaRegraAntiga);
+  const lojas = await db.establishment.findMany({
+    where: { id: { in: [...new Set(linhas.map((l) => l.establishment_id))] } },
+    select: { id: true, name: true },
+  });
+  const nomes = new Map(lojas.map((l) => [l.id, l.name]));
+  return ok(linhas.map((l) => viewDaRegra(l, nomes.get(l.establishment_id) ?? "")));
 }
-
-const ROTULO_FORMA: Record<FormaDeCartao, string> = {
-  debito: "débito",
-  credito_vista: "crédito à vista",
-  credito_parcelado: "crédito parcelado",
-};
 
 export type DefinirRegraCartaoInput = {
   establishment_id: string;
@@ -1358,13 +1367,16 @@ export type DefinirRegraCartaoInput = {
   bank_account_id: string;
 };
 
-/** Cria ou substitui a regra da loja para a forma. As vendas passadas guardam a taxa no pagamento. */
+/**
+ * @deprecated Usada pelos cenários e suítes antigos; tela e rota usam emporio-cartoes.ts.
+ * Muda a regra no lugar; se alguma venda já copiou a linha, encerra ontem e cria a nova desde hoje (decisão 10).
+ */
 export async function definirRegraCartaoAction(
   db: TenantPrismaClient,
   ator: Ator,
   input: DefinirRegraCartaoInput,
 ): Promise<ActionResult<RegraCartaoView>> {
-  const neg = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "definir a regra de cartão");
+  const neg = await exigir(db, ator, "gestor_da_loja", "definir a regra de cartão");
   if (neg) return neg;
   const loja = await acharLojaParaEscrita(db, ator, input?.establishment_id);
   if (!loja.ok) return loja;
@@ -1372,88 +1384,79 @@ export async function definirRegraCartaoAction(
     return fail("VALIDATION_ERROR", "Escolha a forma: débito, crédito à vista ou crédito parcelado.", 422, "kind");
   }
   const kind = input.kind as FormaDeCartao;
-  if (!numero(input.fee_pct) || input.fee_pct < 0 || input.fee_pct > 100) {
-    return fail("VALIDATION_ERROR", "A taxa deve ficar entre 0% e 100%.", 422, "fee_pct");
-  }
-  const feePct = Math.round(Number((input.fee_pct * 100).toPrecision(12))) / 100;
-  if (!numero(input.days) || !Number.isInteger(input.days) || input.days < 0 || input.days > 120) {
-    return fail("VALIDATION_ERROR", "O prazo deve ser um número inteiro de dias, de 0 a 120.", 422, "days");
-  }
-  const conta =
-    typeof input.bank_account_id === "string" && input.bank_account_id
-      ? await db.bankAccount.findFirst({ where: { id: input.bank_account_id }, select: { id: true, archived_at: true } })
-      : null;
+  const faixa = faixaPadrao(kind);
+  const conta = await db.bankAccount.findFirst({
+    where: { id: typeof input.bank_account_id === "string" ? input.bank_account_id : "" },
+    select: { archived_at: true },
+  });
   if (!conta || conta.archived_at) {
     return fail("VALIDATION_ERROR", "Escolha uma conta bancária ativa para receber o cartão.", 422, "bank_account_id");
   }
 
-  const gravar = () =>
-    db.$transaction(async (tx) => {
-      const atual = await tx.cardFeeRule.findFirst({
-        where: { establishment_id: loja.data.id, kind },
-        include: { bank_account: { select: { name: true } } },
-      });
-      const dados = { fee_pct: feePct, days: input.days, bank_account_id: conta.id, updated_by_user_id: ator.id };
-      const gravada = atual
-        ? await tx.cardFeeRule.update({ where: { id: atual.id }, data: dados, include: INCLUDE_REGRA })
-        : await tx.cardFeeRule.create({
-            data: scoped({ establishment_id: loja.data.id, kind, ...dados }),
-            include: INCLUDE_REGRA,
-          });
-      await registrarNoHistorico(tx, ator, {
-        action: "cartao.regra",
-        establishment_id: loja.data.id,
-        target_type: "regra_cartao",
-        target_id: gravada.id,
-        summary: `${atual ? "Mudou" : "Criou"} a regra de ${ROTULO_FORMA[kind]} da ${gravada.establishment.name}: taxa de ${feePct.toLocaleString("pt-BR")}% em ${input.days} ${input.days === 1 ? "dia" : "dias"}`,
-        changes: diferencas(
-          {
-            fee_pct: atual ? decToNum(atual.fee_pct) : null,
-            days: atual?.days ?? null,
-            conta: atual?.bank_account.name ?? null,
-          },
-          { fee_pct: feePct, days: input.days, conta: gravada.bank_account.name },
-          { fee_pct: "Taxa (%)", days: "Prazo (dias)", conta: "Conta que recebe" },
-        ),
-      });
-      return gravada;
+  const adq = await garantirAdquirenteMaquininha(db, ator);
+  const hoje = hojeEmBrasilia();
+  const existentes = await listarTaxasAction(db, ator, {
+    establishment_id: loja.data.id,
+    acquirer_id: adq.id,
+    vigentes_em: hoje,
+  });
+  if (!existentes.ok) return existentes;
+  const atual = existentes.data.find((t) => t.kind === kind && ehDaRegraAntiga(t));
+
+  let res: ActionResult<TaxaView>;
+  if (!atual) {
+    res = await criarTaxaAction(db, ator, {
+      establishment_id: loja.data.id,
+      acquirer_id: adq.id,
+      brand: "qualquer",
+      kind,
+      ...faixa,
+      fee_pct: input.fee_pct,
+      days: input.days,
+      bank_account_id: input.bank_account_id,
+      valid_from: new Date(`${VIGENCIA_DESDE_SEMPRE}T00:00:00.000Z`),
     });
-  try {
-    return ok(viewDaRegra(await gravar(), true));
-  } catch (err) {
-    if (!ehErroUnico(err)) throw err;
-    return ok(viewDaRegra(await gravar(), true));
+  } else if (!atual.in_use) {
+    res = await editarTaxaAction(db, ator, atual.id, {
+      fee_pct: input.fee_pct,
+      days: input.days,
+      bank_account_id: input.bank_account_id,
+    });
+  } else {
+    res = await novaVigenciaAction(db, ator, atual.id, {
+      valid_from: hoje,
+      fee_pct: input.fee_pct,
+      days: input.days,
+      bank_account_id: input.bank_account_id,
+    });
   }
+  if (!res.ok) return res;
+  await registrarNoHistorico(db, ator, {
+    action: "cartao.regra",
+    establishment_id: loja.data.id,
+    target_type: "taxa_cartao",
+    target_id: res.data.id,
+    summary: `Definiu a regra de cartão (formato antigo) de ${kind} na ${loja.data.name}: taxa de ${res.data.fee_pct.toLocaleString("pt-BR")}% em ${res.data.days} dias`,
+  });
+  return ok(viewDaRegra(res.data, loja.data.name));
 }
 
+/** @deprecated Usada pelos cenários e suítes antigos; tela e rota usam emporio-cartoes.ts. Linha em uso é encerrada, não apagada. */
 export async function removerRegraCartaoAction(
   db: TenantPrismaClient,
   ator: Ator,
   id: string,
 ): Promise<ActionResult<{ id: string }>> {
-  const neg = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "remover a regra de cartão");
-  if (neg) return neg;
-  const regra = await db.cardFeeRule.findFirst({
-    where: { id },
-    include: { establishment: { select: { name: true } } },
+  let res = await removerTaxaAction(db, ator, id);
+  if (!res.ok && res.code === "RATE_IN_USE") res = await removerTaxaAction(db, ator, id, { encerrar: true });
+  if (!res.ok) return res;
+  await registrarNoHistorico(db, ator, {
+    action: "cartao.regra_remover",
+    target_type: "taxa_cartao",
+    target_id: res.data.id,
+    summary: res.data.encerrada ? "Encerrou a regra de cartão (formato antigo)" : "Removeu a regra de cartão (formato antigo)",
   });
-  if (!regra || !(await lojaVisivel(db, ator, regra.establishment_id))) return NAO_ACHADO("Regra de cartão");
-  await db.$transaction(async (tx) => {
-    await tx.cardFeeRule.delete({ where: { id: regra.id } });
-    await registrarNoHistorico(tx, ator, {
-      action: "cartao.regra_remover",
-      establishment_id: regra.establishment_id,
-      target_type: "regra_cartao",
-      target_id: regra.id,
-      summary: `Removeu a regra de ${ROTULO_FORMA[regra.kind as FormaDeCartao]} da ${regra.establishment.name}`,
-      changes: diferencas(
-        { fee_pct: decToNum(regra.fee_pct), days: regra.days },
-        { fee_pct: null, days: null },
-        { fee_pct: "Taxa (%)", days: "Prazo (dias)" },
-      ),
-    });
-  });
-  return ok({ id: regra.id });
+  return ok({ id: res.data.id });
 }
 
 async function lojaVisivel(db: TenantPrismaClient, ator: Ator, lojaId: string): Promise<boolean> {

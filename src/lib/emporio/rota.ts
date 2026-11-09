@@ -39,3 +39,14 @@ export const diaIso = (campo: string) =>
       return !Number.isNaN(t) && new Date(t).toISOString().slice(0, 10) === v;
     }, "Informe uma data válida (AAAA-MM-DD).")
     .transform((v) => new Date(`${v}T00:00:00Z`));
+
+/** Um dia `AAAA-MM-DD` do corpo ou da query, como `Date` à meia-noite UTC, com a mensagem de quem pede. */
+export const diaComMensagem = (mensagem: string) =>
+  z
+    .string({ error: mensagem })
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Informe uma data válida (AAAA-MM-DD).")
+    .refine((v) => {
+      const t = Date.parse(`${v}T00:00:00Z`);
+      return !Number.isNaN(t) && new Date(t).toISOString().slice(0, 10) === v;
+    }, "Informe uma data válida (AAAA-MM-DD).")
+    .transform((v) => new Date(`${v}T00:00:00Z`));

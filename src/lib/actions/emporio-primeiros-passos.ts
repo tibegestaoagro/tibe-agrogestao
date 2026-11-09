@@ -1,6 +1,7 @@
 import type { TenantPrismaClient } from "@/lib/prisma";
 import { ok, type ActionResult } from "@/lib/actions/types";
 import { exigir, papelDoEmporio, pode } from "@/lib/emporio/papel";
+import { hojeEmBrasilia } from "@/lib/emporio/cartao";
 import { lojasSemGestor } from "@/lib/actions/emporio-equipe";
 import { lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
 
@@ -57,6 +58,7 @@ export async function primeirosPassosAction(
   const neg = await exigir(db, ator, "gestor_da_loja", "ver os primeiros passos da loja");
   if (neg) return neg;
   const agora = opts.agora ?? new Date();
+  const hoje = hojeEmBrasilia(agora);
   const visiveis = await lojasDoAtor(db, ator);
   const lojas = await db.establishment.findMany({
     where: { archived_at: null, ...(visiveis ? { id: { in: [...visiveis] } } : {}) },
@@ -84,7 +86,14 @@ export async function primeirosPassosAction(
         select: { kind: true },
         distinct: ["kind"],
       }),
-      db.cardFeeRule.findMany({ where: { establishment_id: loja.id }, select: { kind: true } }),
+      db.cardFeeRate.findMany({
+        where: {
+          establishment_id: loja.id,
+          valid_from: { lte: hoje },
+          OR: [{ valid_to: null }, { valid_to: { gte: hoje } }],
+        },
+        select: { kind: true },
+      }),
       db.fixedExpenseSplit.count({
         where: {
           establishment_id: loja.id,

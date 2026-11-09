@@ -1379,28 +1379,72 @@ export const GROUPS: Group[] = [
       },
       {
         method: "GET",
-        path: "/api/v1/emporio/card-fee-rules",
-        auth: "Sessão · emporio:read · quem tem a loja no vínculo (o nome da conta só para OWNER e ADMIN)",
-        description: "Taxas de cartão das lojas visíveis: uma regra por loja e forma (`debito`, `credito_vista`, `credito_parcelado`), com `fee_pct`, `days` (prazo da 1ª parcela) e a conta que recebe. Filtro: `establishment_id`.",
+        path: "/api/v1/emporio/card-acquirers",
+        auth: "Sessão · emporio:read · qualquer papel do Empório",
+        description: "Adquirentes (maquininhas) da conta, com `rates_count` (linhas de taxa). Filtro: `incluir_arquivadas=1`.",
         response: `200
-{ "data": [{ "id": "cl...", "establishment_id": "cl...", "kind": "credito_vista", "fee_pct": 3, "days": 30, "bank_account_id": "cl...", "bank_account_name": "Conta PIX" }], "meta": {} }`,
+{ "data": [{ "id": "cl...", "name": "Stone", "archived_at": null, "rates_count": 4 }], "meta": {} }`,
       },
       {
-        method: "PUT",
-        path: "/api/v1/emporio/card-fee-rules",
-        auth: "Sessão · emporio:write · só OWNER e ADMIN",
-        description: "Cria ou substitui a regra da loja para a forma. `fee_pct` de 0 a 100 (422 `fee_pct`), `days` inteiro de 0 a 120 (422 `days`), `bank_account_id` de conta não arquivada (422 `bank_account_id`). Mudar a regra não mexe nas vendas passadas: a taxa fica gravada no pagamento.",
-        request: `{ "establishment_id": "cl...", "kind": "credito_vista", "fee_pct": 3, "days": 30, "bank_account_id": "cl..." }`,
+        method: "POST",
+        path: "/api/v1/emporio/card-acquirers",
+        auth: "Sessão · emporio:write · só OWNER e gerente geral",
+        description: "Cadastra a adquirente. Nome repetido, sem diferenciar caixa: 409 `VALIDATION_ERROR` no campo `name`.",
+        request: `{ "name": "Stone" }`,
+        response: `201
+{ "data": { "id": "cl...", "name": "Stone", "archived_at": null, "rates_count": 0 }, "meta": {} }`,
+      },
+      {
+        method: "PATCH",
+        path: "/api/v1/emporio/card-acquirers/:id",
+        auth: "Sessão · emporio:write · só OWNER e gerente geral",
+        description: "Renomeia (`name`) ou arquiva e reativa (`archived`). Arquivar com taxa vigente: 409 `VALIDATION_ERROR` (encerre as taxas antes).",
+        request: `{ "archived": true }`,
         response: `200
-{ "data": { "id": "cl...", "kind": "credito_vista", "fee_pct": 3, "days": 30 }, "meta": {} }`,
+{ "data": { "id": "cl...", "name": "Stone", "archived_at": "2026-11-09T12:00:00.000Z", "rates_count": 4 }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/emporio/card-fee-rates",
+        auth: "Sessão · emporio:read · quem tem a loja no vínculo (o nome da conta só para quem gere a loja)",
+        description: "Tabela de taxas de cartão: uma linha por loja, adquirente, bandeira (`visa_master`, `elo`, `hipercard`, `amex`, `outra` ou `qualquer`), modalidade (`debito`, `credito_vista`, `credito_parcelado`), faixa de parcelas e vigência. `in_use` diz que alguma venda copiou a linha. Filtros: `establishment_id`, `acquirer_id`, `vigentes_em` (AAAA-MM-DD), `incluir_encerradas=1`. Sem filtro de data, vêm as vigentes e as futuras.",
+        response: `200
+{ "data": [{ "id": "cl...", "establishment_id": "cl...", "acquirer_id": "cl...", "acquirer_name": "Stone", "brand": "visa_master", "kind": "credito_parcelado", "installments_from": 2, "installments_to": 6, "fee_pct": 3.5, "fee_fixed": 0, "days": 30, "bank_account_id": "cl...", "bank_account_name": "Conta PIX", "valid_from": "2026-01-01", "valid_to": null, "in_use": false, "updated_by_name": "Ana" }], "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/card-fee-rates",
+        auth: "Sessão · emporio:write · gestor da loja, gerente geral e OWNER",
+        description: "Cria uma linha. Faixa 1 a 1 no débito e no crédito à vista, 2 a 12 no parcelado (422 `installments_from`/`installments_to`). `fee_pct` de 0 a 100, `fee_fixed` em reais por transação (padrão 0), `days` de 0 a 120, conta ativa e adquirente ativa. Linha que cruza outra da mesma loja, adquirente, bandeira, modalidade, parcelas e período: 409 `VALIDATION_ERROR` em `valid_from`.",
+        request: `{ "establishment_id": "cl...", "acquirer_id": "cl...", "brand": "visa_master", "kind": "credito_parcelado", "installments_from": 2, "installments_to": 6, "fee_pct": 3.5, "days": 30, "bank_account_id": "cl...", "valid_from": "2026-12-01" }`,
+        response: `201
+{ "data": { "id": "cl...", "brand": "visa_master", "fee_pct": 3.5, "valid_from": "2026-12-01", "valid_to": null }, "meta": {} }`,
+      },
+      {
+        method: "PATCH",
+        path: "/api/v1/emporio/card-fee-rates/:id",
+        auth: "Sessão · emporio:write · gestor da loja, gerente geral e OWNER",
+        description: "Edita no lugar uma linha que nenhuma venda usou. Em uso: 409 `RATE_IN_USE` (use `/renew`). Aceita os campos do POST, menos loja e adquirente.",
+        request: `{ "fee_pct": 3.7 }`,
+        response: `200
+{ "data": { "id": "cl...", "fee_pct": 3.7 }, "meta": {} }`,
       },
       {
         method: "DELETE",
-        path: "/api/v1/emporio/card-fee-rules/:id",
-        auth: "Sessão · emporio:write · só OWNER e ADMIN",
-        description: "Remove a regra. As vendas passadas guardam a taxa no pagamento; sem regra, a venda no cartão daquela forma é recusada (422 `payments`).",
+        path: "/api/v1/emporio/card-fee-rates/:id",
+        auth: "Sessão · emporio:write · gestor da loja, gerente geral e OWNER",
+        description: "Remove a linha que nenhuma venda usou. Em uso: 409 `RATE_IN_USE`, a menos que venha `?encerrar=1`, que a mantém e a faz valer até ontem.",
         response: `200
-{ "data": { "id": "cl..." }, "meta": {} }`,
+{ "data": { "id": "cl...", "encerrada": false }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/card-fee-rates/:id/renew",
+        auth: "Sessão · emporio:write · gestor da loja, gerente geral e OWNER",
+        description: "Nova vigência: a linha atual passa a valer até a véspera de `valid_from` e nasce outra, copiando o resto e mudando só o que vier (`fee_pct`, `fee_fixed`, `days`, `bank_account_id`, faixa). `valid_from` tem de ser depois do começo da linha (422 `valid_from`); linha já encerrada: 422.",
+        request: `{ "valid_from": "2026-12-01", "fee_pct": 3.8 }`,
+        response: `201
+{ "data": { "id": "cl...", "fee_pct": 3.8, "valid_from": "2026-12-01", "valid_to": null }, "meta": {} }`,
       },
       {
         method: "GET",
