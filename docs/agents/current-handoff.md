@@ -31,9 +31,8 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 - `main` em `cfa36dd` (igual a `origin/main`), nenhuma migração pendente no
   Neon ("Database schema is up to date!"); a carga da migração criou em
   produção 2 adquirentes "Maquininha" (dois tenants) e 4 linhas "qualquer
-  bandeira". Em produção desde 09/11 também: frete na venda, origem
-  e-commerce e editar venda (Q244 a Q249). Desde 08/11: as quatro entregas do
-  financeiro (Q214 a Q243). Evidências em
+  bandeira". Em produção desde 09/11 também: frete, origem e-commerce e editar
+  venda (Q244 a Q249); desde 08/11, o financeiro (Q214 a Q243). Evidências em
   [financeiro-emporio-relatorio.md](financeiro-emporio-relatorio.md). As
   branches `emporio-financeiro-spec`, `-1` a `-4`, `emporio-frete-ecommerce`
   e `emporio-taxas-cartao-1` estão na `main` e podem ser apagadas.
