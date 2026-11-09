@@ -44,7 +44,7 @@ transportadora. Spec
 `docs/superpowers/plans/2026-11-09-emporio-frete-ecommerce.md`, ledger em
 `.superpowers/sdd/2026-11-09-emporio-frete-ecommerce/progress.md`.
 
-**Pronto na branch (12 commits sobre `38d4ac5`, HEAD `77e1d23`):**
+**Pronto na branch (15 commits sobre `38d4ac5`, HEAD `900ccf2`):**
 - Venda com `freight_amount` e `origin` (`balcao`, `ecommerce`); `net_amount`
   segue sendo os itens (o faturamento); o recibo vale itens mais frete; nasce a
   conta a pagar "Frete de entrega" (vence no dia, cancelar a venda cancela a
@@ -54,7 +54,7 @@ transportadora. Spec
   na mesma transação (`replaces_sale_id`), com as travas do cancelamento; na
   tela, "Editar" no detalhe abre o balcão preenchido (`/emporio/vender?editar=`).
 - Migração `20261109120000_emporio_frete_origem_substituicao`, **só no
-  Docker**. `test:m102` 71, roteiro `emporio-frete-ecommerce` 47 checks nos
+  Docker**. `test:m102` 76, roteiro `emporio-frete-ecommerce` 47 checks nos
   dois sentidos (sabotado: 8 falhas), roteiro `emporio-f3a` verde, manual,
   `/docs/api`, dívidas 2.54 e 2.55. Revisão Sonnet por onda (sem juiz, por
   decisão do usuário); o achado importante (editar venda faturada de
@@ -187,7 +187,7 @@ relatórios em [agente-whatsapp/](agente-whatsapp/), detalhe em
 ## Últimas rodadas
 
 - 09/11: frete na venda, origem e-commerce e editar venda prontos em
-  `emporio-frete-ecommerce` (Q244 a Q249, m102 71, roteiro 47/0), à espera
+  `emporio-frete-ecommerce` (Q244 a Q249, m102 76, roteiro 47/0), à espera
   da revisão e da autorização do usuário.
 - 08/11 (noite): entrega 4 pronta (juiz 9/10 na rodada 4) e as quatro
   entregas do financeiro em produção, na ordem 1 a 4, autorizadas na conversa.
