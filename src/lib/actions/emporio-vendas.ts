@@ -924,7 +924,7 @@ async function prepararVenda(
   let creditReleaseId: string | null = null;
   const fiadoPreparado = pagamentos.find((x) => x.kind === "fiado");
   if (fiadoPreparado && !ehConsumidorFinal) {
-    const estado = await estadoDeCredito(db, customerId);
+    const estado = await estadoDeCredito(db, customerId, { semAVenda: opts.substituindo ?? null });
     const liberacao = await liberacaoValida(db, customerId, loja.data.id, new Date());
     if (liberacao) {
       creditReleaseId = liberacao.id;
@@ -1737,6 +1737,8 @@ export async function editarVendaAction(
   const repetida = await db.emporioSale.findFirst({ where: { operation_key: chave }, select: { id: true } });
   if (repetida) {
     const v = await vendaPorId(db, repetida.id);
+    // Só é replay a venda que substitui esta; a chave de outra venda é recusa.
+    if (v && v.replaces?.id !== id) return CHAVE_DE_OUTRA_VENDA();
     if (v && (await lojaVisivel(db, ator, v.establishment_id))) return ok({ ...v, replayed: true });
     return NAO_ACHADO("Venda");
   }
@@ -1802,6 +1804,16 @@ export async function editarVendaAction(
         data: { canceled_reason: final },
       });
       await tx.cashMovement.updateMany({ where: { sale_id: id, notes: MOTIVO_PROVISORIO }, data: { notes: final } });
+      const logCancelar = await tx.emporioAuditLog.findFirst({
+        where: { action: "venda.cancelar", target_id: id, summary: { endsWith: MOTIVO_PROVISORIO } },
+        select: { id: true, summary: true },
+      });
+      if (logCancelar) {
+        await tx.emporioAuditLog.update({
+          where: { id: logCancelar.id },
+          data: { summary: logCancelar.summary.slice(0, -MOTIVO_PROVISORIO.length) + final },
+        });
+      }
       await registrarNoHistorico(tx, ator, {
         action: "venda.editar",
         establishment_id: prep.data.loja.id,
@@ -1820,6 +1832,7 @@ export async function editarVendaAction(
     if (err instanceof AbortarVenda || ehErroUnico(err)) {
       const igual = await db.emporioSale.findFirst({ where: { operation_key: chave }, select: { id: true } });
       const v = igual ? await vendaPorId(db, igual.id) : null;
+      if (v && v.replaces?.id !== id) return CHAVE_DE_OUTRA_VENDA();
       if (v) return (await lojaVisivel(db, ator, v.establishment_id)) ? ok({ ...v, replayed: true }) : NAO_ACHADO("Venda");
       if (err instanceof AbortarVenda) return err.recusa;
     }

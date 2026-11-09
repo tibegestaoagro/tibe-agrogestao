@@ -112,7 +112,8 @@ export type EstadoDeCredito = {
 export async function estadoDeCredito(
   db: TenantPrismaClient,
   customerId: string,
-  opts: { lojasVisiveis?: Set<string> | null } = {},
+  /** `semAVenda`: a edição de uma venda (Q249) não deve a si mesma, então o lançamento dela fica fora da dívida e do atraso. */
+  opts: { lojasVisiveis?: Set<string> | null; semAVenda?: string | null } = {},
 ): Promise<EstadoDeCredito> {
   const c = await db.emporioCustomer.findFirst({
     where: { id: customerId },
@@ -120,7 +121,8 @@ export async function estadoDeCredito(
   });
   if (!c) throw new Error("Cliente do Empório não encontrado para o cálculo de crédito.");
   const settings = await lerConfiguracoesDoFiado(db);
-  const abertas = await entradasAbertas(db, { emporio_customer_id: customerId }, { prazoPadraoDias: settings.fiado_due_days });
+  const todas = await entradasAbertas(db, { emporio_customer_id: customerId }, { prazoPadraoDias: settings.fiado_due_days });
+  const abertas = opts.semAVenda ? todas.filter((e) => e.related_id !== opts.semAVenda) : todas;
   const hoje = hojeEmBrasilia();
 
   let owed = 0;

@@ -428,6 +428,22 @@ async function comBanco() {
       const rEdQ2 = await vv("editarVendaAction", gestor, idDe(sQ2), { operation_key: chave("ed"), items: itens(), payments: [dinheiro(100)], cash_register_id: turnoL1.cash_register_id, quote_id: null });
       const orc2Depois = await db.emporioQuote.findFirst({ where: { id: orc2 } });
       check("quote_id null na edição: a nova sai sem orçamento e o orçamento volta a aberto", rEdQ2.ok && !dados(rEdQ2)?.quote && orc2Depois?.sale_id === null, j([rEdQ2.ok, orc2Depois?.sale_id]));
+
+      // Fix round 2: o fiado da própria venda editada não conta na dívida nem no atraso.
+      const cliF = await prisma.emporioCustomer.create({ data: { tenant_id: TA.t.id, name: `M102 fiado ${stamp}`, fiado_limit: 1000 } as Dado });
+      const chaveOutra = chave("outra");
+      const sF1 = await vender(vend, [{ kind: "fiado", amount: 500 }], { customer_id: cliF.id, items: itens(10), operation_key: chaveOutra });
+      const sF2 = await vender(vend, [{ kind: "fiado", amount: 400 }], { customer_id: cliF.id, items: itens(8) });
+      check("fixture: cliente com limite 1000 e 900 em aberto (400 da venda a editar)", sF1.ok && sF2.ok, j([sF1, sF2]).slice(0, 400));
+      const rEdF = await vv("editarVendaAction", gestor, idDe(sF2), { operation_key: chave("ed"), customer_id: cliF.id, items: itens(8), freight_amount: 20, payments: [{ kind: "fiado", amount: 400 }, pix(20)] });
+      check("editar mantendo o fiado de 400 e incluindo frete: ok (900 menos os 400 da própria venda)", rEdF.ok, j(rEdF).slice(0, 300));
+      const rEdF2 = await vv("editarVendaAction", gestor, idDe(rEdF), { operation_key: chave("ed"), customer_id: cliF.id, items: itens(12), payments: [{ kind: "fiado", amount: 600 }] });
+      check("a mesma edição com fiado de 600 (passa do limite de verdade): LIMITE_EXCEDIDO", recusa(rEdF2, "LIMITE_EXCEDIDO"), j(rEdF2).slice(0, 300));
+
+      // Fix round 2: chave de OUTRA venda não é replay; o histórico do cancelamento sai com o texto final.
+      check("editar com a chave de outra venda: DUPLICATE_OPERATION_KEY", recusa(await vv("editarVendaAction", gestor, idDe(rEdF), { operation_key: chaveOutra, customer_id: cliF.id, items: itens(8), payments: [{ kind: "fiado", amount: 400 }, pix(20)], freight_amount: 20 }), "DUPLICATE_OPERATION_KEY"));
+      const logsCan = await db.emporioAuditLog.findMany({ where: { action: "venda.cancelar", target_id: idDe(sF2) } });
+      check("o histórico do cancelamento da edição não traz o texto provisório", logsCan.length === 1 && !logsCan[0].summary.includes("em edição") && logsCan[0].summary.includes("Substituída pela venda nº"), j(logsCan.map((l) => l.summary)));
     });
 
     // ---- Review Focus 3: dinheiro com o turno encerrado
