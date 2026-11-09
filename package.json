@@ -82,6 +82,7 @@
     "test:m99": "tsx scripts/m99-emporio-financeiro-credito.test.ts",
     "test:m100": "tsx scripts/m100-emporio-financeiro-acordo.test.ts",
     "test:m101": "tsx scripts/m101-emporio-financeiro-projecao.test.ts",
+    "test:m102": "tsx scripts/m102-emporio-frete-ecommerce.test.ts",
     "test:isolation": "tsx scripts/tenant-isolation.test.ts",
     "test:docs-api": "tsx scripts/docs-api-completeness.test.ts",
     "test:nav": "tsx scripts/nav-build.test.ts",
