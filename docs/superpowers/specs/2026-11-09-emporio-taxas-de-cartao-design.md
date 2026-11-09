@@ -57,7 +57,7 @@ como **Q250 a Q258**.
 | Q255 | **Balcão:** ao escolher débito, crédito à vista ou parcelado, o pagamento pede adquirente (pré-escolhida quando a conta tem uma só ativa) e bandeira (botões Visa/Master, Elo, Hipercard, Amex, Outra); o parcelado pede o número de parcelas como hoje. A prévia mostra taxa, líquido e a 1ª data. Venda, lista, recibo, a receber do cartão e extrato mostram adquirente e bandeira. | Resposta 1 do usuário: sem TEF, registrar na venda é o que ajuda a conciliar. |
 | Q256 | **Migração sem perda:** cada `CardFeeRule` vira uma `CardFeeRate` com adquirente "Maquininha" (criada por conta que tenha regra, renomeável para "Stone"), bandeira `qualquer`, faixa 1 a 1 (débito e crédito à vista) ou 2 a 12 (parcelado), `valid_from` = `created_at` da regra, `valid_to` nulo. Os pagamentos e recebíveis existentes ficam com `acquirer_id` e `brand` nulos (o passado não se inventa). A tabela `CardFeeRule` é removida na mesma migração, depois da cópia. | Produção (Agromax) não pode parar de vender; o que já foi vendido não ganha dado que não existia. |
 | Q257 | **Cancelamento na entrega 1 segue como hoje** (a despesa "Taxas de cartão" é cancelada, parcelas futuras somem, as caídas são estornadas). A regra da Stone (a taxa da transação volta, a de antecipação não) entra na entrega 3, quando a antecipação existir. | Sem antecipação gravada não há taxa de antecipação para preservar. |
-| Q258 | **Onde fica a tela:** as taxas continuam na página do Caixa (`/emporio/caixa`), onde a regra atual mora, agora como "Adquirentes e taxas de cartão": lista por adquirente com as vigências, botão "Nova vigência", e o cadastro da adquirente. Permissão: a mesma da regra atual (gestor da loja; adquirente é da conta, então Dono e Gerente geral). | Menos mudança para quem já usa; a adquirente é da rede, a taxa é da loja. |
+| Q258 | **Onde fica a tela:** as taxas saem da página do Caixa e vão para **Configurações** (`/emporio/configuracoes`), numa seção "Cartões: adquirentes e taxas": o cadastro da adquirente, a lista por adquirente e loja com as vigências, e o botão "Nova vigência". O Caixa fica só com operação (turno, sangria, malote). Permissão: adquirente é da conta (Dono e Gerente geral); taxa é da loja (gestor da loja, como a regra atual). | Decisão do usuário em 09/11: configurar é em Configurações; na tela do Caixa só se vende e se fatura. |
 
 ## Entrega 1 (esta): tabela com vigência, snapshot e bandeira no balcão
 
@@ -145,6 +145,19 @@ agente:
    divisão em parcelas segue a regra atual (partes iguais, resto na 1ª). O
    checklist dos primeiros passos passa a conferir se a loja tem alguma
    linha de taxa vigente.
+9. **Adquirente e bandeira na API são opcionais, com fallback:** sem
+   `brand`, a venda resolve só entre linhas `qualquer` (é como as linhas
+   migradas funcionam, então as suítes e os chamadores antigos seguem
+   válidos); sem `acquirer_id`, vale a única adquirente com linha vigente na
+   loja, e com mais de uma a venda é recusada pedindo a adquirente. O balcão
+   sempre manda os dois. Sem linha para a combinação, a recusa diz a
+   combinação e aponta Configurações.
+10. **Wrappers da regra antiga:** `definirRegraCartaoAction`,
+    `listarRegrasCartaoAction` e `removerRegraCartaoAction` continuam
+    existindo, marcadas como depreciadas, escrevendo a linha `qualquer` da
+    faixa padrão na adquirente "Maquininha"; respeitam a Q253 (linha usada
+    por venda não é editada no lugar: é encerrada e recriada). A rota
+    `card-fee-rules` sai; entram `card-acquirers` e `card-fee-rates`.
 
 ## O que não muda
 

@@ -342,7 +342,7 @@ cliente real com as duas coisas vai precisar.
 | Q255 | **Balcão:** o pagamento de cartão pede adquirente (pré-escolhida se só há uma) e bandeira; venda, lista, recibo, a receber e extrato mostram os dois. | Sem TEF, registrar na venda é o que ajuda a conciliar. |
 | Q256 | **Migração sem perda:** cada `CardFeeRule` vira `CardFeeRate` da adquirente "Maquininha" (renomeável), bandeira `qualquer`, faixa 1 a 1 ou 2 a 12, vigência desde a criação; pagamentos e recebíveis antigos ficam sem adquirente e bandeira; `CardFeeRule` sai na mesma migração. | Produção não para de vender; o passado não se inventa. |
 | Q257 | **Cancelamento na entrega 1 segue como hoje**; a regra da Stone (taxa da transação volta, a de antecipação não) entra com a antecipação (entrega 3). | Sem antecipação gravada não há taxa de antecipação a preservar. |
-| Q258 | **As taxas ficam na página do Caixa**, como "Adquirentes e taxas de cartão"; adquirente é da conta (Dono e Gerente geral), taxa é da loja (gestor). | Menos mudança para quem já usa. |
+| Q258 | **As taxas saem do Caixa e vão para Configurações**, na seção "Cartões: adquirentes e taxas"; adquirente é da conta (Dono e Gerente geral), taxa é da loja (gestor). O Caixa fica só com operação. | Decisão do usuário em 09/11: configurar é em Configurações; no Caixa só se vende e se fatura. |
 
 Design do ajuste de 09/11/2026 (frete, origem e editar venda) em
 [../superpowers/specs/2026-11-09-emporio-frete-ecommerce-design.md](../superpowers/specs/2026-11-09-emporio-frete-ecommerce-design.md);
