@@ -3,6 +3,7 @@ import { adquirenteDeCenario } from "./_cartao-cenario";
 import { papelDeFixture, vincularTodas, virarGestor } from "./_emporio-papel";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { exigirBancoLocal } from "./_banco-local";
+import { proximoDiaUtil } from "../src/lib/emporio/dia-util";
 
 exigirBancoLocal();
 // A seção de rotas usa o escopo de requisição do Next: o AsyncLocalStorage real precisa existir ANTES de carregar o Next (ver m23).
@@ -68,6 +69,8 @@ const DIA = 86_400_000;
 const brDate = (d: Date): string => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(d);
 const somaDias = (s: string, dias: number): string => new Date(Date.parse(`${s}T00:00:00Z`) + dias * DIA).toISOString().slice(0, 10);
 const diaDe = (d: Date): string => d.toISOString().slice(0, 10); // coluna @db.Date volta como meia-noite UTC
+// A adquirente da fixture tem a regra padrão (próximo dia útil): a previsão rola do fim de semana e do feriado.
+const previstoEm = (s: string, dias: number): string => diaDe(proximoDiaUtil(new Date(`${somaDias(s, dias)}T00:00:00Z`)));
 
 console.log("💳 M82: Módulo 39 (Meu Empório), F3b: cartão, cheque, transferência entre caixas e conferência\n");
 
@@ -292,7 +295,7 @@ async function comBanco() {
       check("nenhum CashMovement da venda (cartão não passa pela gaveta)", (await db.cashMovement.count({ where: { sale_id: S } })) === 0);
       const rcs = await db.cardReceivable.findMany({ where: { sale_id: S } });
       check("UMA parcela líquida de 97 (bruto 100), 1 de 1, na conta da regra e na loja", rcs.length === 1 && perto(n(rcs[0].net_amount), 97) && perto(n(rcs[0].gross_amount), 100) && rcs[0].installment === 1 && rcs[0].installments === 1 && rcs[0].bank_account_id === CARD && rcs[0].establishment_id === L1.id, j(rcs));
-      check("expected_on = hoje + 30 (Brasília)", rcs[0] && diaDe(rcs[0].expected_on) === somaDias(hoje(), 30), `${rcs[0] && diaDe(rcs[0].expected_on)} contra ${somaDias(hoje(), 30)}`);
+      check("expected_on = hoje + 30 (Brasília)", rcs[0] && diaDe(rcs[0].expected_on) === previstoEm(hoje(), 30), `${rcs[0] && diaDe(rcs[0].expected_on)} contra ${previstoEm(hoje(), 30)}`);
       const pay = await db.emporioSalePayment.findMany({ where: { sale_id: S } });
       check("o pagamento da venda grava a regra do momento: 3% e R$ 3", pay.length === 1 && perto(n(pay[0].fee_pct), 3) && perto(n(pay[0].fee_amount), 3), j(pay));
       const caixa = dados(await xx("lerCaixaAction", admin));
@@ -306,7 +309,7 @@ async function comBanco() {
       const rP = await vender(op, 10, [cartao("credito_vista", 100)], { sold_at: sold });
       check("venda 40 dias atrás no crédito à vista", rP.ok, j(rP));
       const rcP = await db.cardReceivable.findMany({ where: { sale_id: saleId(rP) } });
-      check("expected_on = data da venda + 30 (já no passado)", rcP.length === 1 && diaDe(rcP[0].expected_on) === somaDias(brDate(sold), 30), j(rcP));
+      check("expected_on = data da venda + 30 (já no passado)", rcP.length === 1 && diaDe(rcP[0].expected_on) === previstoEm(brDate(sold), 30), j(rcP));
       const caixa2 = dados(await xx("lerCaixaAction", admin));
       check("a parcela já conta no saldo da conta (+97)", perto(achar(caixa2, "bank_account_id", CARD) - saldoAntes2, 97), `${achar(caixa2, "bank_account_id", CARD)} contra ${saldoAntes2}`);
       check("e some do a receber", perto((await aReceberDb()) - recAntes2, 0) && perto(somaReceberCaixa(caixa2) - recAntes2, 0));
@@ -347,7 +350,7 @@ async function comBanco() {
       check("bruto 33,34 / 33,33 / 33,33 (centavo na primeira)", rcs.length === 3 && perto(n(rcs[0].gross_amount), 33.34) && perto(n(rcs[1].gross_amount), 33.33) && perto(n(rcs[2].gross_amount), 33.33), j(rcs.map((p) => p.gross_amount)));
       check("líquido 32,34 / 32,33 / 32,33 (soma 97,00)", rcs.length === 3 && perto(n(rcs[0].net_amount), 32.34) && perto(n(rcs[1].net_amount), 32.33) && perto(n(rcs[2].net_amount), 32.33), j(rcs.map((p) => p.net_amount)));
       const h = hoje();
-      check("datas: +20, +50 e +80 (o prazo da regra e depois 30 em 30)", rcs.length === 3 && diaDe(rcs[0].expected_on) === somaDias(h, 20) && diaDe(rcs[1].expected_on) === somaDias(h, 50) && diaDe(rcs[2].expected_on) === somaDias(h, 80), j(rcs.map((p) => diaDe(p.expected_on))));
+      check("datas: +20, +50 e +80 (o prazo da regra e depois 30 em 30)", rcs.length === 3 && diaDe(rcs[0].expected_on) === previstoEm(h, 20) && diaDe(rcs[1].expected_on) === previstoEm(h, 50) && diaDe(rcs[2].expected_on) === previstoEm(h, 80), j(rcs.map((p) => diaDe(p.expected_on))));
       const tx = await taxaDe(S);
       const rec = await receitaDe(S);
       check("uma receita de 100 e uma taxa de 3,00", rec.length === 1 && perto(n(rec[0].amount), 100) && tx.length === 1 && perto(n(tx[0].amount), 3));
@@ -370,7 +373,7 @@ async function comBanco() {
       check("venda de R$ 50 no débito", rS.ok, j(rS));
       const S = saleId(rS);
       const rcs = await db.cardReceivable.findMany({ where: { sale_id: S } });
-      check("uma parcela líquida de 49,00 em hoje + 1", rcs.length === 1 && perto(n(rcs[0].net_amount), 49) && perto(n(rcs[0].gross_amount), 50) && diaDe(rcs[0].expected_on) === somaDias(hoje(), 1), j(rcs));
+      check("uma parcela líquida de 49,00 em hoje + 1", rcs.length === 1 && perto(n(rcs[0].net_amount), 49) && perto(n(rcs[0].gross_amount), 50) && diaDe(rcs[0].expected_on) === previstoEm(hoje(), 1), j(rcs));
       const tx = await taxaDe(S);
       check("taxa de R$ 1,00", tx.length === 1 && perto(n(tx[0].amount), 1));
     });
