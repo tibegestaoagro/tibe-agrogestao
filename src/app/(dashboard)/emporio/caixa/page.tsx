@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
-import { listarContasAction, listarRegrasCartaoAction, lerCaixaAction } from "@/lib/actions/emporio-caixa";
+import { listarContasAction, lerCaixaAction } from "@/lib/actions/emporio-caixa";
 import { listarEntregasAction } from "@/lib/actions/emporio-turno";
 import { reaisBr } from "@/lib/numero-br";
 import { Badge } from "@/components/ui/badge";
@@ -26,11 +26,8 @@ import { AbrirTurnoForm } from "../_components/abrir-turno-form";
 import { SangriaForm } from "../_components/sangria-form";
 import { EncerrarTurnoForm } from "../_components/encerrar-turno-form";
 import { ConfirmarEntregaForm } from "../_components/confirmar-entrega-form";
-import { RegraCartaoForm } from "../_components/regra-cartao-form";
-import { RegraCartaoRemover } from "../_components/regra-cartao-remover";
 import { TransferirCaixaForm, type PontaOpcao } from "../_components/transferir-caixa-form";
-import { pctBr } from "../_components/formato";
-import { CARTAO_ROTULO, CHEQUE_SITUACAO_ROTULO, ORIGEM_CAIXA_ROTULO } from "../_components/venda-rotulos";
+import { CHEQUE_SITUACAO_ROTULO, ORIGEM_CAIXA_ROTULO } from "../_components/venda-rotulos";
 
 /** Data de calendário "AAAA-MM-DD" como "DD/MM/AAAA", sem passar por fuso. */
 const dataBr = (iso: string) => iso.slice(0, 10).split("-").reverse().join("/");
@@ -55,10 +52,9 @@ export default async function CaixaPage() {
   // Cadastrar conta bancária, informar o saldo inicial e arquivar: do dono da conta ou do Financeiro.
   const mexeNaConta = ehConta || ehDinheiro;
 
-  const [caixaRes, contasRes, regrasRes, contasDoBanco, implantados, comTurno, entregasRes] = await Promise.all([
+  const [caixaRes, contasRes, contasDoBanco, implantados, comTurno, entregasRes] = await Promise.all([
     lerCaixaAction(db, user),
     veContas ? listarContasAction(db, user, { incluir_arquivadas: true }) : Promise.resolve(null),
-    veContas ? listarRegrasCartaoAction(db, user) : Promise.resolve(null),
     // Depositar cheque é do Vendedor com a chave, que não lista contas
     // pela action (é do Gestor para cima): aqui só id e nome, para escolher o destino.
     db.bankAccount.findMany({
@@ -77,10 +73,6 @@ export default async function CaixaPage() {
   const caixa = caixaRes.ok
     ? caixaRes.data
     : { drawers: [], accounts: [], card_receivables: [], checks: [], movements: [] };
-  const regras = regrasRes && regrasRes.ok ? regrasRes.data : [];
-  const lojasDasRegras = caixa.drawers
-    .filter((d) => ehDinheiro || pode(papel, "gestor_da_loja", d.establishment_id))
-    .map((d) => ({ id: d.establishment_id, name: d.name }));
   const aReceberDaConta = new Map(caixa.accounts.map((a) => [a.bank_account_id, a.to_receive]));
   const totalAReceber = caixa.card_receivables.reduce((s, p) => s + Math.round(p.net_amount * 100), 0) / 100;
   const nomeDaLojaCheque = (id: string) => caixa.drawers.find((d) => d.establishment_id === id)?.name ?? "Loja";
@@ -467,62 +459,13 @@ export default async function CaixaPage() {
       )}
 
       {veContas && (
-        <section className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold text-texto">Taxas de cartão</h2>
-            {lojasDasRegras.length > 0 && contasAtivas.length > 0 && (
-              <RegraCartaoForm
-                lojas={lojasDasRegras}
-                contas={contasAtivas.map((c) => ({ id: c.id, name: c.name }))}
-              />
-            )}
-          </div>
-          {contasAtivas.length === 0 && (
-            <p className="text-sm text-texto-secundario">Cadastre uma conta bancária para poder definir as taxas.</p>
-          )}
-          {regras.length === 0 ? (
-            <EmptyState titulo="Nenhuma taxa cadastrada">
-              Sem a taxa da loja para a forma, o balcão não deixa vender no cartão.
-            </EmptyState>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Loja</TableHead>
-                  <TableHead>Forma</TableHead>
-                  <TableHead>Taxa</TableHead>
-                  <TableHead>Prazo</TableHead>
-                  <TableHead>Conta</TableHead>
-                  <TableHead>Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {regras.map((r) => (
-                  <TableRow key={r.id}>
-                    <TableCell className="font-medium text-texto">{r.establishment_name}</TableCell>
-                    <TableCell>{CARTAO_ROTULO[r.kind] ?? r.kind}</TableCell>
-                    <TableCell>{pctBr(r.fee_pct)}</TableCell>
-                    <TableCell>{r.days} dias</TableCell>
-                    <TableCell>{r.bank_account_name ?? "-"}</TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-2">
-                        <RegraCartaoForm
-                          lojas={lojasDasRegras}
-                          contas={contasAtivas.map((c) => ({ id: c.id, name: c.name }))}
-                          regra={r}
-                        />
-                        <RegraCartaoRemover
-                          regraId={r.id}
-                          descricao={`${r.establishment_name}, ${(CARTAO_ROTULO[r.kind] ?? r.kind).toLowerCase()}`}
-                        />
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </section>
+        <p className="text-sm text-texto-secundario">
+          As taxas de cartão agora ficam em{" "}
+          <Link href="/emporio/configuracoes#cartoes" className="font-medium text-texto underline">
+            Configurações
+          </Link>
+          .
+        </p>
       )}
 
       <section className="space-y-3">

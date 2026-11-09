@@ -8,12 +8,15 @@ import { lerConfiguracoesAction } from "@/lib/actions/emporio-configuracoes";
 import { listarEstabelecimentosAction, type EstablishmentView } from "@/lib/actions/emporio-catalogo";
 import { EmptyState } from "@/components/ui/empty-state";
 import { listarCaixasAction } from "@/lib/actions/emporio-turno";
+import { listarContasAction } from "@/lib/actions/emporio-caixa";
+import { listarAdquirentesAction, listarTaxasAction } from "@/lib/actions/emporio-cartoes";
 import { EstabelecimentoForm } from "../_components/estabelecimento-form";
 import { NovoCaixaBotao } from "../_components/novo-caixa-botao";
 import { ConfiguracoesForm } from "./_components/configuracoes-form";
 import { LogoForm } from "./_components/logo-form";
 import { FiadoForm } from "./_components/fiado-form";
 import { AlcadaForm } from "./_components/alcada-form";
+import { CartoesSecao } from "./_components/cartoes-secao";
 import { reaisBr } from "@/lib/numero-br";
 
 function enderecoDaLoja(l: EstablishmentView): string {
@@ -43,11 +46,19 @@ export default async function ConfiguracoesPage() {
   if (!veAPagina(papel, "/emporio/configuracoes")) redirect("/emporio");
   const podeEditarConta = pode(papel, "conta");
 
-  const [cfgRes, lojasRes, usuarios] = await Promise.all([
+  // As contas só quem gere loja ou cuida do dinheiro lista: para os outros, a tabela de taxas é só leitura.
+  const veContas = pode(papel, "gestor_da_loja") || pode(papel, "dinheiro");
+  const [cfgRes, lojasRes, usuarios, adquirentesRes, taxasRes, contasRes] = await Promise.all([
     lerConfiguracoesAction(db, user),
     listarEstabelecimentosAction(db, user),
     db.user.findMany({ where: { active: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    listarAdquirentesAction(db, user, { incluir_arquivadas: true }),
+    listarTaxasAction(db, user, { incluir_encerradas: true }),
+    veContas ? listarContasAction(db, user) : Promise.resolve(null),
   ]);
+  const adquirentes = adquirentesRes.ok ? adquirentesRes.data : [];
+  const taxas = taxasRes.ok ? taxasRes.data : [];
+  const contasAtivas = contasRes && contasRes.ok ? contasRes.data.map((c) => ({ id: c.id, name: c.name })) : [];
   const cfg = cfgRes.ok ? cfgRes.data : null;
   const lojas = lojasRes.ok ? lojasRes.data : [];
   const caixasPorLoja = new Map(
@@ -197,6 +208,15 @@ export default async function ConfiguracoesPage() {
           <EmptyState titulo="Não consegui ler as configurações">Recarregue a página.</EmptyState>
         )}
       </section>
+
+      <CartoesSecao
+        adquirentes={adquirentes}
+        taxas={taxas}
+        lojas={lojas.map((l) => ({ id: l.id, name: l.name }))}
+        lojasQueGere={lojas.filter((l) => pode(papel, "gestor_da_loja", l.id) || pode(papel, "dinheiro")).map((l) => l.id)}
+        contas={contasAtivas}
+        podeEditarConta={podeEditarConta}
+      />
     </div>
   );
 }
