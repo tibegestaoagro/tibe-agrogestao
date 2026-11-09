@@ -106,6 +106,46 @@ conciliação da Stone) casando por dia, adquirente, bandeira, modalidade,
 parcelas e valor bruto (sem TEF não há NSU na venda). Depende de um arquivo
 real da Agromax e da resposta sobre quem acessa o portal.
 
+## Decisões do agente depois da leitura do construtor (09/11)
+
+Um revisor leu a spec como quem vai construir e apontou oito pontos em que
+teria de adivinhar. Nenhum muda o produto; as respostas, decididas pelo
+agente:
+
+1. **Vigência das linhas migradas:** `valid_from` fixo em 2020-01-01 ("desde
+   sempre"), não o `created_at`. Assim a venda retroativa, a edição e a
+   troca de uma venda antiga resolvem a taxa em `sold_at` e encontram linha.
+   A edição resolve sempre em `sold_at` (o da venda nova, que herda o da
+   antiga); a taxa congelada da antiga não é reaproveitada.
+2. **Precedência na resolução:** primeiro a bandeira (exata vence
+   `qualquer`), depois a faixa (a mais estreita que contém o número de
+   parcelas vence). Uma linha Elo 2 a 12 vence uma `qualquer` 3 a 3 para Elo
+   em 3x. A tela mostra a linha que vai valer para uma combinação de teste.
+3. **Chave da sobreposição:** loja, adquirente, modalidade e bandeira
+   **exata** (`qualquer` não cruza com bandeira exata); duas linhas da mesma
+   chave não podem ter faixas e vigências que se cruzem ao mesmo tempo. A
+   conta de destino não entra na chave.
+4. **Corrigir para trás:** "Nova vigência a partir de" aceita data passada;
+   a linha anterior é encerrada na véspera, a nova passa a valer daquela
+   data para as vendas **novas ou editadas** a partir de então. Venda já
+   gravada não é recalculada (Q254). "Usada" é a linha referenciada por
+   algum pagamento (`fee_rate_id`); a linha migrada, sem referência, pode
+   ser editada no lugar.
+5. **Caminhos que criam pagamento de cartão:** só `gravarVenda` (venda,
+   edição e troca); o recebimento de fiado e a devolução não criam
+   recebível de cartão. Todos passam por `prepararVenda`, então a exigência
+   de adquirente e bandeira vale uma vez só. A rota de troca herda o corpo.
+6. **Teto de parcelas:** a validação de 2 a 12 continua; a faixa da tabela
+   só diz quais números têm taxa. Fora da faixa, a recusa é "sem taxa para
+   N parcelas", não "parcelas inválidas".
+7. **Balcão:** lista só as adquirentes com alguma linha vigente na loja da
+   venda; se for uma só, vem pré-escolhida; a bandeira nunca é pré-escolhida.
+8. **Miúdos:** o papel `gerente_geral` existe em `src/lib/emporio/papel.ts`
+   (Q127). `fee_fixed` entra uma vez por pagamento, no `fee_amount`, e a
+   divisão em parcelas segue a regra atual (partes iguais, resto na 1ª). O
+   checklist dos primeiros passos passa a conferir se a loja tem alguma
+   linha de taxa vigente.
+
 ## O que não muda
 
 - Nenhum saldo gravado (invariante 2): o a receber do cartão continua sendo a
