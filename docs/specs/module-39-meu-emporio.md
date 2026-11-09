@@ -344,6 +344,19 @@ cliente real com as duas coisas vai precisar.
 | Q257 | **Cancelamento na entrega 1 segue como hoje**; a regra da Stone (taxa da transação volta, a de antecipação não) entra com a antecipação (entrega 3). | Sem antecipação gravada não há taxa de antecipação a preservar. |
 | Q258 | **As taxas saem do Caixa e vão para Configurações**, na seção "Cartões: adquirentes e taxas"; adquirente é da conta (Dono e Gerente geral), taxa é da loja (gestor). O Caixa fica só com operação. | Decisão do usuário em 09/11: configurar é em Configurações; no Caixa só se vende e se fatura. |
 
+| Q259 | **Calendário de dias úteis bancários nacional** (fixos, Carnaval, Sexta-feira Santa, Corpus Christi, 20/11); estadual e municipal fora. | É o calendário em que adquirente e banco liquidam. |
+| Q260 | **Data da parcela:** 1ª em `sold_at + days`, seguintes a cada 30 dias, depois a regra de dia útil da adquirente (`proximo_dia_util`, padrão, ou `dias_corridos`). | Padrão publicado da Stone; configurável porque o fim de semana não foi confirmado. |
+| Q261 | **O recebível ganha `fee_amount`, `effective_on` e `effective_net`**; todo leitor de "caiu" e "a receber" lê os efetivos; a migração preenche os existentes. | Uma troca de coluna por leitor; o previsto original fica para a conciliação. |
+| Q262 | **Antecipação pontual:** parcelas futuras da mesma conta, líquido recebido informado, custo rateado pelo líquido, despesa "Antecipação de recebíveis" paga, desfazer enquanto nada foi carimbado. | É o que a Agromax faz hoje; o líquido informado evita adivinhar a fórmula da Stone. |
+| Q263 | **Antecipação automática por configuração da adquirente** (ligada, % ao mês, dias úteis, a partir de); só crédito; custo estimado simples pro rata; vale para vendas futuras. | A troca para a automática é configuração, sem código. |
+| Q264 | **Cancelamento como a Stone:** `refunds_mdr_on_cancel` (padrão sim); custo de antecipação nunca volta; estorno pelo líquido efetivo. | Fonte da Stone: a taxa de transação volta, a de antecipação não. |
+| Q265 | **Resultado:** linha "Antecipação de recebíveis" fora da margem, subtraída do resultado. | Custo de dinheiro, não de vender. |
+| Q266 | **Telas:** configuração da adquirente em Configurações; "Antecipar" e "Desfazer" no a receber do cartão; prévia do balcão com a data efetiva. | Quem cuida do dinheiro edita o contrato. |
+| Q267 | **Dívidas técnicas 2.37, 2.43, 2.51 e 2.59 fechadas junto.** | Riscos que existem hoje e não dependem da Agromax. |
+
+Design das entregas 2 e 3 do cartão (Q259 a Q267) em
+[../superpowers/specs/2026-11-09-emporio-cartao-entregas-2-e-3-design.md](../superpowers/specs/2026-11-09-emporio-cartao-entregas-2-e-3-design.md).
+
 Design do ajuste de 09/11/2026 (frete, origem e editar venda) em
 [../superpowers/specs/2026-11-09-emporio-frete-ecommerce-design.md](../superpowers/specs/2026-11-09-emporio-frete-ecommerce-design.md);
 design das taxas de cartão (Q250 a Q258, quatro entregas) em
