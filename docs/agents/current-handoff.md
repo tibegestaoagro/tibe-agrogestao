@@ -31,8 +31,7 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 - `main` em `b775487` (igual a `origin/main`), nenhuma migração pendente no
   Neon ("Database schema is up to date!"). Deploy da Vercel conferido: o
   `/docs/api` em produção lista a rota `POST /sales/:id/replace` (09/11). As
-  quatro entregas do financeiro estão em produção
-  desde 08/11 (Q214 a Q243; evidências em
+  quatro entregas do financeiro estão em produção desde 08/11 (Q214 a Q243; evidências em
   [financeiro-emporio-relatorio.md](financeiro-emporio-relatorio.md)). As
   branches `emporio-financeiro-spec`, `-1` a `-4` e `emporio-frete-ecommerce`
   estão todas na `main` e podem ser apagadas.
