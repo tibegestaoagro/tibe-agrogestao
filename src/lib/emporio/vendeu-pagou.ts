@@ -5,6 +5,7 @@ import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { contaEmAprovacao, EM_APROVACAO } from "@/lib/emporio/pedido-pagamento";
 import { createLinkedEntry } from "@/lib/financial";
 import { custoMedio } from "@/lib/emporio/custo-medio";
+import { CATEGORIA_FRETE } from "@/lib/emporio/frete";
 import { mesDoInstante, ultimoDia } from "@/lib/emporio/mes";
 import { INCLUDE_PRODUTO, lacradoEfetivo } from "@/lib/actions/emporio-catalogo";
 import { lerMovimentos } from "@/lib/actions/emporio-estoque";
@@ -22,7 +23,7 @@ import { lerMovimentos } from "@/lib/actions/emporio-estoque";
 type Tx = Prisma.TransactionClient;
 
 /** Nomes que já são categoria de lançamento do Empório: uma regra com eles se confundiria com a taxa ou a receita. */
-export const CATEGORIAS_RESERVADAS = ["Vendas do Empório", "Devoluções de vendas do Empório", "Taxas de cartão", "Diferença de caixa"];
+export const CATEGORIAS_RESERVADAS = ["Vendas do Empório", "Devoluções de vendas do Empório", "Taxas de cartão", "Diferença de caixa", CATEGORIA_FRETE];
 
 const arred2 = (n: number) => Math.round(Number((n * 100).toPrecision(12))) / 100;
 const arred3 = (n: number) => Math.round(Number((n * 1000).toPrecision(14))) / 1000;

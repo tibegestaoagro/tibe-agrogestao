@@ -260,6 +260,12 @@ enum EmporioSaleStatus {
   cancelada
 }
 
+/// Q248: de onde veio a venda. `ecommerce` é o pedido da loja online lançado à mão.
+enum EmporioSaleOrigin {
+  balcao
+  ecommerce
+}
+
 enum CashDirection {
   entrada
   saida
@@ -1244,12 +1250,20 @@ model EmporioSale {
   delivery_district              String?
   delivery_city                  String?
   delivery_state                 String?
+  /// Q244: frete cobrado do cliente, repassado à transportadora; fora de `net_amount` (o faturamento).
+  freight_amount                 Decimal                     @default(0) @db.Decimal(14, 2)
+  /// Q248: balcão ou e-commerce.
+  origin                         EmporioSaleOrigin           @default(balcao)
+  /// Q249: a venda que esta substitui ao ser editada (a original é cancelada).
+  replaces_sale_id               String?                     @unique
   created_at                     DateTime                    @default(now())
   updated_at                     DateTime                    @updatedAt
 
   tenant            Tenant                @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   establishment     Establishment         @relation(fields: [establishment_id], references: [id], onDelete: Restrict)
   customer          EmporioCustomer?      @relation(fields: [customer_id], references: [id], onDelete: Restrict)
+  replaces          EmporioSale?          @relation("SaleReplacement", fields: [replaces_sale_id], references: [id], onDelete: Restrict)
+  replaced_by       EmporioSale?          @relation("SaleReplacement")
   exchange_return   EmporioSaleReturn?    @relation("ExchangeSale", fields: [exchange_return_id], references: [id], onDelete: Restrict)
   cash_session      CashSession?          @relation(fields: [cash_session_id], references: [id], onDelete: Restrict)
   quote             EmporioQuote?         @relation("SaleFromQuote", fields: [quote_id], references: [id], onDelete: Restrict)
