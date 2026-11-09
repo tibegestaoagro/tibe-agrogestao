@@ -25,14 +25,17 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-09 (ajuste urgente do Empório pronto na branch
-  `emporio-frete-ecommerce`, à espera da revisão do usuário e da autorização
-  de migrar, mesclar e publicar).
-- `main` em `38d4ac5`, Vercel verde, nenhuma migração pendente no Neon. As
-  quatro entregas do financeiro do Empório estão em produção desde 08/11
-  (Q214 a Q243; evidências em
-  [financeiro-emporio-relatorio.md](financeiro-emporio-relatorio.md)); as
-  branches `emporio-financeiro-spec` e `-1` a `-4` podem ser apagadas.
+- Atualizado em: 2026-11-09 (ajuste do frete, origem e editar venda em
+  produção: migração no Neon, merge fast-forward e push autorizados na
+  conversa).
+- `main` em `b775487` (igual a `origin/main`), nenhuma migração pendente no
+  Neon ("Database schema is up to date!"). Deploy da Vercel conferido: o
+  `/docs/api` em produção lista a rota `POST /sales/:id/replace` (09/11). As
+  quatro entregas do financeiro estão em produção
+  desde 08/11 (Q214 a Q243; evidências em
+  [financeiro-emporio-relatorio.md](financeiro-emporio-relatorio.md)). As
+  branches `emporio-financeiro-spec`, `-1` a `-4` e `emporio-frete-ecommerce`
+  estão todas na `main` e podem ser apagadas.
 
 ### Ajuste de 09/11: frete na venda, origem e-commerce e editar venda
 
@@ -44,7 +47,7 @@ transportadora. Spec
 `docs/superpowers/plans/2026-11-09-emporio-frete-ecommerce.md`, ledger em
 `.superpowers/sdd/2026-11-09-emporio-frete-ecommerce/progress.md`.
 
-**Pronto na branch (15 commits sobre `38d4ac5`, HEAD `900ccf2`):**
+**Em produção (15 commits sobre `38d4ac5`, mesclados em 09/11):**
 - Venda com `freight_amount` e `origin` (`balcao`, `ecommerce`); `net_amount`
   segue sendo os itens (o faturamento); o recibo vale itens mais frete; nasce a
   conta a pagar "Frete de entrega" (vence no dia, cancelar a venda cancela a
@@ -53,8 +56,8 @@ transportadora. Spec
 - Editar venda: `POST /sales/:id/replace` cancela a antiga e registra a nova
   na mesma transação (`replaces_sale_id`), com as travas do cancelamento; na
   tela, "Editar" no detalhe abre o balcão preenchido (`/emporio/vender?editar=`).
-- Migração `20261109120000_emporio_frete_origem_substituicao`, **só no
-  Docker**. `test:m102` 76, roteiro `emporio-frete-ecommerce` 47 checks nos
+- Migração `20261109120000_emporio_frete_origem_substituicao` aplicada no
+  Docker e no Neon (URL Direct). `test:m102` 76, roteiro `emporio-frete-ecommerce` 47 checks nos
   dois sentidos (sabotado: 8 falhas), roteiro `emporio-f3a` verde, manual,
   `/docs/api`, dívidas 2.54 e 2.55. Revisão Sonnet por onda (sem juiz, por
   decisão do usuário); o achado importante (editar venda faturada de
@@ -68,9 +71,10 @@ orçamento da antiga quando o corpo cala.
 
 ### ⏭️ Próximo passo
 
-1. O usuário revisa o ajuste (tela e decisões acima) e, se aprovar, autoriza
-   NA CONVERSA: migração no Neon (URL Direct), merge fast-forward, push na
-   `main`, e confere o `/docs/api` em produção (rota `replace`).
+1. O usuário confirma as três decisões do agente acima (conta do frete
+   sempre criada; "Editar" só do gestor; herança da venda antiga) e usa o
+   ajuste nos pedidos do e-commerce já lançados (Editar, informar o frete,
+   marcar E-commerce). Discordância vira ajuste pequeno em branch nova.
 2. Depois: Q239 a Q243 do financeiro a confirmar; a Agromax passa a usar a
    casa do financeiro; cenário de demonstração na conta de testes nova
    (pendência do usuário); dívidas 2.36 a 2.55 esperam pedido.
@@ -186,9 +190,9 @@ relatórios em [agente-whatsapp/](agente-whatsapp/), detalhe em
 
 ## Últimas rodadas
 
-- 09/11: frete na venda, origem e-commerce e editar venda prontos em
-  `emporio-frete-ecommerce` (Q244 a Q249, m102 76, roteiro 47/0), à espera
-  da revisão e da autorização do usuário.
+- 09/11: frete na venda, origem e-commerce e editar venda (Q244 a Q249,
+  m102 76, roteiro 47/0) em produção: migração no Neon, merge e push
+  autorizados na conversa.
 - 08/11 (noite): entrega 4 pronta (juiz 9/10 na rodada 4) e as quatro
   entregas do financeiro em produção, na ordem 1 a 4, autorizadas na conversa.
 - 08/11: entrega 3 pronta em `emporio-financeiro-3` (juiz 8/10 na rodada 2).
