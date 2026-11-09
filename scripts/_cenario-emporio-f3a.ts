@@ -37,6 +37,9 @@ async function limpar(tenant_id: string) {
     select: { id: true },
   })).map((l) => l.id);
 
+  // Outro cenário (projeção, F4a) pode ter rateado despesa fixa nestas lojas: a ocorrência e o split seguram a loja.
+  await prisma.fixedExpenseOccurrence.deleteMany({ where: { tenant_id, establishment_id: { in: lojas } } });
+  await prisma.fixedExpenseSplit.deleteMany({ where: { tenant_id, establishment_id: { in: lojas } } });
   await prisma.cashMovement.deleteMany({ where: { tenant_id, OR: [{ establishment_id: { in: lojas } }, { bank_account_id: { in: contas } }] } });
   // A contagem de abertura do turno (entrega 2) segura a loja: sai antes dela.
   await prisma.cashCount.deleteMany({ where: { tenant_id, establishment_id: { in: lojas } } });
