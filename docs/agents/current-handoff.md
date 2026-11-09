@@ -25,58 +25,63 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-09 (ajuste do frete, origem e editar venda em
-  produção: migração no Neon, merge fast-forward e push autorizados na
-  conversa).
-- `main` em `b775487` (igual a `origin/main`), nenhuma migração pendente no
-  Neon ("Database schema is up to date!"). Deploy da Vercel conferido: o
-  `/docs/api` em produção lista a rota `POST /sales/:id/replace` (09/11). As
-  quatro entregas do financeiro estão em produção desde 08/11 (Q214 a Q243; evidências em
-  [financeiro-emporio-relatorio.md](financeiro-emporio-relatorio.md)). As
+- Atualizado em: 2026-11-09 à noite (entrega 1 das taxas de cartão pronta
+  na branch `emporio-taxas-cartao-1`, à espera da revisão do usuário e da
+  autorização de migrar, mesclar e publicar).
+- `main` em `da18941` (igual a `origin/main`), nenhuma migração pendente no
+  Neon. Em produção desde 09/11: frete na venda, origem e-commerce e editar
+  venda (Q244 a Q249; deploy conferido pelo `/docs/api`). Em produção desde
+  08/11: as quatro entregas do financeiro (Q214 a Q243). Evidências em
+  [financeiro-emporio-relatorio.md](financeiro-emporio-relatorio.md). As
   branches `emporio-financeiro-spec`, `-1` a `-4` e `emporio-frete-ecommerce`
-  estão todas na `main` e podem ser apagadas.
+  estão na `main` e podem ser apagadas.
 
-### Ajuste de 09/11: frete na venda, origem e-commerce e editar venda
+### Taxas de cartão (Q250 a Q258): entrega 1 pronta, 3 a esboçar
 
-Pedido do usuário com urgência: a Agromax lança à mão os pedidos do
-e-commerce, o cliente paga produto mais frete e o frete é repasse à
-transportadora. Spec
-[../superpowers/specs/2026-11-09-emporio-frete-ecommerce-design.md](../superpowers/specs/2026-11-09-emporio-frete-ecommerce-design.md)
-(Q244 a Q249, na tabela do módulo), plano
-`docs/superpowers/plans/2026-11-09-emporio-frete-ecommerce.md`, ledger em
-`.superpowers/sdd/2026-11-09-emporio-frete-ecommerce/progress.md`.
+Pedido do usuário em 09/11: a Stone cobra por bandeira (Visa/Master, Elo),
+modalidade e número de parcelas, a taxa muda todo mês, e há antecipação.
+Pesquisa em `reports/Taxas de cartão no Empório.md` (fora do git). Spec
+[../superpowers/specs/2026-11-09-emporio-taxas-de-cartao-design.md](../superpowers/specs/2026-11-09-emporio-taxas-de-cartao-design.md)
+(quatro entregas; a 1 detalhada, com dez decisões do agente no fim), plano
+`docs/superpowers/plans/2026-11-09-emporio-taxas-cartao-1.md`, ledger em
+`.superpowers/sdd/2026-11-09-emporio-taxas-cartao-1/progress.md`.
 
-**Em produção (15 commits sobre `38d4ac5`, mesclados em 09/11):**
-- Venda com `freight_amount` e `origin` (`balcao`, `ecommerce`); `net_amount`
-  segue sendo os itens (o faturamento); o recibo vale itens mais frete; nasce a
-  conta a pagar "Frete de entrega" (vence no dia, cancelar a venda cancela a
-  não paga); o Resultado ganha a linha "Frete de entrega (repasse)" fora das
-  vendas e da margem (só a diferença entra no resultado).
-- Editar venda: `POST /sales/:id/replace` cancela a antiga e registra a nova
-  na mesma transação (`replaces_sale_id`), com as travas do cancelamento; na
-  tela, "Editar" no detalhe abre o balcão preenchido (`/emporio/vender?editar=`).
-- Migração `20261109120000_emporio_frete_origem_substituicao` aplicada no
-  Docker e no Neon (URL Direct). `test:m102` 76, roteiro `emporio-frete-ecommerce` 47 checks nos
-  dois sentidos (sabotado: 8 falhas), roteiro `emporio-f3a` verde, manual,
-  `/docs/api`, dívidas 2.54 e 2.55. Revisão Sonnet por onda (sem juiz, por
-  decisão do usuário); o achado importante (editar venda faturada de
-  orçamento) foi corrigido e provado nos dois sentidos.
+**Entrega 1, pronta na branch (14 commits sobre `da18941`, HEAD `b2eeaf9`):** `CardFeeRule`
+deu lugar a `CardAcquirer` (cadastro da conta) e `CardFeeRate` (por loja,
+adquirente, bandeira, modalidade e faixa de parcelas, com vigência);
+`resolverTaxa` pura compartilhada entre servidor e balcão; a venda congela
+adquirente, bandeira, taxa fixa e a linha usada; tela em Configurações
+("Cartões: adquirentes e taxas"; o Caixa ficou só com a operação); balcão
+com adquirente e bandeira; detalhe, recibo e a receber mostram os dois.
+Migração `20261109180000_emporio_adquirente_e_taxas_de_cartao` **carrega**
+as regras antigas na adquirente "Maquininha" (renomear para Stone) e **só
+no Docker**. `test:m103` 89, `test:all` 103/103, build e isolamento verdes, roteiro
+`emporio-cartoes` 48 checks nos dois sentidos (sabotado: 3 falhas), roteiro
+`emporio-f3b` ajustado e verde, manual, `/docs/api`, dívidas 2.56 a 2.58
+(2.25 parcial, 2.28 destravada). Revisão Sonnet por onda e da branch.
 
-**Decisões do agente a confirmar com o usuário:** a conta do frete é criada
-mesmo se a plataforma já reter o frete (marcar paga, ou tirar a criação);
-"Editar" exige gestor da loja, como cancelar (quem lança o e-commerce pode
-ser vendedor); a venda nova herda `sold_at`, vendedor, cliente, entrega e
-orçamento da antiga quando o corpo cala.
+**Decisões do agente a confirmar:** sem bandeira informada pela API a venda
+grava bandeira nula e resolve só linhas "qualquer bandeira"; as taxas podem
+ser mexidas pelo gestor da loja e pelo Financeiro (Q232); adquirente só pelo
+Dono e Gerente geral; linhas migradas valem "desde sempre" (2020-01-01).
+
+**Depois do deploy, na Agromax:** renomear "Maquininha" para "Stone",
+cadastrar as linhas por bandeira e parcelas com a vigência do mês e encerrar
+as migradas. **Entregas 2 a 4 (esboço na spec):** dia útil e taxa por parcela
+no recebível; antecipação pontual e automática por configuração; extrato da
+Stone. Dependem das respostas do setor da Agromax (relatório da pesquisa).
 
 ### ⏭️ Próximo passo
 
-1. O usuário confirma as três decisões do agente acima (conta do frete
-   sempre criada; "Editar" só do gestor; herança da venda antiga) e usa o
-   ajuste nos pedidos do e-commerce já lançados (Editar, informar o frete,
-   marcar E-commerce). Discordância vira ajuste pequeno em branch nova.
-2. Depois: Q239 a Q243 do financeiro a confirmar; a Agromax passa a usar a
-   casa do financeiro; cenário de demonstração na conta de testes nova
-   (pendência do usuário); dívidas 2.36 a 2.55 esperam pedido.
+1. O usuário revisa a entrega 1 (Configurações, balcão) e, se aprovar,
+   autoriza NA CONVERSA: migração no Neon (URL Direct; ela carrega dados),
+   merge fast-forward, push na `main`, conferir `/docs/api` (rota
+   `card-fee-rates`).
+2. Frete (Q244 a Q249): confirmar as três decisões do agente (conta do frete
+   sempre criada; "Editar" só do gestor; herança da venda antiga).
+3. Depois: Q239 a Q243 do financeiro; a Agromax usa a casa do financeiro;
+   cenário de demonstração na conta de testes nova (pendência do usuário);
+   dívidas 2.36 a 2.58 esperam pedido.
 
 As pastas `research_notes/` e `reports/` (pesquisa de mercado que embasou a
 spec) são ignoradas pelo git de propósito: o repositório é público.
@@ -169,32 +174,27 @@ relatórios em [agente-whatsapp/](agente-whatsapp/), detalhe em
 - `npx prisma migrate deploy` contra o Neon pode ser recusado pelo
   classificador mesmo com autorização. Tente uma vez; se bloquear, dê ao
   usuário o comando e confira com `migrate status` antes do push.
-- Dois clones (`C:` e `D:`); os worktrees `tibe-wt2` e `tibe-wt3` foram
-  removidos em 08/11 à noite (nenhum dev server de pé). Para a próxima prova
-  viva: `npm run dev` no clone, `npx prisma generate` antes se houver migração
-  nova; roteiro com `TIBE_BASE="http://localhost:<porta>"` (nunca
-  `127.0.0.1`: o cookie é de `localhost`); não suponha a conta vazia.
-- Roteiro preso em recarga é aba sobrando no Chrome de testes ou o laço de
-  logo depois de subir (cofre: `a-aba-oculta-e-a-leitura-cedo-imitam-defeito-no-navegador`;
-  em 09/11 o sintoma foi "escolhe a loja" falhando e `fiber=false`: fechar as
-  abas pela porta 9333, derrubar o `next dev`, apagar `.next`, aquecer `/login`).
-  O `manual-emporio` regrava todos os PNGs: restaure os que não mudaram.
-- Nesta sessão de 09/11 o `Agent` não listou `servidor-dados` nem
-  `prova-viva` (frontmatter igual aos outros); `servidor-acao` e
-  `general-purpose` em Sonnet fizeram o papel. O usuário pede economia de
-  cota: Sonnet para implementar e revisar, Haiku para explorar, Opus só se
-  ele pedir juiz.
+- Dois clones (`C:` e `D:`), sem worktrees desde 08/11. Prova viva: `npm run
+  dev` no clone (`prisma generate` antes se houver migração), roteiro com
+  `TIBE_BASE="http://localhost:<porta>"` (nunca `127.0.0.1`).
+- Roteiro preso em recarga (`fiber=false`, "escolhe a loja" falhando) é aba
+  sobrando no Chrome de testes ou o laço de logo depois de subir: fechar as
+  abas pela porta 9333, derrubar o `next dev`, apagar `.next`, aquecer
+  `/login` (cofre: `a-aba-oculta-e-a-leitura-cedo-imitam-defeito-no-navegador`).
+- Em 09/11 o `Agent` não listou `servidor-dados` nem `prova-viva`;
+  `servidor-acao` e `general-purpose` em Sonnet fizeram o papel. O usuário
+  pede economia de cota: Sonnet implementa e revisa, Haiku explora, Opus só
+  se ele pedir juiz.
 - No notebook: `node -v` 24.22.1 ou mais; sem o `.claude/settings.local.json`
   (não vai ao git), a migração em produção volta a ser recusada pelo classificador.
 
 ## Últimas rodadas
 
+- 09/11 (noite): pesquisa, spec e entrega 1 das taxas de cartão prontas em
+  `emporio-taxas-cartao-1` (Q250 a Q258, m103 89, roteiro 48/0).
 - 09/11: frete na venda, origem e-commerce e editar venda (Q244 a Q249,
-  m102 76, roteiro 47/0) em produção: migração no Neon, merge e push
-  autorizados na conversa.
-- 08/11 (noite): entrega 4 pronta (juiz 9/10 na rodada 4) e as quatro
-  entregas do financeiro em produção, na ordem 1 a 4, autorizadas na conversa.
-- 08/11: entrega 3 pronta em `emporio-financeiro-3` (juiz 8/10 na rodada 2).
-- 08/11: entregas 1 e 2 prontas em `emporio-financeiro-1` e `-2` (juiz 8/10).
+  m102 76, roteiro 47/0) em produção, autorizados na conversa.
+- 08/11: as quatro entregas do financeiro em produção, na ordem 1 a 4
+  (juiz 8 a 9/10), autorizadas na conversa.
 - 07/11: spec do financeiro do Empório (24 decisões) e os planos 1 a 3 do
   Empório em produção, `c3b2606`; handoff arquivado em `historico/2026-11.md`.
