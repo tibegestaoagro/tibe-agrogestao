@@ -482,7 +482,7 @@ async function comBanco() {
     });
   } finally {
     const modelos = [
-      "emporioAuditLog", "cashMovement", "cardReceivable", "emporioCheck", "cashTransfer", "cashCount", "cardFeeRule", "stockMovement",
+      "emporioAuditLog", "cashMovement", "cardReceivable", "emporioCheck", "cashTransfer", "cashCount", "cardFeeRate", "cardAcquirer", "stockMovement",
       "saleVariableExpense", "variableExpenseRule", "fixedExpenseOccurrence", "fixedExpenseSplit", "fixedExpenseTemplate",
       "emporioSalePayment", "emporioSaleReturnItem", "emporioSaleReturn", "emporioSaleItem", "emporioSale",
       "stockTransferItem", "stockTransfer", "productionEntry", "compositionItem", "composition", "emporioPurchaseItem", "emporioPurchase",

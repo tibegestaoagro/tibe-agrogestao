@@ -1,4 +1,5 @@
 import "./_env-local";
+import { adquirenteDeCenario } from "./_cartao-cenario";
 import { papelDeFixture, vincularTodas, virarGestor } from "./_emporio-papel";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { exigirBancoLocal } from "./_banco-local";
@@ -258,20 +259,20 @@ async function comBanco() {
       check("taxa acima de 100: 422 fee_pct", recusa(await regra(admin, "debito", 100.01, 1), "VALIDATION_ERROR", 422, "fee_pct"));
       check("prazo acima de 120 dias: 422 days", recusa(await regra(admin, "debito", 2, 121), "VALIDATION_ERROR", 422, "days"));
       check("taxa negativa: 422 fee_pct", recusa(await regra(admin, "debito", -1, 1), "VALIDATION_ERROR", 422, "fee_pct"));
-      check("as recusas não gravaram regra de débito", (await db.cardFeeRule.count({ where: { establishment_id: L1.id, kind: "debito" } })) === 0);
+      check("as recusas não gravaram regra de débito", (await db.cardFeeRate.count({ where: { establishment_id: L1.id, kind: "debito" } })) === 0);
       check("taxa 100 e prazo 120 são os limites aceitos", (await regra(admin, "debito", 100, 120, L3.id)).ok);
       const rEdit = await regra(admin, "credito_vista", 4, 25);
-      const regras = await db.cardFeeRule.findMany({ where: { establishment_id: L1.id, kind: "credito_vista" } });
+      const regras = await db.cardFeeRate.findMany({ where: { establishment_id: L1.id, kind: "credito_vista" } });
       check("PUT de novo SUBSTITUI (uma regra só por loja e forma, com os valores novos)", rEdit.ok && regras.length === 1 && perto(n(regras[0].fee_pct), 4) && regras[0].days === 25, j(regras));
       check("volta a 3% e 30 dias", (await regra(admin, "credito_vista", 3, 30)).ok);
       const ls = await xx("listarRegrasCartaoAction", admin, L1.id);
       const lsAlt = ls.ok ? ls : await xx("listarRegrasCartaoAction", admin);
       check("a lista traz as regras da loja", lista(dados(lsAlt)).filter((r) => r.kind === "credito_vista" || r.kind === "credito_parcelado").length >= 2, j(lsAlt));
       const rTemp = await regra(admin, "credito_vista", 1, 1, L3.id);
-      const idTemp = dados(rTemp)?.id ?? (await db.cardFeeRule.findFirst({ where: { establishment_id: L3.id, kind: "credito_vista" } }))?.id ?? "";
+      const idTemp = dados(rTemp)?.id ?? (await db.cardFeeRate.findFirst({ where: { establishment_id: L3.id, kind: "credito_vista" } }))?.id ?? "";
       check("regra temporária criada", rTemp.ok && !!idTemp, j(rTemp));
       check("OPERADOR remove regra: 403", recusa(await xx("removerRegraCartaoAction", op, idTemp), "FORBIDDEN", 403));
-      check("ADMIN remove regra", (await xx("removerRegraCartaoAction", admin, idTemp)).ok && (await db.cardFeeRule.count({ where: { id: idTemp } })) === 0);
+      check("ADMIN remove regra", (await xx("removerRegraCartaoAction", admin, idTemp)).ok && (await db.cardFeeRate.count({ where: { id: idTemp } })) === 0);
     });
 
     // ---------------------------------------------------------------- 2
@@ -680,7 +681,7 @@ async function comBanco() {
       const contaB = (await bb("criarContaAction", ownerB, { name: `M82 B conta ${stamp}`, bank: "B" })).ok
         ? (await dbB.bankAccount.findFirst({ where: { tenant_id: TB.t.id } }))?.id ?? ""
         : "";
-      const regraA = await db.cardFeeRule.findFirst({ where: { establishment_id: L1.id, kind: "credito_vista" } });
+      const regraA = await db.cardFeeRate.findFirst({ where: { establishment_id: L1.id, kind: "credito_vista" } });
       const chequeA = chequeId1 || "sem-cheque";
       const rcA = (await db.cardReceivable.findFirst({ where: { sale_id: { not: "" } } }))?.id ?? "";
       const lsR = await bb("listarRegrasCartaoAction", ownerB);
@@ -701,8 +702,8 @@ async function comBanco() {
       check("B não vê as conferências de A", !j(dados(await bb("listarConferenciasAction", ownerB)) ?? []).includes(ultimaConferenciaId));
       const caixaB = dados(await bb("lerCaixaAction", ownerB));
       check("o caixa de B não traz parcela, cheque nem conferência de A", !j(caixaB).includes(chequeA) && !j(caixaB).includes(ultimaConferenciaId) && !j(caixaB).includes(rcA) && somaReceberCaixa(caixaB) === 0 && Number.isNaN(achar(caixaB, "establishment_id", L2.id)), j(caixaB));
-      check("no banco, B não tem regras, parcelas, cheques, transferências nem conferências", (await dbB.cardFeeRule.count()) === 0 && (await dbB.cardReceivable.count()) === 0 && (await dbB.emporioCheck.count()) === 0 && (await dbB.cashTransfer.count()) === 0 && (await dbB.cashCount.count()) === 0);
-      check("e A tem os seus (o isolamento não é vazio)", (await db.cardFeeRule.count()) > 0 && (await db.cardReceivable.count()) > 0 && (await db.emporioCheck.count()) > 0 && (await db.cashTransfer.count()) > 0 && (await db.cashCount.count()) > 0);
+      check("no banco, B não tem regras, parcelas, cheques, transferências nem conferências", (await dbB.cardFeeRate.count()) === 0 && (await dbB.cardReceivable.count()) === 0 && (await dbB.emporioCheck.count()) === 0 && (await dbB.cashTransfer.count()) === 0 && (await dbB.cashCount.count()) === 0);
+      check("e A tem os seus (o isolamento não é vazio)", (await db.cardFeeRate.count()) > 0 && (await db.cardReceivable.count()) > 0 && (await db.emporioCheck.count()) > 0 && (await db.cashTransfer.count()) > 0 && (await db.cashCount.count()) > 0);
     });
 
     // ---------------------------------------------------------------- rotas
@@ -739,9 +740,9 @@ async function comBanco() {
         }
       };
       const ROTAS: [string, string, string, Dado][] = [
-        ["card-fee-rules", "GET", "card-fee-rules", undefined],
-        ["card-fee-rules", "PUT", "card-fee-rules", {}],
-        ["card-fee-rules/[id]", "DELETE", "card-fee-rules/x", undefined],
+        ["card-fee-rates", "GET", "card-fee-rates", undefined],
+        ["card-fee-rates", "POST", "card-fee-rates", {}],
+        ["card-fee-rates/[id]", "DELETE", "card-fee-rates/x", undefined],
         ["checks", "GET", "checks", undefined],
         ["checks/[id]/deposit", "POST", "checks/x/deposit", {}],
         ["checks/[id]/clear", "POST", "checks/x/clear", {}],
@@ -777,19 +778,20 @@ async function comBanco() {
         check(`  e a mensagem é em português`, typeof e?.message === "string" && e.message.length > 0 && !emIngles(e.message), j(e?.message));
       };
 
-      // regras de cartão
-      const vP = await chamar(tokenVisu, "card-fee-rules", "PUT", "card-fee-rules", { establishment_id: L2.id, kind: "debito", fee_pct: 1.5, days: 1, bank_account_id: CARD });
+      const adqRota = await adquirenteDeCenario(prisma, TA.t.id);
+      const BASE_TAXA = { acquirer_id: adqRota.id, brand: "qualquer", installments_from: 1, installments_to: 1, valid_from: "2020-01-01" };
+      const vP = await chamar(tokenVisu, "card-fee-rates", "POST", "card-fee-rates", { establishment_id: L2.id, kind: "debito", fee_pct: 1.5, days: 1, bank_account_id: CARD, ...BASE_TAXA });
       check("ligado: VISUALIZADOR define regra -> 403", vP.status === 403, `${vP.status} ${j(vP.json)}`);
-      const pu = await chamar(tokenOwner, "card-fee-rules", "PUT", "card-fee-rules", { establishment_id: L2.id, kind: "debito", fee_pct: 1.5, days: 1, bank_account_id: CARD });
-      check("PUT card-fee-rules: 200 ou 201", ok2xx(pu.status), `${pu.status} ${j(pu.json)}`);
-      const regraRota = await db.cardFeeRule.findFirst({ where: { establishment_id: L2.id, kind: "debito" } });
+      const pu = await chamar(tokenOwner, "card-fee-rates", "POST", "card-fee-rates", { establishment_id: L2.id, kind: "debito", fee_pct: 1.5, days: 1, bank_account_id: CARD, ...BASE_TAXA });
+      check("POST card-fee-rates: 200 ou 201", ok2xx(pu.status), `${pu.status} ${j(pu.json)}`);
+      const regraRota = await db.cardFeeRate.findFirst({ where: { establishment_id: L2.id, kind: "debito" } });
       check("a regra foi gravada (1,5% e 1 dia)", !!regraRota && perto(n(regraRota.fee_pct), 1.5) && regraRota.days === 1);
-      const gr = await chamar(tokenOwner, "card-fee-rules", "GET", "card-fee-rules");
-      check("GET card-fee-rules: 200 e traz a regra", gr.status === 200 && j(gr.json).includes(regraRota?.id ?? "?"), `${gr.status}`);
-      em422("PUT card-fee-rules com taxa 101", await chamar(tokenOwner, "card-fee-rules", "PUT", "card-fee-rules", { establishment_id: L2.id, kind: "debito", fee_pct: 101, days: 1, bank_account_id: CARD }), ["fee_pct"]);
-      em422("PUT card-fee-rules com prazo 121", await chamar(tokenOwner, "card-fee-rules", "PUT", "card-fee-rules", { establishment_id: L2.id, kind: "debito", fee_pct: 1, days: 121, bank_account_id: CARD }), ["days"]);
-      const del = await chamar(tokenOwner, "card-fee-rules/[id]", "DELETE", `card-fee-rules/${regraRota?.id}`, undefined, regraRota?.id);
-      check("DELETE card-fee-rules/[id]: 200 ou 204 e a regra some", (del.status === 200 || del.status === 204) && (await db.cardFeeRule.count({ where: { id: regraRota?.id } })) === 0, `${del.status} ${j(del.json)}`);
+      const gr = await chamar(tokenOwner, "card-fee-rates", "GET", "card-fee-rates");
+      check("GET card-fee-rates: 200 e traz a regra", gr.status === 200 && j(gr.json).includes(regraRota?.id ?? "?"), `${gr.status}`);
+      em422("POST card-fee-rates com taxa 101", await chamar(tokenOwner, "card-fee-rates", "POST", "card-fee-rates", { establishment_id: L2.id, kind: "debito", fee_pct: 101, days: 1, bank_account_id: CARD, ...BASE_TAXA }), ["fee_pct"]);
+      em422("POST card-fee-rates com prazo 121", await chamar(tokenOwner, "card-fee-rates", "POST", "card-fee-rates", { establishment_id: L2.id, kind: "debito", fee_pct: 1, days: 121, bank_account_id: CARD, ...BASE_TAXA }), ["days"]);
+      const del = await chamar(tokenOwner, "card-fee-rates/[id]", "DELETE", `card-fee-rates/${regraRota?.id}`, undefined, regraRota?.id);
+      check("DELETE card-fee-rates/[id]: 200 ou 204 e a regra some", (del.status === 200 || del.status === 204) && (await db.cardFeeRate.count({ where: { id: regraRota?.id } })) === 0, `${del.status} ${j(del.json)}`);
 
       // cheques
       const Cr = await contato("rota cheque");
@@ -845,7 +847,8 @@ async function comBanco() {
         await prisma.emporioCheck.deleteMany({ where: { tenant_id: id } });
         await prisma.cashTransfer.deleteMany({ where: { tenant_id: id } });
         await prisma.cashCount.deleteMany({ where: { tenant_id: id } });
-        await prisma.cardFeeRule.deleteMany({ where: { tenant_id: id } });
+        await prisma.cardFeeRate.deleteMany({ where: { tenant_id: id } });
+        await prisma.cardAcquirer.deleteMany({ where: { tenant_id: id } });
         await prisma.stockMovement.deleteMany({ where: { tenant_id: id } });
         await prisma.emporioSalePayment.deleteMany({ where: { tenant_id: id } });
         await prisma.emporioSaleReturnItem.deleteMany({ where: { tenant_id: id } });

@@ -1,4 +1,5 @@
 import "./_env-local";
+import { limparTaxasDeCenario } from "./_cartao-cenario";
 import { prisma, prismaForTenant, type TenantPrismaClient } from "@/lib/prisma";
 import type { ActionResult } from "@/lib/actions/types";
 import type { AppUserRole } from "@/types/next-auth";
@@ -869,7 +870,7 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
   };
   for (const c of ["centro", "rodovia"] as ChaveVenda[]) {
     for (const [kind, [pct, dias]] of Object.entries(taxas[c])) {
-      const ja = await db.cardFeeRule.findFirst({ where: { establishment_id: lojas[c], kind: kind as "debito" } });
+      const ja = await db.cardFeeRate.findFirst({ where: { establishment_id: lojas[c], kind: kind as "debito" } });
       if (ja) continue;
       exigir(await caixa.definirRegraCartaoAction(db, gerente, { establishment_id: lojas[c], kind, fee_pct: pct, days: dias, bank_account_id: contaId }), `cartão ${c} ${kind}`);
     }
@@ -1779,7 +1780,7 @@ async function apagarCenario(tenantId: string, executar: boolean) {
   await prisma.variableExpenseRule.deleteMany({ where: { establishment_id: { in: lojas } } });
   await prisma.fixedExpenseSplit.deleteMany({ where: { template_id: { in: modelos } } });
   await prisma.fixedExpenseTemplate.deleteMany({ where: { id: { in: modelos } } });
-  await prisma.cardFeeRule.deleteMany({ where: { establishment_id: { in: lojas } } });
+  await limparTaxasDeCenario(prisma, { tenant_id: tenantId, establishment_ids: lojas });
   await prisma.stockLimit.deleteMany({ where: { emporio_product_id: { in: eps } } });
   await prisma.presentationPrice.deleteMany({ where: { establishment_id: { in: lojas } } });
   await prisma.productPresentation.deleteMany({ where: { emporio_product_id: { in: eps } } });

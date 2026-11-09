@@ -1115,7 +1115,8 @@ async function comBanco() {
         await prisma.emporioCheck.deleteMany({ where: { tenant_id: id } });
         await prisma.cashTransfer.deleteMany({ where: { tenant_id: id } });
         await prisma.cashCount.deleteMany({ where: { tenant_id: id } });
-        await prisma.cardFeeRule.deleteMany({ where: { tenant_id: id } });
+        await prisma.cardFeeRate.deleteMany({ where: { tenant_id: id } });
+        await prisma.cardAcquirer.deleteMany({ where: { tenant_id: id } });
         await prisma.stockMovement.deleteMany({ where: { tenant_id: id } });
         await prisma.saleVariableExpense.deleteMany({ where: { tenant_id: id } });
         await prisma.variableExpenseRule.deleteMany({ where: { tenant_id: id } });

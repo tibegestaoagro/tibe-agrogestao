@@ -495,7 +495,7 @@ async function comBanco() {
       await Z.vender(L.id, PZ, 5, [{ kind: "credito_vista", amount: 50 }]);
       const pc1 = passosDe(((await chamar(PP, "primeirosPassosAction", Z.db, Z.admin)) as Dado).data, L.id);
       check("vendeu no cartão e a regra existe: taxa_cartao presente e feito", tem(pc1, "taxa_cartao") && feito(pc1, "taxa_cartao") === true, j(pc1?.find((p) => p.key === "taxa_cartao")));
-      await Z.db.cardFeeRule.deleteMany({ where: { establishment_id: L.id } });
+      await Z.db.cardFeeRate.deleteMany({ where: { establishment_id: L.id } });
       const rc2 = (await chamar(PP, "primeirosPassosAction", Z.db, Z.admin)) as Dado;
       const pc2 = passosDe(rc2.data, L.id);
       check("vendeu no cartão e a regra sumiu: taxa_cartao presente e NÃO feito", tem(pc2, "taxa_cartao") && feito(pc2, "taxa_cartao") === false, j(pc2?.find((p) => p.key === "taxa_cartao")));
@@ -517,7 +517,8 @@ async function comBanco() {
         await prisma.emporioCheck.deleteMany({ where: { tenant_id: id } });
         await prisma.cashTransfer.deleteMany({ where: { tenant_id: id } });
         await prisma.cashCount.deleteMany({ where: { tenant_id: id } });
-        await prisma.cardFeeRule.deleteMany({ where: { tenant_id: id } });
+        await prisma.cardFeeRate.deleteMany({ where: { tenant_id: id } });
+        await prisma.cardAcquirer.deleteMany({ where: { tenant_id: id } });
         await prisma.stockMovement.deleteMany({ where: { tenant_id: id } });
         await prisma.saleVariableExpense.deleteMany({ where: { tenant_id: id } });
         await prisma.variableExpenseRule.deleteMany({ where: { tenant_id: id } });
