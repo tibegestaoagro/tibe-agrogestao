@@ -334,6 +334,7 @@ async function comBanco() {
       return m.get(conta) ?? 0;
     };
 
+    const cartoesDaProjecao = (r: R): number => ((dados(r)?.weeks ?? []) as Dado[]).reduce((s, w) => s + n(w.receivables?.cards), 0);
     // ---------------------------------------------------------------- 1
     try {
       await secao1();
@@ -425,21 +426,24 @@ async function comBanco() {
       check("a venda 3x de preparação gerou 3 parcelas futuras", r.ok && rc.length === 3 && rc.every((p) => dia(p.expected_on) > HOJE), j(r).slice(0, 300));
       if (rc.length !== 3) return;
       const saldo0 = await saldoDe(conta);
-      const cards0 = await ff("listarContasAReceberAction", gestor, { establishment_id: L3.id });
-      const proj0 = await pj("lerFluxoProjetadoAction", admin, { establishment_id: L3.id, days: 30 });
-      const aReceber0 = n(dados(proj0)?.receivables?.cards);
+      const cards0 = await ff("listarContasAReceberAction", admin, { establishment_id: L3.id });
+      const proj0 = await pj("lerFluxoProjetadoAction", admin, { establishment_id: L3.id, days: 90 });
+      const aReceber0 = cartoesDaProjecao(proj0);
       check("antes: o saldo da conta não conta parcela futura", saldo0 === 0, String(saldo0));
-      check("antes: a projeção de 30 dias conta as três parcelas (289,50)", perto(aReceber0, 289.5, 0.011), j(dados(proj0)?.receivables));
+      check("antes: a projeção de 90 dias conta as três parcelas (289,50)", perto(aReceber0, 289.5, 0.011), j(dados(proj0)?.weeks));
       check("antes: as três aparecem a receber", lista(dados(cards0)?.cards).length === 3, j(dados(cards0)?.cards));
 
       // estado de uma antecipação pontual, direto no banco (a ação é da seção 5)
       const hojeDate = new Date(`${HOJE}T00:00:00Z`);
+      const opManual = (await dbx.cardAnticipation.create({
+        data: scoped({ bank_account_id: conta, operated_on: hojeDate, kind: "pontual", gross_amount: 200, expected_net: 193, received_net: 180, fee_amount: 13 }),
+      })) as Dado;
       for (const p of rc.slice(0, 2)) {
-        await dbx.cardReceivable.update({ where: { id: p.id }, data: { effective_on: hojeDate, effective_net: 90, anticipation_fee: n(p.net_amount) - 90 } });
+        await dbx.cardReceivable.update({ where: { id: p.id }, data: { effective_on: hojeDate, effective_net: 90, anticipation_fee: n(p.net_amount) - 90, anticipation_id: opManual.id } });
       }
       const saldo1 = await saldoDe(conta);
       check("depois: o saldo da conta soma os líquidos efetivos de hoje (90 + 90)", saldo1 === 18000, String(saldo1));
-      const cards1 = await ff("listarContasAReceberAction", gestor, { establishment_id: L3.id });
+      const cards1 = await ff("listarContasAReceberAction", admin, { establishment_id: L3.id });
       const linhas1 = lista(dados(cards1)?.cards);
       const idsAnt = new Set(rc.slice(0, 2).map((p) => p.id));
       const futuras = linhas1.filter((l) => idsAnt.has(l.id) && l.received === false);
@@ -448,8 +452,8 @@ async function comBanco() {
       check("depois: a não antecipada segue a receber, com os campos novos", !!restante && restante.anticipated === false && dia(restante.effective_on) === dia(rc[2].expected_on) && perto(n(restante.effective_net), n(rc[2].net_amount)) && perto(n(restante.fee_amount), n(rc[2].fee_amount)) && dia(restante.expected_on) === dia(rc[2].expected_on) && perto(n(restante.net_amount), n(rc[2].net_amount)), j(restante));
       const feitas = linhas1.filter((l) => idsAnt.has(l.id));
       check("depois: se listadas, mostram anticipated, effective_on hoje e 90", feitas.every((l) => l.anticipated === true && dia(l.effective_on) === HOJE && perto(n(l.effective_net), 90)), j(feitas));
-      const proj1 = await pj("lerFluxoProjetadoAction", admin, { establishment_id: L3.id, days: 30 });
-      check("depois: a projeção de 30 dias conta só a parcela que sobrou (96,50)", perto(n(dados(proj1)?.receivables?.cards), 96.5, 0.011), j(dados(proj1)?.receivables));
+      const proj1 = await pj("lerFluxoProjetadoAction", admin, { establishment_id: L3.id, days: 90 });
+      check("depois: a projeção de 90 dias conta só a parcela que sobrou (96,50)", perto(cartoesDaProjecao(proj1), 96.5, 0.011), j(dados(proj1)?.weeks));
     });
 
     // ---------------------------------------------------------------- 4
@@ -533,6 +537,7 @@ async function comBanco() {
       check("as recusas não gravaram operação", (await dbx.cardAnticipation.count()) === ant0);
 
       // sucesso: recebe o previsto menos 9,00
+      const saldoBase = await saldoDe(conta); // a parcela de VV com effective_on de ontem já está no saldo
       RESULTADO_ANTES = dados(await rs("resultadoDaLojaAction", admin, { establishment_id: L5.id, month: mesAtual() }));
       const rOk = await antecipar(ids, (S - 900) / 100, { notes: "m104" });
       const a = dados(rOk);
@@ -548,7 +553,7 @@ async function comBanco() {
       check("expected_on e net_amount não mudam", ap.every((p, i) => dia(p.expected_on) === dia(V1.rc[i].expected_on) && cent(p.net_amount) === cent(V1.rc[i].net_amount)));
       const dd1 = await despesas({ category: CAT_ANT, related_id: a.id });
       check("uma despesa 'Antecipação de recebíveis' paga de 9,00 na loja", dd1.length === 1 && dd1[0].status === "paid" && cent(dd1[0].amount) === 900 && dd1[0].establishment_id === L5.id, j(dd1));
-      check("o saldo da conta soma os três efetivos", (await saldoDe(conta)) === S - 900, String(await saldoDe(conta)));
+      check("o saldo da conta soma os três efetivos", (await saldoDe(conta)) - saldoBase === S - 900, String(await saldoDe(conta)));
       RESULTADO_DEPOIS = dados(await rs("resultadoDaLojaAction", admin, { establishment_id: L5.id, month: mesAtual() }));
       const lst = await aa("listarAntecipacoesAction", admin, {});
       check("listarAntecipacoesAction traz a operação", lst.ok && lista(dados(lst)).some((x) => x.id === a.id), j(lst).slice(0, 300));
@@ -564,7 +569,7 @@ async function comBanco() {
       const opDesfeita = (await dbx.cardAnticipation.findFirst({ where: { id: a.id } })) as Dado;
       check("a operação guarda undone_at", !!opDesfeita?.undone_at, j(opDesfeita));
       check("desfazer de novo: 409 ANTECIPACAO_DESFEITA", recusa(await aa("desfazerAntecipacaoAction", admin, a.id), "ANTECIPACAO_DESFEITA", undefined, 409));
-      check("o saldo volta a não contar as parcelas futuras", (await saldoDe(conta)) === 0, String(await saldoDe(conta)));
+      check("o saldo volta a não contar as parcelas futuras", (await saldoDe(conta)) === saldoBase, String(await saldoDe(conta)));
 
       // conciliada
       const rOk2 = await antecipar(ids, (S - 900) / 100);

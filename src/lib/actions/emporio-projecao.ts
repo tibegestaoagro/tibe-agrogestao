@@ -101,12 +101,12 @@ export async function lerFluxoProjetadoAction(
   }
 
   const cartoes = await db.cardReceivable.findMany({
-    where: { canceled_at: null, expected_on: { gt: hoje, lte: fimDaJanela }, ...ondeLoja },
-    select: { expected_on: true, net_amount: true },
+    where: { canceled_at: null, effective_on: { gt: hoje, lte: fimDaJanela }, ...ondeLoja },
+    select: { effective_on: true, effective_net: true },
   });
   for (const c of cartoes) {
-    const i = semanaDoDia(dia(c.expected_on));
-    if (i >= 0) acc[i].cards += centavos(decToNum(c.net_amount) ?? 0);
+    const i = semanaDoDia(dia(c.effective_on));
+    if (i >= 0) acc[i].cards += centavos(decToNum(c.effective_net) ?? 0);
   }
 
   const cheques = await db.emporioCheck.findMany({

@@ -265,10 +265,10 @@ export async function lerPosicaoPorLugarAction(
   const cartaoAte = ate.getTime() < hojeDia.getTime() ? ate : hojeDia;
   const cartoes = await db.cardReceivable.groupBy({
     by: ["bank_account_id"],
-    where: { canceled_at: null, expected_on: { gte: de, lte: cartaoAte } },
-    _sum: { net_amount: true },
+    where: { canceled_at: null, effective_on: { gte: de, lte: cartaoAte } },
+    _sum: { effective_net: true },
   });
-  const cartaoDaConta = new Map(cartoes.map((c) => [c.bank_account_id, centavos(decToNum(c._sum.net_amount) ?? 0)]));
+  const cartaoDaConta = new Map(cartoes.map((c) => [c.bank_account_id, centavos(decToNum(c._sum.effective_net) ?? 0)]));
 
   const places: PosicaoPorLugarView["places"] = [];
   for (const p of posicoes) {

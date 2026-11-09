@@ -1868,12 +1868,13 @@ async function cancelarNaTransacao(
     data: { status: "devolvido_ao_cliente", updated_by_user_id: ator.id },
   });
 
-  // Cartão (Q94): a parcela futura some; a que já caiu sai da conta. A que
-  // caiu continua não cancelada, e o estorno a compensa no saldo.
+  // Cartão (Q94, Q261): a parcela que ainda não caiu de fato (data efetiva
+  // futura) some; a que já caiu sai da conta pelo líquido EFETIVO (o antecipado
+  // entrou menor). A que caiu continua não cancelada, e o estorno a compensa no saldo.
   const hoje = hojeEmBrasilia(agora);
   const parcelas = await tx.cardReceivable.findMany({ where: { sale_id: id, canceled_at: null } });
   for (const parcela of parcelas) {
-    if (parcela.expected_on.getTime() > hoje.getTime()) {
+    if (parcela.effective_on.getTime() > hoje.getTime()) {
       await tx.cardReceivable.update({ where: { id: parcela.id }, data: { canceled_at: agora } });
       continue;
     }
@@ -1882,7 +1883,7 @@ async function cancelarNaTransacao(
         establishment_id: null,
         bank_account_id: parcela.bank_account_id,
         direction: "saida" as const,
-        amount: decToNum(parcela.net_amount) ?? 0,
+        amount: decToNum(parcela.effective_net) ?? 0,
         origin: "estorno_cartao" as const,
         occurred_at: agora,
         sale_id: id,
@@ -1892,10 +1893,20 @@ async function cancelarNaTransacao(
       }),
     });
   }
-  await tx.financialEntry.updateMany({
-    where: { related_module: "emporio", entry_type: "expense", category: CATEGORIA_TAXAS_CARTAO, related_id: id },
-    data: { status: "cancelled" },
+  // A taxa (MDR) só some se a adquirente devolve no cancelamento (como a Stone);
+  // pagamento sem adquirente cancela, como sempre. A despesa é uma só por venda:
+  // se alguma adquirente da venda não devolve, ela fica. A despesa de antecipação
+  // (`CATEGORIA_ANTECIPACAO`) nunca é tocada aqui: o custo de antecipar não volta.
+  const adquirentes = await tx.emporioSalePayment.findMany({
+    where: { sale_id: id, acquirer_id: { not: null } },
+    select: { acquirer: { select: { refunds_mdr_on_cancel: true } } },
   });
+  if (adquirentes.every((a) => a.acquirer?.refunds_mdr_on_cancel !== false)) {
+    await tx.financialEntry.updateMany({
+      where: { related_module: "emporio", entry_type: "expense", category: CATEGORIA_TAXAS_CARTAO, related_id: id },
+      data: { status: "cancelled" },
+    });
+  }
   // Frete (Q244): a conta a pagar sem pagamento some; a paga fica. Em aprovação, recusa antes de escrever.
   const contasDoFrete = await tx.financialEntry.findMany({
     where: { related_module: "emporio", entry_type: "expense", category: CATEGORIA_FRETE, related_id: id, status: "pending" },

@@ -658,8 +658,8 @@ async function secao4() {
   await vender(P, cCard, P.L1, 20, [{ kind: "credito_vista", amount: 200 }]);
   const cartoes = (await P.db.cardReceivable.findMany({ where: { canceled_at: null }, orderBy: { created_at: "asc" } })) as Dado[];
   check("(fixture) existem duas parcelas de cartão", cartoes.length === 2, String(cartoes.length));
-  await P.db.cardReceivable.update({ where: { id: cartoes[0].id }, data: { expected_on: meioDia(emDias(0)) } });
-  await P.db.cardReceivable.update({ where: { id: cartoes[1].id }, data: { expected_on: meioDia(emDias(10)) } });
+  await P.db.cardReceivable.update({ where: { id: cartoes[0].id }, data: { expected_on: meioDia(emDias(0)), effective_on: meioDia(emDias(0)) } });
+  await P.db.cardReceivable.update({ where: { id: cartoes[1].id }, data: { expected_on: meioDia(emDias(10)), effective_on: meioDia(emDias(10)) } });
   X.cartaoHoje = n(cartoes[0].net_amount);
   X.cartaoDez = n(cartoes[1].net_amount);
 

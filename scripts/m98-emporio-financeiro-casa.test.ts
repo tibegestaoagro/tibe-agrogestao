@@ -679,7 +679,10 @@ async function secao5() {
   const cV = await comprar(A, A.tok.gestor, { supplier_id: A.fornecedor, items: [{ emporio_product_id: A.prodId, presentation_id: A.presId, quantity: 1, item_total: 77 }] });
   const eV = await entradaDaCompra(A, cV.corpo?.data?.id);
   const cartao = (await A.db.cardReceivable.findFirst({ where: { bank_account_id: A.conta, canceled_at: null } })) as Dado;
-  check("(fixture) a parcela de cartão vence hoje", !!cartao && diaDe(cartao.expected_on) === hojeStr, j(cartao));
+  // A regra padrão da adquirente é o próximo dia útil: no fim de semana a parcela vence na segunda.
+  const { proximoDiaUtil } = await import("@/lib/emporio/dia-util");
+  const vencimentoEsperado = proximoDiaUtil(new Date(`${hojeStr}T00:00:00.000Z`)).toISOString().slice(0, 10);
+  check("(fixture) a parcela de cartão vence hoje (ou no próximo dia útil)", !!cartao && diaDe(cartao.expected_on) === vencimentoEsperado, j(cartao));
   const cartaoNet = n(cartao?.net_amount);
 
   console.log("  Hoje");

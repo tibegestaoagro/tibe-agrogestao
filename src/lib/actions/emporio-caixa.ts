@@ -516,11 +516,11 @@ export async function saldosDasContas(db: TenantPrismaClient): Promise<Map<strin
   }
   const caidas = await db.cardReceivable.groupBy({
     by: ["bank_account_id"],
-    where: { canceled_at: null, expected_on: { lte: hojeEmBrasilia() } },
-    _sum: { net_amount: true },
+    where: { canceled_at: null, effective_on: { lte: hojeEmBrasilia() } },
+    _sum: { effective_net: true },
   });
   for (const c of caidas) {
-    mapa.set(c.bank_account_id, (mapa.get(c.bank_account_id) ?? 0) + centavos(decToNum(c._sum.net_amount) ?? 0));
+    mapa.set(c.bank_account_id, (mapa.get(c.bank_account_id) ?? 0) + centavos(decToNum(c._sum.effective_net) ?? 0));
   }
   return mapa;
 }
@@ -844,6 +844,11 @@ export type ParcelaCartaoView = {
   net_amount: number;
   /** Data de calendário (AAAA-MM-DD). */
   expected_on: string;
+  /** Quando e quanto cai de fato (Q261): difere do previsto se a parcela foi antecipada. */
+  effective_on: string;
+  effective_net: number;
+  fee_amount: number;
+  anticipated: boolean;
   /** Taxas de cartão (Q254): nulos nas parcelas de antes da entrega. */
   acquirer_name: string | null;
   brand: string | null;
@@ -1074,9 +1079,9 @@ export async function lerCaixaAction(
   if (veContas) {
     const todas = await viewsDasContas(db, { archived_at: null });
     const todasFuturas = await db.cardReceivable.findMany({
-      where: { canceled_at: null, expected_on: { gt: hojeEmBrasilia() } },
+      where: { canceled_at: null, effective_on: { gt: hojeEmBrasilia() } },
       include: { bank_account: { select: { name: true } }, acquirer: { select: { name: true } } },
-      orderBy: [{ expected_on: "asc" }, { installment: "asc" }],
+      orderBy: [{ effective_on: "asc" }, { installment: "asc" }],
     });
     parcelas = todasFuturas
       .filter(
@@ -1095,12 +1100,16 @@ export async function lerCaixaAction(
         gross_amount: decToNum(f.gross_amount) ?? 0,
         net_amount: decToNum(f.net_amount) ?? 0,
         expected_on: dia(f.expected_on),
+        effective_on: dia(f.effective_on),
+        effective_net: decToNum(f.effective_net) ?? 0,
+        fee_amount: decToNum(f.fee_amount) ?? 0,
+        anticipated: f.anticipation_id !== null,
         acquirer_name: f.acquirer?.name ?? null,
         brand: f.brand,
       }));
     const aReceber = new Map<string, number>();
     for (const f of todasFuturas) {
-      aReceber.set(f.bank_account_id, (aReceber.get(f.bank_account_id) ?? 0) + centavos(decToNum(f.net_amount) ?? 0));
+      aReceber.set(f.bank_account_id, (aReceber.get(f.bank_account_id) ?? 0) + centavos(decToNum(f.effective_net) ?? 0));
     }
     contas = todas.map((c) => ({
       bank_account_id: c.id,

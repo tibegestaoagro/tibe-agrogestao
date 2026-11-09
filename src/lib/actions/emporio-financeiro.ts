@@ -73,6 +73,11 @@ export type CartaoAReceberView = {
   gross_amount: number;
   net_amount: number;
   expected_on: string;
+  /** Quando e quanto cai de fato (Q261): difere do previsto se a parcela foi antecipada. */
+  effective_on: string;
+  effective_net: number;
+  fee_amount: number;
+  anticipated: boolean;
   received: boolean;
   /** Taxas de cartão (Q254): nulos nas parcelas de antes da entrega. */
   acquirer_name: string | null;
@@ -213,8 +218,8 @@ export async function lerResumoHojeAction(
     select: { amount: true },
   });
   const cartoes = await db.cardReceivable.findMany({
-    where: { canceled_at: null, expected_on: hoje, ...lojasDoFiltro },
-    select: { net_amount: true },
+    where: { canceled_at: null, effective_on: hoje, ...lojasDoFiltro },
+    select: { effective_net: true },
   });
   const fiado = await listarFiadoAction(db, ator, { establishment_id: lojaId });
   if (!fiado.ok) return fiado;
@@ -232,11 +237,11 @@ export async function lerResumoHojeAction(
       select: { amount: true },
     }),
     db.cardReceivable.findMany({
-      where: { canceled_at: null, reconciled_at: null, expected_on: { gte: desdeCarimbo, lte: hoje } },
-      select: { net_amount: true },
+      where: { canceled_at: null, reconciled_at: null, effective_on: { gte: desdeCarimbo, lte: hoje } },
+      select: { effective_net: true },
     }),
   ]);
-  const semCarimbo = [...movsSem.map((m) => m.amount), ...cartoesSem.map((c) => c.net_amount)];
+  const semCarimbo = [...movsSem.map((m) => m.amount), ...cartoesSem.map((c) => c.effective_net)];
 
   return ok({
     positions,
@@ -252,7 +257,7 @@ export async function lerResumoHojeAction(
         total: abertas.reduce((s, e) => s + e.open_cent, 0) / 100,
       },
       checks: { count: cheques.length, total: cheques.reduce((s, c) => s + centavos(decToNum(c.amount) ?? 0), 0) / 100 },
-      cards: { count: cartoes.length, total: cartoes.reduce((s, c) => s + centavos(decToNum(c.net_amount) ?? 0), 0) / 100 },
+      cards: { count: cartoes.length, total: cartoes.reduce((s, c) => s + centavos(decToNum(c.effective_net) ?? 0), 0) / 100 },
     },
     overdue_fiado: {
       customers: vencidos.length,
@@ -282,13 +287,13 @@ export async function listarContasAReceberAction(
 
   const hoje = hojeEmBrasilia();
   const parcelas = await db.cardReceivable.findMany({
-    where: { canceled_at: null, expected_on: { gte: hoje }, ...(lojaId ? { establishment_id: lojaId } : {}) },
+    where: { canceled_at: null, effective_on: { gte: hoje }, ...(lojaId ? { establishment_id: lojaId } : {}) },
     include: {
       establishment: { select: { name: true } },
       bank_account: { select: { name: true } },
       acquirer: { select: { name: true } },
     },
-    orderBy: [{ expected_on: "asc" }, { installment: "asc" }],
+    orderBy: [{ effective_on: "asc" }, { installment: "asc" }],
   });
   return ok({
     fiado: fiado.data,
@@ -305,7 +310,11 @@ export async function listarContasAReceberAction(
       gross_amount: decToNum(p.gross_amount) ?? 0,
       net_amount: decToNum(p.net_amount) ?? 0,
       expected_on: dia(p.expected_on),
-      received: p.expected_on.getTime() <= hoje.getTime(),
+      effective_on: dia(p.effective_on),
+      effective_net: decToNum(p.effective_net) ?? 0,
+      fee_amount: decToNum(p.fee_amount) ?? 0,
+      anticipated: p.anticipation_id !== null,
+      received: p.effective_on.getTime() <= hoje.getTime(),
       acquirer_name: p.acquirer?.name ?? null,
       brand: p.brand,
     })),
@@ -402,8 +411,8 @@ export async function lerExtratoAction(
     }),
     conta
       ? db.cardReceivable.aggregate({
-          where: { bank_account_id: conta.id, canceled_at: null, expected_on: { lt: deDia } },
-          _sum: { net_amount: true },
+          where: { bank_account_id: conta.id, canceled_at: null, effective_on: { lt: deDia } },
+          _sum: { effective_net: true },
         })
       : null,
     db.cashMovement.findMany({
@@ -413,14 +422,14 @@ export async function lerExtratoAction(
     }),
     conta
       ? db.cardReceivable.findMany({
-          where: { bank_account_id: conta.id, canceled_at: null, expected_on: { gte: deDia, lte: ateDia } },
+          where: { bank_account_id: conta.id, canceled_at: null, effective_on: { gte: deDia, lte: ateDia } },
           include: { establishment: { select: { name: true } }, acquirer: { select: { name: true } } },
-          orderBy: [{ expected_on: "asc" }, { installment: "asc" }],
+          orderBy: [{ effective_on: "asc" }, { installment: "asc" }],
         })
       : [],
   ]);
 
-  let abertura = centavos(decToNum(antesCartao?._sum.net_amount) ?? 0);
+  let abertura = centavos(decToNum(antesCartao?._sum.effective_net) ?? 0);
   for (const l of antes) {
     const v = centavos(decToNum(l._sum.amount) ?? 0);
     abertura += l.direction === "entrada" ? v : -v;
@@ -459,9 +468,9 @@ export async function lerExtratoAction(
     ...parcelas.map((p): ExtratoLinhaView => ({
       kind: "cartao",
       id: p.id,
-      occurred_on: dia(p.expected_on),
+      occurred_on: dia(p.effective_on),
       direction: "entrada",
-      amount: decToNum(p.net_amount) ?? 0,
+      amount: decToNum(p.effective_net) ?? 0,
       origin: "cartao",
       establishment_id: p.establishment_id,
       establishment_name: p.establishment.name,
@@ -531,8 +540,8 @@ async function acharLinhaDeConta(
     linha: {
       conta_id: p.bank_account_id,
       descricao: `Cartão, parcela ${p.installment}/${p.installments}`,
-      valor: decToNum(p.net_amount) ?? 0,
-      dia: p.expected_on,
+      valor: decToNum(p.effective_net) ?? 0,
+      dia: p.effective_on,
       carimbada: !!p.reconciled_at,
     },
   };
