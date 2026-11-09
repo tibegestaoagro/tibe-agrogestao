@@ -25,65 +25,55 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-08 à noite (as quatro entregas do financeiro do
-  Empório em produção: migrações no Neon, merge e push autorizados na
-  conversa, na ordem 1, 2, 3, 4).
-- `main` em `2737027`, Vercel verde (o `/docs/api` em produção lista as rotas
-  das quatro entregas, conferido em 08/11). Nenhuma migração pendente no Neon
-  (as quatro do financeiro aplicadas com a URL Direct, uma por entrega).
-- As branches `emporio-financeiro-spec` e `-1` a `-4` foram mescladas por
-  fast-forward; podem ser apagadas. Evidências por entrega em
-  [financeiro-emporio-relatorio.md](financeiro-emporio-relatorio.md).
+- Atualizado em: 2026-11-09 (ajuste urgente do Empório pronto na branch
+  `emporio-frete-ecommerce`, à espera da revisão do usuário e da autorização
+  de migrar, mesclar e publicar).
+- `main` em `38d4ac5`, Vercel verde, nenhuma migração pendente no Neon. As
+  quatro entregas do financeiro do Empório estão em produção desde 08/11
+  (Q214 a Q243; evidências em
+  [financeiro-emporio-relatorio.md](financeiro-emporio-relatorio.md)); as
+  branches `emporio-financeiro-spec` e `-1` a `-4` podem ser apagadas.
 
-### A missão autônoma do financeiro do Empório (aprovada em 07/11)
+### Ajuste de 09/11: frete na venda, origem e-commerce e editar venda
 
-Spec: [../superpowers/specs/2026-11-07-emporio-financeiro-design.md](../superpowers/specs/2026-11-07-emporio-financeiro-design.md)
-(Q214 a Q237, já na tabela do módulo). Contrato: quatro entregas, uma branch
-sobre a outra, cada uma com nove critérios batidos (plano, migração no Docker,
-check/tsc/lint/build, suíte nova mais `test:all`, isolamento, roteiro nos dois
-sentidos, juiz Opus com seis critérios a 8 ou mais, manual, docs). **Merge,
-push na `main`, deploy e migração no Neon são do usuário, na ordem 1, 2, 3,
-4, cada um com a migração antes do push, depois de revisar junto.** Nenhuma
-autorização disso foi dada.
+Pedido do usuário com urgência: a Agromax lança à mão os pedidos do
+e-commerce, o cliente paga produto mais frete e o frete é repasse à
+transportadora. Spec
+[../superpowers/specs/2026-11-09-emporio-frete-ecommerce-design.md](../superpowers/specs/2026-11-09-emporio-frete-ecommerce-design.md)
+(Q244 a Q249, na tabela do módulo), plano
+`docs/superpowers/plans/2026-11-09-emporio-frete-ecommerce.md`, ledger em
+`.superpowers/sdd/2026-11-09-emporio-frete-ecommerce/progress.md`.
 
-**Entrega 1 (`emporio-financeiro-1`): pronta.** Papel `financeiro`, ação
-`dinheiro`, a casa `/emporio/financeiro` (Hoje, A pagar, A receber, Posição
-de caixa com extrato), a conta da compra paga no Empório com `CashMovement`,
-o `/financeiro` do Tibé só da fazenda. Migração
-`20261107130000_emporio_financeiro_papel`, só no Docker. `test:m98` 244,
-roteiro `emporio-financeiro-casa` nos dois sentidos, juiz Opus 8/10 (rodada 2).
+**Pronto na branch (12 commits sobre `38d4ac5`, HEAD `77e1d23`):**
+- Venda com `freight_amount` e `origin` (`balcao`, `ecommerce`); `net_amount`
+  segue sendo os itens (o faturamento); o recibo vale itens mais frete; nasce a
+  conta a pagar "Frete de entrega" (vence no dia, cancelar a venda cancela a
+  não paga); o Resultado ganha a linha "Frete de entrega (repasse)" fora das
+  vendas e da margem (só a diferença entra no resultado).
+- Editar venda: `POST /sales/:id/replace` cancela a antiga e registra a nova
+  na mesma transação (`replaces_sale_id`), com as travas do cancelamento; na
+  tela, "Editar" no detalhe abre o balcão preenchido (`/emporio/vender?editar=`).
+- Migração `20261109120000_emporio_frete_origem_substituicao`, **só no
+  Docker**. `test:m102` 71, roteiro `emporio-frete-ecommerce` 47 checks nos
+  dois sentidos (sabotado: 8 falhas), roteiro `emporio-f3a` verde, manual,
+  `/docs/api`, dívidas 2.54 e 2.55. Revisão Sonnet por onda (sem juiz, por
+  decisão do usuário); o achado importante (editar venda faturada de
+  orçamento) foi corrigido e provado nos dois sentidos.
 
-**Entrega 2 (`emporio-financeiro-2`): pronta.** Vencimento do fiado, limite,
-bloqueio por atraso e por limite, liberação do Gestor, ficha de crédito,
-seção Fiado em Configurações, aba Cobrança com o WhatsApp do aparelho.
-Migração `20261108120000_emporio_financeiro_credito`, só no Docker.
-`test:m99` 197, `test:all` 99/99, roteiro `emporio-financeiro-credito` nos
-dois sentidos, juiz Opus 8/10 na rodada 1. Dívidas 2.36 e 2.37; 2.38
-confirmada pelo usuário em 08/11 (a liberação é consumida pela primeira venda).
-
-**Entrega 3 (`emporio-financeiro-3`): pronta.** Acordo de fiado em parcelas,
-alçada de pagamento com aprovação e aviso pelo WhatsApp, carimbo de
-conciliação no extrato. Migração
-`20261108180000_emporio_financeiro_acordo_alcada_carimbo` só no Docker.
-`test:m100` 248, juiz Opus 8/10 na rodada 2, roteiro `emporio-financeiro-acordo`
-nos dois sentidos, manual. Q238 confirmada pelo usuário em 08/11.
-
-**Entrega 4 (`emporio-financeiro-4`): pronta.** Fluxo projetado em 30/60/90
-dias por semana, três relatórios do dinheiro (aba Relatórios), rateio
-automático da despesa fixa por faturamento, área e funcionários. Migração
-`20261108220000_emporio_financeiro_rateio_automatico` só no Docker.
-`test:m101` 239, `test:all` 101/101, juiz Opus 9/10 na rodada 4 (três
-rodadas acharam o mês com conta paga sendo recalculado; corrigido e provado),
-roteiro `emporio-financeiro-projecao` nos dois sentidos, manual inteiro
-verde. Q239 a Q243 a confirmar. Dívidas 2.45 a 2.53.
+**Decisões do agente a confirmar com o usuário:** a conta do frete é criada
+mesmo se a plataforma já reter o frete (marcar paga, ou tirar a criação);
+"Editar" exige gestor da loja, como cancelar (quem lança o e-commerce pode
+ser vendedor); a venda nova herda `sold_at`, vendedor, cliente, entrega e
+orçamento da antiga quando o corpo cala.
 
 ### ⏭️ Próximo passo
 
-1. O usuário confirma as decisões Q239 a Q243 (e as partes iguais sem
-   base); discordância vira ajuste pequeno em branch nova. 2. A Agromax passa
-   a usar a casa do financeiro (papel `financeiro` pela Equipe; teto da alçada
-   e limites do fiado em Configurações). 3. O cenário de demonstração na conta
-   de testes nova (pendência do usuário). 4. Dívidas 2.36 a 2.53 esperam pedido.
+1. O usuário revisa o ajuste (tela e decisões acima) e, se aprovar, autoriza
+   NA CONVERSA: migração no Neon (URL Direct), merge fast-forward, push na
+   `main`, e confere o `/docs/api` em produção (rota `replace`).
+2. Depois: Q239 a Q243 do financeiro a confirmar; a Agromax passa a usar a
+   casa do financeiro; cenário de demonstração na conta de testes nova
+   (pendência do usuário); dívidas 2.36 a 2.55 esperam pedido.
 
 As pastas `research_notes/` e `reports/` (pesquisa de mercado que embasou a
 spec) são ignoradas pelo git de propósito: o repositório é público.
@@ -181,20 +171,27 @@ relatórios em [agente-whatsapp/](agente-whatsapp/), detalhe em
   viva: `npm run dev` no clone, `npx prisma generate` antes se houver migração
   nova; roteiro com `TIBE_BASE="http://localhost:<porta>"` (nunca
   `127.0.0.1`: o cookie é de `localhost`); não suponha a conta vazia.
-- Roteiro preso em recarga é aba sobrando no Chrome de testes (cofre:
-  `a-aba-oculta-e-a-leitura-cedo-imitam-defeito-no-navegador`). O
-  `manual-emporio` regrava todos os PNGs: restaure os que não mudaram.
+- Roteiro preso em recarga é aba sobrando no Chrome de testes ou o laço de
+  logo depois de subir (cofre: `a-aba-oculta-e-a-leitura-cedo-imitam-defeito-no-navegador`;
+  em 09/11 o sintoma foi "escolhe a loja" falhando e `fiber=false`: fechar as
+  abas pela porta 9333, derrubar o `next dev`, apagar `.next`, aquecer `/login`).
+  O `manual-emporio` regrava todos os PNGs: restaure os que não mudaram.
+- Nesta sessão de 09/11 o `Agent` não listou `servidor-dados` nem
+  `prova-viva` (frontmatter igual aos outros); `servidor-acao` e
+  `general-purpose` em Sonnet fizeram o papel. O usuário pede economia de
+  cota: Sonnet para implementar e revisar, Haiku para explorar, Opus só se
+  ele pedir juiz.
 - No notebook: `node -v` 24.22.1 ou mais; sem o `.claude/settings.local.json`
   (não vai ao git), a migração em produção volta a ser recusada pelo classificador.
 
 ## Últimas rodadas
 
+- 09/11: frete na venda, origem e-commerce e editar venda prontos em
+  `emporio-frete-ecommerce` (Q244 a Q249, m102 71, roteiro 47/0), à espera
+  da revisão e da autorização do usuário.
 - 08/11 (noite): entrega 4 pronta (juiz 9/10 na rodada 4) e as quatro
   entregas do financeiro em produção, na ordem 1 a 4, autorizadas na conversa.
-- 08/11: entrega 3 pronta em `emporio-financeiro-3` (juiz 8/10 na rodada 2,
-  roteiro e manual à tarde).
+- 08/11: entrega 3 pronta em `emporio-financeiro-3` (juiz 8/10 na rodada 2).
 - 08/11: entregas 1 e 2 prontas em `emporio-financeiro-1` e `-2` (juiz 8/10).
-- 07/11: pesquisa de mercado, entrevista em 24 decisões e spec do financeiro
-  do Empório, revisada por builder (branch `emporio-financeiro-spec`).
-- 07/11: planos 1 a 3 do Empório (clientes, fornecedores, escolha, entrega e
-  romaneio) em produção, `c3b2606`; handoff arquivado em `historico/2026-11.md`.
+- 07/11: spec do financeiro do Empório (24 decisões) e os planos 1 a 3 do
+  Empório em produção, `c3b2606`; handoff arquivado em `historico/2026-11.md`.
