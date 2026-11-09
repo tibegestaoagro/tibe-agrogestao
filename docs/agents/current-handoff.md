@@ -25,16 +25,17 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-09 à noite (entregas 2 e 3 do cartão e dívidas
-  técnicas prontas na branch `emporio-cartao-2-3-dividas`, à espera da
-  revisão e da autorização do usuário para migrar, mesclar e publicar).
-- `main` em `98dda79` (igual a `origin/main`), nenhuma migração pendente no
-  Neon. Em produção: entrega 1 das taxas de cartão (Q250 a Q258), frete,
-  origem e-commerce e editar venda (Q244 a Q249), o financeiro (Q214 a Q243).
-  Evidências em [financeiro-emporio-relatorio.md](financeiro-emporio-relatorio.md).
-  Branches antigas apagadas em 09/11 (local e remoto: só a `main`).
+- Atualizado em: 2026-11-09 à noite (entregas 2 e 3 do cartão e dívidas em
+  produção: migração no Neon, merge fast-forward e push autorizados na
+  conversa; deploy conferido: o `/docs/api` lista `card-anticipations`).
+- `main` em `c5a5814` (igual a `origin/main`), nenhuma migração pendente no
+  Neon; o preenchimento conferido em produção (11 de 11 recebíveis; as 2
+  adquirentes em próximo dia útil). Em produção também: entrega 1 das taxas
+  de cartão (Q250 a Q258), frete, origem e-commerce e editar venda (Q244 a
+  Q249), o financeiro (Q214 a Q243); evidências em
+  [financeiro-emporio-relatorio.md](financeiro-emporio-relatorio.md); a branch `emporio-cartao-2-3-dividas` está na `main`.
 
-### Cartão, entregas 2 e 3, e dívidas (Q259 a Q267): pronto na branch
+### Cartão, entregas 2 e 3, e dívidas (Q259 a Q267): em produção
 
 Pedido do usuário em 09/11: seguir sem esperar a Agromax. Spec
 [../superpowers/specs/2026-11-09-emporio-cartao-entregas-2-e-3-design.md](../superpowers/specs/2026-11-09-emporio-cartao-entregas-2-e-3-design.md),
@@ -48,7 +49,7 @@ cancelamento como a Stone (a taxa da venda volta conforme a adquirente, a da
 antecipação não). Fechadas 2.37 (fiado sem corrida), 2.43, 2.51, 2.56, 2.57,
 2.59; abertas 2.60 a 2.63. Migração
 `20261110090000_emporio_cartao_dia_util_antecipacao` (preenche os recebíveis
-existentes, CHECK da faixa) **só no Docker**. `test:m104` 150, `test:all` 104/104, build e isolamento verdes, roteiro
+existentes, CHECK da faixa) aplicada no Docker e no Neon. `test:m104` 150, `test:all` 104/104, build e isolamento verdes, roteiro
 `emporio-antecipacao` 64 checks nos dois sentidos (sabotado: 2 falhas),
 `emporio-cartoes` verde.
 
@@ -76,13 +77,12 @@ bandeira e parcelas com a vigência do mês e encerrar as migradas. A entrega 4
 
 ### ⏭️ Próximo passo
 
-1. O usuário revisa as entregas 2 e 3 e, se aprovar, autoriza NA CONVERSA:
-   migração no Neon (URL Direct; preenche os recebíveis), merge fast-forward,
-   push na `main`, conferir `/docs/api` (rota `card-anticipations`).
-2. Na Agromax (usuário, pelas telas): Stone, taxas do mês, regra de dia útil
+1. Na Agromax (usuário, pelas telas): Stone, taxas do mês, regra de dia útil
    e, se usar, a antecipação automática; confirmar as decisões do agente do
-   cartão e do frete; responder o setor (fim de semana, antecipação, arquivo).
-3. Depois: Q239 a Q243 do financeiro; cenário de demonstração na conta de
+   cartão e do frete; responder o setor (fim de semana, antecipação, arquivo
+   do extrato para a entrega 4); decidir se o vendedor vê o líquido efetivo
+   (2.63).
+2. Depois: Q239 a Q243 do financeiro; cenário de demonstração na conta de
    testes nova; dívidas 2.36 a 2.63 esperam pedido.
 
 As pastas `research_notes/` e `reports/` (pesquisa de mercado que embasou a
@@ -192,8 +192,8 @@ relatórios em [agente-whatsapp/](agente-whatsapp/), detalhe em
 
 ## Últimas rodadas
 
-- 09/11 (noite): entregas 2 e 3 do cartão e dívidas prontas em
-  `emporio-cartao-2-3-dividas` (Q259 a Q267, m104 150, roteiro 64/0).
+- 09/11 (noite): entregas 2 e 3 do cartão e dívidas (Q259 a Q267, m104
+  150, roteiro 64/0) em produção, autorizadas na conversa.
 - 09/11: frete, origem e editar venda (Q244 a Q249) e a entrega 1 das taxas
   de cartão (Q250 a Q258) em produção, autorizados na conversa.
 - 07 e 08/11: spec e as quatro entregas do financeiro do Empório em produção
