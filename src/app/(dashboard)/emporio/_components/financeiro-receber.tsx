@@ -3,6 +3,7 @@ import type { AReceberView } from "@/lib/actions/emporio-financeiro";
 import { pode, type PapelContexto } from "@/lib/emporio/papel";
 import { reaisBr } from "@/lib/numero-br";
 import { dataBr } from "@/lib/emporio/datas";
+import { ROTULO_DA_BANDEIRA, type Bandeira } from "@/lib/emporio/cartao";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
@@ -177,6 +178,8 @@ export function FinanceiroReceber({
                   <TableHead>Cai em</TableHead>
                   <TableHead>Loja</TableHead>
                   <TableHead>Conta</TableHead>
+                  <TableHead>Bandeira</TableHead>
+                  <TableHead>Adquirente</TableHead>
                   <TableHead>Parcela</TableHead>
                   <TableHead>Líquido</TableHead>
                   <TableHead>Venda</TableHead>
@@ -195,6 +198,10 @@ export function FinanceiroReceber({
                     </TableCell>
                     <TableCell>{p.establishment_name}</TableCell>
                     <TableCell>{p.bank_account_name}</TableCell>
+                    <TableCell>
+                      {p.brand && p.brand !== "qualquer" ? ROTULO_DA_BANDEIRA[p.brand as Bandeira] : "-"}
+                    </TableCell>
+                    <TableCell>{p.acquirer_name ?? "-"}</TableCell>
                     <TableCell>
                       {p.installment}/{p.installments}
                     </TableCell>

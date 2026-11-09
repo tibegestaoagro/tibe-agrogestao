@@ -181,7 +181,7 @@ function ListaDePassos({ titulo, passos }: { titulo: string; passos: PassoView[]
           <li key={p.key} className="flex flex-wrap items-center justify-between gap-2 py-2">
             <div className="min-w-0">
               <Link
-                href={p.href}
+                href={p.key === "taxa_cartao" ? "/emporio/configuracoes" : p.href}
                 className="inline-flex min-h-11 items-center text-sm font-medium text-texto hover:underline sm:min-h-0"
               >
                 {ROTULO_DO_PASSO[p.key]}

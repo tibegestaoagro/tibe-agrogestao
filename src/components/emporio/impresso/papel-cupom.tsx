@@ -83,7 +83,7 @@ export function PapelCupom({ d }: { d: ImpressoVenda }) {
       {d.pagamentos.length > 0 && <hr />}
       {d.pagamentos.map((p, k) => (
         <div key={k} className="l">
-          <span>{p.forma}</span>
+          <span>{[p.forma, p.bandeira, p.adquirente].filter(Boolean).join(", ")}</span>
           <span>{reaisBr(p.valor)}</span>
         </div>
       ))}

@@ -27,6 +27,7 @@ import { DevolverForm } from "../../_components/devolver-form";
 import { TrocarForm } from "../../_components/trocar-form";
 import { carregarCatalogoDeVenda } from "../../_components/catalogo-venda";
 import { MOTIVO_PERDA_ROTULO, numeroBr, pctBr } from "../../_components/formato";
+import { ROTULO_DA_BANDEIRA, type Bandeira } from "@/lib/emporio/cartao";
 import { CHEQUE_SITUACAO_ROTULO, FORMA_ROTULO } from "../../_components/venda-rotulos";
 
 const DATA_HORA = new Intl.DateTimeFormat("pt-BR", {
@@ -325,7 +326,15 @@ export default async function VendaPage({ params }: { params: Promise<{ id: stri
                 <TableCell className="text-sm">
                   {p.fee_pct !== null && p.fee_amount !== null && (
                     <>
-                      Taxa {pctBr(p.fee_pct)} ({reaisBr(p.fee_amount)})
+                      {[
+                        p.brand && p.brand !== "qualquer" ? ROTULO_DA_BANDEIRA[p.brand as Bandeira] : null,
+                        p.acquirer_name,
+                        p.installments && p.installments > 1 ? `${p.installments}x` : null,
+                      ]
+                        .filter(Boolean)
+                        .map((t) => `${t}, `)
+                        .join("")}
+                      taxa {pctBr(p.fee_pct)} ({reaisBr(p.fee_amount)})
                       <span className="block text-xs text-texto-secundario">
                         líquido {reaisBr(Math.round((p.amount - p.fee_amount) * 100) / 100)}
                         {p.installments && p.installments > 1 ? ` em ${p.installments} parcelas` : ""}

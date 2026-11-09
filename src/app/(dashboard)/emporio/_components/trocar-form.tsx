@@ -19,7 +19,7 @@ import type { ClienteEscolhido } from "@/lib/emporio/cliente-escolhido";
 
 // Ordem visual, de cima para baixo. Na troca o servidor recusa os itens
 // devolvidos em `items_devolvidos` e os da venda nova em `items`.
-const ORDEM = ["items_devolvidos", "amount", "items", "customer_id", "payments", "cash_register_id", "reason"] as const;
+const ORDEM = ["items_devolvidos", "amount", "items", "customer_id", "acquirer_id", "payments", "cash_register_id", "reason"] as const;
 type Campo = (typeof ORDEM)[number];
 
 const VAZIA: EscolhaDevolucao = { qtds: {}, avarias: {} };
@@ -85,6 +85,7 @@ export function TrocarForm({
     if (!devolvidos.ok) novos.items_devolvidos = devolvidos.erro;
     if (m.novos.items) novos.items = m.novos.items;
     if (m.novos.customer_id) novos.customer_id = m.novos.customer_id;
+    if (m.novos.acquirer_id) novos.acquirer_id = m.novos.acquirer_id;
     if (m.novos.payments) novos.payments = m.novos.payments;
     if (abertos.length > 1 && !caixa) novos.cash_register_id = "Escolha o caixa da troca.";
     if (Object.keys(novos).length > 0 || !devolvidos.ok || !m.corpo) {

@@ -43,7 +43,7 @@ import { abertosDaLoja, caixaInicial, fechadosDaLoja, paraCaixasDaLoja, type Cai
 import { VendaCampos } from "./venda-campos";
 import { numeroBr, numeroDaVenda } from "./formato";
 import { FORMA_ROTULO } from "./venda-rotulos";
-import { inicialDaVenda, useVenda, type PrecosVenda, type ProdutoVenda, type RegraCartaoVenda } from "./venda-estado";
+import { inicialDaVenda, useVenda, type PrecosVenda, type ProdutoVenda } from "./venda-estado";
 
 /**
  * O balcão (Q87): a venda de dez segundos. Abre direto na venda, sem lista na
@@ -87,6 +87,7 @@ const ORDEM = [
   "delivery_state",
   "freight_amount",
   "origin",
+  "acquirer_id",
   "payments",
   "notes",
   "seller_user_id",
@@ -146,7 +147,6 @@ export function Balcao({
   ehCaixa: boolean;
 }) {
   const err = useErrosDeFormulario(ORDEM);
-  const [regras, setRegras] = useState<RegraCartaoVenda[] | null>(null);
   const [cargaInicial] = useState(() => (orcamentoInicial ? cargaDoOrcamento(orcamentoInicial, consumidorFinal) : null));
   const router = useRouter();
   const [daEdicao] = useState(() => (edicao ? inicialDaVenda(edicao.venda, produtos, edicao.cliente) : null));
@@ -155,7 +155,6 @@ export function Balcao({
     precos,
     lojaInicial:
       edicao?.venda.establishment_id ?? orcamentoInicial?.establishment_id ?? (lojas.length === 1 ? lojas[0].id : ""),
-    regras,
     cargaInicial,
     inicial: daEdicao?.inicial ?? null,
   });
@@ -203,19 +202,6 @@ export function Balcao({
       // Armazenamento bloqueado: a pessoa escolhe a loja de novo, sem prejuízo.
     }
   }, [lojas, loja, setLoja]);
-
-  // As taxas de cartão das lojas, só para informar o líquido e avisar antes de
-  // enviar. Se a leitura falhar, o balcão segue sem o aviso e o servidor recusa
-  // em `payments` a venda no cartão sem taxa.
-  useEffect(() => {
-    let vivo = true;
-    void apiGet<RegraCartaoVenda[]>("/api/v1/emporio/card-fee-rules").then((res) => {
-      if (vivo && res.ok) setRegras(res.data);
-    });
-    return () => {
-      vivo = false;
-    };
-  }, []);
 
   // Ao escolher a loja, já se sabe se há caixa a escolher ou a abrir.
   useEffect(() => {
@@ -840,7 +826,7 @@ export function Balcao({
                 </Button>
               </div>
             ) : (
-              <Button type="submit" size="lg" disabled={enviando} className="min-w-40">
+              <Button type="submit" size="lg" disabled={enviando || v.cartaoIncompleto} className="min-w-40">
                 {enviando
                   ? edicao
                     ? "Salvando..."

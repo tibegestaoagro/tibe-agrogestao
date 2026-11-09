@@ -131,7 +131,7 @@ export function PapelA4({ d }: { d: ImpressoVenda }) {
           <div className="rot">Pagamento</div>
           {d.pagamentos.map((p, k) => (
             <div key={k} style={{ display: "flex", justifyContent: "space-between" }}>
-              <span>{p.forma}</span>
+              <span>{[p.forma, p.bandeira, p.adquirente].filter(Boolean).join(", ")}</span>
               <span>{reaisBr(p.valor)}</span>
             </div>
           ))}

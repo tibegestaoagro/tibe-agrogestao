@@ -18,11 +18,11 @@ import type { CreditoView } from "@/lib/actions/emporio-credito";
 import type { Falta } from "@/lib/emporio/cliente-cadastro";
 import type { ClienteEscolhido } from "@/lib/emporio/cliente-escolhido";
 import { EscolherCliente } from "./escolher-cliente";
-import { numeroBr, pctBr } from "./formato";
+import { BANDEIRAS, ROTULO_DA_BANDEIRA, taxaDoPagamentoCent } from "@/lib/emporio/cartao";
+import { pctBr } from "./formato";
 import { FORMA_ROTULO } from "./venda-rotulos";
 import {
   ehCartao,
-  liquidoDoCartaoCent,
   normalizar,
   produtoCasaBusca,
   type CampoDaVenda,
@@ -60,32 +60,128 @@ const PARCELAS = Array.from({ length: 11 }, (_, i) => i + 2);
  * recusa do servidor. Só informa: quem decide o valor é o campo acima.
  */
 function InfoDoCartao({ v, p }: { v: EstadoDaVenda; p: EstadoDaVenda["pagamentos"][number] }) {
-  if (!v.loja) return null;
-  const regra = v.regraDe(p.kind);
-  if (!regra) {
-    // `regraDe` devolve null também enquanto as taxas não chegaram: só avisa quando elas chegaram.
-    return v.regrasCarregadas ? (
+  if (!v.loja || !v.taxasCarregadas) return null;
+  if (v.adquirentes.length === 0) {
+    return (
       <p className="rounded-md bg-atencao-suave px-3 py-2 text-xs text-atencao-tinta">
-        Esta loja ainda não tem taxa de {FORMA_ROTULO[p.kind].toLowerCase()} cadastrada. Peça ao dono ou a um
-        administrador para cadastrar em Caixa, Taxas de cartão.
+        Esta loja ainda não tem taxa de cartão. Cadastre em Configurações, Cartões.
       </p>
-    ) : null;
+    );
   }
+  if (p.bandeira === "" || v.adquirenteDe(p) === "") {
+    return <p className="text-xs text-texto-secundario">Escolha {p.bandeira === "" ? "a bandeira" : "a adquirente"} para ver a taxa.</p>;
+  }
+  const taxa = v.taxaDe(p);
+  if (!taxa) {
+    const adq = v.adquirentes.find((a) => a.id === v.adquirenteDe(p))?.name ?? "";
+    return (
+      <p className="rounded-md bg-atencao-suave px-3 py-2 text-xs text-atencao-tinta">
+        Sem taxa para {ROTULO_DA_BANDEIRA[p.bandeira]}, {adq}, {FORMA_ROTULO[p.kind].toLowerCase()}
+        {p.kind === "credito_parcelado" ? ` em ${Number(p.parcelas) || 2}x` : ""}: cadastre em Configurações.
+      </p>
+    );
+  }
+  const { linha, primeira } = taxa;
+  const fixa = linha.fee_fixed > 0 ? ` + ${reaisBr(linha.fee_fixed)}` : "";
   const n = lerNumeroBr(p.valor);
+  const dia = primeira.toISOString().slice(0, 10).split("-").reverse().slice(0, 2).join("/");
   if (n === null || n <= 0) {
-    return <p className="text-xs text-texto-secundario">Taxa de {pctBr(regra.fee_pct)} para esta forma.</p>;
+    return (
+      <p className="text-xs text-texto-secundario">
+        Taxa {pctBr(linha.fee_pct)}
+        {fixa}, 1ª parcela em {dia}.
+      </p>
+    );
   }
-  const { liquidoCent } = liquidoDoCartaoCent(Math.round(Number((n * 100).toPrecision(12))), regra.fee_pct);
-  const parcelas = p.kind === "credito_parcelado" ? Number(p.parcelas) || 2 : 1;
-  const prazo =
-    parcelas > 1
-      ? `em ${parcelas} parcelas, a primeira em ${numeroBr(regra.days)} dias`
-      : `em ${numeroBr(regra.days)} dias`;
+  const valorCent = Math.round(Number((n * 100).toPrecision(12)));
+  const liquidoCent = valorCent - taxaDoPagamentoCent(valorCent, linha);
   return (
     <p className="text-xs text-texto-secundario">
-      Taxa {pctBr(regra.fee_pct)}: você recebe <strong className="text-texto">{reaisBr(liquidoCent / 100)}</strong>{" "}
-      {prazo}.
+      Taxa {pctBr(linha.fee_pct)}
+      {fixa}: líquido <strong className="text-texto">{reaisBr(liquidoCent / 100)}</strong>, 1ª parcela em {dia}.
     </p>
+  );
+}
+
+/** Adquirente (quando há mais de uma com taxa) e bandeira do cartão: nenhuma bandeira vem marcada. */
+function EscolhaDoCartao({
+  v,
+  p,
+  primeiro,
+  erro,
+  idDoCampo,
+  limpar,
+}: {
+  v: EstadoDaVenda;
+  p: EstadoDaVenda["pagamentos"][number];
+  /** O primeiro seletor da tela leva o `id` da API (`acquirer_id`), onde a recusa do servidor cai. */
+  primeiro: boolean;
+  erro?: string;
+  idDoCampo: string;
+  limpar: () => void;
+}) {
+  if (!v.taxasCarregadas || v.adquirentes.length === 0) return null;
+  const seletor = (id: string, aria?: Record<string, unknown>) => (
+    <Select
+      value={p.adquirenteId}
+      onValueChange={(valor) => {
+        v.atualizarPagamento(p.key, { adquirenteId: valor });
+        limpar();
+      }}
+    >
+      <SelectTrigger id={id} {...aria}>
+        <SelectValue placeholder="Escolha a adquirente" />
+      </SelectTrigger>
+      <SelectContent>
+        {v.adquirentes.map((a) => (
+          <SelectItem key={a.id} value={a.id}>
+            {a.name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+  return (
+    <div className="space-y-2">
+      {v.adquirentes.length > 1 ? (
+        primeiro ? (
+          <Field label="Adquirente" required id={idDoCampo} error={erro}>
+            {({ id, ...aria }) => seletor(id, aria)}
+          </Field>
+        ) : (
+          <div className="space-y-1">
+            <label htmlFor={`adquirente-${p.key}`} className="text-xs text-texto-secundario">
+              Adquirente
+            </label>
+            {seletor(`adquirente-${p.key}`)}
+          </div>
+        )
+      ) : (
+        <p className="text-xs text-texto-secundario">Adquirente: {v.adquirentes[0].name}</p>
+      )}
+      <div className="space-y-1">
+        <p id={`bandeira-${p.key}`} className="text-xs text-texto-secundario">
+          Bandeira
+        </p>
+        <div role="group" aria-labelledby={`bandeira-${p.key}`} className="flex flex-wrap gap-2">
+          {BANDEIRAS.map((b) => (
+            <Button
+              key={b}
+              type="button"
+              size="sm"
+              variant={p.bandeira === b ? "default" : "outline"}
+              aria-pressed={p.bandeira === b}
+              onClick={() => {
+                v.atualizarPagamento(p.key, { bandeira: b });
+                limpar();
+              }}
+            >
+              {ROTULO_DA_BANDEIRA[b]}
+            </Button>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -161,6 +257,7 @@ export function VendaCampos({
   aoEscolherLoja?: (id: string) => void;
 }) {
   const [busca, setBusca] = useState("");
+  const [semTaxaDeCartao, setSemTaxaDeCartao] = useState(false);
   const termo = normalizar(busca);
   const resultados =
     termo === ""
@@ -405,6 +502,10 @@ export function VendaCampos({
                     size="sm"
                     disabled={k === "fiado" && v.pagamentos.some((p) => p.kind === "fiado")}
                     onClick={() => {
+                      // Sem adquirente com taxa na loja, o cartão não entra: o aviso diz onde cadastrar.
+                      const semTaxaNaLoja = ehCartao(k) && v.taxasCarregadas && v.adquirentes.length === 0;
+                      setSemTaxaDeCartao(semTaxaNaLoja);
+                      if (semTaxaNaLoja) return;
                       v.adicionarPagamento(k);
                       limpar("payments");
                     }}
@@ -413,6 +514,11 @@ export function VendaCampos({
                   </Button>
                 ))}
               </div>
+              {semTaxaDeCartao && v.adquirentes.length === 0 && (
+                <p className="rounded-md bg-atencao-suave px-3 py-2 text-xs text-atencao-tinta">
+                  Esta loja não tem taxa de cartão. Cadastre em Configurações, Cartões.
+                </p>
+              )}
 
               {v.pagamentos.map((p) => (
                 <div key={p.key} className="space-y-2 rounded-lg border border-borda bg-superficie-afundada p-3">
@@ -466,7 +572,22 @@ export function VendaCampos({
                       </Select>
                     </div>
                   )}
-                  {ehCartao(p.kind) && <InfoDoCartao v={v} p={p} />}
+                  {ehCartao(p.kind) && (
+                    <>
+                      <EscolhaDoCartao
+                        v={v}
+                        p={p}
+                        primeiro={v.pagamentos.find((q) => ehCartao(q.kind))?.key === p.key}
+                        erro={erros.acquirer_id}
+                        idDoCampo={idDe("acquirer_id")}
+                        limpar={() => {
+                          limpar("acquirer_id");
+                          limpar("payments");
+                        }}
+                      />
+                      <InfoDoCartao v={v} p={p} />
+                    </>
+                  )}
                   {p.kind === "cheque" && (
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div className="space-y-1">

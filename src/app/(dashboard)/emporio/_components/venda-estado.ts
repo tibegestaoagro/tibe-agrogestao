@@ -1,6 +1,16 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { apiGet } from "@/lib/client-api";
+import {
+  adquirentesComTaxa,
+  datasDasParcelas,
+  hojeEmBrasilia,
+  resolverTaxa,
+  ROTULO_DA_BANDEIRA,
+  type Bandeira,
+  type LinhaDeTaxa,
+} from "@/lib/emporio/cartao";
 import { lerNumeroBr, reaisBr } from "@/lib/numero-br";
 import type { ClienteEscolhido } from "@/lib/emporio/cliente-escolhido";
 import type { OrigemDaVenda } from "@/lib/emporio/frete";
@@ -59,21 +69,26 @@ export type LinhaPagamento = {
   chequeBanco: string;
   /** "Bom para", AAAA-MM-DD. */
   chequeBomPara: string;
+  /** Cartão: a adquirente escolhida. Vazio com uma só adquirente com taxa na loja: vale a única. */
+  adquirenteId: string;
+  /** Cartão: a bandeira, sempre escolhida (nenhuma vem marcada). */
+  bandeira: Bandeira | "";
 };
 
-/** A taxa da loja para uma forma de cartão (Q89): é o que o balcão mostra antes de enviar. */
-export type RegraCartaoVenda = { establishment_id: string; kind: string; fee_pct: number; days: number };
+/** Uma linha de taxa vigente da loja, com o nome da adquirente (a rota devolve os dois). */
+export type TaxaDaVenda = LinhaDeTaxa & { acquirer_name: string };
 
 export const FORMAS_DE_CARTAO: string[] = ["debito", "credito_vista", "credito_parcelado"];
 export const ehCartao = (kind: string) => FORMAS_DE_CARTAO.includes(kind);
 
-/** Líquido do cartão, com o mesmo arredondamento da action (`prepararVenda`). */
-export function liquidoDoCartaoCent(valorCent: number, feePct: number): { taxaCent: number; liquidoCent: number } {
-  const taxaCent = Math.round(Number(((valorCent * feePct) / 100).toPrecision(12)));
-  return { taxaCent, liquidoCent: valorCent - taxaCent };
-}
-
-export type CampoDaVenda = "establishment_id" | "items" | "customer_id" | "freight_amount" | "origin" | "payments";
+export type CampoDaVenda =
+  | "establishment_id"
+  | "items"
+  | "customer_id"
+  | "freight_amount"
+  | "origin"
+  | "acquirer_id"
+  | "payments";
 
 export const cent = (n: number) => Math.round(Number((n * 100).toPrecision(12)));
 const arred3 = (n: number) => Math.round(Number((n * 1000).toPrecision(14))) / 1000;
@@ -109,7 +124,10 @@ const CARTAO_NOME: Record<string, string> = {
   credito_parcelado: "crédito parcelado",
 };
 
-const paraIso = (data: string) => new Date(`${data}T12:00:00`).toISOString();
+/** Hoje em Brasília, AAAA-MM-DD: o dia que vale para a taxa da venda. */
+const diaDeHoje = () => hojeEmBrasilia().toISOString().slice(0, 10);
+
+const paraIso =(data: string) => new Date(`${data}T12:00:00`).toISOString();
 
 export type CorpoDaVenda = {
   establishment_id: string;
@@ -120,6 +138,8 @@ export type CorpoDaVenda = {
     amount: number;
     due_date: string | null;
     installments?: number;
+    acquirer_id?: string;
+    brand?: Bandeira;
     check?: { number: string; bank: string; good_for: string };
   }[];
   /** Frete cobrado do cliente (Q244): omitido quando é zero. */
@@ -199,6 +219,9 @@ export function inicialDaVenda(
         chequeNumero: p.check?.number ?? "",
         chequeBanco: p.check?.bank ?? "",
         chequeBomPara: p.check ? p.check.good_for.slice(0, 10) : "",
+        // O pagamento antigo sem adquirente e bandeira vem vazio: quem edita escolhe de novo.
+        adquirenteId: p.acquirer_id ?? "",
+        bandeira: (p.brand && p.brand !== "qualquer" ? p.brand : "") as Bandeira | "",
       })),
       frete: venda.freight_amount > 0 ? centavosParaCampo(cent(venda.freight_amount)) : "",
       origem: venda.origin,
@@ -220,7 +243,6 @@ export function useVenda({
   lojaInicial,
   clienteInicial = null,
   abatimentoCent = 0,
-  regras = null,
   cargaInicial = null,
   inicial = null,
 }: {
@@ -235,11 +257,6 @@ export function useVenda({
   clienteInicial?: ClienteEscolhido | null;
   /** Valor da troca que já paga parte da venda. */
   abatimentoCent?: number;
-  /**
-   * As taxas de cartão das lojas. `null` = ainda não se sabe (ou a tela não as
-   * tem): nesse caso a conferência fica com o servidor, que recusa em `payments`.
-   */
-  regras?: RegraCartaoVenda[] | null;
 }) {
   const contador = useRef(0);
   const proximo = () => {
@@ -383,6 +400,29 @@ export function useVenda({
   // O frete é cobrado além dos itens: o cliente paga itens mais frete.
   const aPagarCent = Math.max(0, totalCent + freteCent - abatimentoCent);
 
+  // As linhas de taxa vigentes da loja escolhida (hoje, em Brasília): recarregam ao trocar de loja.
+  const [taxas, setTaxas] = useState<{ lojaId: string; linhas: TaxaDaVenda[] } | null>(null);
+  useEffect(() => {
+    if (!loja) return;
+    let vivo = true;
+    void apiGet<TaxaDaVenda[]>(
+      `/api/v1/emporio/card-fee-rates?establishment_id=${encodeURIComponent(loja)}&vigentes_em=${diaDeHoje()}`,
+    ).then((res) => {
+      if (vivo && res.ok) setTaxas({ lojaId: loja, linhas: res.data });
+    });
+    return () => {
+      vivo = false;
+    };
+  }, [loja]);
+  const linhasDaLoja = taxas && taxas.lojaId === loja ? taxas.linhas : null;
+  const taxasCarregadas = linhasDaLoja !== null;
+  const adquirentes = linhasDaLoja
+    ? adquirentesComTaxa(linhasDaLoja, diaDeHoje()).map((id) => ({
+        id,
+        name: linhasDaLoja.find((l) => l.acquirer_id === id)?.acquirer_name ?? "",
+      }))
+    : [];
+
   const somaPagamentos = pagamentos.reduce((s, p) => {
     const n = lerNumeroBr(p.valor);
     return s + (n === null || n <= 0 ? 0 : cent(n));
@@ -404,16 +444,41 @@ export function useVenda({
           chequeNumero: "",
           chequeBanco: "",
           chequeBomPara: "",
+          adquirenteId: "",
+          bandeira: "",
         },
       ];
     });
   }
 
-  /** A taxa da loja escolhida para a forma, ou `null` quando não há (ou ainda não se sabe). */
-  function regraDe(kind: string): RegraCartaoVenda | null {
-    if (!regras || !loja) return null;
-    return regras.find((r) => r.establishment_id === loja && r.kind === kind) ?? null;
+  /**
+   * A adquirente que vale para o pagamento: a escolhida, ou a única com taxa na
+   * loja. Vazio quando há mais de uma e nenhuma foi escolhida.
+   */
+  function adquirenteDe(p: LinhaPagamento): string {
+    if (p.adquirenteId && adquirentes.some((a) => a.id === p.adquirenteId)) return p.adquirenteId;
+    return adquirentes.length === 1 ? adquirentes[0].id : "";
   }
+
+  /** O que o cartão rende, com a mesma conta do servidor. `null` sem bandeira, sem adquirente ou sem linha. */
+  function taxaDe(p: LinhaPagamento): { linha: TaxaDaVenda; parcelas: number; primeira: Date } | null {
+    if (!linhasDaLoja || p.bandeira === "") return null;
+    const acquirer_id = adquirenteDe(p);
+    if (!acquirer_id) return null;
+    const parcelas = p.kind === "credito_parcelado" ? Number(p.parcelas) || 2 : 1;
+    const linha = resolverTaxa(linhasDaLoja, {
+      acquirer_id,
+      brand: p.bandeira,
+      kind: p.kind as LinhaDeTaxa["kind"],
+      installments: parcelas,
+      dia: diaDeHoje(),
+    }) as TaxaDaVenda | null;
+    if (!linha) return null;
+    return { linha, parcelas, primeira: datasDasParcelas(new Date(), linha.days, 1)[0] };
+  }
+
+  /** Há cartão sem bandeira, sem adquirente ou sem taxa para a combinação: a venda não fecha. */
+  const cartaoIncompleto = taxasCarregadas && pagamentos.some((p) => ehCartao(p.kind) && taxaDe(p) === null);
 
   function atualizarPagamento(key: number, parte: Partial<LinhaPagamento>) {
     setPagamentos((lista) => lista.map((p) => (p.key === key ? { ...p, ...parte } : p)));
@@ -486,14 +551,25 @@ export function useVenda({
       const n = lerNumeroBr(p.valor);
       return n === null || n <= 0;
     });
-    const semTaxa = regras && loja ? pagamentos.find((p) => ehCartao(p.kind) && !regraDe(p.kind)) : undefined;
+    // Com as taxas da loja carregadas, a conferência é daqui; sem elas (leitura falhou) fica com o servidor.
+    const cartoes = taxasCarregadas && loja ? pagamentos.filter((p) => ehCartao(p.kind)) : [];
+    const semAdquirente = cartoes.find((p) => adquirenteDe(p) === "") && adquirentes.length > 1;
+    if (semAdquirente) novos.acquirer_id = "Escolha a adquirente do cartão.";
+    const semBandeira = cartoes.find((p) => p.bandeira === "");
+    const semTaxa = cartoes.find((p) => p.bandeira !== "" && adquirenteDe(p) !== "" && taxaDe(p) === null);
     const chequeIncompleto = pagamentos.some(
       (p) => p.kind === "cheque" && (!p.chequeNumero.trim() || !p.chequeBanco.trim() || !p.chequeBomPara),
     );
     if (ilegivel) {
       novos.payments = "Cada pagamento precisa de um valor maior que zero.";
+    } else if (semAdquirente) {
+      // A recusa fica embaixo do seletor da adquirente; o rodapé do pagamento não repete.
+    } else if (semBandeira) {
+      novos.payments = `Escolha a bandeira do cartão (${CARTAO_NOME[semBandeira.kind] ?? "cartão"}).`;
+    } else if (adquirentes.length === 0 && cartoes.length > 0) {
+      novos.payments = "Esta loja não tem taxa de cartão cadastrada. Cadastre em Configurações, Cartões.";
     } else if (semTaxa) {
-      novos.payments = `Esta loja não tem taxa de ${CARTAO_NOME[semTaxa.kind] ?? "cartão"} cadastrada. Cadastre em Caixa, Taxas de cartão (dono ou administrador).`;
+      novos.payments = `Sem taxa para ${semTaxa.bandeira === "" ? "" : ROTULO_DA_BANDEIRA[semTaxa.bandeira]}, ${CARTAO_NOME[semTaxa.kind] ?? "cartão"}: cadastre em Configurações.`;
     } else if (chequeIncompleto) {
       novos.payments = "Informe o número, o banco e a data do cheque (bom para).";
     } else if (aPagarCent > 0 && pagamentos.length === 0) {
@@ -521,6 +597,9 @@ export function useVenda({
               amount: c / 100,
               due_date: p.kind === "fiado" && p.vencimento ? paraIso(p.vencimento) : null,
               ...(p.kind === "credito_parcelado" ? { installments: Number(p.parcelas) || 2 } : {}),
+              ...(ehCartao(p.kind) && p.bandeira !== ""
+                ? { brand: p.bandeira, ...(adquirenteDe(p) ? { acquirer_id: adquirenteDe(p) } : {}) }
+                : {}),
               ...(p.kind === "cheque"
                 ? { check: { number: p.chequeNumero.trim(), bank: p.chequeBanco.trim(), good_for: p.chequeBomPara } }
                 : {}),
@@ -555,8 +634,11 @@ export function useVenda({
     removerItem,
     pagamentos,
     adicionarPagamento,
-    regraDe,
-    regrasCarregadas: regras !== null,
+    adquirentes,
+    adquirenteDe,
+    taxaDe,
+    taxasCarregadas,
+    cartaoIncompleto,
     atualizarPagamento,
     removerPagamento,
     cliente,

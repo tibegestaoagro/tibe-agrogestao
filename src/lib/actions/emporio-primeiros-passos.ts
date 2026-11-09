@@ -130,7 +130,7 @@ export async function primeirosPassosAction(
         ...(faltam.length > 0
           ? { detail: `Falta a taxa de ${faltam.map((k) => ROTULO_CARTAO[k] ?? k).join(", ")}` }
           : {}),
-        href: "/emporio/caixa",
+        href: "/emporio/configuracoes#cartoes",
       });
     }
     steps.push(
