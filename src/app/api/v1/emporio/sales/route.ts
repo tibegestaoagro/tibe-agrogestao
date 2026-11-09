@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { apiError, apiErroDeZod, apiOk } from "@/lib/api";
+import type { OrigemDaVenda } from "@/lib/emporio/frete";
 import { readJson } from "@/lib/api-guard";
 import { withApi } from "@/lib/route";
 import { listarVendasAction, venderAction } from "@/lib/actions/emporio-vendas";
@@ -7,7 +8,7 @@ import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
 import { chaveDeOperacao, corpoDaVendaSchema, dataIso } from "@/lib/emporio/venda-schema";
 
 /**
- * GET  /api/v1/emporio/sales  ?establishment_id= &customer_id= &status=concluida|cancelada &de= &ate= &limit=
+ * GET  /api/v1/emporio/sales  ?establishment_id= &customer_id= &status=concluida|cancelada &origin=balcao|ecommerce &de= &ate= &limit=
  * POST /api/v1/emporio/sales  registra a venda (chave de operação): wrapper fino.
  */
 
@@ -30,6 +31,8 @@ async function GETHandler(request: Request) {
       establishment_id: sp.get("establishment_id") ?? undefined,
       customer_id: sp.get("customer_id") ?? undefined,
       status: status === "concluida" || status === "cancelada" ? status : undefined,
+      // Valor inválido segue para a action, que recusa com o campo `origin`.
+      origin: (sp.get("origin") ?? undefined) as OrigemDaVenda | undefined,
       de: de?.success ? de.data : undefined,
       ate: ate?.success ? ate.data : undefined,
       limit: Number.isFinite(limit) && limit > 0 ? limit : undefined,

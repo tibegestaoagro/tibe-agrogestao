@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ORIGENS_DA_VENDA } from "@/lib/emporio/frete";
 
 /**
  * Pedaços de Zod da venda do Meu Empório, compartilhados pela rota de venda e
@@ -64,6 +65,10 @@ export const corpoDaVendaSchema = z.object({
   seller_user_id: z.string().nullish(),
   /** Entrega 4: o orçamento que esta venda fatura. Na troca é ignorado (a venda nova não fatura orçamento). */
   quote_id: z.string().nullish(),
+  /** Frete cobrado do cliente: soma ao que ele paga, não ao faturamento (Q244). */
+  freight_amount: z.number({ error: "O frete deve ser um número." }).min(0, { error: "O frete não pode ser negativo." }).nullish(),
+  /** De onde veio o pedido (Q248). */
+  origin: z.enum(ORIGENS_DA_VENDA, { error: "Escolha a origem: balcão ou e-commerce." }).nullish(),
 });
 
 /**

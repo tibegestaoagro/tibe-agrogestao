@@ -35,6 +35,8 @@ export type VendaParaRegras = {
   establishment_id: string;
   sold_at: Date;
   net: number;
+  /** Frete cobrado do cliente: entra na conta de quanto de cada forma foi paga, nunca na base da regra. */
+  frete?: number;
   itens: { emporio_product_id: string; presentation_id: string; quantity: number; total: number }[];
   /** Forma e valor de cada parte paga (a troca inclusive). */
   pagamentos: { kind: string; amount: number }[];
@@ -48,6 +50,7 @@ export async function gravarVendeuPagou(tx: Tx, ator: { id: string }, v: VendaPa
   if (regras.length === 0) return;
 
   const netCent = centavos(v.net);
+  const totalPagoCent = netCent + centavos(v.frete ?? 0);
   const vencimento = ultimoDia(mesDoInstante(v.sold_at));
 
   for (const regra of regras) {
@@ -63,7 +66,7 @@ export async function gravarVendeuPagou(tx: Tx, ator: { id: string }, v: VendaPa
     if (temCondicaoDeItem && casam.length === 0) continue;
 
     // Condição de forma: só a parte paga naquela forma.
-    let parteCent = netCent;
+    let parteCent = totalPagoCent;
     if (regra.payment_kind) {
       parteCent = v.pagamentos.filter((p) => p.kind === regra.payment_kind).reduce((s, p) => s + centavos(p.amount), 0);
       if (parteCent <= 0) continue;
@@ -130,7 +133,7 @@ export async function gravarVendeuPagou(tx: Tx, ator: { id: string }, v: VendaPa
     let valorCent = 0;
     if (regra.kind === "percentual") {
       const baseCent = casam.reduce((s, i) => s + centavos(i.total), 0);
-      const fatia = netCent > 0 ? parteCent / netCent : 0;
+      const fatia = totalPagoCent > 0 ? parteCent / totalPagoCent : 0;
       valorCent = Math.round(Number(((baseCent * valor * fatia) / 100).toPrecision(12)));
     } else if (regra.kind === "fixo_por_venda") {
       valorCent = centavos(valor);

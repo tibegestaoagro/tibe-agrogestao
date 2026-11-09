@@ -3,6 +3,8 @@ import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { dinheiro, itens as frasItens, registrarNoHistorico } from "@/lib/emporio/historico";
 import { CATEGORIA_ACORDO } from "@/lib/emporio/acordo";
+import { CATEGORIA_FRETE, ORIGENS_DA_VENDA, type OrigemDaVenda } from "@/lib/emporio/frete";
+import { contaEmAprovacao, EM_APROVACAO } from "@/lib/emporio/pedido-pagamento";
 import { decToNum, isoOrNull } from "@/lib/serialize";
 import { exigir, papelDoEmporio } from "@/lib/emporio/papel";
 import { createLinkedEntry, runSerializableTenantTransaction } from "@/lib/financial";
@@ -183,6 +185,14 @@ export type VendaView = {
   /** O turno de caixa em que a venda foi feita; nulo nas vendas anteriores aos turnos. */
   cash_session_id: string | null;
   net_amount: number;
+  /** Frete cobrado do cliente: fora do faturamento (os itens), dentro do recibo e do que o cliente paga. */
+  freight_amount: number;
+  /** `net_amount + freight_amount`: o que o cliente paga. */
+  total_amount: number;
+  origin: OrigemDaVenda;
+  /** A venda que esta substituiu (Q249), e a que a substituiu. */
+  replaces: { id: string; number: number } | null;
+  replaced_by: { id: string; number: number } | null;
   discount_amount: number;
   discount_pct: number;
   discount_authorized_by_user_id: string | null;
@@ -212,6 +222,8 @@ const INCLUDE_VENDA = {
   establishment: { select: { name: true } },
   customer: { select: { name: true } },
   quote: { select: { id: true, number: true } },
+  replaces: { select: { id: true, number: true } },
+  replaced_by: { select: { id: true, number: true } },
   items: {
     include: {
       emporio_product: { include: { product: { select: { name: true } } } },
@@ -321,6 +333,11 @@ async function montarVendas(db: TenantPrismaClient, linhas: VendaRow[]): Promise
       seller_name: s.seller_user_id ? (nomeDoUsuario.get(s.seller_user_id) ?? null) : null,
       cash_session_id: s.cash_session_id,
       net_amount: decToNum(s.net_amount) ?? 0,
+      freight_amount: decToNum(s.freight_amount) ?? 0,
+      total_amount: arred2((decToNum(s.net_amount) ?? 0) + (decToNum(s.freight_amount) ?? 0)),
+      origin: s.origin,
+      replaces: s.replaces ? { id: s.replaces.id, number: s.replaces.number } : null,
+      replaced_by: s.replaced_by ? { id: s.replaced_by.id, number: s.replaced_by.number } : null,
       discount_amount: desconto,
       discount_pct: denominador > 0 ? arred2((desconto / denominador) * 100) : 0,
       discount_authorized_by_user_id: s.discount_authorized_by_user_id,
@@ -393,6 +410,7 @@ export async function listarVendasAction(
     establishment_id?: string;
     customer_id?: string;
     status?: "concluida" | "cancelada";
+    origin?: OrigemDaVenda;
     de?: Date;
     ate?: Date;
     limit?: number;
@@ -401,6 +419,9 @@ export async function listarVendasAction(
   const visiveis = await lojasDoAtor(db, ator);
   if (opts.establishment_id && visiveis && !visiveis.has(opts.establishment_id)) {
     return NAO_ACHADO("Estabelecimento", "establishment_id");
+  }
+  if (opts.origin != null && !(ORIGENS_DA_VENDA as readonly unknown[]).includes(opts.origin)) {
+    return fail("VALIDATION_ERROR", "Escolha a origem: balcão ou e-commerce.", 422, "origin");
   }
   const periodo: Record<string, Date> = {};
   if (dataValida(opts.de)) periodo.gte = opts.de;
@@ -418,6 +439,7 @@ export async function listarVendasAction(
         : {}),
     ...(opts.customer_id ? { customer_id: opts.customer_id } : {}),
     ...(opts.status ? { status: opts.status } : {}),
+    ...(opts.origin ? { origin: opts.origin } : {}),
     ...(Object.keys(periodo).length > 0 ? { sold_at: periodo } : {}),
   };
   const limite = opts.limit && opts.limit > 0 ? Math.min(Math.floor(opts.limit), 500) : 200;
@@ -479,6 +501,10 @@ export type VenderInput = PedidoParaEntregaInput & {
    * `precoDeReferencia` e o preço de `precoQueVale` (ver `precificarItens`).
    */
   quote_id?: string | null;
+  /** Frete cobrado do cliente (Q244): soma ao que ele paga, não ao faturamento. */
+  freight_amount?: number | null;
+  /** De onde veio o pedido (Q248); sem ela, balcão. */
+  origin?: OrigemDaVenda | null;
 };
 
 const FORMAS_DE_CARTAO = ["debito", "credito_vista", "credito_parcelado"] as const;
@@ -518,6 +544,9 @@ type Preparada = {
   itens: ItemPreparado[];
   pagamentos: PagamentoPreparado[];
   net: number;
+  /** Frete cobrado do cliente, 0 quando ausente. */
+  frete: number;
+  origin: OrigemDaVenda;
   desconto: number;
   autorizou: string | null;
   /** Parte da venda paga pelo valor devolvido na troca (já limitada ao total). */
@@ -684,6 +713,19 @@ async function prepararVenda(
 
   const soldAt = input.sold_at == null ? new Date() : input.sold_at;
   if (!dataValida(soldAt)) return fail("VALIDATION_ERROR", "Informe uma data de venda válida.", 422, "sold_at");
+
+  let freteCent = 0;
+  if (input.freight_amount != null) {
+    const f = input.freight_amount;
+    if (typeof f !== "number" || !Number.isFinite(f) || f < 0) {
+      return fail("VALIDATION_ERROR", "O frete não pode ser negativo.", 422, "freight_amount");
+    }
+    freteCent = centavos(f);
+  }
+  const origin = input.origin == null ? "balcao" : input.origin;
+  if (!(ORIGENS_DA_VENDA as readonly unknown[]).includes(origin)) {
+    return fail("VALIDATION_ERROR", "Escolha a origem: balcão ou e-commerce.", 422, "origin");
+  }
 
   // Entrega 4: o orçamento faturado (a troca nunca chega aqui com um).
   let orcamento: OrcamentoAFaturar | null = null;
@@ -858,15 +900,18 @@ async function prepararVenda(
   }
 
   const valorTroca = opts.valorTroca ?? 0;
-  const trocaCent = Math.min(centavos(valorTroca), netCent);
+  const totalCent = netCent + freteCent;
+  const trocaCent = Math.min(centavos(valorTroca), totalCent);
   const somaCent = pagamentos.reduce((s, p) => s + centavos(p.amount), 0);
-  if (somaCent + trocaCent !== netCent) {
-    const esperado = (netCent - trocaCent) / 100;
+  if (somaCent + trocaCent !== totalCent) {
+    const esperado = (totalCent - trocaCent) / 100;
     return fail(
       "VALIDATION_ERROR",
       trocaCent > 0
         ? `Os pagamentos (${brl(somaCent / 100)}) precisam cobrir o que sobra da venda depois da troca (${brl(esperado)}).`
-        : `A soma dos pagamentos (${brl(somaCent / 100)}) precisa ser igual ao total da venda (${brl(net)}).`,
+        : freteCent > 0
+          ? `A soma dos pagamentos (${brl(somaCent / 100)}) precisa ser igual ao total da venda com o frete (${brl(totalCent / 100)}).`
+          : `A soma dos pagamentos (${brl(somaCent / 100)}) precisa ser igual ao total da venda (${brl(net)}).`,
       422,
       "payments",
     );
@@ -912,6 +957,8 @@ async function prepararVenda(
     itens,
     pagamentos,
     net,
+    frete: freteCent / 100,
+    origin: origin as OrigemDaVenda,
     desconto: descontoCent / 100,
     autorizou,
     troca: trocaCent / 100,
@@ -1079,6 +1126,8 @@ async function gravarVenda(
       sold_by_user_id: ator.id,
       seller_user_id: p.seller_user_id,
       net_amount: p.net,
+      freight_amount: p.frete,
+      origin: p.origin,
       discount_amount: p.desconto,
       discount_authorized_by_user_id: p.autorizou,
       exchange_return_id: extra.exchange_return_id ?? null,
@@ -1151,7 +1200,7 @@ async function gravarVenda(
   const lancamento = await createLinkedEntry(tx, {
     entry_type: "income",
     category: CATEGORIA_VENDAS,
-    amount: p.net,
+    amount: arred2(p.net + p.frete),
     related_module: "emporio",
     related_id: venda.id,
     occurred_at: p.sold_at,
@@ -1313,6 +1362,21 @@ async function gravarVenda(
     });
   }
 
+  // O frete cobrado do cliente é repasse à transportadora (Q244, Q246): conta a pagar à parte; a receita já o inclui.
+  if (p.frete > 0) {
+    await createLinkedEntry(tx, {
+      entry_type: "expense",
+      category: CATEGORIA_FRETE,
+      amount: p.frete,
+      related_module: "emporio",
+      related_id: venda.id,
+      occurred_at: p.sold_at,
+      status: "pending",
+      due_date: p.sold_at,
+      establishment_id: p.loja.id,
+    });
+  }
+
   if (!fiado) {
     await tx.financialEntry.update({ where: { id: lancamento.id }, data: { status: "paid", paid_at: p.sold_at } });
   }
@@ -1324,6 +1388,7 @@ async function gravarVenda(
     establishment_id: p.loja.id,
     sold_at: p.sold_at,
     net: p.net,
+    frete: p.frete,
     itens: p.itens.map((i) => ({
       emporio_product_id: i.produto.id,
       presentation_id: i.apresentacao.id,
@@ -1370,7 +1435,9 @@ export async function venderAction(
         target_id: novaId,
         summary: `Vendeu ${dinheiro(prep.data.net)} na ${prep.data.loja.name} (${frasItens(prep.data.itens.length)})${
           prep.data.quote ? ` do orçamento nº ${formatarNumero(prep.data.quote.number)}` : ""
-        }${prep.data.pedido.for_delivery ? ", para entrega" : ""}`,
+        }${prep.data.pedido.for_delivery ? ", para entrega" : ""}${
+          prep.data.frete > 0 ? `, com frete ${dinheiro(prep.data.frete)}` : ""
+        }`,
       });
       return novaId;
     });
@@ -1508,6 +1575,18 @@ export async function cancelarVendaAction(
       }
       await tx.financialEntry.updateMany({
         where: { related_module: "emporio", entry_type: "expense", category: CATEGORIA_TAXAS_CARTAO, related_id: id },
+        data: { status: "cancelled" },
+      });
+      // Frete (Q244): a conta a pagar sem pagamento some; a paga fica. Em aprovação, recusa antes de escrever.
+      const contasDoFrete = await tx.financialEntry.findMany({
+        where: { related_module: "emporio", entry_type: "expense", category: CATEGORIA_FRETE, related_id: id, status: "pending" },
+        select: { id: true },
+      });
+      if (contasDoFrete.length > 0 && (await contaEmAprovacao(tx, contasDoFrete.map((c) => c.id)))) {
+        throw new AbortarVenda(fail("CONTA_EM_APROVACAO", EM_APROVACAO, 409, "sale_id"));
+      }
+      await tx.financialEntry.updateMany({
+        where: { id: { in: contasDoFrete.map((c) => c.id) } },
         data: { status: "cancelled" },
       });
       // F4a (Q99): o "Vendeu, Pagou" não pago some com a venda; o pago fica.

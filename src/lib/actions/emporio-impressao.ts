@@ -5,6 +5,7 @@ import { lerVendaAction } from "@/lib/actions/emporio-vendas";
 import { lerEstabelecimentoAction } from "@/lib/actions/emporio-catalogo";
 import { lerConfiguracoesAction, type EmporioSettingsView } from "@/lib/actions/emporio-configuracoes";
 import { lerOrcamentoAction } from "@/lib/actions/emporio-orcamentos";
+import type { OrigemDaVenda } from "@/lib/emporio/frete";
 import { CONSUMIDOR_FINAL, formatarCep, formatarDocumento } from "@/lib/contatos/cadastro";
 import { ehConsumidorFinal } from "@/lib/emporio/cliente-cadastro";
 import { formatarNumero } from "@/lib/emporio/numeracao";
@@ -36,7 +37,11 @@ export type ImpressoVenda = {
   itens: { produto: string; quantidade: string; preco: number; total: number }[];
   subtotal: number;
   desconto: number;
+  /** Frete cobrado do cliente (Q244); 0 sem frete e no orçamento. */
+  frete: number;
+  /** Itens mais frete: o que o cliente paga. */
   total: number;
+  origem: OrigemDaVenda;
   pagamentos: { forma: string; valor: number }[];
   troco: number | null;
   vendedor: string | null;
@@ -205,7 +210,7 @@ export async function lerImpressoDaVendaAction(
   );
   const pago = v.payments.reduce((t, p) => t + p.amount, 0);
   // So e nao nulo se a soma dos pagamentos passar do total; hoje o dinheiro e gravado sem o valor entregue, entao fica null.
-  const troco = Math.round((pago - v.net_amount) * 100) / 100;
+  const troco = Math.round((pago - v.total_amount) * 100) / 100;
 
   return ok({
     tipo: "venda",
@@ -219,7 +224,9 @@ export async function lerImpressoDaVendaAction(
     itens,
     subtotal,
     desconto: v.discount_amount,
-    total: v.net_amount,
+    frete: v.freight_amount,
+    total: v.total_amount,
+    origem: v.origin,
     pagamentos: v.payments.map((p) => ({ forma: FORMA_ROTULO[p.kind] ?? p.kind, valor: p.amount })),
     troco: troco > 0 ? troco : null,
     vendedor: v.seller_name,
@@ -346,7 +353,9 @@ export async function lerImpressoDoOrcamentoAction(
     itens,
     subtotal,
     desconto: q.discount_amount,
+    frete: 0,
     total: q.net_amount,
+    origem: "balcao",
     pagamentos: [],
     troco: null,
     vendedor: q.seller_name,
