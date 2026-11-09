@@ -1,4 +1,5 @@
 import { inicioDoDiaEmSaoPaulo } from "@/lib/dia-calendario";
+import { proximoDiaUtil } from "@/lib/emporio/dia-util";
 
 /**
  * Meu Empório, F3b (Q89, Q90): contas de data e de parcela do cartão.
@@ -104,8 +105,36 @@ export function taxaDoPagamentoCent(valorCent: number, linha: Pick<LinhaDeTaxa, 
   return Math.round((valorCent * linha.fee_pct) / 100) + Math.round(linha.fee_fixed * 100);
 }
 
-/** Datas previstas: a 1ª em `vendidoEm` + `dias`, cada seguinte 30 dias depois da anterior. */
-export function datasDasParcelas(vendidoEm: Date, dias: number, n: number): Date[] {
+export type RegraDiaUtil = "proximo_dia_util" | "dias_corridos";
+
+export const CATEGORIA_ANTECIPACAO = "Antecipação de recebíveis";
+
+/**
+ * Datas previstas: a 1ª em `vendidoEm` + `dias`, cada seguinte 30 dias depois da 1ª (corridos,
+ * sem encadear). Com `proximo_dia_util`, cada data que cai em fim de semana ou feriado vai
+ * para o próximo dia útil; o padrão `dias_corridos` mantém o comportamento antigo.
+ */
+export function datasDasParcelas(vendidoEm: Date, dias: number, n: number, regra: RegraDiaUtil = "dias_corridos"): Date[] {
   const primeira = somarDias(inicioDoDiaEmSaoPaulo(vendidoEm), dias);
-  return Array.from({ length: n }, (_, i) => somarDias(primeira, 30 * i));
+  return Array.from({ length: n }, (_, i) => {
+    const dia = somarDias(primeira, 30 * i);
+    return regra === "proximo_dia_util" ? proximoDiaUtil(dia) : dia;
+  });
+}
+
+const DIA_MS = 86_400_000;
+
+/** Custo da antecipação de uma parcela: `líquido * pct%/mês * dias corridos / 30`, em centavos. */
+export function custoAntecipacaoCent(liquidoCent: number, pctMes: number, efetivo: Date, previsto: Date): number {
+  const dias = Math.max(0, Math.round((previsto.getTime() - efetivo.getTime()) / DIA_MS));
+  return Math.round((liquidoCent * pctMes * dias) / 3000);
+}
+
+/** Reparte `custoCent` proporcional aos líquidos; o resto de centavos vai para a última. */
+export function ratearCustoCent(custoCent: number, liquidosCent: number[]): number[] {
+  const total = liquidosCent.reduce((a, b) => a + b, 0);
+  if (liquidosCent.length === 0) return [];
+  const partes = liquidosCent.map((l) => (total > 0 ? Math.floor((custoCent * l) / total) : 0));
+  partes[partes.length - 1] += custoCent - partes.reduce((a, b) => a + b, 0);
+  return partes;
 }

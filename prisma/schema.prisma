@@ -627,6 +627,7 @@ model Tenant {
   card_fee_rates            CardFeeRate[]
   card_acquirers            CardAcquirer[]
   card_receivables          CardReceivable[]
+  card_anticipations        CardAnticipation[]
   emporio_checks            EmporioCheck[]
   emporio_customers         EmporioCustomer[]
   emporio_credit_releases   EmporioCreditRelease[]
@@ -1209,6 +1210,7 @@ model BankAccount {
   pix_of           Establishment[]      @relation("EstablishmentPixAccount")
   card_fee_rates   CardFeeRate[]
   card_receivables CardReceivable[]
+  card_anticipations CardAnticipation[]
   checks           EmporioCheck[]
   sale_payments    EmporioSalePayment[]
   cash_movements   CashMovement[]
@@ -1490,6 +1492,15 @@ model CardAcquirer {
   tenant_id          String
   name               String
   archived_at        DateTime?
+  /// Entrega 2: como a adquirente conta o prazo (dia útil seguinte ou dias corridos).
+  business_day_rule  CardBusinessDayRule @default(proximo_dia_util)
+  /// Entrega 2: o cancelamento devolve a taxa (MDR) ao lojista, como a Stone.
+  refunds_mdr_on_cancel Boolean  @default(true)
+  /// Entrega 3: antecipação automática (taxa % ao mês, prazo em dias úteis, desde quando).
+  auto_anticipation_enabled      Boolean   @default(false)
+  auto_anticipation_pct_month    Decimal?  @db.Decimal(5, 2)
+  auto_anticipation_business_days Int      @default(1)
+  auto_anticipation_since        DateTime? @db.Date
   updated_by_user_id String?
   created_at         DateTime  @default(now())
   updated_at         DateTime  @updatedAt
@@ -1498,6 +1509,7 @@ model CardAcquirer {
   fee_rates     CardFeeRate[]
   sale_payments EmporioSalePayment[]
   receivables   CardReceivable[]
+  anticipations CardAnticipation[]
 
   @@unique([tenant_id, name])
   @@index([tenant_id])
@@ -1551,7 +1563,14 @@ model CardReceivable {
   installments          Int
   gross_amount          Decimal    @db.Decimal(14, 2)
   net_amount            Decimal    @db.Decimal(14, 2)
+  /// Entrega 2: a taxa da parcela (bruto menos líquido), gravada na venda.
+  fee_amount            Decimal    @default(0) @db.Decimal(14, 2)
   expected_on           DateTime   @db.Date
+  /// Entrega 3: quando e quanto de fato entra (igual ao previsto até antecipar).
+  effective_on          DateTime   @db.Date
+  effective_net         Decimal    @db.Decimal(14, 2)
+  anticipation_fee      Decimal?   @db.Decimal(14, 2)
+  anticipation_id       String?
   canceled_at           DateTime?
   /// Entrega 3: carimbo de conciliação com o extrato (não mexe no saldo).
   reconciled_at         DateTime?
@@ -1568,9 +1587,47 @@ model CardReceivable {
   establishment  Establishment      @relation(fields: [establishment_id], references: [id], onDelete: Restrict)
   bank_account   BankAccount        @relation(fields: [bank_account_id], references: [id], onDelete: Restrict)
   cash_movements CashMovement[]
+  anticipation   CardAnticipation?  @relation(fields: [anticipation_id], references: [id], onDelete: SetNull)
 
   @@index([tenant_id, bank_account_id, expected_on])
+  @@index([tenant_id, bank_account_id, effective_on])
   @@index([sale_id])
+}
+
+enum CardBusinessDayRule {
+  proximo_dia_util
+  dias_corridos
+}
+
+enum CardAnticipationKind {
+  pontual
+  automatica
+}
+
+/// Entrega 3: uma operação de antecipação de recebíveis (pontual ou automática).
+model CardAnticipation {
+  id                 String               @id @default(cuid())
+  tenant_id          String
+  acquirer_id        String?
+  bank_account_id    String
+  operated_on        DateTime             @db.Date
+  kind               CardAnticipationKind
+  gross_amount       Decimal              @db.Decimal(14, 2)
+  expected_net       Decimal              @db.Decimal(14, 2)
+  received_net       Decimal              @db.Decimal(14, 2)
+  fee_amount         Decimal              @db.Decimal(14, 2)
+  notes              String?
+  undone_at          DateTime?
+  undone_by_user_id  String?
+  created_by_user_id String?
+  created_at         DateTime             @default(now())
+
+  tenant       Tenant           @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  acquirer     CardAcquirer?    @relation(fields: [acquirer_id], references: [id], onDelete: Restrict)
+  bank_account BankAccount      @relation(fields: [bank_account_id], references: [id], onDelete: Restrict)
+  receivables  CardReceivable[]
+
+  @@index([tenant_id, operated_on])
 }
 
 /// Módulo 39, F3b (Q91): o cheque é o próprio a receber. Só o compensado

@@ -23,7 +23,7 @@ import { lerMovimentos } from "@/lib/actions/emporio-estoque";
 type Tx = Prisma.TransactionClient;
 
 /** Nomes que já são categoria de lançamento do Empório: uma regra com eles se confundiria com a taxa ou a receita. */
-export const CATEGORIAS_RESERVADAS = ["Vendas do Empório", "Devoluções de vendas do Empório", "Taxas de cartão", "Diferença de caixa", CATEGORIA_FRETE];
+export const CATEGORIAS_RESERVADAS = ["Vendas do Empório", "Devoluções de vendas do Empório", "Taxas de cartão", "Antecipação de recebíveis", "Diferença de caixa", CATEGORIA_FRETE];
 
 const arred2 = (n: number) => Math.round(Number((n * 100).toPrecision(12))) / 100;
 const arred3 = (n: number) => Math.round(Number((n * 1000).toPrecision(14))) / 1000;
