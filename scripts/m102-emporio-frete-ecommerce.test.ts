@@ -404,6 +404,30 @@ async function comBanco() {
       const sV = await vender(vend, [pix(100)]);
       check("o vendedor sem gestor edita: FORBIDDEN", recusa(await vv("editarVendaAction", vend, idDe(sV), { operation_key: chave("ed"), items: itens(), payments: [pix(100)] }), "FORBIDDEN"));
       check("e a venda segue concluida", dados(await vv("lerVendaAction", admin, idDe(sV)))?.status === "concluida");
+
+      // Fix round 1: venda que faturou orçamento, editada.
+      const Orc = await import("@/lib/actions/emporio-orcamentos");
+      const rOrc = await Orc.salvarOrcamentoAction(db, vend as never, { operation_key: chave("orc"), establishment_id: L1.id, customer_id: cf, items: itens() } as never);
+      const orcId = (rOrc as Dado).ok ? (rOrc as Dado).data?.id : "";
+      check("fixture: orçamento salvo", !!orcId, j(rOrc).slice(0, 300));
+      const sQ = await vender(vend, [dinheiro(100)], { cash_register_id: turnoL1.cash_register_id, quote_id: orcId });
+      check("fixture: venda faturou o orçamento", sQ.ok && dados(sQ)?.quote?.id === orcId, j(sQ).slice(0, 300));
+      const rEdQ = await vv("editarVendaAction", gestor, idDe(sQ), { operation_key: chave("ed"), items: itens(), payments: [dinheiro(100)], cash_register_id: turnoL1.cash_register_id });
+      check("editar a venda que faturou orçamento: ok, a nova guarda o orçamento", rEdQ.ok && dados(rEdQ)?.quote?.id === orcId, j(rEdQ).slice(0, 300));
+      const orcDepois = await db.emporioQuote.findFirst({ where: { id: orcId } });
+      check("o orçamento aponta sale_id para a venda nova", !!dados(rEdQ)?.id && orcDepois?.sale_id === dados(rEdQ)?.id, j(orcDepois?.sale_id));
+      const movQ = await db.stockMovement.findMany({ where: { sale_id: idDe(sQ), movement_type: "venda" } });
+      const numQ = String(dados(rEdQ)?.number ?? "");
+      check("o motivo provisório não sobra nas movimentações da antiga", movQ.length > 0 && movQ.every((m) => String(m.canceled_reason).includes("Substituída pela venda nº") && !String(m.canceled_reason).includes("em edição") && numQ !== ""), j(movQ.map((m) => m.canceled_reason)));
+      const caixaQ = await db.cashMovement.findMany({ where: { sale_id: idDe(sQ), origin: "cancelamento_venda" } });
+      check("nem nas saídas da gaveta", caixaQ.length > 0 && caixaQ.every((m) => !String(m.notes).includes("em edição")), j(caixaQ.map((m) => m.notes)));
+      // quote_id null explícito: sem orçamento.
+      const rOrc2 = await Orc.salvarOrcamentoAction(db, vend as never, { operation_key: chave("orc"), establishment_id: L1.id, customer_id: cf, items: itens() } as never);
+      const orc2 = (rOrc2 as Dado).ok ? (rOrc2 as Dado).data?.id : "";
+      const sQ2 = await vender(vend, [dinheiro(100)], { cash_register_id: turnoL1.cash_register_id, quote_id: orc2 });
+      const rEdQ2 = await vv("editarVendaAction", gestor, idDe(sQ2), { operation_key: chave("ed"), items: itens(), payments: [dinheiro(100)], cash_register_id: turnoL1.cash_register_id, quote_id: null });
+      const orc2Depois = await db.emporioQuote.findFirst({ where: { id: orc2 } });
+      check("quote_id null na edição: a nova sai sem orçamento e o orçamento volta a aberto", rEdQ2.ok && !dados(rEdQ2)?.quote && orc2Depois?.sale_id === null, j([rEdQ2.ok, orc2Depois?.sale_id]));
     });
 
     // ---- Review Focus 3: dinheiro com o turno encerrado

@@ -589,6 +589,8 @@ async function orcamentoAFaturar(
   lojaId: string,
   quoteId: unknown,
   soldAt: Date,
+  /** A edição da venda (Q249): o orçamento ainda preso à venda que ela vai substituir vale. */
+  substituindo: string | null = null,
 ): Promise<ActionResult<OrcamentoAFaturar>> {
   const id = typeof quoteId === "string" ? quoteId.trim() : "";
   if (!id) return QUOTE_NOT_FOUND();
@@ -610,7 +612,7 @@ async function orcamentoAFaturar(
       delivery_district: true,
       delivery_city: true,
       delivery_state: true,
-      sale: { select: { number: true } },
+      sale: { select: { id: true, number: true } },
       items: { select: { presentation_id: true, unit_price: true, suggested_price: true } },
     },
   });
@@ -618,7 +620,7 @@ async function orcamentoAFaturar(
   if (q.establishment_id !== lojaId) {
     return fail("QUOTE_OTHER_STORE", "Este orçamento é de outra loja. Fature na loja dele.", 422, "quote_id");
   }
-  if (q.sale) return QUOTE_ALREADY_INVOICED(q.sale.number);
+  if (q.sale && q.sale.id !== substituindo) return QUOTE_ALREADY_INVOICED(q.sale.number);
 
   const quote = { id: q.id, number: q.number };
   const pedido: PedidoParaEntregaColunas = {
@@ -697,7 +699,7 @@ async function prepararVenda(
   ator: Ator,
   input: VenderInput,
   /** `vendedorHerdado`: a troca leva o vendedor da venda original, sem revalidá-lo (pode ter sido desativado depois). */
-  opts: { valorTroca?: number; vendedorHerdado?: string | null } = {},
+  opts: { valorTroca?: number; vendedorHerdado?: string | null; substituindo?: string | null } = {},
 ): Promise<ActionResult<Preparada>> {
   const neg = await exigir(db, ator, "vendedor_da_loja", "vender");
   if (neg) return neg;
@@ -730,7 +732,7 @@ async function prepararVenda(
   // Entrega 4: o orçamento faturado (a troca nunca chega aqui com um).
   let orcamento: OrcamentoAFaturar | null = null;
   if (input.quote_id != null && input.quote_id !== "") {
-    const r = await orcamentoAFaturar(db, loja.data.id, input.quote_id, soldAt);
+    const r = await orcamentoAFaturar(db, loja.data.id, input.quote_id, soldAt, opts.substituindo ?? null);
     if (!r.ok) return r;
     orcamento = r.data;
   }
@@ -1461,7 +1463,7 @@ export async function venderAction(
 // Cancelamento total
 // ---------------------------------------------------------------------------
 
-type VendaParaCancelar = {
+type VendaParaCancelar = PedidoParaEntregaColunas & {
   id: string;
   establishment_id: string;
   status: string;
@@ -1474,6 +1476,18 @@ type VendaParaCancelar = {
   establishment: { name: string };
   _count: { returns: number };
 };
+
+const COLUNAS_DE_ENTREGA_DA_VENDA = {
+  for_delivery: true,
+  delivery_address_kind: true,
+  delivery_zip: true,
+  delivery_street: true,
+  delivery_number: true,
+  delivery_complement: true,
+  delivery_district: true,
+  delivery_city: true,
+  delivery_state: true,
+} as const;
 
 /** As travas de fora da transação do cancelamento, que a edição da venda reaproveita (Q249). */
 async function conferirCancelamento(
@@ -1494,6 +1508,7 @@ async function conferirCancelamento(
       sold_at: true,
       customer_id: true,
       seller_user_id: true,
+      ...COLUNAS_DE_ENTREGA_DA_VENDA,
       quote_id: true,
       establishment: { select: { name: true } },
       _count: { select: { returns: true } },
@@ -1697,6 +1712,8 @@ async function cancelarNaTransacao(
 // Editar a venda (Q249): cancela a antiga e registra a nova, numa transação só
 // ---------------------------------------------------------------------------
 
+const MOTIVO_PROVISORIO = "Substituída pela venda nº (em edição)";
+
 export type EditarVendaInput = Omit<VenderInput, "establishment_id"> & { reason?: string | null };
 
 /**
@@ -1728,22 +1745,44 @@ export async function editarVendaAction(
   if (!conf.ok) return conf;
   const antiga = conf.data;
 
-  const prep = await prepararVenda(db, ator, {
-    ...input,
-    operation_key: chave,
-    establishment_id: antiga.establishment_id,
-    customer_id: input.customer_id ?? antiga.customer_id,
-    sold_at: input.sold_at ?? antiga.sold_at,
-    seller_user_id: input.seller_user_id ?? antiga.seller_user_id,
-    quote_id: input.quote_id ?? antiga.quote_id,
-  });
+  // Sem `for_delivery` no corpo, o pedido para entrega é o da antiga; com ele, vale o corpo.
+  const entregaDaAntiga =
+    input.for_delivery === undefined
+      ? {
+          for_delivery: antiga.for_delivery,
+          delivery_address_kind: antiga.delivery_address_kind,
+          delivery_zip: antiga.delivery_zip,
+          delivery_street: antiga.delivery_street,
+          delivery_number: antiga.delivery_number,
+          delivery_complement: antiga.delivery_complement,
+          delivery_district: antiga.delivery_district,
+          delivery_city: antiga.delivery_city,
+          delivery_state: antiga.delivery_state,
+        }
+      : {};
+  const prep = await prepararVenda(
+    db,
+    ator,
+    {
+      ...input,
+      ...entregaDaAntiga,
+      operation_key: chave,
+      establishment_id: antiga.establishment_id,
+      customer_id: input.customer_id ?? antiga.customer_id,
+      sold_at: input.sold_at ?? antiga.sold_at,
+      seller_user_id: input.seller_user_id ?? antiga.seller_user_id,
+      // `undefined` herda o orçamento da antiga; `null` é "sem orçamento" (o cancelamento já o solta).
+      quote_id: input.quote_id === undefined ? antiga.quote_id : input.quote_id,
+    },
+    { substituindo: id },
+  );
   if (!prep.ok) return prep;
   const motivo = String(input.reason ?? "").trim();
 
   try {
     const novaId = await runSerializableTenantTransaction(db, async (tx) => {
       // A antiga primeiro: o estoque dela volta antes de a nova planejar a baixa.
-      await cancelarNaTransacao(tx, ator, antiga, "Substituída pela venda nº (em edição)", input.cash_register_id);
+      await cancelarNaTransacao(tx, ator, antiga, MOTIVO_PROVISORIO, input.cash_register_id);
       const turno = await turnoOuAborta(tx, ator, prep.data.loja.id, prep.data.cash_register_id);
       const nova = await gravarVenda(tx, ator, prep.data, turno, { replaces_sale_id: id });
       const numero = await tx.emporioSale.findFirst({ where: { id: nova }, select: { number: true } });
@@ -1752,6 +1791,17 @@ export async function editarVendaAction(
         where: { id },
         data: { canceled_reason: `Substituída pela venda nº ${rotulo}${motivo ? `: ${motivo}` : ""}` },
       });
+      // O texto provisório (o número novo ainda não existia) vira o final onde o cancelamento o gravou.
+      const final = `Substituída pela venda nº ${rotulo}`;
+      const despesas = await tx.saleVariableExpense.findMany({ where: { sale_id: id }, select: { id: true } });
+      await tx.stockMovement.updateMany({
+        where: {
+          canceled_reason: MOTIVO_PROVISORIO,
+          OR: [{ sale_id: id }, { sale_variable_expense_id: { in: despesas.map((d) => d.id) } }],
+        },
+        data: { canceled_reason: final },
+      });
+      await tx.cashMovement.updateMany({ where: { sale_id: id, notes: MOTIVO_PROVISORIO }, data: { notes: final } });
       await registrarNoHistorico(tx, ator, {
         action: "venda.editar",
         establishment_id: prep.data.loja.id,

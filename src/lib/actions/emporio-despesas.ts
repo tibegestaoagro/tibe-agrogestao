@@ -1503,9 +1503,9 @@ async function filtroDoEmporio(
   const vivas = ids.length
     ? await db.emporioPurchase.findMany({ where: { id: { in: ids }, canceled_at: null }, select: { id: true } })
     : [];
-  // A terceira forma: a conta do frete de uma venda concluída.
+  // A terceira forma: a conta do frete de uma venda (a paga de venda cancelada continua, as pendentes já saem pelo status).
   const vendasVivas = ids.length
-    ? await db.emporioSale.findMany({ where: { id: { in: ids }, status: "concluida" }, select: { id: true } })
+    ? await db.emporioSale.findMany({ where: { id: { in: ids } }, select: { id: true } })
     : [];
   return {
     OR: [
@@ -1619,7 +1619,7 @@ async function acharContaDoEmporio(
         : null;
     const frete =
       e.related_id && e.category === CATEGORIA_FRETE
-        ? await db.emporioSale.findFirst({ where: { id: e.related_id, status: "concluida" }, select: { id: true } })
+        ? await db.emporioSale.findFirst({ where: { id: e.related_id }, select: { id: true } })
         : null;
     if (!compra && !frete) return null;
   }
