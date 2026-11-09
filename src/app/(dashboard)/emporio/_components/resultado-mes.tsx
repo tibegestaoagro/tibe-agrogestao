@@ -161,6 +161,11 @@ export function ResultadoMes({ r }: { r: ResultadoDaLojaView }) {
               </>
             }
           />
+          <Linha
+            rotulo="(-) Antecipação de recebíveis"
+            valor={reaisBr(r.anticipation_costs)}
+            nota="O custo de receber o cartão antes do prazo: despesa financeira, fora da margem"
+          />
           <Linha rotulo="= Resultado" forte valor={reaisBr(r.result)} tom={tomDoResultado} />
         </div>
       </section>

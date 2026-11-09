@@ -18,7 +18,14 @@ import type { CreditoView } from "@/lib/actions/emporio-credito";
 import type { Falta } from "@/lib/emporio/cliente-cadastro";
 import type { ClienteEscolhido } from "@/lib/emporio/cliente-escolhido";
 import { EscolherCliente } from "./escolher-cliente";
-import { BANDEIRAS, ROTULO_DA_BANDEIRA, taxaDoPagamentoCent } from "@/lib/emporio/cartao";
+import {
+  BANDEIRAS,
+  ROTULO_DA_BANDEIRA,
+  custoAntecipacaoCent,
+  dividirEmParcelas,
+  taxaDoPagamentoCent,
+} from "@/lib/emporio/cartao";
+import { somarDiasUteis } from "@/lib/emporio/dia-util";
 import { pctBr } from "./formato";
 import { FORMA_ROTULO } from "./venda-rotulos";
 import {
@@ -95,11 +102,42 @@ function InfoDoCartao({ v, p }: { v: EstadoDaVenda; p: EstadoDaVenda["pagamentos
   }
   const valorCent = Math.round(Number((n * 100).toPrecision(12)));
   const liquidoCent = valorCent - taxaDoPagamentoCent(valorCent, linha);
+
+  // Antecipação automática (Q263): só no crédito, e só a partir da data configurada.
+  const cfg = taxa.config;
+  const automatica =
+    p.kind !== "debito" &&
+    cfg !== null &&
+    cfg.auto_anticipation_enabled &&
+    cfg.auto_anticipation_pct_month !== null &&
+    cfg.auto_anticipation_since !== null &&
+    cfg.auto_anticipation_since <= taxa.dia;
+  let antecipado: { cai: string; liquidoCent: number } | null = null;
+  if (automatica && cfg && cfg.auto_anticipation_pct_month !== null) {
+    const cai = somarDiasUteis(new Date(`${taxa.dia}T00:00:00Z`), cfg.auto_anticipation_business_days);
+    const partes = dividirEmParcelas(liquidoCent, taxa.parcelas);
+    const custo = partes.reduce(
+      (soma, liq, i) => soma + custoAntecipacaoCent(liq, cfg.auto_anticipation_pct_month as number, cai, taxa.datas[i]),
+      0,
+    );
+    antecipado = {
+      cai: cai.toISOString().slice(0, 10).split("-").reverse().slice(0, 2).join("/"),
+      liquidoCent: liquidoCent - custo,
+    };
+  }
   return (
-    <p className="text-xs text-texto-secundario">
-      Taxa {pctBr(linha.fee_pct)}
-      {fixa}: líquido <strong className="text-texto">{reaisBr(liquidoCent / 100)}</strong>, 1ª parcela em {dia}.
-    </p>
+    <div className="space-y-1">
+      <p className="text-xs text-texto-secundario">
+        Taxa {pctBr(linha.fee_pct)}
+        {fixa}: líquido <strong className="text-texto">{reaisBr(liquidoCent / 100)}</strong>, 1ª parcela em {dia}.
+      </p>
+      {antecipado && (
+        <p className="text-xs text-texto-secundario">
+          Antecipado: cai em {antecipado.cai}, líquido estimado{" "}
+          <strong className="text-texto">{reaisBr(antecipado.liquidoCent / 100)}</strong>.
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -156,6 +194,15 @@ function EscolhaDoCartao({
             {seletor(`adquirente-${p.key}`)}
           </div>
         )
+      ) : primeiro ? (
+        // Com uma só adquirente o seletor some, mas a recusa do servidor (2.59) precisa de onde cair.
+        <Field label="Adquirente" id={idDoCampo} error={erro}>
+          {({ id, ...aria }) => (
+            <p id={id} tabIndex={-1} {...aria} className="text-sm text-texto">
+              {v.adquirentes[0].name}
+            </p>
+          )}
+        </Field>
       ) : (
         <p className="text-xs text-texto-secundario">Adquirente: {v.adquirentes[0].name}</p>
       )}

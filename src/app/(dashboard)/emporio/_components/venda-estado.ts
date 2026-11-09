@@ -10,6 +10,7 @@ import {
   ROTULO_DA_BANDEIRA,
   type Bandeira,
   type LinhaDeTaxa,
+  type RegraDiaUtil,
 } from "@/lib/emporio/cartao";
 import { lerNumeroBr, reaisBr } from "@/lib/numero-br";
 import type { ClienteEscolhido } from "@/lib/emporio/cliente-escolhido";
@@ -73,6 +74,16 @@ export type LinhaPagamento = {
   adquirenteId: string;
   /** Cartão: a bandeira, sempre escolhida (nenhuma vem marcada). */
   bandeira: Bandeira | "";
+};
+
+/** O que a prévia do balcão usa da configuração da adquirente (Q260, Q263). */
+export type ConfigDaAdquirente = {
+  id: string;
+  business_day_rule: RegraDiaUtil;
+  auto_anticipation_enabled: boolean;
+  auto_anticipation_pct_month: number | null;
+  auto_anticipation_business_days: number;
+  auto_anticipation_since: string | null;
 };
 
 /** Uma linha de taxa vigente da loja, com o nome da adquirente (a rota devolve os dois). */
@@ -421,6 +432,17 @@ export function useVenda({
       vivo = false;
     };
   }, [loja, diaDaTaxa]);
+  // A configuração das adquirentes (regra de dia útil, antecipação automática): uma vez só.
+  const [configs, setConfigs] = useState<ConfigDaAdquirente[]>([]);
+  useEffect(() => {
+    let vivo = true;
+    void apiGet<ConfigDaAdquirente[]>("/api/v1/emporio/card-acquirers").then((res) => {
+      if (vivo && res.ok) setConfigs(res.data);
+    });
+    return () => {
+      vivo = false;
+    };
+  }, []);
   const linhasDaLoja = taxas && taxas.lojaId === loja ? taxas.linhas : null;
   const taxasCarregadas = linhasDaLoja !== null;
   const adquirentes = linhasDaLoja
@@ -470,7 +492,9 @@ export function useVenda({
   }
 
   /** O que o cartão rende, com a mesma conta do servidor. `null` sem bandeira, sem adquirente ou sem linha. */
-  function taxaDe(p: LinhaPagamento): { linha: TaxaDaVenda; parcelas: number; primeira: Date } | null {
+  function taxaDe(
+    p: LinhaPagamento,
+  ): { linha: TaxaDaVenda; parcelas: number; primeira: Date; datas: Date[]; config: ConfigDaAdquirente | null; dia: string } | null {
     if (!linhasDaLoja || p.bandeira === "") return null;
     const acquirer_id = adquirenteDe(p);
     if (!acquirer_id) return null;
@@ -483,7 +507,14 @@ export function useVenda({
       dia: diaDaTaxa,
     }) as TaxaDaVenda | null;
     if (!linha) return null;
-    return { linha, parcelas, primeira: datasDasParcelas(new Date(`${diaDaTaxa}T12:00:00Z`), linha.days, 1)[0] };
+    const config = configs.find((c) => c.id === acquirer_id) ?? null;
+    const datas = datasDasParcelas(
+      new Date(`${diaDaTaxa}T12:00:00Z`),
+      linha.days,
+      parcelas,
+      config?.business_day_rule ?? "dias_corridos",
+    );
+    return { linha, parcelas, primeira: datas[0], datas, config, dia: diaDaTaxa };
   }
 
   /** Há cartão sem bandeira, sem adquirente ou sem taxa para a combinação: a venda não fecha. */

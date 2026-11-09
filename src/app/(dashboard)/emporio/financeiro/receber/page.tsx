@@ -6,6 +6,7 @@ import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { veAPagina } from "@/lib/emporio/paginas";
 import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
 import { viewsDosCaixas } from "@/lib/actions/emporio-caixa";
+import { listarAntecipacoesAction } from "@/lib/actions/emporio-antecipacao";
 import { listarContasAReceberAction } from "@/lib/actions/emporio-financeiro";
 import { EmptyState } from "@/components/ui/empty-state";
 import { paraCaixasDaLoja } from "../../_components/caixas-da-loja";
@@ -29,8 +30,10 @@ export default async function FinanceiroReceberPage({
   const lojas = lojasRes.ok ? lojasRes.data.map((l) => ({ id: l.id, name: l.name })) : [];
   const loja = lojas.some((l) => l.id === lojaDaUrl) ? lojaDaUrl : "";
 
-  const [dadosRes, contasDoBanco] = await Promise.all([
+  const [dadosRes, antecipacoesRes, contasDoBanco] = await Promise.all([
     listarContasAReceberAction(db, user, { establishment_id: loja || undefined }),
+    // Quem não antecipa recebe a recusa de permissão: a lista fica vazia, sem erro na tela.
+    listarAntecipacoesAction(db, user, { establishment_id: loja || undefined }),
     // Só id e nome, para escolher o destino ao depositar um cheque.
     db.bankAccount.findMany({ where: { archived_at: null }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
   ]);
@@ -59,6 +62,7 @@ export default async function FinanceiroReceberPage({
           caixas={caixas}
           contasDoBanco={contasDoBanco}
           usuarioId={user.id}
+          antecipacoes={antecipacoesRes.ok ? antecipacoesRes.data : []}
         />
       ) : (
         <EmptyState titulo="Não foi possível ler o que receber">{dadosRes.message}</EmptyState>

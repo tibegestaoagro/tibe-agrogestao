@@ -1,9 +1,9 @@
 import Link from "next/link";
+import type { AntecipacaoView } from "@/lib/actions/emporio-antecipacao";
 import type { AReceberView } from "@/lib/actions/emporio-financeiro";
 import { pode, type PapelContexto } from "@/lib/emporio/papel";
 import { reaisBr } from "@/lib/numero-br";
 import { dataBr } from "@/lib/emporio/datas";
-import { ROTULO_DA_BANDEIRA, type Bandeira } from "@/lib/emporio/cartao";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
@@ -14,6 +14,7 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { CartoesAReceber } from "./cartoes-a-receber";
 import { ChequeAcoes } from "./cheque-acoes";
 import { ReceberFiadoForm } from "./receber-fiado-form";
 import type { CaixaDaLoja } from "./caixas-da-loja";
@@ -29,7 +30,9 @@ export function FinanceiroReceber({
   caixas,
   contasDoBanco,
   usuarioId,
+  antecipacoes,
 }: {
+  antecipacoes: AntecipacaoView[];
   dados: AReceberView;
   papel: PapelContexto;
   /** As lojas que o recebimento pode escolher (uma só quando a tela está filtrada). */
@@ -42,7 +45,10 @@ export function FinanceiroReceber({
   const soPix = !pode(papel, "vendedor_da_loja");
   const nomeDaLoja = new Map(lojas.map((l) => [l.id, l.name]));
   const totalFiado = dados.fiado.reduce((s, c) => s + Math.round(c.owed * 100), 0) / 100;
-  const totalCartoes = dados.cards.reduce((s, p) => s + Math.round(p.net_amount * 100), 0) / 100;
+  // Antecipar é de quem gere a loja da parcela ou cuida do dinheiro (o servidor confere de novo).
+  const lojasQueAntecipam = [...new Set(dados.cards.map((c) => c.establishment_id))].filter(
+    (id) => pode(papel, "dinheiro") || pode(papel, "gestor_da_loja", id),
+  );
 
   return (
     <div className="space-y-8">
@@ -164,63 +170,7 @@ export function FinanceiroReceber({
         )}
       </section>
 
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold text-texto">Cartões a receber</h2>
-        {dados.cards.length === 0 ? (
-          <EmptyState titulo="Nada a receber do cartão">
-            As parcelas das vendas no cartão que ainda não caíram aparecem aqui, por data.
-          </EmptyState>
-        ) : (
-          <>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Cai em</TableHead>
-                  <TableHead>Loja</TableHead>
-                  <TableHead>Conta</TableHead>
-                  <TableHead>Bandeira</TableHead>
-                  <TableHead>Adquirente</TableHead>
-                  <TableHead>Parcela</TableHead>
-                  <TableHead>Líquido</TableHead>
-                  <TableHead>Venda</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {dados.cards.map((p) => (
-                  <TableRow key={p.id}>
-                    <TableCell>
-                      {dataBr(p.expected_on)}
-                      {p.received && (
-                        <Badge variant="green" className="ml-2">
-                          Hoje
-                        </Badge>
-                      )}
-                    </TableCell>
-                    <TableCell>{p.establishment_name}</TableCell>
-                    <TableCell>{p.bank_account_name}</TableCell>
-                    <TableCell>
-                      {p.brand && p.brand !== "qualquer" ? ROTULO_DA_BANDEIRA[p.brand as Bandeira] : "-"}
-                    </TableCell>
-                    <TableCell>{p.acquirer_name ?? "-"}</TableCell>
-                    <TableCell>
-                      {p.installment}/{p.installments}
-                    </TableCell>
-                    <TableCell>{reaisBr(p.net_amount)}</TableCell>
-                    <TableCell>
-                      <Link href={`/emporio/vendas/${p.sale_id}`} className="font-medium text-texto-marca hover:underline">
-                        Ver a venda
-                      </Link>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-            <p className="text-sm text-texto">
-              Total a receber: <strong>{reaisBr(totalCartoes)}</strong>
-            </p>
-          </>
-        )}
-      </section>
+      <CartoesAReceber cards={dados.cards} antecipacoes={antecipacoes} lojasQueAntecipam={lojasQueAntecipam} />
     </div>
   );
 }
