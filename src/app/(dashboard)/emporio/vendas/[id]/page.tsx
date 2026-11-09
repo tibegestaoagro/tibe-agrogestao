@@ -166,6 +166,16 @@ export default async function VendaPage({ params }: { params: Promise<{ id: stri
               )}
             </>
           )}
+          {podeCancelar && (
+            <Button asChild variant="outline" size="sm">
+              <Link
+                href={`/emporio/vender?editar=${venda.id}`}
+                title="Editar cancela esta venda e registra uma nova com outro número"
+              >
+                Editar
+              </Link>
+            </Button>
+          )}
           {podeCancelar && <CancelarVendaForm
               vendaId={venda.id}
               lojaId={venda.establishment_id}

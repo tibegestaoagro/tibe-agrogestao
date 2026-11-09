@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useErrosDeFormulario } from "@/components/ui/use-erros-de-formulario";
 import { apiGet, apiPost } from "@/lib/client-api";
@@ -14,6 +15,8 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
+import type { VendaView } from "@/lib/actions/emporio-vendas";
+import type { ClienteEscolhido } from "@/lib/emporio/cliente-escolhido";
 import type { CaixaRegistradoView } from "@/lib/actions/emporio-caixa";
 import type { CreditoView } from "@/lib/actions/emporio-credito";
 import type { OrcamentoView } from "@/lib/actions/emporio-orcamentos";
@@ -33,13 +36,14 @@ import {
   corpoDoPedidoParaEntrega,
   PEDIDO_RETIRADA,
   PedidoParaEntregaCampos,
+  valorDoPedido,
   type PedidoParaEntregaValor,
 } from "./pedido-para-entrega-campos";
 import { abertosDaLoja, caixaInicial, fechadosDaLoja, paraCaixasDaLoja, type CaixaDaLoja } from "./caixas-da-loja";
 import { VendaCampos } from "./venda-campos";
 import { numeroBr, numeroDaVenda } from "./formato";
 import { FORMA_ROTULO } from "./venda-rotulos";
-import { useVenda, type PrecosVenda, type ProdutoVenda, type RegraCartaoVenda } from "./venda-estado";
+import { inicialDaVenda, useVenda, type PrecosVenda, type ProdutoVenda, type RegraCartaoVenda } from "./venda-estado";
 
 /**
  * O balcão (Q87): a venda de dez segundos. Abre direto na venda, sem lista na
@@ -121,7 +125,13 @@ export function Balcao({
   vendedoresPorLoja,
   ehCaixa,
   orcamentoInicial = null,
+  edicao = null,
 }: {
+  /**
+   * `/emporio/vender?editar=<id>` (Q249): o balcão abre preenchido com a venda, e salvar a substitui
+   * (cancela esta e registra outra, com outro número). `cliente` é o cadastro dela, lido no servidor.
+   */
+  edicao?: { venda: VendaView; cliente: ClienteEscolhido | null } | null;
   /** `/emporio/vender?orcamento=<id>`: o balcão abre na Venda com este orçamento carregado. */
   orcamentoInicial?: OrcamentoView | null;
   lojas: { id: string; name: string }[];
@@ -138,21 +148,27 @@ export function Balcao({
   const err = useErrosDeFormulario(ORDEM);
   const [regras, setRegras] = useState<RegraCartaoVenda[] | null>(null);
   const [cargaInicial] = useState(() => (orcamentoInicial ? cargaDoOrcamento(orcamentoInicial, consumidorFinal) : null));
+  const router = useRouter();
+  const [daEdicao] = useState(() => (edicao ? inicialDaVenda(edicao.venda, produtos, edicao.cliente) : null));
   const v = useVenda({
     produtos,
     precos,
-    lojaInicial: orcamentoInicial?.establishment_id ?? (lojas.length === 1 ? lojas[0].id : ""),
+    lojaInicial:
+      edicao?.venda.establishment_id ?? orcamentoInicial?.establishment_id ?? (lojas.length === 1 ? lojas[0].id : ""),
     regras,
     cargaInicial,
+    inicial: daEdicao?.inicial ?? null,
   });
   const [enviando, setEnviando] = useState(false);
   const [resumo, setResumo] = useState<Resumo | null>(null);
   const [modo, setModo] = useState<ModoDoBalcao>("venda");
   // O orçamento posto na Venda para faturar: o envio leva `quote_id`.
   const [orcamento, setOrcamento] = useState<OrcamentoView | null>(orcamentoInicial);
-  const [notas, setNotas] = useState("");
+  const [notas, setNotas] = useState(edicao?.venda.notes ?? "");
   const [orcamentoSalvo, setOrcamentoSalvo] = useState<OrcamentoView | null>(null);
-  const [pedido, setPedido] = useState<PedidoParaEntregaValor>(() => cargaInicial?.pedido ?? PEDIDO_RETIRADA);
+  const [pedido, setPedido] = useState<PedidoParaEntregaValor>(() =>
+    edicao ? valorDoPedido(edicao.venda) : (cargaInicial?.pedido ?? PEDIDO_RETIRADA),
+  );
   // O que falta no cliente para entrega: o quadro do cliente mostra, com "Completar cadastro".
   const [faltaDoPedido, setFaltaDoPedido] = useState<Falta | null>(null);
   // Cada escolha do cliente (também a de "Completar cadastro", com o mesmo id) relê os endereços dele.
@@ -236,7 +252,7 @@ export function Balcao({
 
   // O vendedor: a escolha só vale se ainda está na lista da loja (trocar de loja a descarta). Quem não é Caixa
   // começa nele mesmo, quando ele vende naquela loja.
-  const [vendedorEscolhido, setVendedorEscolhido] = useState("");
+  const [vendedorEscolhido, setVendedorEscolhido] = useState(edicao?.venda.seller_user_id ?? "");
   // Nunca atravessa lojas: A, B, A volta vazio (o Caixa escolhe de novo, o resto cai nele mesmo).
   const vendedores = vendedoresPorLoja[loja] ?? [];
   const vendedor = vendedores.some((u) => u.id === vendedorEscolhido)
@@ -416,14 +432,21 @@ export function Balcao({
       chave.current = { assinatura, key: crypto.randomUUID() };
     }
     const trocoCent = v.trocoCent;
-    const res = await apiPost<VendaGravada>("/api/v1/emporio/sales", {
-      operation_key: chave.current.key,
-      ...m.corpo,
-      ...corpoDoPedido,
-      // Faturando, o vendedor é o do orçamento: o servidor o herda, e a tela não manda outro.
-      ...(orcamento ? { quote_id: orcamento.id } : vendedor ? { seller_user_id: vendedor } : {}),
-      cash_register_id: escolhido || null,
-    });
+    // Editar (Q249): a mesma venda, enviada para a substituição. A loja é a da venda antiga e o
+    // orçamento que ela faturou o servidor mantém, então nenhum dos dois vai no corpo.
+    const { establishment_id: lojaDoCorpo, ...corpoSemLoja } = m.corpo;
+    const res = await apiPost<VendaGravada>(
+      edicao ? `/api/v1/emporio/sales/${edicao.venda.id}/replace` : "/api/v1/emporio/sales",
+      {
+        operation_key: chave.current.key,
+        ...(edicao ? corpoSemLoja : { ...corpoSemLoja, establishment_id: lojaDoCorpo }),
+        ...corpoDoPedido,
+        // Faturando, o vendedor é o do orçamento: o servidor o herda, e a tela não manda outro.
+        ...(orcamento ? { quote_id: orcamento.id } : vendedor ? { seller_user_id: vendedor } : {}),
+        ...(edicao ? { notes: notas.trim() || null } : {}),
+        cash_register_id: escolhido || null,
+      },
+    );
     setEnviando(false);
     if (!res.ok) {
       err.doServidor(res);
@@ -440,6 +463,10 @@ export function Balcao({
     }
     chave.current = null;
     retomar.current = false;
+    if (edicao) {
+      router.push(`/emporio/vendas/${res.data.id}`);
+      return;
+    }
     setResumo({ venda: res.data, trocoCent });
     setOrcamentoSalvo(null);
     v.reiniciar();
@@ -458,7 +485,23 @@ export function Balcao({
 
   return (
     <div className="space-y-4">
-      <SeletorDeModo modo={modo} aoMudar={mudarModo} />
+      {edicao ? (
+        <section className="space-y-1 rounded-lg bg-atencao-suave px-4 py-3 text-sm text-atencao-tinta">
+          <h2 className="font-semibold">Editando a venda nº {numeroDaVenda(edicao.venda.number)}</h2>
+          <p>
+            Salvar cancela a venda nº {numeroDaVenda(edicao.venda.number)} e registra uma nova com outro número.
+          </p>
+          {daEdicao && daEdicao.ausentes > 0 && (
+            <p role="status" className="font-medium">
+              {daEdicao.ausentes === 1
+                ? "Um item da venda não está mais à venda e ficou de fora: acrescente-o de novo, se for o caso."
+                : `${daEdicao.ausentes} itens da venda não estão mais à venda e ficaram de fora: acrescente-os de novo, se for o caso.`}
+            </p>
+          )}
+        </section>
+      ) : (
+        <SeletorDeModo modo={modo} aoMudar={mudarModo} />
+      )}
 
       {orcamentoSalvo && (
         <ResumoDoOrcamento
@@ -798,7 +841,13 @@ export function Balcao({
               </div>
             ) : (
               <Button type="submit" size="lg" disabled={enviando} className="min-w-40">
-                {enviando ? "Registrando..." : "Fechar a venda"}
+                {enviando
+                  ? edicao
+                    ? "Salvando..."
+                    : "Registrando..."
+                  : edicao
+                    ? "Salvar a venda nova"
+                    : "Fechar a venda"}
               </Button>
             )}
           </div>

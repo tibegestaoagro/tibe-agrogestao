@@ -5,6 +5,9 @@ import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { vendedoresDaLoja } from "@/lib/emporio/vendedores";
 import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
 import { lerOrcamentoAction } from "@/lib/actions/emporio-orcamentos";
+import { lerVendaAction, type VendaView } from "@/lib/actions/emporio-vendas";
+import { buscarClientesAction } from "@/lib/actions/emporio-clientes";
+import { consumidorFinalEscolhido, type ClienteEscolhido } from "@/lib/emporio/cliente-escolhido";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Balcao } from "../_components/balcao";
 import { carregarCatalogoDeVenda } from "../_components/catalogo-venda";
@@ -16,14 +19,19 @@ import { carregarCatalogoDeVenda } from "../_components/catalogo-venda";
  * `?orcamento=<id>` (entrega 4) abre a Venda com o orçamento carregado para
  * faturar. Orçamento que a pessoa não pode ver (ou que não existe) é ignorado:
  * o balcão abre vazio, como sem o parâmetro.
+ *
+ * `?editar=<id>` (Q249) abre o balcão preenchido com a venda, para salvar a substituição.
+ * Venda que não existe, já cancelada, ou que a pessoa não pode substituir (só o gestor da
+ * loja): o balcão abre normal, com um aviso curto.
  */
 export default async function VenderPage({
   searchParams,
 }: {
-  searchParams: Promise<{ orcamento?: string | string[] }>;
+  searchParams: Promise<{ orcamento?: string | string[]; editar?: string | string[] }>;
 }) {
   const user = await requireFeaturePage("emporio");
-  const { orcamento: orcamentoParam } = await searchParams;
+  const { orcamento: orcamentoParam, editar: editarParam } = await searchParams;
+  const editarId = typeof editarParam === "string" ? editarParam : "";
   const orcamentoId = typeof orcamentoParam === "string" ? orcamentoParam : "";
 
   const db = await getTenantDb();
@@ -44,6 +52,30 @@ export default async function VenderPage({
   const lido = podeVender && orcamentoId ? await lerOrcamentoAction(db, user, orcamentoId) : null;
   const orcamentoInicial = lido?.ok && lojas.some((l) => l.id === lido.data.establishment_id) ? lido.data : null;
 
+  let edicao: { venda: VendaView; cliente: ClienteEscolhido | null } | null = null;
+  let avisoDaEdicao: string | null = null;
+  if (podeVender && editarId) {
+    const lida = await lerVendaAction(db, user, editarId);
+    const venda = lida.ok ? lida.data : null;
+    if (!venda) avisoDaEdicao = "Venda não encontrada: o balcão abriu em branco.";
+    else if (venda.status !== "concluida") avisoDaEdicao = "Só se edita venda concluída: o balcão abriu em branco.";
+    else if (!pode(await papelDoEmporio(db, user), "gestor_da_loja", venda.establishment_id)) {
+      avisoDaEdicao = "Editar uma venda é do gestor da loja: o balcão abriu em branco.";
+    } else if (!lojas.some((l) => l.id === venda.establishment_id)) {
+      avisoDaEdicao = "A loja desta venda não está disponível: o balcão abriu em branco.";
+    } else {
+      // O cadastro completo do cliente (a entrega confere endereço sobre ele); sem cadastro achado, só o nome.
+      const busca = venda.customer_id ? await buscarClientesAction(db, user, { id: venda.customer_id }) : null;
+      const achado = busca?.ok ? (busca.data.itens[0] ?? null) : null;
+      const cliente =
+        achado ??
+        (venda.customer_id
+          ? consumidorFinalEscolhido({ id: venda.customer_id, name: venda.customer_name ?? "Cliente" })
+          : null);
+      edicao = { venda, cliente };
+    }
+  }
+
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       <header>
@@ -52,6 +84,12 @@ export default async function VenderPage({
         </Link>
         <h1 className="text-2xl font-semibold text-texto">Vender</h1>
       </header>
+
+      {avisoDaEdicao && (
+        <p role="status" className="rounded-lg bg-atencao-suave px-4 py-3 text-sm text-atencao-tinta">
+          {avisoDaEdicao}
+        </p>
+      )}
 
       {!podeVender ? (
         <EmptyState titulo="Seu perfil só consulta o Empório">
@@ -82,7 +120,7 @@ export default async function VenderPage({
       ) : (
         <Balcao
           // Outro orçamento na URL é outro atendimento: o balcão nasce de novo com ele.
-          key={orcamentoInicial?.id ?? "balcao"}
+          key={edicao?.venda.id ?? orcamentoInicial?.id ?? "balcao"}
           lojas={lojas}
           produtos={catalogo.produtos}
           precos={catalogo.precos}
@@ -91,6 +129,7 @@ export default async function VenderPage({
           vendedoresPorLoja={vendedoresPorLoja}
           ehCaixa={ehCaixa}
           orcamentoInicial={orcamentoInicial}
+          edicao={edicao}
         />
       )}
     </div>

@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { lerNumeroBr, reaisBr } from "@/lib/numero-br";
 import type { ClienteEscolhido } from "@/lib/emporio/cliente-escolhido";
 import type { OrigemDaVenda } from "@/lib/emporio/frete";
+import type { VendaView } from "@/lib/actions/emporio-vendas";
 
 /**
  * O estado e as contas da venda do Meu Empório (F3a), compartilhados pelo
@@ -156,6 +157,56 @@ function linhasDaCarga(carga: CargaDoOrcamento, chave: (n: number) => number): L
   }));
 }
 
+/** O estado com que o balcão abre a edição de uma venda (Q249): tudo o que a venda tem, menos as chaves das linhas. */
+export type InicialDaVenda = {
+  itens: Omit<LinhaItem, "key">[];
+  pagamentos: Omit<LinhaPagamento, "key">[];
+  frete: string;
+  origem: OrigemDaVenda;
+  cliente: ClienteEscolhido | null;
+};
+
+/**
+ * A venda gravada como estado do balcão. O item cuja apresentação já não está no
+ * catálogo carregado fica de fora (e é contado em `ausentes`): o servidor
+ * recusaria a venda com um item que não pode ser vendido, e quem edita o
+ * acrescenta de novo. O preço entra como digitado (`manual`), para trocar de loja
+ * ou de preço sugerido não reescrever o que foi cobrado.
+ */
+export function inicialDaVenda(
+  venda: VendaView,
+  produtos: ProdutoVenda[],
+  cliente: ClienteEscolhido | null,
+): { inicial: InicialDaVenda; ausentes: number } {
+  const existe = (produtoId: string, apresentacaoId: string) =>
+    !!produtos.find((p) => p.id === produtoId)?.apresentacoes.some((a) => a.id === apresentacaoId);
+  const presentes = venda.items.filter((i) => existe(i.emporio_product_id, i.presentation_id));
+  return {
+    ausentes: venda.items.length - presentes.length,
+    inicial: {
+      itens: presentes.map((i) => ({
+        produtoId: i.emporio_product_id,
+        apresentacaoId: i.presentation_id,
+        qtd: String(i.quantity).replace(".", ","),
+        preco: centavosParaCampo(cent(i.unit_price)),
+        manual: true,
+      })),
+      pagamentos: venda.payments.map((p) => ({
+        kind: p.kind as FormaDePagamento,
+        valor: centavosParaCampo(cent(p.amount)),
+        vencimento: p.due_date ? p.due_date.slice(0, 10) : "",
+        parcelas: String(p.installments ?? 2),
+        chequeNumero: p.check?.number ?? "",
+        chequeBanco: p.check?.bank ?? "",
+        chequeBomPara: p.check ? p.check.good_for.slice(0, 10) : "",
+      })),
+      frete: venda.freight_amount > 0 ? centavosParaCampo(cent(venda.freight_amount)) : "",
+      origem: venda.origin,
+      cliente,
+    },
+  };
+}
+
 export type Montagem = {
   novos: Partial<Record<CampoDaVenda, string>>;
   corpo: CorpoDaVenda | null;
@@ -171,7 +222,10 @@ export function useVenda({
   abatimentoCent = 0,
   regras = null,
   cargaInicial = null,
+  inicial = null,
 }: {
+  /** A venda que o balcão abre para editar (`/emporio/vender?editar=<id>`). */
+  inicial?: InicialDaVenda | null;
   /** O orçamento que o balcão abre carregado (`/emporio/vender?orcamento=<id>`). */
   cargaInicial?: CargaDoOrcamento | null;
   produtos: ProdutoVenda[];
@@ -196,14 +250,20 @@ export function useVenda({
   const [loja, setLojaEstado] = useState(lojaInicial);
   // Os itens do orçamento inicial ganham chaves negativas: o contador só dá positivas.
   const [itens, setItens] = useState<LinhaItem[]>(() =>
-    cargaInicial ? linhasDaCarga(cargaInicial, (n) => -(n + 1)) : [],
+    cargaInicial
+      ? linhasDaCarga(cargaInicial, (n) => -(n + 1))
+      : (inicial?.itens ?? []).map((i, n) => ({ ...i, key: -(n + 1) })),
   );
-  const [pagamentos, setPagamentos] = useState<LinhaPagamento[]>([]);
+  const [pagamentos, setPagamentos] = useState<LinhaPagamento[]>(() =>
+    (inicial?.pagamentos ?? []).map((p, n) => ({ ...p, key: -(n + 1) })),
+  );
   // O frete é o texto digitado no campo de dinheiro; vazio vale zero.
-  const [frete, setFrete] = useState("");
-  const [origem, setOrigem] = useState<OrigemDaVenda>("balcao");
+  const [frete, setFrete] = useState(inicial?.frete ?? "");
+  const [origem, setOrigem] = useState<OrigemDaVenda>(inicial?.origem ?? "balcao");
   // O Consumidor final é `cliente.fixed`: não serve para fiado nem cheque.
-  const [cliente, setCliente] = useState<ClienteEscolhido | null>(cargaInicial ? cargaInicial.cliente : clienteInicial);
+  const [cliente, setCliente] = useState<ClienteEscolhido | null>(
+    cargaInicial ? cargaInicial.cliente : (inicial?.cliente ?? clienteInicial),
+  );
   const [orc, setOrc] = useState<Pick<CargaDoOrcamento, "referencia" | "vale"> | null>(
     cargaInicial ? { referencia: cargaInicial.referencia, vale: cargaInicial.vale } : null,
   );
