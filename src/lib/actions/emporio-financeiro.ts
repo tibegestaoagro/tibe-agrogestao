@@ -74,6 +74,9 @@ export type CartaoAReceberView = {
   net_amount: number;
   expected_on: string;
   received: boolean;
+  /** Taxas de cartão (Q254): nulos nas parcelas de antes da entrega. */
+  acquirer_name: string | null;
+  brand: string | null;
 };
 
 export type AReceberView = {
@@ -92,6 +95,9 @@ export type ExtratoLinhaView = {
   establishment_id: string | null;
   establishment_name: string | null;
   description: string;
+  /** Só na linha de cartão (Q254); nulos nas demais e nas parcelas antigas. */
+  acquirer_name?: string | null;
+  brand?: string | null;
   /** Entrega 3: o carimbo de conciliação (só linha de conta; gaveta e gerência vêm nulos). */
   reconciled_at: string | null;
   reconciled_by: string | null;
@@ -277,7 +283,11 @@ export async function listarContasAReceberAction(
   const hoje = hojeEmBrasilia();
   const parcelas = await db.cardReceivable.findMany({
     where: { canceled_at: null, expected_on: { gte: hoje }, ...(lojaId ? { establishment_id: lojaId } : {}) },
-    include: { establishment: { select: { name: true } }, bank_account: { select: { name: true } } },
+    include: {
+      establishment: { select: { name: true } },
+      bank_account: { select: { name: true } },
+      acquirer: { select: { name: true } },
+    },
     orderBy: [{ expected_on: "asc" }, { installment: "asc" }],
   });
   return ok({
@@ -296,6 +306,8 @@ export async function listarContasAReceberAction(
       net_amount: decToNum(p.net_amount) ?? 0,
       expected_on: dia(p.expected_on),
       received: p.expected_on.getTime() <= hoje.getTime(),
+      acquirer_name: p.acquirer?.name ?? null,
+      brand: p.brand,
     })),
   });
 }
@@ -402,7 +414,7 @@ export async function lerExtratoAction(
     conta
       ? db.cardReceivable.findMany({
           where: { bank_account_id: conta.id, canceled_at: null, expected_on: { gte: deDia, lte: ateDia } },
-          include: { establishment: { select: { name: true } } },
+          include: { establishment: { select: { name: true } }, acquirer: { select: { name: true } } },
           orderBy: [{ expected_on: "asc" }, { installment: "asc" }],
         })
       : [],
@@ -454,6 +466,8 @@ export async function lerExtratoAction(
       establishment_id: p.establishment_id,
       establishment_name: p.establishment.name,
       description: `Cartão, parcela ${p.installment}/${p.installments}`,
+      acquirer_name: p.acquirer?.name ?? null,
+      brand: p.brand,
       ...carimbo(p),
     })),
   ].sort((a, b) => a.occurred_on.localeCompare(b.occurred_on));

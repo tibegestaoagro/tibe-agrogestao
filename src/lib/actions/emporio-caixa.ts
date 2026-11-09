@@ -844,6 +844,9 @@ export type ParcelaCartaoView = {
   net_amount: number;
   /** Data de calendário (AAAA-MM-DD). */
   expected_on: string;
+  /** Taxas de cartão (Q254): nulos nas parcelas de antes da entrega. */
+  acquirer_name: string | null;
+  brand: string | null;
 };
 
 export type ChequeView = {
@@ -1072,7 +1075,7 @@ export async function lerCaixaAction(
     const todas = await viewsDasContas(db, { archived_at: null });
     const todasFuturas = await db.cardReceivable.findMany({
       where: { canceled_at: null, expected_on: { gt: hojeEmBrasilia() } },
-      include: { bank_account: { select: { name: true } } },
+      include: { bank_account: { select: { name: true } }, acquirer: { select: { name: true } } },
       orderBy: [{ expected_on: "asc" }, { installment: "asc" }],
     });
     parcelas = todasFuturas
@@ -1092,6 +1095,8 @@ export async function lerCaixaAction(
         gross_amount: decToNum(f.gross_amount) ?? 0,
         net_amount: decToNum(f.net_amount) ?? 0,
         expected_on: dia(f.expected_on),
+        acquirer_name: f.acquirer?.name ?? null,
+        brand: f.brand,
       }));
     const aReceber = new Map<string, number>();
     for (const f of todasFuturas) {

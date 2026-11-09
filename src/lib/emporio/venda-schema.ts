@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ORIGENS_DA_VENDA } from "@/lib/emporio/frete";
+import { BANDEIRAS } from "@/lib/emporio/cartao";
 
 /**
  * Pedaços de Zod da venda do Meu Empório, compartilhados pela rota de venda e
@@ -29,6 +30,9 @@ export const pagamentoDeVendaSchema = z.object({
   due_date: dataIso.nullish(),
   /** Crédito parcelado (2 a 12): a regra de negócio é da action. */
   installments: z.number({ error: "Informe o número de parcelas." }).nullish(),
+  /** Cartão (Q254): sem a adquirente vale a única com taxa vigente; sem a bandeira, só a linha `qualquer`. */
+  acquirer_id: z.string().nullish(),
+  brand: z.enum(BANDEIRAS, { error: "Escolha uma bandeira válida." }).nullish(),
   /** Cheque: número, banco e "bom para". Os três são exigidos pela action (422 `payments`). */
   check: z
     .object({

@@ -320,7 +320,13 @@ async function comBanco() {
       const rN = await vender(op, 10, [cartao("credito_vista", 100)]);
       const txN = await taxaDe(saleId(rN));
       check("a venda nova usa o 5%: taxa de R$ 5", rN.ok && txN.length === 1 && perto(n(txN[0].amount), 5), j(txN));
-      check("restaura 3% e 30 dias", (await regra(admin, "credito_vista", 3, 30)).ok);
+      // Duas mudanças no mesmo dia não cabem em vigências (a linha de hoje já foi usada pela venda nova e não se edita):
+      // a restauração é direta no banco, só para os blocos seguintes seguirem com 3% e 30 dias.
+      const restaurada = await db.cardFeeRate.updateMany({
+        where: { establishment_id: L1.id, kind: "credito_vista", valid_to: null },
+        data: { fee_pct: 3, days: 30 },
+      });
+      check("restaura 3% e 30 dias", restaurada.count === 1, String(restaurada.count));
     });
 
     // ---------------------------------------------------------------- 3
@@ -847,10 +853,10 @@ async function comBanco() {
         await prisma.emporioCheck.deleteMany({ where: { tenant_id: id } });
         await prisma.cashTransfer.deleteMany({ where: { tenant_id: id } });
         await prisma.cashCount.deleteMany({ where: { tenant_id: id } });
-        await prisma.cardFeeRate.deleteMany({ where: { tenant_id: id } });
-        await prisma.cardAcquirer.deleteMany({ where: { tenant_id: id } });
         await prisma.stockMovement.deleteMany({ where: { tenant_id: id } });
         await prisma.emporioSalePayment.deleteMany({ where: { tenant_id: id } });
+        await prisma.cardFeeRate.deleteMany({ where: { tenant_id: id } });
+        await prisma.cardAcquirer.deleteMany({ where: { tenant_id: id } });
         await prisma.emporioSaleReturnItem.deleteMany({ where: { tenant_id: id } });
         await prisma.emporioSale.updateMany({ where: { tenant_id: id }, data: { exchange_return_id: null } });
         await prisma.emporioSaleReturn.deleteMany({ where: { tenant_id: id } });

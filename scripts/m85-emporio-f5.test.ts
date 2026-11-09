@@ -495,6 +495,8 @@ async function comBanco() {
       await Z.vender(L.id, PZ, 5, [{ kind: "credito_vista", amount: 50 }]);
       const pc1 = passosDe(((await chamar(PP, "primeirosPassosAction", Z.db, Z.admin)) as Dado).data, L.id);
       check("vendeu no cartão e a regra existe: taxa_cartao presente e feito", tem(pc1, "taxa_cartao") && feito(pc1, "taxa_cartao") === true, j(pc1?.find((p) => p.key === "taxa_cartao")));
+      // A venda guarda a linha usada (fee_rate_id, Restrict): para a regra "sumir", solta a referência antes.
+      await Z.db.emporioSalePayment.updateMany({ where: { fee_rate_id: { not: null } }, data: { fee_rate_id: null } });
       await Z.db.cardFeeRate.deleteMany({ where: { establishment_id: L.id } });
       const rc2 = (await chamar(PP, "primeirosPassosAction", Z.db, Z.admin)) as Dado;
       const pc2 = passosDe(rc2.data, L.id);
@@ -517,8 +519,6 @@ async function comBanco() {
         await prisma.emporioCheck.deleteMany({ where: { tenant_id: id } });
         await prisma.cashTransfer.deleteMany({ where: { tenant_id: id } });
         await prisma.cashCount.deleteMany({ where: { tenant_id: id } });
-        await prisma.cardFeeRate.deleteMany({ where: { tenant_id: id } });
-        await prisma.cardAcquirer.deleteMany({ where: { tenant_id: id } });
         await prisma.stockMovement.deleteMany({ where: { tenant_id: id } });
         await prisma.saleVariableExpense.deleteMany({ where: { tenant_id: id } });
         await prisma.variableExpenseRule.deleteMany({ where: { tenant_id: id } });
@@ -526,6 +526,8 @@ async function comBanco() {
         await prisma.fixedExpenseSplit.deleteMany({ where: { tenant_id: id } });
         await prisma.fixedExpenseTemplate.deleteMany({ where: { tenant_id: id } });
         await prisma.emporioSalePayment.deleteMany({ where: { tenant_id: id } });
+        await prisma.cardFeeRate.deleteMany({ where: { tenant_id: id } });
+        await prisma.cardAcquirer.deleteMany({ where: { tenant_id: id } });
         await prisma.emporioSaleReturnItem.deleteMany({ where: { tenant_id: id } });
         await prisma.emporioSale.updateMany({ where: { tenant_id: id }, data: { exchange_return_id: null } });
         await prisma.emporioSaleReturn.deleteMany({ where: { tenant_id: id } });

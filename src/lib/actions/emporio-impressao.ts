@@ -9,6 +9,7 @@ import type { OrigemDaVenda } from "@/lib/emporio/frete";
 import { CONSUMIDOR_FINAL, formatarCep, formatarDocumento } from "@/lib/contatos/cadastro";
 import { ehConsumidorFinal } from "@/lib/emporio/cliente-cadastro";
 import { formatarNumero } from "@/lib/emporio/numeracao";
+import { ROTULO_DA_BANDEIRA, type Bandeira } from "@/lib/emporio/cartao";
 import { FORMA_ROTULO } from "@/app/(dashboard)/emporio/_components/venda-rotulos";
 import { numeroBr } from "@/app/(dashboard)/emporio/_components/formato";
 import { enderecoDasColunas, linhaDoEndereco, type PedidoParaEntregaColunas } from "@/lib/emporio/pedido-para-entrega";
@@ -42,7 +43,8 @@ export type ImpressoVenda = {
   /** Itens mais frete: o que o cliente paga. */
   total: number;
   origem: OrigemDaVenda;
-  pagamentos: { forma: string; valor: number }[];
+  /** `bandeira` e `adquirente` só nos pagamentos de cartão com a tabela de taxas (Q254). */
+  pagamentos: { forma: string; valor: number; bandeira: string | null; adquirente: string | null }[];
   troco: number | null;
   vendedor: string | null;
   /** `Caixa N (Nome de quem registrou)`; nulo quando a venda não tem turno. */
@@ -227,7 +229,12 @@ export async function lerImpressoDaVendaAction(
     frete: v.freight_amount,
     total: v.total_amount,
     origem: v.origin,
-    pagamentos: v.payments.map((p) => ({ forma: FORMA_ROTULO[p.kind] ?? p.kind, valor: p.amount })),
+    pagamentos: v.payments.map((p) => ({
+      forma: FORMA_ROTULO[p.kind] ?? p.kind,
+      valor: p.amount,
+      bandeira: p.brand ? (ROTULO_DA_BANDEIRA[p.brand as Bandeira] ?? null) : null,
+      adquirente: p.acquirer_name,
+    })),
     troco: troco > 0 ? troco : null,
     vendedor: v.seller_name,
     caixa,

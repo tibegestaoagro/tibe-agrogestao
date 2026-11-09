@@ -1115,8 +1115,6 @@ async function comBanco() {
         await prisma.emporioCheck.deleteMany({ where: { tenant_id: id } });
         await prisma.cashTransfer.deleteMany({ where: { tenant_id: id } });
         await prisma.cashCount.deleteMany({ where: { tenant_id: id } });
-        await prisma.cardFeeRate.deleteMany({ where: { tenant_id: id } });
-        await prisma.cardAcquirer.deleteMany({ where: { tenant_id: id } });
         await prisma.stockMovement.deleteMany({ where: { tenant_id: id } });
         await prisma.saleVariableExpense.deleteMany({ where: { tenant_id: id } });
         await prisma.variableExpenseRule.deleteMany({ where: { tenant_id: id } });
@@ -1124,6 +1122,8 @@ async function comBanco() {
         await prisma.fixedExpenseSplit.deleteMany({ where: { tenant_id: id } });
         await prisma.fixedExpenseTemplate.deleteMany({ where: { tenant_id: id } });
         await prisma.emporioSalePayment.deleteMany({ where: { tenant_id: id } });
+        await prisma.cardFeeRate.deleteMany({ where: { tenant_id: id } });
+        await prisma.cardAcquirer.deleteMany({ where: { tenant_id: id } });
         await prisma.emporioSaleReturnItem.deleteMany({ where: { tenant_id: id } });
         await prisma.emporioSale.updateMany({ where: { tenant_id: id }, data: { exchange_return_id: null } });
         await prisma.emporioSaleReturn.deleteMany({ where: { tenant_id: id } });

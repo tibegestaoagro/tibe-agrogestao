@@ -40,9 +40,16 @@ import {
 } from "@/lib/emporio/precificar";
 import {
   CATEGORIA_TAXAS_CARTAO,
+  BANDEIRAS,
+  ROTULO_DA_BANDEIRA,
+  adquirentesComTaxa,
   datasDasParcelas,
   dividirEmParcelas,
   hojeEmBrasilia,
+  resolverTaxa,
+  taxaDoPagamentoCent,
+  type Bandeira,
+  type LinhaDeTaxa,
 } from "@/lib/emporio/cartao";
 import {
   INCLUDE_PRODUTO,
@@ -150,6 +157,12 @@ export type VendaPagamentoView = {
   installments: number | null;
   fee_pct: number | null;
   fee_amount: number | null;
+  /** Taxas de cartão (Q254): a adquirente, a bandeira, a taxa fixa e a linha da tabela usadas; nulos nas vendas antigas. */
+  acquirer_id: string | null;
+  acquirer_name: string | null;
+  brand: string | null;
+  fee_fixed_amount: number | null;
+  fee_rate_id: string | null;
   check: { id: string; number: string; bank: string; good_for: string; status: string } | null;
 };
 
@@ -232,7 +245,7 @@ const INCLUDE_VENDA = {
     },
     orderBy: { id: "asc" },
   },
-  payments: { include: { check: true }, orderBy: { created_at: "asc" } },
+  payments: { include: { check: true, acquirer: { select: { name: true } } }, orderBy: { created_at: "asc" } },
   returns: { include: { items: true, exchange_sale: { select: { id: true } } }, orderBy: { created_at: "asc" } },
 } as const;
 
@@ -367,6 +380,11 @@ async function montarVendas(db: TenantPrismaClient, linhas: VendaRow[]): Promise
         installments: p.installments,
         fee_pct: decToNum(p.fee_pct),
         fee_amount: decToNum(p.fee_amount),
+        acquirer_id: p.acquirer_id,
+        acquirer_name: p.acquirer?.name ?? null,
+        brand: p.brand,
+        fee_fixed_amount: decToNum(p.fee_fixed_amount),
+        fee_rate_id: p.fee_rate_id,
         check: p.check
           ? {
               id: p.check.id,
@@ -478,6 +496,9 @@ export type VendaPagamentoInput = {
   due_date?: Date | null;
   /** Crédito parcelado: de 2 a 12. */
   installments?: number | null;
+  /** Cartão (Q254): a adquirente e a bandeira. Sem a adquirente, vale a única com taxa vigente na loja. */
+  acquirer_id?: string | null;
+  brand?: Bandeira | null;
   /** Cheque: os três campos são obrigatórios. */
   check?: { number?: string | null; bank?: string | null; good_for?: Date | null } | null;
 };
@@ -526,13 +547,69 @@ type ItemPreparado = {
   total: number;
 };
 
+type LinhasDaLoja = {
+  linhas: LinhaDeTaxa[];
+  nomes: Map<string, string>;
+  arquivadas: Set<string>;
+};
+
+const diaDaColuna = (d: Date) => d.toISOString().slice(0, 10);
+
+/** Todas as linhas da tabela de taxas da loja (uma leitura por venda); a vigência é decidida por `resolverTaxa`. */
+async function carregarLinhasDaLoja(db: TenantPrismaClient, establishmentId: string): Promise<LinhasDaLoja> {
+  const rows = await db.cardFeeRate.findMany({
+    where: { establishment_id: establishmentId },
+    include: { acquirer: { select: { name: true, archived_at: true } } },
+  });
+  const nomes = new Map<string, string>();
+  const arquivadas = new Set<string>();
+  for (const r of rows) {
+    nomes.set(r.acquirer_id, r.acquirer.name);
+    if (r.acquirer.archived_at) arquivadas.add(r.acquirer_id);
+  }
+  // Adquirente sem linha na loja também precisa de nome, para a recusa dizer qual é.
+  const semLinha = await db.cardAcquirer.findMany({ select: { id: true, name: true, archived_at: true } });
+  for (const a of semLinha) {
+    if (!nomes.has(a.id)) nomes.set(a.id, a.name);
+    if (a.archived_at) arquivadas.add(a.id);
+  }
+  return {
+    nomes,
+    arquivadas,
+    linhas: rows.map((r) => ({
+      id: r.id,
+      acquirer_id: r.acquirer_id,
+      brand: r.brand,
+      kind: r.kind,
+      installments_from: r.installments_from,
+      installments_to: r.installments_to,
+      fee_pct: decToNum(r.fee_pct) ?? 0,
+      fee_fixed: decToNum(r.fee_fixed) ?? 0,
+      days: r.days,
+      bank_account_id: r.bank_account_id,
+      valid_from: diaDaColuna(r.valid_from),
+      valid_to: r.valid_to ? diaDaColuna(r.valid_to) : null,
+    })),
+  };
+}
+
 type PagamentoPreparado = {
   kind: "dinheiro" | "pix" | "fiado" | FormaDeCartao | "cheque";
   amount: number;
   bank_account_id: string | null;
   due_date: Date | null;
   /** Cartão: a regra do momento, copiada para o pagamento (§23.4). */
-  cartao: { installments: number | null; parcelas: number; fee_pct: number; fee_amount: number; days: number } | null;
+  cartao: {
+    installments: number | null;
+    parcelas: number;
+    fee_pct: number;
+    fee_amount: number;
+    days: number;
+    acquirer_id: string;
+    brand: Bandeira | "qualquer";
+    fee_fixed_amount: number;
+    fee_rate_id: string;
+  } | null;
   cheque: { number: string; bank: string; good_for: Date } | null;
 };
 
@@ -804,6 +881,7 @@ async function prepararVenda(
   const pagamentosDoCorpo = Array.isArray(input.payments) ? input.payments : [];
   const pagamentos: PagamentoPreparado[] = [];
   let temFiado = false;
+  let linhasDaLoja: LinhasDaLoja | null = null;
   for (const p of pagamentosDoCorpo) {
     const kind = p?.kind;
     if (kind === "troca") {
@@ -835,25 +913,59 @@ async function prepararVenda(
         parcelas = n;
         installments = n;
       }
-      const regra = await db.cardFeeRule.findFirst({ where: { establishment_id: loja.data.id, kind } });
-      if (!regra) {
-        return fail(
-          "VALIDATION_ERROR",
-          `Cadastre a taxa de ${NOME_DO_CARTAO[kind]} desta loja em Taxas de cartão antes de vender no cartão.`,
-          422,
-          "payments",
-        );
+      const bandeira = p.brand ?? null;
+      if (bandeira !== null && !(BANDEIRAS as readonly string[]).includes(bandeira)) {
+        return fail("VALIDATION_ERROR", "Escolha uma bandeira válida: Visa/Master, Elo, Hipercard, Amex ou Outra.", 422, "payments");
       }
-      const pct = decToNum(regra.fee_pct) ?? 0;
-      const valorCent = centavos(p.amount);
+      if (linhasDaLoja === null) linhasDaLoja = await carregarLinhasDaLoja(db, loja.data.id);
+      const dia = hojeEmBrasilia(soldAt).toISOString().slice(0, 10);
+      let adquirenteId = typeof p.acquirer_id === "string" && p.acquirer_id.trim() ? p.acquirer_id.trim() : null;
+      if (adquirenteId === null) {
+        const candidatas = adquirentesComTaxa(linhasDaLoja.linhas, dia);
+        if (candidatas.length === 0) {
+          return fail(
+            "VALIDATION_ERROR",
+            `Cadastre a taxa de ${NOME_DO_CARTAO[kind]} desta loja em Configurações antes de vender no cartão.`,
+            422,
+            "payments",
+          );
+        }
+        if (candidatas.length > 1) return fail("VALIDATION_ERROR", "Escolha a adquirente.", 422, "acquirer_id");
+        adquirenteId = candidatas[0];
+      }
+      const nomeDaAdquirente = linhasDaLoja.nomes.get(adquirenteId) ?? null;
+      if (nomeDaAdquirente === null) return fail("VALIDATION_ERROR", "Adquirente não encontrada.", 422, "acquirer_id");
+      const arquivada = linhasDaLoja.arquivadas.has(adquirenteId);
+      // Sem bandeira só vale a linha `qualquer`: o resolvedor recebe só elas.
+      const linha = arquivada
+        ? null
+        : resolverTaxa(
+            bandeira === null ? linhasDaLoja.linhas.filter((l) => l.brand === "qualquer") : linhasDaLoja.linhas,
+            { acquirer_id: adquirenteId, brand: bandeira ?? "outra", kind, installments: parcelas, dia },
+          );
+      if (!linha) {
+        const forma = kind === "credito_parcelado" ? `crédito parcelado em ${parcelas}x` : NOME_DO_CARTAO[kind];
+        let mensagem: string;
+        if (arquivada) mensagem = `A adquirente ${nomeDaAdquirente} está arquivada: escolha outra.`;
+        else if (bandeira === null) {
+          mensagem = `Sem taxa de ${forma} sem bandeira na ${nomeDaAdquirente}: informe a bandeira ou cadastre em Configurações.`;
+        } else {
+          mensagem = `Sem taxa de ${forma} para ${ROTULO_DA_BANDEIRA[bandeira]} na ${nomeDaAdquirente}: cadastre em Configurações.`;
+        }
+        return fail("VALIDATION_ERROR", mensagem, 422, "payments");
+      }
       cartao = {
         installments,
         parcelas,
-        fee_pct: pct,
-        fee_amount: Math.round(Number(((valorCent * pct) / 100).toPrecision(12))) / 100,
-        days: regra.days,
+        fee_pct: linha.fee_pct,
+        fee_amount: taxaDoPagamentoCent(centavos(p.amount), linha) / 100,
+        days: linha.days,
+        acquirer_id: adquirenteId,
+        brand: bandeira ?? "qualquer",
+        fee_fixed_amount: linha.fee_fixed,
+        fee_rate_id: linha.id,
       };
-      contaId = regra.bank_account_id;
+      contaId = linha.bank_account_id;
     }
     if (kind === "cheque") {
       const c = p.check;
@@ -1243,8 +1355,13 @@ async function gravarVenda(
           installments: pg.cartao.installments,
           fee_pct: pg.cartao.fee_pct,
           fee_amount: pg.cartao.fee_amount,
+          acquirer_id: pg.cartao.acquirer_id,
+          brand: pg.cartao.brand,
+          fee_fixed_amount: pg.cartao.fee_fixed_amount,
+          fee_rate_id: pg.cartao.fee_rate_id,
         }),
       });
+      const cartaoDoPagamento = pg.cartao;
       const n = pg.cartao.parcelas;
       const brutas = dividirEmParcelas(centavos(pg.amount), n);
       const liquidas = dividirEmParcelas(centavos(pg.amount) - centavos(pg.cartao.fee_amount), n);
@@ -1261,6 +1378,8 @@ async function gravarVenda(
             gross_amount: bruta / 100,
             net_amount: liquidas[i] / 100,
             expected_on: datas[i],
+            acquirer_id: cartaoDoPagamento.acquirer_id,
+            brand: cartaoDoPagamento.brand,
           }),
         ),
       });
