@@ -126,6 +126,8 @@ redescobertos como defeito.
 | 2.51 | o a pagar por vencimento lê no máximo 500 contas, sem aviso quando corta; as vencidas antigas entram todas e chegam mais perto do teto com o tempo | entrega 4 do financeiro, Q235, Q243 | paginar ou somar no banco, e avisar na tela quando o teto for atingido |
 | 2.52 | `FixedExpenseSplit` com `value` 0 nos modelos automáticos: fica por ser inócuo e por servir à limpeza da demonstração; `fixaVisivelParaEscrita` pode ler o split velho de loja arquivada para decidir quem edita | entrega 4 do financeiro, Q240, revisão da task 3 | parar de gravar o split no automático e ajustar a limpeza da demonstração e `fixaVisivelParaEscrita` |
 | 2.53 | a loja criada, ou que ganha base (faturamento, área, funcionários) no meio do mês, só entra no rateio automático no mês seguinte ou num editar do modelo (o mês do modelo conta como nascido quando já tem ocorrência) | entrega 4 do financeiro, Q236, Q240 | oferecer "recalcular o mês" por ação explícita, para a ocorrência ainda sem pagamento |
+| 2.54 | não há relatório de faturamento por origem (balcão contra e-commerce): a origem da venda só filtra a lista e aparece no selo, no detalhe e no recibo | ajuste de 09/11/2026, Q248 | um quadro por origem no Resultado ou nos Relatórios do Empório, se o dono pedir |
+| 2.55 | o frete não entra ao editar venda em acordo ou com devolução: Editar recusa essas vendas, e o caminho é cancelar e relançar à mão | ajuste de 09/11/2026, Q249 | deixar Editar tratar a venda com devolução ou acordo, refazendo o frete junto |
 
 ## 3. Rede de segurança com furo
 

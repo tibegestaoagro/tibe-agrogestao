@@ -196,3 +196,18 @@ período (Q241) e as partes iguais quando nenhuma loja tem base.
 Antes do deploy desta entrega (com o usuário): `prisma migrate deploy` no
 Neon com a URL Direct. Não há ajuste de dado: as lojas nascem sem área e sem
 funcionários, e os modelos existentes continuam em percentual ou valor.
+
+## Ajuste de 09/11: frete, origem e editar venda
+
+Frete cobrado do cliente na venda (Q244 a Q247), origem balcão ou e-commerce
+(Q248) e Editar venda por substituição (Q249). Evidências:
+
+| prova | resultado |
+|---|---|
+| `test:m102` | 71/71 |
+| roteiro `emporio-frete-ecommerce` (balcão, recibo, lista, detalhe, A pagar, Resultado, Editar, celular) | 47 checks, 0 falhas |
+| sabotagem (gravação de `freight_amount` comentada em `gravarVenda`) | 8 falhas, 39 ok; desfeita, volta a 47 ok |
+| `npm run check`, `tsc`, `lint` | limpos na rodada do manual |
+
+Dívidas abertas: 2.54 (relatório por origem) e 2.55 (frete ao editar venda em
+acordo ou com devolução).

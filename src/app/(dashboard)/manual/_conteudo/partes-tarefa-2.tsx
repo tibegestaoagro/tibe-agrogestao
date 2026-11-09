@@ -18,6 +18,7 @@ export function ParteDeVender() {
         <>No campo <strong>Cliente</strong>, clique em <strong>Escolher cliente</strong> e busque pelo nome, pelo CPF ou CNPJ, ou por um pedaço do telefone. Quem não quer se identificar entra como <strong>Consumidor final</strong>, que fica sempre no alto da janela. Para cadastrar na hora, clique em <strong>Cadastrar novo cliente</strong>: na pessoa física, nome e telefone; na jurídica, também o CNPJ e o endereço principal.</>,
         <>Se aparecer <strong>Cadastro incompleto</strong>: se quiser, clique em <strong>Completar cadastro</strong>; a venda passa assim mesmo.</>,
         <>Em <strong>Pagamento</strong>, toque em <strong>+ Dinheiro</strong>, <strong>+ PIX</strong>, <strong>+ Débito</strong>, <strong>+ Crédito</strong>, <strong>+ Parcelado</strong>, <strong>+ Cheque</strong> ou <strong>+ Fiado</strong> e digite o valor. Dá para dividir em mais de uma forma. A soma precisa fechar o total, e só o dinheiro dá troco.</>,
+        <>Se a loja cobra a entrega do cliente, digite o valor em <strong>Frete cobrado do cliente (opcional)</strong>. O cliente paga os itens mais o frete, e a soma do pagamento precisa fechar o <strong>Total com frete</strong>. Em <strong>Origem da venda</strong>, escolha <strong>Balcão</strong> ou <strong>E-commerce</strong>.</>,
         <>Confira o <strong>Vendedor</strong>. Ele já vem com o seu nome: se outro colega atendeu, escolha o nome dele. O Caixa escolhe quem atendeu em toda venda.</>,
         <>Clique em <strong>Fechar a venda</strong>. A venda cai no caixa aberto da loja.</>,
         <>O quadro <strong>Venda registrada</strong> mostra o valor, a <strong>Venda nº</strong> e o troco. Se o cliente quiser o papel, clique em <strong>Imprimir A4</strong> ou <strong>Imprimir cupom</strong>.</>,
@@ -93,6 +94,7 @@ export function ParteDeDevolver() {
           <>Abra <strong>Vendas</strong> e clique na venda.</>,
           <><strong>Devolver</strong>: escolha os itens e as quantidades. A mercadoria volta para o estoque (ou vira perda, se estiver estragada). Em <strong>Como devolver o valor</strong>, escolha <strong>Devolver em dinheiro (sai da gaveta)</strong> ou <strong>Abater do fiado do cliente</strong>.</>,
           <><strong>Trocar</strong>: devolve os itens e já abre uma venda nova, ligada à primeira.</>,
+          <><strong>Editar</strong>: para corrigir itens, frete ou pagamento de uma venda concluída. Ele cancela a venda e registra outra no lugar, com outro número, e as duas ficam ligadas (<strong>Substituída pela venda nº</strong> e <strong>Substitui a venda nº</strong>). É do Gestor e do Dono, e não vale para venda com devolução.</>,
           <><strong>Cancelar venda</strong>: desfaz a venda inteira, com o <strong>Motivo</strong>. O estoque volta e o dinheiro sai de onde entrou. É do Gestor e do Dono.</>,
           <>Quando o dinheiro sai do caixa, a loja precisa de um caixa aberto. Com mais de um aberto, escolha em <strong>Caixa de onde sai o dinheiro</strong>.</>,
         ]}
