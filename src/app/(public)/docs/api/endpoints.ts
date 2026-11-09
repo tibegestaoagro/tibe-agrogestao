@@ -1297,9 +1297,9 @@ export const GROUPS: Group[] = [
         method: "GET",
         path: "/api/v1/emporio/result",
         auth: "Sessão · emporio:read · só OWNER e ADMIN; com vínculo, só as lojas dele (404 `establishment_id` nas outras)",
-        description: "Resultado da Loja no mês (F4a, Q101), calculado na leitura. Query: `establishment_id` (ou `all`, a visão somada de todas as lojas não arquivadas, só para quem não tem vínculo: 403 `FORBIDDEN`; a resposta ganha `stores`, uma linha por loja), `month` (AAAA-MM, 422 `month`). Devolve `sales`, `cost`, `variable_expenses` (regras mais `card_fees`), `margin` e `margin_pct`, `losses` (perdas e quebras, linha própria), `fixed_expenses`, `freight` (desde 09/11/2026, o frete de entrega como repasse: `received` é o frete cobrado nas vendas do mês, `paid` o valor das contas \"Frete de entrega\" não canceladas, `difference` a diferença; fora de `variable_expenses` e da margem, e a visão `stores` traz o mesmo por loja), `result` (margem menos perdas e fixas, mais `freight.difference`), `break_even` (`status` `ok`, `sem_dados` ou `nao_se_paga`; `amount` e `missing`, nunca negativo), `tracking` (vendas por dia, acumulado e projeção linear) e `estimated` com `estimated_reasons`.",
+        description: "Resultado da Loja no mês (F4a, Q101), calculado na leitura. Query: `establishment_id` (ou `all`, a visão somada de todas as lojas não arquivadas, só para quem não tem vínculo: 403 `FORBIDDEN`; a resposta ganha `stores`, uma linha por loja), `month` (AAAA-MM, 422 `month`). Devolve `sales`, `cost`, `variable_expenses` (regras mais `card_fees`), `margin` e `margin_pct`, `losses` (perdas e quebras, linha própria), `fixed_expenses`, `freight` (desde 09/11/2026, o frete de entrega como repasse: `received` é o frete cobrado nas vendas do mês, `paid` o valor das contas \"Frete de entrega\" não canceladas, `difference` a diferença; fora de `variable_expenses` e da margem, e a visão `stores` traz o mesmo por loja), `anticipation_costs` (as despesas \"Antecipação de recebíveis\" não canceladas do mês, pela data da operação; despesa financeira, fora de `variable_expenses` e da margem; a visão `stores` traz por loja), `result` (margem menos perdas, fixas e `anticipation_costs`, mais `freight.difference`), `break_even` (`status` `ok`, `sem_dados` ou `nao_se_paga`; `amount` e `missing`, nunca negativo), `tracking` (vendas por dia, acumulado e projeção linear) e `estimated` com `estimated_reasons`.",
         response: `200
-{ "data": { "month": "2026-11", "sales": 12000, "cost": 6000, "variable_expenses": 600, "margin": 5400, "margin_pct": 45, "losses": 100, "fixed_expenses": 3000, "result": 2300, "break_even": { "status": "ok", "amount": 6666.67, "missing": 0, "margin_pct_used": 45, "basis": "mes" }, "estimated": false, "estimated_reasons": [] }, "meta": {} }`,
+{ "data": { "month": "2026-11", "sales": 12000, "cost": 6000, "variable_expenses": 600, "margin": 5400, "margin_pct": 45, "losses": 100, "fixed_expenses": 3000, "anticipation_costs": 0, "result": 2300, "break_even": { "status": "ok", "amount": 6666.67, "missing": 0, "margin_pct_used": 45, "basis": "mes" }, "estimated": false, "estimated_reasons": [] }, "meta": {} }`,
       },
       {
         method: "GET",
@@ -1381,27 +1381,52 @@ export const GROUPS: Group[] = [
         method: "GET",
         path: "/api/v1/emporio/card-acquirers",
         auth: "Sessão · emporio:read · qualquer papel do Empório",
-        description: "Adquirentes (maquininhas) da conta, com `rates_count` (linhas de taxa). Filtro: `incluir_arquivadas=1`.",
+        description: "Adquirentes (maquininhas) da conta, com `rates_count` (linhas de taxa) e a configuração: `business_day_rule` (`proximo_dia_util` ou `dias_corridos`), `refunds_mdr_on_cancel` (o cancelamento devolve a taxa), `auto_anticipation_enabled`, `auto_anticipation_pct_month`, `auto_anticipation_business_days` e `auto_anticipation_since` (AAAA-MM-DD). Filtro: `incluir_arquivadas=1`.",
         response: `200
-{ "data": [{ "id": "cl...", "name": "Stone", "archived_at": null, "rates_count": 4 }], "meta": {} }`,
+{ "data": [{ "id": "cl...", "name": "Stone", "archived_at": null, "rates_count": 4, "business_day_rule": "proximo_dia_util", "refunds_mdr_on_cancel": true, "auto_anticipation_enabled": false, "auto_anticipation_pct_month": null, "auto_anticipation_business_days": 1, "auto_anticipation_since": null }], "meta": {} }`,
       },
       {
         method: "POST",
         path: "/api/v1/emporio/card-acquirers",
         auth: "Sessão · emporio:write · só OWNER e gerente geral",
-        description: "Cadastra a adquirente. Nome repetido, sem diferenciar caixa: 409 `VALIDATION_ERROR` no campo `name`.",
-        request: `{ "name": "Stone" }`,
+        description: "Cadastra a adquirente. Nome repetido, sem diferenciar caixa: 409 `VALIDATION_ERROR` no campo `name`. Aceita a configuração (todos opcionais): `business_day_rule` (422 no campo se desconhecida), `refunds_mdr_on_cancel`, `auto_anticipation_enabled`, `auto_anticipation_pct_month` (0 a 20), `auto_anticipation_business_days` (inteiro de 0 a 30, padrão 1) e `auto_anticipation_since` (AAAA-MM-DD). Ligar a automática sem percentual ou sem data inicial: 422 `VALIDATION_ERROR` no campo de cada um.",
+        request: `{ "name": "Stone", "business_day_rule": "proximo_dia_util", "auto_anticipation_enabled": true, "auto_anticipation_pct_month": 2.5, "auto_anticipation_since": "2026-11-10" }`,
         response: `201
-{ "data": { "id": "cl...", "name": "Stone", "archived_at": null, "rates_count": 0 }, "meta": {} }`,
+{ "data": { "id": "cl...", "name": "Stone", "archived_at": null, "rates_count": 0, "business_day_rule": "proximo_dia_util", "refunds_mdr_on_cancel": true, "auto_anticipation_enabled": true, "auto_anticipation_pct_month": 2.5, "auto_anticipation_business_days": 1, "auto_anticipation_since": "2026-11-10" }, "meta": {} }`,
       },
       {
         method: "PATCH",
         path: "/api/v1/emporio/card-acquirers/:id",
         auth: "Sessão · emporio:write · só OWNER e gerente geral",
-        description: "Renomeia (`name`) ou arquiva e reativa (`archived`). Arquivar com taxa vigente: 409 `VALIDATION_ERROR` (encerre as taxas antes).",
+        description: "Renomeia (`name`), muda a configuração (os seis campos do POST; a validação vale sobre o estado final, então tirar o percentual com a automática ligada é 422 no campo) e arquiva ou reativa (`archived`), tudo numa transação só: se o arquivamento é recusado, nada muda. Arquivar com taxa vigente: 409 `VALIDATION_ERROR` (encerre as taxas antes). Mudar a configuração vale só para vendas futuras.",
         request: `{ "archived": true }`,
         response: `200
-{ "data": { "id": "cl...", "name": "Stone", "archived_at": "2026-11-09T12:00:00.000Z", "rates_count": 4 }, "meta": {} }`,
+{ "data": { "id": "cl...", "name": "Stone", "archived_at": "2026-11-09T12:00:00.000Z", "rates_count": 4, "business_day_rule": "proximo_dia_util", "refunds_mdr_on_cancel": true, "auto_anticipation_enabled": false, "auto_anticipation_pct_month": null, "auto_anticipation_business_days": 1, "auto_anticipation_since": null }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/emporio/card-anticipations",
+        auth: "Sessão · emporio:read · gestor da loja, financeiro, gerente geral e OWNER (o gestor vê as lojas dele)",
+        description: "Antecipações de recebíveis do cartão, da mais recente para a mais antiga (até 200). Filtros: `de` e `ate` (AAAA-MM-DD, sobre `operated_on`) e `establishment_id`. `effective_pct_month` é o custo sobre o previsto, ao mês, pela média dos dias antecipados ponderada pelo líquido (nulo sem parcelas vivas). `can_undo` é verdadeiro na pontual não desfeita e sem parcela conciliada.",
+        response: `200
+{ "data": [{ "id": "cl...", "kind": "pontual", "acquirer_name": "Stone", "bank_account_id": "cl...", "bank_account_name": "Conta PIX", "operated_on": "2026-11-09", "gross_amount": 309, "expected_net": 300, "received_net": 291, "fee_amount": 9, "effective_pct_month": 3.5, "receivables_count": 3, "undone_at": null, "can_undo": true }], "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/card-anticipations",
+        auth: "Sessão · emporio:write · gestor da loja de cada parcela, financeiro, gerente geral e OWNER",
+        description: "Antecipa parcelas de cartão (pontual): `receivable_ids` (futuras, não canceladas, não antecipadas, não conciliadas e da mesma conta bancária), `operated_on` (AAAA-MM-DD, não no futuro) e `received_net`, o líquido que a adquirente pagou (maior que zero e no máximo a soma dos líquidos efetivos). O custo (soma menos recebido) é rateado pelas parcelas na proporção do líquido, as parcelas passam a valer em `operated_on` com o líquido menos a parte, e nasce uma despesa paga \"Antecipação de recebíveis\" por loja. Lista vazia, parcela cancelada, já antecipada, que já caiu ou de contas diferentes: 422 `VALIDATION_ERROR` em `receivable_ids`; parcela inexistente ou de loja que o ator não vê: 404; `received_net` fora do limite: 422 em `received_net`; `operated_on` futuro: 422 em `operated_on`.",
+        request: `{ "receivable_ids": ["cl...", "cl...", "cl..."], "operated_on": "2026-11-09", "received_net": 291, "notes": "Antecipação de novembro" }`,
+        response: `201
+{ "data": { "id": "cl...", "kind": "pontual", "acquirer_name": "Stone", "bank_account_id": "cl...", "bank_account_name": "Conta PIX", "operated_on": "2026-11-09", "gross_amount": 309, "expected_net": 300, "received_net": 291, "fee_amount": 9, "effective_pct_month": 3.5, "receivables_count": 3, "undone_at": null, "can_undo": true }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/card-anticipations/:id/undo",
+        auth: "Sessão · emporio:write · gestor da loja de cada parcela, financeiro, gerente geral e OWNER",
+        description: "Desfaz uma antecipação pontual: as parcelas voltam ao previsto (`effective_on` e `effective_net` iguais a `expected_on` e `net_amount`, sem custo) e a despesa de antecipação é cancelada. Já desfeita: 409 `ANTECIPACAO_DESFEITA`; com parcela carimbada na conciliação: 409 `ANTECIPACAO_CONCILIADA`; a automática se desfaz cancelando a venda (422 `VALIDATION_ERROR`).",
+        response: `200
+{ "data": { "id": "cl...", "kind": "pontual", "fee_amount": 9, "receivables_count": 0, "undone_at": "2026-11-09T15:00:00.000Z", "can_undo": false }, "meta": {} }`,
       },
       {
         method: "GET",

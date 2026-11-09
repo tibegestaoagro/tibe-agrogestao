@@ -5,6 +5,7 @@ import { exigir, exigirUma, papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { lojaVisivel, lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
 import { acharLojaParaEscrita } from "@/lib/actions/emporio-estoque";
 import { diferencas, registrarNoHistorico } from "@/lib/emporio/historico";
+import { runSerializableTenantTransaction } from "@/lib/financial";
 import {
   BANDEIRAS,
   ROTULO_DA_BANDEIRA,
@@ -52,17 +53,33 @@ const rotuloBandeira = (b: string) => ROTULO_DA_BANDEIRA[b as Bandeira | "qualqu
 // Adquirentes
 // ---------------------------------------------------------------------------
 
+const REGRAS_DIA_UTIL = ["proximo_dia_util", "dias_corridos"] as const;
+type RegraDiaUtil = (typeof REGRAS_DIA_UTIL)[number];
+
 export type AdquirenteView = {
   id: string;
   name: string;
   archived_at: string | null;
   rates_count: number;
+  business_day_rule: RegraDiaUtil;
+  refunds_mdr_on_cancel: boolean;
+  auto_anticipation_enabled: boolean;
+  auto_anticipation_pct_month: number | null;
+  auto_anticipation_business_days: number;
+  /** Dia de calendário (AAAA-MM-DD) a partir do qual a automática vale. */
+  auto_anticipation_since: string | null;
 };
 
 type AdquirenteRow = {
   id: string;
   name: string;
   archived_at: Date | null;
+  business_day_rule: RegraDiaUtil;
+  refunds_mdr_on_cancel: boolean;
+  auto_anticipation_enabled: boolean;
+  auto_anticipation_pct_month: unknown;
+  auto_anticipation_business_days: number;
+  auto_anticipation_since: Date | null;
   _count: { fee_rates: number };
 };
 
@@ -71,6 +88,123 @@ const viewDaAdquirente = (a: AdquirenteRow): AdquirenteView => ({
   name: a.name,
   archived_at: a.archived_at ? a.archived_at.toISOString() : null,
   rates_count: a._count.fee_rates,
+  business_day_rule: a.business_day_rule,
+  refunds_mdr_on_cancel: a.refunds_mdr_on_cancel,
+  auto_anticipation_enabled: a.auto_anticipation_enabled,
+  auto_anticipation_pct_month: decToNum(a.auto_anticipation_pct_month as never),
+  auto_anticipation_business_days: a.auto_anticipation_business_days,
+  auto_anticipation_since: a.auto_anticipation_since ? diaDe(a.auto_anticipation_since) : null,
+});
+
+/** Os seis campos de configuração da adquirente; ausente (undefined) = não muda. */
+export type ConfigDaAdquirente = {
+  business_day_rule?: RegraDiaUtil;
+  refunds_mdr_on_cancel?: boolean;
+  auto_anticipation_enabled?: boolean;
+  auto_anticipation_pct_month?: number | null;
+  auto_anticipation_business_days?: number;
+  auto_anticipation_since?: Date | null;
+};
+
+type ConfigCompleta = {
+  business_day_rule: RegraDiaUtil;
+  refunds_mdr_on_cancel: boolean;
+  auto_anticipation_enabled: boolean;
+  auto_anticipation_pct_month: number | null;
+  auto_anticipation_business_days: number;
+  auto_anticipation_since: Date | null;
+};
+
+const CONFIG_PADRAO: ConfigCompleta = {
+  business_day_rule: "proximo_dia_util",
+  refunds_mdr_on_cancel: true,
+  auto_anticipation_enabled: false,
+  auto_anticipation_pct_month: null,
+  auto_anticipation_business_days: 1,
+  auto_anticipation_since: null,
+};
+
+const RECUSA_CONFIG = (msg: string, field: string) => fail("VALIDATION_ERROR", msg, 422, field);
+
+/** Valida o que veio e funde com a base (o estado atual, ou o padrão na criação). */
+function configFundida(input: ConfigDaAdquirente | undefined, base: ConfigCompleta): ActionResult<ConfigCompleta> {
+  const i = (input ?? {}) as Record<string, unknown>;
+  const c = { ...base };
+  if (i.business_day_rule !== undefined) {
+    if (!(REGRAS_DIA_UTIL as readonly unknown[]).includes(i.business_day_rule)) {
+      return RECUSA_CONFIG("Escolha como a adquirente conta o prazo: próximo dia útil ou dias corridos.", "business_day_rule");
+    }
+    c.business_day_rule = i.business_day_rule as RegraDiaUtil;
+  }
+  if (i.refunds_mdr_on_cancel !== undefined) {
+    if (typeof i.refunds_mdr_on_cancel !== "boolean") {
+      return RECUSA_CONFIG("Informe se o cancelamento devolve a taxa.", "refunds_mdr_on_cancel");
+    }
+    c.refunds_mdr_on_cancel = i.refunds_mdr_on_cancel;
+  }
+  if (i.auto_anticipation_enabled !== undefined) {
+    if (typeof i.auto_anticipation_enabled !== "boolean") {
+      return RECUSA_CONFIG("Informe se a antecipação automática está ligada.", "auto_anticipation_enabled");
+    }
+    c.auto_anticipation_enabled = i.auto_anticipation_enabled;
+  }
+  if (i.auto_anticipation_pct_month !== undefined) {
+    const p = i.auto_anticipation_pct_month;
+    if (p !== null && (!numero(p) || p < 0 || p > 20)) {
+      return RECUSA_CONFIG("A taxa da antecipação automática vai de 0 a 20% ao mês.", "auto_anticipation_pct_month");
+    }
+    c.auto_anticipation_pct_month = p === null ? null : arred2(p);
+  }
+  if (i.auto_anticipation_business_days !== undefined) {
+    const d = i.auto_anticipation_business_days;
+    if (!numero(d) || !Number.isInteger(d) || d < 0 || d > 30) {
+      return RECUSA_CONFIG("O prazo da antecipação automática vai de 0 a 30 dias úteis.", "auto_anticipation_business_days");
+    }
+    c.auto_anticipation_business_days = d;
+  }
+  if (i.auto_anticipation_since !== undefined) {
+    const s = i.auto_anticipation_since;
+    if (s !== null && !dataValida(s)) {
+      return RECUSA_CONFIG("Informe a data inicial da antecipação automática.", "auto_anticipation_since");
+    }
+    c.auto_anticipation_since = s === null ? null : soODia(s as Date);
+  }
+  if (c.auto_anticipation_enabled) {
+    if (c.auto_anticipation_pct_month === null) {
+      return RECUSA_CONFIG("Informe a taxa ao mês para ligar a antecipação automática.", "auto_anticipation_pct_month");
+    }
+    if (c.auto_anticipation_since === null) {
+      return RECUSA_CONFIG("Informe a partir de quando a antecipação automática vale.", "auto_anticipation_since");
+    }
+  }
+  return ok(c);
+}
+
+const CAMPOS_DA_CONFIG: Record<string, string> = {
+  business_day_rule: "Regra do dia útil",
+  refunds_mdr_on_cancel: "Cancelamento devolve a taxa",
+  auto_anticipation_enabled: "Antecipação automática",
+  auto_anticipation_pct_month: "Taxa da automática (% ao mês)",
+  auto_anticipation_business_days: "Prazo da automática (dias úteis)",
+  auto_anticipation_since: "Automática vale desde",
+};
+
+const paraHistorico = (c: ConfigCompleta | AdquirenteRow): Record<string, unknown> => ({
+  business_day_rule: c.business_day_rule,
+  refunds_mdr_on_cancel: c.refunds_mdr_on_cancel,
+  auto_anticipation_enabled: c.auto_anticipation_enabled,
+  auto_anticipation_pct_month: decToNum(c.auto_anticipation_pct_month as never),
+  auto_anticipation_business_days: c.auto_anticipation_business_days,
+  auto_anticipation_since: c.auto_anticipation_since ? diaDe(c.auto_anticipation_since) : null,
+});
+
+const configDaLinha = (a: AdquirenteRow): ConfigCompleta => ({
+  business_day_rule: a.business_day_rule,
+  refunds_mdr_on_cancel: a.refunds_mdr_on_cancel,
+  auto_anticipation_enabled: a.auto_anticipation_enabled,
+  auto_anticipation_pct_month: decToNum(a.auto_anticipation_pct_month as never),
+  auto_anticipation_business_days: a.auto_anticipation_business_days,
+  auto_anticipation_since: a.auto_anticipation_since,
 });
 
 const INCLUDE_ADQUIRENTE = { _count: { select: { fee_rates: true } } } as const;
@@ -111,16 +245,18 @@ async function nomeValido(
 export async function criarAdquirenteAction(
   db: TenantPrismaClient,
   ator: Ator,
-  input: { name: string },
+  input: { name: string } & ConfigDaAdquirente,
 ): Promise<ActionResult<AdquirenteView>> {
   const neg = await exigir(db, ator, "conta", "cadastrar uma adquirente");
   if (neg) return neg;
   const nome = await nomeValido(db, input?.name);
   if (!nome.ok) return nome;
+  const config = configFundida(input, CONFIG_PADRAO);
+  if (!config.ok) return config;
   try {
     const criada = await db.$transaction(async (tx) => {
       const a = await tx.cardAcquirer.create({
-        data: scoped({ name: nome.data, updated_by_user_id: ator.id }),
+        data: scoped({ name: nome.data, updated_by_user_id: ator.id, ...config.data }),
         include: INCLUDE_ADQUIRENTE,
       });
       await registrarNoHistorico(tx, ator, {
@@ -138,32 +274,90 @@ export async function criarAdquirenteAction(
   }
 }
 
+/**
+ * Muda o nome, a configuração e (opcional) o arquivamento numa transação só:
+ * o PATCH que traz nome e `archived` não deixa a adquirente renomeada e
+ * ainda ativa se o arquivamento for recusado (dívida 2.59).
+ */
 export async function editarAdquirenteAction(
   db: TenantPrismaClient,
   ator: Ator,
   id: string,
-  input: { name: string },
+  input: { name?: string; archived?: boolean } & ConfigDaAdquirente,
 ): Promise<ActionResult<AdquirenteView>> {
   const neg = await exigir(db, ator, "conta", "editar uma adquirente");
   if (neg) return neg;
-  const atual = await db.cardAcquirer.findFirst({ where: { id } });
+  const atual = await db.cardAcquirer.findFirst({ where: { id }, include: INCLUDE_ADQUIRENTE });
   if (!atual) return NAO_ACHADO("Adquirente");
-  const nome = await nomeValido(db, input?.name, atual.id);
-  if (!nome.ok) return nome;
+
+  let nome: string | null = null;
+  if (input?.name !== undefined) {
+    const n = await nomeValido(db, input.name, atual.id);
+    if (!n.ok) return n;
+    nome = n.data;
+  }
+  const config = configFundida(input, configDaLinha(atual as unknown as AdquirenteRow));
+  if (!config.ok) return config;
+
+  const arquivar = input?.archived === true && !atual.archived_at;
+  const reativar = input?.archived === false && !!atual.archived_at;
+  if (arquivar) {
+    const hoje = hojeEmBrasilia();
+    const vigentes = await db.cardFeeRate.count({
+      where: { acquirer_id: atual.id, OR: [{ valid_to: null }, { valid_to: { gte: hoje } }] },
+    });
+    if (vigentes > 0) {
+      return fail("VALIDATION_ERROR", "Encerre as taxas desta adquirente antes de arquivar.", 409);
+    }
+  }
+
+  const antesCfg = paraHistorico(atual as unknown as AdquirenteRow);
+  const mudancas = diferencas(antesCfg, paraHistorico(config.data), CAMPOS_DA_CONFIG);
   try {
     const nova = await db.$transaction(async (tx) => {
       const a = await tx.cardAcquirer.update({
         where: { id: atual.id },
-        data: { name: nome.data, updated_by_user_id: ator.id },
+        data: {
+          ...(nome !== null ? { name: nome } : {}),
+          ...config.data,
+          ...(arquivar ? { archived_at: new Date() } : {}),
+          ...(reativar ? { archived_at: null } : {}),
+          updated_by_user_id: ator.id,
+        },
         include: INCLUDE_ADQUIRENTE,
       });
-      if (atual.name !== a.name) {
+      if (nome !== null && atual.name !== a.name) {
         await registrarNoHistorico(tx, ator, {
           action: "cartao.adquirente.editar",
           target_type: "adquirente",
           target_id: a.id,
           summary: `Renomeou a adquirente ${atual.name} para ${a.name}`,
           changes: diferencas({ name: atual.name }, { name: a.name }, { name: "Nome" }),
+        });
+      }
+      if (mudancas.length > 0) {
+        await registrarNoHistorico(tx, ator, {
+          action: "cartao.adquirente.editar",
+          target_type: "adquirente",
+          target_id: a.id,
+          summary: `Mudou a configuração da adquirente ${a.name}`,
+          changes: mudancas,
+        });
+      }
+      if (arquivar) {
+        await registrarNoHistorico(tx, ator, {
+          action: "cartao.adquirente.arquivar",
+          target_type: "adquirente",
+          target_id: a.id,
+          summary: `Arquivou a adquirente ${a.name}`,
+        });
+      }
+      if (reativar) {
+        await registrarNoHistorico(tx, ator, {
+          action: "cartao.adquirente.reativar",
+          target_type: "adquirente",
+          target_id: a.id,
+          summary: `Reativou a adquirente ${a.name}`,
         });
       }
       return a;
@@ -591,7 +785,7 @@ export async function criarTaxaAction(
   const conta = await contaAtiva(db, input.bank_account_id);
   if (!conta.ok) return conta;
 
-  const criada = await db.$transaction(async (tx) => {
+  const criada = await runSerializableTenantTransaction(db, async (tx) => {
     const cruza = await acharSobreposicao(tx as unknown as TenantPrismaClient, {
       establishment_id: loja.data.id,
       acquirer_id: adq.id,
@@ -708,7 +902,7 @@ export async function novaVigenciaAction(
   }
 
   const fimDaAntiga = somarDias(from, -1);
-  const nova = await db.$transaction(async (tx) => {
+  const nova = await runSerializableTenantTransaction(db, async (tx) => {
     const cruza = await acharSobreposicao(tx as unknown as TenantPrismaClient, {
       establishment_id: antiga.establishment_id,
       acquirer_id: antiga.acquirer_id,
@@ -815,7 +1009,7 @@ export async function editarTaxaAction(
   const conta = await contaAtiva(db, input?.bank_account_id ?? atual.bank_account_id);
   if (!conta.ok) return conta;
 
-  const nova = await db.$transaction(async (tx) => {
+  const nova = await runSerializableTenantTransaction(db, async (tx) => {
     const cruza = await acharSobreposicao(tx as unknown as TenantPrismaClient, {
       establishment_id: atual.establishment_id,
       acquirer_id: atual.acquirer_id,

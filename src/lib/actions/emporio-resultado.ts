@@ -2,7 +2,7 @@ import type { TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { decToNum } from "@/lib/serialize";
 import { exigirUma } from "@/lib/emporio/papel";
-import { CATEGORIA_TAXAS_CARTAO } from "@/lib/emporio/cartao";
+import { CATEGORIA_ANTECIPACAO, CATEGORIA_TAXAS_CARTAO } from "@/lib/emporio/cartao";
 import { CATEGORIA_FRETE } from "@/lib/emporio/frete";
 import {
   diaDoInstante,
@@ -66,6 +66,8 @@ export type LojaDoResultadoView = {
   fixed_expenses: number;
   /** Frete de entrega (repasse): já dentro de `result`. */
   freight: { received: number; paid: number; difference: number };
+  /** Despesa financeira "Antecipação de recebíveis" do mês: fora da margem, já dentro de `result`. */
+  anticipation_costs: number;
   result: number;
 };
 
@@ -90,6 +92,8 @@ export type ResultadoDaLojaView = {
   fixed_expenses_items: { name: string; establishment_id: string; amount: number; due_date: string; status: string }[];
   /** Frete cobrado do cliente (repasse): fora da margem, a diferença entra no resultado. */
   freight: { received: number; paid: number; difference: number };
+  /** Antecipação de recebíveis (despesa financeira): subtraída de `result`, fora da margem e de `variable_expenses`. */
+  anticipation_costs: number;
   result: number;
   break_even: PontoDeEquilibrioView;
   tracking: {
@@ -305,8 +309,23 @@ async function apurarLoja(db: TenantPrismaClient, lojaId: string, mes: MesCivil,
   });
   const fixasCent = fixas.reduce((s, f) => s + centavos(decToNum(f.amount) ?? 0), 0);
 
+  // Antecipação de recebíveis (Q265): despesa paga na data da operação, fora da margem. A cancelada (desfeita) não conta.
+  const antecipacoes = await db.financialEntry.findMany({
+    where: {
+      related_module: "emporio",
+      entry_type: "expense",
+      category: CATEGORIA_ANTECIPACAO,
+      establishment_id: lojaId,
+      status: { not: "cancelled" },
+      due_date: { gte: primeiroDia(mes), lt: primeiroDia(somarMeses(mes, 1)) },
+    },
+    select: { amount: true },
+  });
+  const antecipacaoCent = antecipacoes.reduce((s, e) => s + centavos(decToNum(e.amount) ?? 0), 0);
+
   return {
     m,
+    antecipacaoCent,
     perdasEstoqueCent,
     diferencaTransfCent,
     conferenciaCent,
@@ -388,7 +407,8 @@ export async function resultadoDaLojaAction(
   const fixas = apuradas.flatMap((a) => a.fixas).sort((a, b) => (a.due_date as Date).getTime() - (b.due_date as Date).getTime());
 
   const freteDifCent = m.freteRecebidoCent - m.fretePagoCent;
-  const resultadoCent = m.margemCent - perdasCent - fixasCent + freteDifCent;
+  const antecipacaoCent = soma((a) => a.antecipacaoCent);
+  const resultadoCent = m.margemCent - perdasCent - fixasCent + freteDifCent - antecipacaoCent;
 
   // Ponto de equilíbrio (Q26): no somado, o recuo de 30 dias também sai da soma das lojas.
   let base = { vendasCent: m.vendasCent, margemCent: m.margemCent, n: m.vendas.length };
@@ -517,6 +537,7 @@ export async function resultadoDaLojaAction(
       paid: reais(m.fretePagoCent),
       difference: reais(freteDifCent),
     },
+    anticipation_costs: reais(antecipacaoCent),
     result: reais(resultadoCent),
     break_even: pe,
     tracking: { days: dias, days_in_month: nDias, days_elapsed: decorridos, projected_sales: projetado },
@@ -539,7 +560,10 @@ export async function resultadoDaLojaAction(
           paid: reais(a.m.fretePagoCent),
           difference: reais(a.m.freteRecebidoCent - a.m.fretePagoCent),
         },
-        result: reais(a.m.margemCent - a.perdasCent - a.fixasCent + a.m.freteRecebidoCent - a.m.fretePagoCent),
+        anticipation_costs: reais(a.antecipacaoCent),
+        result: reais(
+          a.m.margemCent - a.perdasCent - a.fixasCent + a.m.freteRecebidoCent - a.m.fretePagoCent - a.antecipacaoCent,
+        ),
       };
     });
   }
