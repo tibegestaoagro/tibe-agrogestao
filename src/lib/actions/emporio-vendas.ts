@@ -16,7 +16,7 @@ import { resolverTurno, type TurnoResolvido } from "@/lib/emporio/turno";
 import { vendedoresDaLoja } from "@/lib/emporio/vendedores";
 import { CONSUMIDOR_FINAL } from "@/lib/contatos/cadastro";
 import { regraDePrazo, sugerirVencimento } from "@/lib/emporio/fiado";
-import { estadoDeCredito, liberacaoValida } from "@/lib/actions/emporio-credito";
+import { estadoDeCredito, liberacaoValida, type ClienteOuTransacao } from "@/lib/actions/emporio-credito";
 import type { EnderecoDoPedido } from "@/lib/emporio/cliente-cadastro";
 import {
   enderecoDasColunas,
@@ -39,10 +39,12 @@ import {
   type VendaItemInput,
 } from "@/lib/emporio/precificar";
 import {
+  CATEGORIA_ANTECIPACAO,
   CATEGORIA_TAXAS_CARTAO,
   BANDEIRAS,
   ROTULO_DA_BANDEIRA,
   adquirentesComTaxa,
+  custoAntecipacaoCent,
   datasDasParcelas,
   dividirEmParcelas,
   hojeEmBrasilia,
@@ -50,7 +52,9 @@ import {
   taxaDoPagamentoCent,
   type Bandeira,
   type LinhaDeTaxa,
+  type RegraDiaUtil,
 } from "@/lib/emporio/cartao";
+import { somarDiasUteis } from "@/lib/emporio/dia-util";
 import {
   INCLUDE_PRODUTO,
   lacradoEfetivo,
@@ -547,8 +551,17 @@ type ItemPreparado = {
   total: number;
 };
 
+type ConfigDaAdquirente = {
+  business_day_rule: RegraDiaUtil;
+  auto_enabled: boolean;
+  auto_pct_month: number | null;
+  auto_business_days: number;
+  auto_since: string | null;
+};
+
 type LinhasDaLoja = {
   linhas: LinhaDeTaxa[];
+  configs: Map<string, ConfigDaAdquirente>;
   nomes: Map<string, string>;
   arquivadas: Set<string>;
 };
@@ -568,13 +581,33 @@ async function carregarLinhasDaLoja(db: TenantPrismaClient, establishmentId: str
     if (r.acquirer.archived_at) arquivadas.add(r.acquirer_id);
   }
   // Adquirente sem linha na loja também precisa de nome, para a recusa dizer qual é.
-  const semLinha = await db.cardAcquirer.findMany({ select: { id: true, name: true, archived_at: true } });
+  const semLinha = await db.cardAcquirer.findMany({
+    select: {
+      id: true,
+      name: true,
+      archived_at: true,
+      business_day_rule: true,
+      auto_anticipation_enabled: true,
+      auto_anticipation_pct_month: true,
+      auto_anticipation_business_days: true,
+      auto_anticipation_since: true,
+    },
+  });
+  const configs = new Map<string, ConfigDaAdquirente>();
   for (const a of semLinha) {
     if (!nomes.has(a.id)) nomes.set(a.id, a.name);
     if (a.archived_at) arquivadas.add(a.id);
+    configs.set(a.id, {
+      business_day_rule: a.business_day_rule,
+      auto_enabled: a.auto_anticipation_enabled,
+      auto_pct_month: decToNum(a.auto_anticipation_pct_month),
+      auto_business_days: a.auto_anticipation_business_days,
+      auto_since: a.auto_anticipation_since ? diaDaColuna(a.auto_anticipation_since) : null,
+    });
   }
   return {
     nomes,
+    configs,
     arquivadas,
     linhas: rows.map((r) => ({
       id: r.id,
@@ -593,6 +626,49 @@ async function carregarLinhasDaLoja(db: TenantPrismaClient, establishmentId: str
   };
 }
 
+/**
+ * A regra do crédito do fiado, uma só para o preparo e para a gravação (2.37): o atraso e o limite
+ * valem na conta inteira; a liberação pontual do Gestor, válida na loja, dispensa os dois.
+ */
+async function conferirFiado(
+  db: ClienteOuTransacao,
+  customerId: string,
+  lojaId: string,
+  fiadoAmount: number,
+  semAVenda: string | null,
+): Promise<{ recusa: null; liberacao_id: string | null } | { recusa: ActionResult<never> }> {
+  const estado = await estadoDeCredito(db, customerId, { semAVenda });
+  const liberacao = await liberacaoValida(db, customerId, lojaId, new Date());
+  if (liberacao) return { recusa: null, liberacao_id: liberacao.id };
+  if (estado.blocked_by_delay && estado.oldest_overdue) {
+    return {
+      recusa: fail(
+        "FIADO_BLOQUEADO",
+        `Cliente com fiado vencido há ${estado.oldest_overdue.days} dias. Peça a liberação ao gestor.`,
+        409,
+        "payments",
+      ),
+    };
+  }
+  if (estado.limit !== null) {
+    const limiteCent = centavos(estado.limit);
+    const fiadoCent = centavos(fiadoAmount);
+    if (estado.owed_cent + fiadoCent > limiteCent) {
+      return {
+        recusa: fail(
+          "LIMITE_EXCEDIDO",
+          limiteCent === 0
+            ? "Este cliente não compra fiado: o limite dele é zero."
+            : `O limite de fiado do cliente é ${brl(estado.limit)} e ele já deve ${brl(estado.owed_cent / 100)}: cabem ${brl(Math.max(0, limiteCent - estado.owed_cent) / 100)}.`,
+          409,
+          "payments",
+        ),
+      };
+    }
+  }
+  return { recusa: null, liberacao_id: null };
+}
+
 type PagamentoPreparado = {
   kind: "dinheiro" | "pix" | "fiado" | FormaDeCartao | "cheque";
   amount: number;
@@ -609,6 +685,9 @@ type PagamentoPreparado = {
     brand: Bandeira | null;
     fee_fixed_amount: number;
     fee_rate_id: string;
+    regra_dia_util: RegraDiaUtil;
+    /** A antecipação automática da adquirente que vale para esta venda (crédito, ligada, com taxa e já em vigor); senão nulo. */
+    auto: { pct_mes: number; dias_uteis: number } | null;
   } | null;
   cheque: { number: string; bank: string; good_for: Date } | null;
 };
@@ -965,7 +1044,19 @@ async function prepararVenda(
           "payments",
         );
       }
+      const configDaAdquirente = linhasDaLoja.configs.get(adquirenteId);
+      const autoVale =
+        (kind === "credito_vista" || kind === "credito_parcelado") &&
+        configDaAdquirente?.auto_enabled === true &&
+        configDaAdquirente.auto_pct_month !== null &&
+        configDaAdquirente.auto_since !== null &&
+        configDaAdquirente.auto_since <= dia;
       cartao = {
+        regra_dia_util: configDaAdquirente?.business_day_rule ?? "proximo_dia_util",
+        auto:
+          autoVale && configDaAdquirente
+            ? { pct_mes: configDaAdquirente.auto_pct_month as number, dias_uteis: configDaAdquirente.auto_business_days }
+            : null,
         installments,
         parcelas,
         fee_pct: linha.fee_pct,
@@ -1047,31 +1138,9 @@ async function prepararVenda(
   let creditReleaseId: string | null = null;
   const fiadoPreparado = pagamentos.find((x) => x.kind === "fiado");
   if (fiadoPreparado && !ehConsumidorFinal) {
-    const estado = await estadoDeCredito(db, customerId, { semAVenda: opts.substituindo ?? null });
-    const liberacao = await liberacaoValida(db, customerId, loja.data.id, new Date());
-    if (liberacao) {
-      creditReleaseId = liberacao.id;
-    } else if (estado.blocked_by_delay && estado.oldest_overdue) {
-      return fail(
-        "FIADO_BLOQUEADO",
-        `Cliente com fiado vencido há ${estado.oldest_overdue.days} dias. Peça a liberação ao gestor.`,
-        409,
-        "payments",
-      );
-    } else if (estado.limit !== null) {
-      const limiteCent = centavos(estado.limit);
-      const fiadoCent = centavos(fiadoPreparado.amount);
-      if (estado.owed_cent + fiadoCent > limiteCent) {
-        return fail(
-          "LIMITE_EXCEDIDO",
-          limiteCent === 0
-            ? "Este cliente não compra fiado: o limite dele é zero."
-            : `O limite de fiado do cliente é ${brl(estado.limit)} e ele já deve ${brl(estado.owed_cent / 100)}: cabem ${brl(Math.max(0, limiteCent - estado.owed_cent) / 100)}.`,
-          409,
-          "payments",
-        );
-      }
-    }
+    const conferido = await conferirFiado(db, customerId, loja.data.id, fiadoPreparado.amount, opts.substituindo ?? null);
+    if (conferido.recusa) return conferido.recusa;
+    creditReleaseId = conferido.liberacao_id;
   }
 
   return ok({
@@ -1281,6 +1350,14 @@ async function gravarVenda(
       data: { consumed_sale_id: venda.id, consumed_at: new Date() },
     });
     if (consumida.count === 0) throw new AbortarVenda(FIADO_BLOQUEADO_CONSUMIDA());
+  } else if (p.customer_id) {
+    // 2.37: duas vendas em fiado ao mesmo tempo liam a mesma dívida no preparo e passavam as duas do limite.
+    // Dentro da transação serializável a conferência se repete, e a segunda a perder recusa.
+    const fiadoDaVenda = p.pagamentos.find((x) => x.kind === "fiado");
+    if (fiadoDaVenda) {
+      const conferido = await conferirFiado(tx, p.customer_id, p.loja.id, fiadoDaVenda.amount, extra.replaces_sale_id ?? null);
+      if (conferido.recusa) throw new AbortarVenda(conferido.recusa);
+    }
   }
 
   await tx.emporioSaleItem.createMany({
@@ -1338,6 +1415,7 @@ async function gravarVenda(
   });
 
   let taxaTotalCent = 0;
+  const antecipacaoCustoCent: { id: string; cent: number }[] = [];
   for (const pg of p.pagamentos) {
     if (pg.kind === "fiado") {
       await tx.emporioSalePayment.create({
@@ -1376,7 +1454,35 @@ async function gravarVenda(
       const n = pg.cartao.parcelas;
       const brutas = dividirEmParcelas(centavos(pg.amount), n);
       const liquidas = dividirEmParcelas(centavos(pg.amount) - centavos(pg.cartao.fee_amount), n);
-      const datas = datasDasParcelas(p.sold_at, pg.cartao.days, n);
+      const datas = datasDasParcelas(p.sold_at, pg.cartao.days, n, pg.cartao.regra_dia_util);
+      // A antecipação automática: a parcela só antecipa se o dia da operação vier antes do previsto.
+      const auto = pg.cartao.auto;
+      const operadaEm = auto ? somarDiasUteis(hojeEmBrasilia(p.sold_at), auto.dias_uteis) : null;
+      const antecipa = datas.map((d) => operadaEm !== null && operadaEm.getTime() < d.getTime());
+      const custosDasParcelas = liquidas.map((liquida, i) =>
+        auto && operadaEm && antecipa[i] ? custoAntecipacaoCent(liquida, auto.pct_mes, operadaEm, datas[i]) : 0,
+      );
+      const custoDoPagamentoCent = custosDasParcelas.reduce((a, b) => a + b, 0);
+      let antecipacaoId: string | null = null;
+      if (auto && operadaEm && antecipa.some(Boolean)) {
+        const brutoAntecipado = brutas.reduce((s, b, i) => (antecipa[i] ? s + b : s), 0);
+        const previstoAntecipado = liquidas.reduce((s, l, i) => (antecipa[i] ? s + l : s), 0);
+        const antecipacao = await tx.cardAnticipation.create({
+          data: scoped({
+            acquirer_id: cartaoDoPagamento.acquirer_id,
+            bank_account_id: pg.bank_account_id as string,
+            operated_on: operadaEm,
+            kind: "automatica" as const,
+            gross_amount: brutoAntecipado / 100,
+            expected_net: previstoAntecipado / 100,
+            received_net: (previstoAntecipado - custoDoPagamentoCent) / 100,
+            fee_amount: custoDoPagamentoCent / 100,
+            created_by_user_id: ator.id,
+          }),
+        });
+        antecipacaoId = antecipacao.id;
+        if (custoDoPagamentoCent > 0) antecipacaoCustoCent.push({ id: antecipacao.id, cent: custoDoPagamentoCent });
+      }
       await tx.cardReceivable.createMany({
         data: brutas.map((bruta, i) =>
           scoped({
@@ -1388,7 +1494,12 @@ async function gravarVenda(
             installments: n,
             gross_amount: bruta / 100,
             net_amount: liquidas[i] / 100,
+            fee_amount: (bruta - liquidas[i]) / 100,
             expected_on: datas[i],
+            effective_on: antecipa[i] && operadaEm ? operadaEm : datas[i],
+            effective_net: (liquidas[i] - custosDasParcelas[i]) / 100,
+            anticipation_fee: antecipa[i] ? custosDasParcelas[i] / 100 : null,
+            anticipation_id: antecipa[i] ? antecipacaoId : null,
             acquirer_id: cartaoDoPagamento.acquirer_id,
             brand: cartaoDoPagamento.brand,
           }),
@@ -1488,6 +1599,21 @@ async function gravarVenda(
       amount: taxaTotalCent / 100,
       related_module: "emporio",
       related_id: venda.id,
+      occurred_at: p.sold_at,
+      status: "paid",
+      establishment_id: p.loja.id,
+      payment_method: "cartao",
+    });
+  }
+
+  // O custo da antecipação automática: uma despesa por pagamento antecipado, apontando para a operação.
+  for (const a of antecipacaoCustoCent) {
+    await createLinkedEntry(tx, {
+      entry_type: "expense",
+      category: CATEGORIA_ANTECIPACAO,
+      amount: a.cent / 100,
+      related_module: "emporio",
+      related_id: a.id,
       occurred_at: p.sold_at,
       status: "paid",
       establishment_id: p.loja.id,

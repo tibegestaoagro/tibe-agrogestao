@@ -1,3 +1,4 @@
+import type { Prisma } from "@/generated/prisma/client";
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { decToNum } from "@/lib/serialize";
@@ -109,12 +110,17 @@ export type EstadoDeCredito = {
  * recorta o `by_store` (o que o ator enxerga por loja), nunca o total nem o bloqueio.
  * O chamador garante que o cliente é da conta (lança se não for).
  */
+/** O client escopado ou o da transação (a conferência do fiado se repete dentro da gravação da venda). */
+export type ClienteOuTransacao = TenantPrismaClient | Prisma.TransactionClient;
+
 export async function estadoDeCredito(
-  db: TenantPrismaClient,
+  dbOuTx: ClienteOuTransacao,
   customerId: string,
   /** `semAVenda`: a edição de uma venda (Q249) não deve a si mesma, então o lançamento dela fica fora da dívida e do atraso. */
   opts: { lojasVisiveis?: Set<string> | null; semAVenda?: string | null } = {},
 ): Promise<EstadoDeCredito> {
+  // A transação já é escopada pelo tenant (runSerializableTenantTransaction): o cast só acalma o tipo.
+  const db = dbOuTx as TenantPrismaClient;
   const c = await db.emporioCustomer.findFirst({
     where: { id: customerId },
     select: { id: true, name: true, phone: true, fiado_limit: true, fiado_due_days: true, fiado_due_day: true },
@@ -434,12 +440,12 @@ export type LiberacaoView = {
  * Vale só na loja em que foi criada (a da venda).
  */
 export async function liberacaoValida(
-  db: TenantPrismaClient,
+  dbOuTx: ClienteOuTransacao,
   customerId: string,
   establishmentId: string,
   agora: Date,
 ): Promise<{ id: string } | null> {
-  return db.emporioCreditRelease.findFirst({
+  return (dbOuTx as TenantPrismaClient).emporioCreditRelease.findFirst({
     where: {
       customer_id: customerId,
       establishment_id: establishmentId,
