@@ -13,6 +13,7 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { lerNumeroBr, reaisBr } from "@/lib/numero-br";
+import { ORIGENS_DA_VENDA, ROTULO_DA_ORIGEM } from "@/lib/emporio/frete";
 import type { CreditoView } from "@/lib/actions/emporio-credito";
 import type { Falta } from "@/lib/emporio/cliente-cadastro";
 import type { ClienteEscolhido } from "@/lib/emporio/cliente-escolhido";
@@ -127,7 +128,10 @@ export function VendaCampos({
   aoEscolherCliente,
   creditoDoFiado,
   depoisDoPagamento,
+  comFrete,
 }: {
+  /** Frete cobrado e origem da venda (Q244, Q248): só o balcão, e só na venda (orçamento e troca não têm). */
+  comFrete?: boolean;
   /** O crédito do cliente, lido pelo balcão quando há fiado: só informa, a recusa de verdade é do servidor. */
   creditoDoFiado?: CreditoView | null;
   /** O que o balcão põe logo abaixo do pagamento (o atalho da recusa de crédito). */
@@ -347,6 +351,47 @@ export function VendaCampos({
 
       {depoisDoCliente}
 
+      {comFrete && (
+        <>
+          <Field label="Frete cobrado do cliente (opcional)" id={idDe("freight_amount")} error={erros.freight_amount}>
+            {({ id, ...aria }) => (
+              <MoneyInput
+                id={id}
+                {...aria}
+                placeholder="0,00"
+                value={v.frete}
+                onValueChange={(valor) => {
+                  v.definirFrete(valor);
+                  limpar("freight_amount");
+                  limpar("payments");
+                }}
+              />
+            )}
+          </Field>
+          <Field label="Origem da venda" id={idDe("origin")} error={erros.origin}>
+            {({ id, ...aria }) => (
+              <div id={id} tabIndex={-1} {...aria} className="flex flex-wrap gap-2">
+                {ORIGENS_DA_VENDA.map((o) => (
+                  <Button
+                    key={o}
+                    type="button"
+                    size="sm"
+                    variant={v.origem === o ? "default" : "outline"}
+                    aria-pressed={v.origem === o}
+                    onClick={() => {
+                      v.definirOrigem(o);
+                      limpar("origin");
+                    }}
+                  >
+                    {ROTULO_DA_ORIGEM[o]}
+                  </Button>
+                ))}
+              </div>
+            )}
+          </Field>
+        </>
+      )}
+
       {!semPagamento && (
         <Field label="Pagamento" required={v.aPagarCent > 0} id={idDe("payments")} error={erros.payments}>
           {({ id, ...aria }) => (
@@ -497,9 +542,15 @@ export function VendaCampos({
               ))}
 
               <div className="space-y-1 rounded-lg bg-superficie-afundada px-3 py-2 text-sm" aria-live="polite">
-                {v.totalCent > 0 && v.aPagarCent !== v.totalCent && (
+                {v.freteCent > 0 && (
                   <p className="text-texto-secundario">
-                    Valor da troca abatido: {reaisBr((v.totalCent - v.aPagarCent) / 100)}. A pagar:{" "}
+                    Itens {reaisBr(v.totalCent / 100)} + frete {reaisBr(v.freteCent / 100)}. Total com frete:{" "}
+                    <strong className="text-texto">{reaisBr((v.totalCent + v.freteCent) / 100)}</strong>
+                  </p>
+                )}
+                {v.totalCent > 0 && v.aPagarCent !== v.totalCent + v.freteCent && (
+                  <p className="text-texto-secundario">
+                    Valor da troca abatido: {reaisBr((v.totalCent + v.freteCent - v.aPagarCent) / 100)}. A pagar:{" "}
                     <strong className="text-texto">{reaisBr(v.aPagarCent / 100)}</strong>
                   </p>
                 )}

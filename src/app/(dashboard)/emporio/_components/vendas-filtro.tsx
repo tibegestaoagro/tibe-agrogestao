@@ -8,6 +8,7 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
+import { ORIGENS_DA_VENDA, ROTULO_DA_ORIGEM } from "@/lib/emporio/frete";
 
 const TODAS = "__todas__";
 
@@ -21,24 +22,27 @@ export function VendasFiltro({
   lojas,
   loja,
   situacao,
+  origem,
 }: {
   lojas: { id: string; name: string }[];
   loja: string;
   situacao: string;
+  origem: string;
 }) {
   const router = useRouter();
 
-  function ir(novaLoja: string, novaSituacao: string) {
+  function ir(novaLoja: string, novaSituacao: string, novaOrigem: string) {
     const q = new URLSearchParams();
     if (novaLoja) q.set("loja", novaLoja);
     if (novaSituacao) q.set("situacao", novaSituacao);
+    if (novaOrigem) q.set("origin", novaOrigem);
     const texto = q.toString();
     router.push(texto ? `/emporio/vendas?${texto}` : "/emporio/vendas");
   }
 
   return (
-    <div className="grid gap-3 sm:max-w-md sm:grid-cols-2">
-      <Select value={loja || TODAS} onValueChange={(v) => ir(v === TODAS ? "" : v, situacao)}>
+    <div className="grid gap-3 sm:max-w-2xl sm:grid-cols-3">
+      <Select value={loja || TODAS} onValueChange={(v) => ir(v === TODAS ? "" : v, situacao, origem)}>
         <SelectTrigger aria-label="Filtrar por loja">
           <SelectValue />
         </SelectTrigger>
@@ -52,7 +56,7 @@ export function VendasFiltro({
         </SelectContent>
       </Select>
 
-      <Select value={situacao || TODAS} onValueChange={(v) => ir(loja, v === TODAS ? "" : v)}>
+      <Select value={situacao || TODAS} onValueChange={(v) => ir(loja, v === TODAS ? "" : v, origem)}>
         <SelectTrigger aria-label="Filtrar por situação">
           <SelectValue />
         </SelectTrigger>
@@ -61,6 +65,20 @@ export function VendasFiltro({
           {SITUACOES.map((s) => (
             <SelectItem key={s.valor} value={s.valor}>
               {s.rotulo}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <Select value={origem || TODAS} onValueChange={(v) => ir(loja, situacao, v === TODAS ? "" : v)}>
+        <SelectTrigger aria-label="Filtrar por origem">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={TODAS}>Todas as origens</SelectItem>
+          {ORIGENS_DA_VENDA.map((o) => (
+            <SelectItem key={o} value={o}>
+              {ROTULO_DA_ORIGEM[o]}
             </SelectItem>
           ))}
         </SelectContent>

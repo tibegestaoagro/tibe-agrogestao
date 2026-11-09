@@ -8,6 +8,7 @@ import { buscarClientesAction } from "@/lib/actions/emporio-clientes";
 import { viewsDosCaixas } from "@/lib/actions/emporio-caixa";
 import { paraCaixasDaLoja } from "../../_components/caixas-da-loja";
 import { formatarNumero } from "@/lib/emporio/numeracao";
+import { ROTULO_DA_ORIGEM } from "@/lib/emporio/frete";
 import { linhaDoEndereco } from "@/lib/emporio/pedido-para-entrega";
 import { reaisBr } from "@/lib/numero-br";
 import { Button } from "@/components/ui/button";
@@ -117,6 +118,7 @@ export default async function VendaPage({ params }: { params: Promise<{ id: stri
             <Badge variant={ativa ? "green" : "gray"}>{ativa ? "Concluída" : "Cancelada"}</Badge>
             {ativa && venda.open_amount > 0 && <Badge variant="amber">Fiado em aberto {reaisBr(venda.open_amount)}</Badge>}
             {venda.exchange_return_id && <Badge variant="blue">Venda de uma troca</Badge>}
+            {venda.origin === "ecommerce" && <Badge variant="blue">{ROTULO_DA_ORIGEM.ecommerce}</Badge>}
             {venda.items.some((i) => i.cost_provisional) && <Badge variant="amber">Custo provisório</Badge>}
           </div>
         </div>
@@ -173,6 +175,25 @@ export default async function VendaPage({ params }: { params: Promise<{ id: stri
             />}
         </div>
       </header>
+
+      {venda.replaced_by && (
+        <p className="rounded-lg bg-atencao-suave px-4 py-3 text-sm text-atencao-tinta">
+          Substituída pela venda nº{" "}
+          <Link href={`/emporio/vendas/${venda.replaced_by.id}`} className="font-medium underline">
+            {formatarNumero(venda.replaced_by.number)}
+          </Link>
+          .
+        </p>
+      )}
+      {venda.replaces && (
+        <p className="rounded-lg bg-superficie-afundada px-4 py-3 text-sm text-texto-secundario">
+          Substitui a venda nº{" "}
+          <Link href={`/emporio/vendas/${venda.replaces.id}`} className="font-medium text-texto-marca hover:underline">
+            {formatarNumero(venda.replaces.number)}
+          </Link>
+          .
+        </p>
+      )}
 
       {!ativa && (
         <p className="rounded-lg bg-superficie-afundada px-4 py-3 text-sm text-texto-secundario">
@@ -247,7 +268,8 @@ export default async function VendaPage({ params }: { params: Promise<{ id: stri
           </TableBody>
         </Table>
         <p className="text-sm text-texto">
-          Total: <strong>{reaisBr(venda.net_amount)}</strong>
+          {venda.freight_amount > 0 ? "Itens: " : "Total: "}
+          <strong>{reaisBr(venda.net_amount)}</strong>
           {venda.discount_amount > 0 && (
             <span className="text-texto-secundario">
               {" "}
@@ -255,6 +277,16 @@ export default async function VendaPage({ params }: { params: Promise<{ id: stri
             </span>
           )}
         </p>
+        {venda.freight_amount > 0 && (
+          <>
+            <p className="text-sm text-texto">
+              Frete: <strong>{reaisBr(venda.freight_amount)}</strong>
+            </p>
+            <p className="text-sm text-texto">
+              Total com frete: <strong>{reaisBr(venda.total_amount)}</strong>
+            </p>
+          </>
+        )}
         {venda.notes && <p className="text-sm text-texto-secundario">Observação: {venda.notes}</p>}
       </section>
 

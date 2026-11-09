@@ -4,6 +4,7 @@ import { getTenantDb } from "@/lib/tenant-context";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
 import { listarVendasAction } from "@/lib/actions/emporio-vendas";
+import { ORIGENS_DA_VENDA, ROTULO_DA_ORIGEM, type OrigemDaVenda } from "@/lib/emporio/frete";
 import { formatarNumero } from "@/lib/emporio/numeracao";
 import { reaisBr } from "@/lib/numero-br";
 import { Badge } from "@/components/ui/badge";
@@ -28,17 +29,18 @@ const DATA_HORA = new Intl.DateTimeFormat("pt-BR", {
 export default async function VendasPage({
   searchParams,
 }: {
-  searchParams: Promise<{ loja?: string; situacao?: string }>;
+  searchParams: Promise<{ loja?: string; situacao?: string; origin?: string }>;
 }) {
   const user = await requireFeaturePage("emporio");
-  const { loja = "", situacao = "" } = await searchParams;
+  const { loja = "", situacao = "", origin = "" } = await searchParams;
+  const filtroOrigem = (ORIGENS_DA_VENDA as readonly string[]).includes(origin) ? (origin as OrigemDaVenda) : undefined;
   const filtroSituacao = situacao === "concluida" || situacao === "cancelada" ? situacao : undefined;
 
   const db = await getTenantDb();
   const podeVender = pode(await papelDoEmporio(db, user), "vendedor_da_loja");
   const [lojasRes, vendasRes] = await Promise.all([
     listarEstabelecimentosAction(db, user),
-    listarVendasAction(db, user, { establishment_id: loja || undefined, status: filtroSituacao }),
+    listarVendasAction(db, user, { establishment_id: loja || undefined, status: filtroSituacao, origin: filtroOrigem }),
   ]);
   const lojas = lojasRes.ok ? lojasRes.data.map((l) => ({ id: l.id, name: l.name })) : [];
   const vendas = vendasRes.ok ? vendasRes.data : [];
@@ -62,11 +64,11 @@ export default async function VendasPage({
         )}
       </header>
 
-      <VendasFiltro lojas={lojas} loja={loja} situacao={filtroSituacao ?? ""} />
+      <VendasFiltro lojas={lojas} loja={loja} situacao={filtroSituacao ?? ""} origem={filtroOrigem ?? ""} />
 
       {vendas.length === 0 ? (
         <EmptyState titulo="Nenhuma venda encontrada">
-          {filtroSituacao || loja ? "Mude o filtro para ver outras." : "As vendas feitas no balcão aparecem aqui."}
+          {filtroSituacao || filtroOrigem || loja ? "Mude o filtro para ver outras." : "As vendas feitas no balcão aparecem aqui."}
         </EmptyState>
       ) : (
         <Table>
@@ -94,7 +96,14 @@ export default async function VendasPage({
                   <TableCell className="font-medium text-texto">{v.establishment_name}</TableCell>
                   <TableCell>{v.customer_name ?? "-"}</TableCell>
                   <TableCell>{v.seller_name ?? "-"}</TableCell>
-                  <TableCell>{reaisBr(v.net_amount)}</TableCell>
+                  <TableCell>
+                    {reaisBr(v.net_amount)}
+                    {v.freight_amount > 0 && (
+                      <span className="block text-xs text-texto-secundario">
+                        Frete {reaisBr(v.freight_amount)}, total {reaisBr(v.total_amount)}
+                      </span>
+                    )}
+                  </TableCell>
                   <TableCell>
                     <div className="flex flex-wrap gap-1">
                       <Badge variant={v.status === "concluida" ? "green" : "gray"}>
@@ -105,6 +114,7 @@ export default async function VendasPage({
                       )}
                       {v.returns.length > 0 && <Badge variant="blue">Com devolução</Badge>}
                       {v.for_delivery && <Badge variant="default">Entrega</Badge>}
+                      {v.origin === "ecommerce" && <Badge variant="blue">{ROTULO_DA_ORIGEM.ecommerce}</Badge>}
                       {provisorio && <Badge variant="amber">Custo provisório</Badge>}
                     </div>
                   </TableCell>

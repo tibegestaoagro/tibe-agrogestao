@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { lerNumeroBr, reaisBr } from "@/lib/numero-br";
 import type { ClienteEscolhido } from "@/lib/emporio/cliente-escolhido";
+import type { OrigemDaVenda } from "@/lib/emporio/frete";
 
 /**
  * O estado e as contas da venda do Meu Empório (F3a), compartilhados pelo
@@ -71,7 +72,7 @@ export function liquidoDoCartaoCent(valorCent: number, feePct: number): { taxaCe
   return { taxaCent, liquidoCent: valorCent - taxaCent };
 }
 
-export type CampoDaVenda = "establishment_id" | "items" | "customer_id" | "payments";
+export type CampoDaVenda = "establishment_id" | "items" | "customer_id" | "freight_amount" | "origin" | "payments";
 
 export const cent = (n: number) => Math.round(Number((n * 100).toPrecision(12)));
 const arred3 = (n: number) => Math.round(Number((n * 1000).toPrecision(14))) / 1000;
@@ -120,6 +121,10 @@ export type CorpoDaVenda = {
     installments?: number;
     check?: { number: string; bank: string; good_for: string };
   }[];
+  /** Frete cobrado do cliente (Q244): omitido quando é zero. */
+  freight_amount?: number;
+  /** De onde veio a venda (Q248). */
+  origin?: OrigemDaVenda;
 };
 
 /**
@@ -194,6 +199,9 @@ export function useVenda({
     cargaInicial ? linhasDaCarga(cargaInicial, (n) => -(n + 1)) : [],
   );
   const [pagamentos, setPagamentos] = useState<LinhaPagamento[]>([]);
+  // O frete é o texto digitado no campo de dinheiro; vazio vale zero.
+  const [frete, setFrete] = useState("");
+  const [origem, setOrigem] = useState<OrigemDaVenda>("balcao");
   // O Consumidor final é `cliente.fixed`: não serve para fiado nem cheque.
   const [cliente, setCliente] = useState<ClienteEscolhido | null>(cargaInicial ? cargaInicial.cliente : clienteInicial);
   const [orc, setOrc] = useState<Pick<CargaDoOrcamento, "referencia" | "vale"> | null>(
@@ -310,7 +318,10 @@ export function useVenda({
   const descontoCent = linhas.reduce((s, l) => s + l.descontoCent, 0);
   const baseCent = linhas.reduce((s, l) => s + l.baseCent, 0);
   const descontoPct = baseCent > 0 ? (descontoCent / baseCent) * 100 : 0;
-  const aPagarCent = Math.max(0, totalCent - abatimentoCent);
+  const freteLido = lerNumeroBr(frete);
+  const freteCent = freteLido === null || freteLido <= 0 ? 0 : cent(freteLido);
+  // O frete é cobrado além dos itens: o cliente paga itens mais frete.
+  const aPagarCent = Math.max(0, totalCent + freteCent - abatimentoCent);
 
   const somaPagamentos = pagamentos.reduce((s, p) => {
     const n = lerNumeroBr(p.valor);
@@ -357,6 +368,8 @@ export function useVenda({
     setPagamentos([]);
     setCliente(clienteInicial);
     setOrc(null);
+    setFrete("");
+    setOrigem("balcao");
   }
 
   function itensDaApi(): CorpoDaVenda["items"] {
@@ -399,6 +412,10 @@ export function useVenda({
             : { establishment_id: loja, customer_id: cliente.id, items: itensDaApi(), payments: [] },
         assinatura: JSON.stringify(["orcamento", loja, cliente?.id ?? null, itensDaApi()]),
       };
+    }
+    // Texto preenchido e ilegível ou negativo: a recusa fica embaixo do campo do frete.
+    if (frete.trim() !== "" && (freteLido === null || freteLido < 0)) {
+      novos.freight_amount = "Informe o frete em reais, zero ou mais.";
     }
     if (!cliente) novos.customer_id = "Escolha o cliente da venda.";
     else if (temFiado && ehConsumidorFinal) novos.customer_id = "Fiado precisa do cliente de verdade, não do Consumidor final.";
@@ -458,6 +475,8 @@ export function useVenda({
       customer_id: cliente?.id ?? null,
       items: itensDaApi(),
       payments: pagamentosApi,
+      ...(freteCent > 0 ? { freight_amount: freteCent / 100 } : {}),
+      origin: origem,
     };
     return {
       novos,
@@ -486,6 +505,11 @@ export function useVenda({
     descontoCent,
     descontoPct,
     aPagarCent,
+    frete,
+    freteCent,
+    definirFrete: setFrete,
+    origem,
+    definirOrigem: setOrigem,
     somaPagamentos,
     faltaCent,
     trocoCent,

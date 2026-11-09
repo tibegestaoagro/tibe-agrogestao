@@ -45,6 +45,7 @@ export function PapelCupom({ d }: { d: ImpressoVenda }) {
         <span>{DATA_HORA.format(new Date(d.emitida_em))}</span>
       </div>
       {d.orcamento_origem && <div>Orçamento nº {d.orcamento_origem}</div>}
+      {d.origem === "ecommerce" && <div>Pedido do e-commerce</div>}
       {orcamento && d.validade && <div className="g">Válido até {d.validade}</div>}
       <hr />
       {d.itens.map((i, k) => (
@@ -67,6 +68,12 @@ export function PapelCupom({ d }: { d: ImpressoVenda }) {
         <div className="l">
           <span>Desconto</span>
           <span>-{reaisBr(d.desconto)}</span>
+        </div>
+      )}
+      {d.frete > 0 && (
+        <div className="l">
+          <span>Frete</span>
+          <span>{reaisBr(d.frete)}</span>
         </div>
       )}
       <div className="l g">

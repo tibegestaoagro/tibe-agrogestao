@@ -81,6 +81,8 @@ const ORDEM = [
   "delivery_district",
   "delivery_city",
   "delivery_state",
+  "freight_amount",
+  "origin",
   "payments",
   "notes",
   "seller_user_id",
@@ -99,6 +101,7 @@ type VendaGravada = {
   id: string;
   number: number;
   net_amount: number;
+  freight_amount: number;
   customer_name: string | null;
   seller_name: string | null;
   quote: { id: string; numero: string } | null;
@@ -472,6 +475,7 @@ export function Balcao({
         >
           <p className="font-semibold">
             Venda registrada: {reaisBr(resumo.venda.net_amount)}
+            {resumo.venda.freight_amount > 0 ? ` + frete ${reaisBr(resumo.venda.freight_amount)}` : ""}
             <span className="ml-2 font-normal">
               Venda nº {numeroDaVenda(resumo.venda.number)}
               {resumo.venda.for_delivery ? ", para entrega" : ""}
@@ -555,6 +559,7 @@ export function Balcao({
             permitirCadastro
             aoEscolherLoja={lembrarLoja}
             semPagamento={modo === "orcamento"}
+            comFrete={modo === "venda"}
             creditoDoFiado={creditoDoFiado}
             depoisDoPagamento={
               recusaDeCredito && err.erros.payments && v.cliente ? (
@@ -770,9 +775,16 @@ export function Balcao({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-xs text-texto-secundario">
-                {modo === "orcamento" ? "Total do orçamento" : "Total da venda"}
+                {modo === "orcamento" ? "Total do orçamento" : v.freteCent > 0 ? "Total com frete" : "Total da venda"}
               </p>
-              <p className="text-xl font-semibold text-texto">{reaisBr(v.totalCent / 100)}</p>
+              <p className="text-xl font-semibold text-texto">
+                {reaisBr((v.totalCent + (modo === "venda" ? v.freteCent : 0)) / 100)}
+              </p>
+              {modo === "venda" && v.freteCent > 0 && (
+                <p className="text-xs text-texto-secundario">
+                  Itens {reaisBr(v.totalCent / 100)} + frete {reaisBr(v.freteCent / 100)}
+                </p>
+              )}
             </div>
             {modo === "orcamento" ? (
               <div className="flex flex-wrap gap-2">

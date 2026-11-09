@@ -166,9 +166,10 @@ export function TrocarForm({
         consumidorFinal={consumidorFinal}
         permitirCadastro={permitirCadastro}
         erros={err.erros}
-        idDe={(c: CampoDaVenda) => (c === "establishment_id" ? c : err.idDe(c))}
+        idDe={(c: CampoDaVenda) => (c === "establishment_id" || c === "freight_amount" || c === "origin" ? c : err.idDe(c))}
         limpar={(c: CampoDaVenda) => {
-          if (c !== "establishment_id") err.limparCampo(c);
+          // Frete e origem só existem no balcão (`comFrete`); a troca não os renderiza.
+          if (c !== "establishment_id" && c !== "freight_amount" && c !== "origin") err.limparCampo(c);
         }}
         lojaFixa
       />
