@@ -1,5 +1,5 @@
 import "./_env-local";
-import { papelDeFixture, vincularTodas, virarGestor, virarVendedor } from "./_emporio-papel";
+import { papelDeFixture, papelFinanceiro, vincularTodas, virarGestor, virarVendedor } from "./_emporio-papel";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { exigirBancoLocal } from "./_banco-local";
 
@@ -355,6 +355,17 @@ async function comBanco() {
       // Aproveita a L5: ver seção 6 (RATE_IN_USE). Aqui a arquivada com linha vigente:
       const rArq = await kk("arquivarAdquirenteAction", admin, STONE_L3);
       check("arquivar adquirente com linha vigente: 409 VALIDATION_ERROR", recusa(rArq, "VALIDATION_ERROR", undefined, 409) && /encerre/i.test(!rArq.ok ? rArq.message : ""), j(rArq));
+
+      // Q232: o Financeiro mantém as taxas (sem vínculo com loja); o Vendedor não
+      const uFin = await prisma.user.create({
+        data: { tenant_id: TA.t.id, name: "M103 A fin", email: `m103-A-fin-${stamp}@teste.local`, password_hash: "x", role: "VISUALIZADOR", ...papelFinanceiro() },
+      });
+      const fin: Ator = { id: uFin.id, role: "VISUALIZADOR" };
+      const taxaFin = (ator: Ator) =>
+        kk("criarTaxaAction", ator, { establishment_id: L3.id, acquirer_id: STONE_L3, brand: "hipercard", kind: "debito", installments_from: 1, installments_to: 1, fee_pct: 1.9, days: 1, bank_account_id: conta, valid_from: DESDE });
+      const rFin = await taxaFin(fin);
+      check("o Financeiro cria uma taxa: ok", rFin.ok, j(rFin));
+      check("o Vendedor cria uma taxa: FORBIDDEN", recusa(await taxaFin(vend), "FORBIDDEN", undefined, 403), j(await taxaFin(vend)));
 
       // isolamento de listagem
       const doB = await taxasDe(L3, undefined, true, ownerB).catch(() => []);

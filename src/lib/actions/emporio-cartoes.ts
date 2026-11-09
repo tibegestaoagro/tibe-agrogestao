@@ -1,7 +1,7 @@
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { decToNum } from "@/lib/serialize";
-import { exigir, papelDoEmporio, pode } from "@/lib/emporio/papel";
+import { exigir, exigirUma, papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { lojaVisivel, lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
 import { acharLojaParaEscrita } from "@/lib/actions/emporio-estoque";
 import { diferencas, registrarNoHistorico } from "@/lib/emporio/historico";
@@ -571,11 +571,11 @@ export async function criarTaxaAction(
   ator: Ator,
   input: CriarTaxaInput,
 ): Promise<ActionResult<TaxaView>> {
-  const neg = await exigir(db, ator, "gestor_da_loja", "cadastrar uma taxa de cartão");
+  const neg = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "cadastrar uma taxa de cartão");
   if (neg) return neg;
   const loja = await acharLojaParaEscrita(db, ator, input?.establishment_id);
   if (!loja.ok) return loja;
-  const negLoja = await exigir(db, ator, "gestor_da_loja", "cadastrar uma taxa de cartão", loja.data.id);
+  const negLoja = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "cadastrar uma taxa de cartão", loja.data.id);
   if (negLoja) return negLoja;
 
   const adq =
@@ -666,11 +666,11 @@ export async function novaVigenciaAction(
   id: string,
   input: NovaVigenciaInput,
 ): Promise<ActionResult<TaxaView>> {
-  const neg = await exigir(db, ator, "gestor_da_loja", "mudar uma taxa de cartão");
+  const neg = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "mudar uma taxa de cartão");
   if (neg) return neg;
   const antiga = await acharTaxa(db, ator, id);
   if (!antiga) return NAO_ACHADO("Taxa de cartão");
-  const negLoja = await exigir(db, ator, "gestor_da_loja", "mudar uma taxa de cartão", antiga.establishment_id);
+  const negLoja = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "mudar uma taxa de cartão", antiga.establishment_id);
   if (negLoja) return negLoja;
 
   if (!dataValida(input?.valid_from)) {
@@ -791,11 +791,11 @@ export async function editarTaxaAction(
   id: string,
   input: EditarTaxaInput,
 ): Promise<ActionResult<TaxaView>> {
-  const neg = await exigir(db, ator, "gestor_da_loja", "editar uma taxa de cartão");
+  const neg = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "editar uma taxa de cartão");
   if (neg) return neg;
   const atual = await acharTaxa(db, ator, id);
   if (!atual) return NAO_ACHADO("Taxa de cartão");
-  const negLoja = await exigir(db, ator, "gestor_da_loja", "editar uma taxa de cartão", atual.establishment_id);
+  const negLoja = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "editar uma taxa de cartão", atual.establishment_id);
   if (negLoja) return negLoja;
   if (atual._count.sale_payments > 0) return RECUSA_EM_USO("ser editada");
 
@@ -907,11 +907,11 @@ export async function removerTaxaAction(
   id: string,
   opts: { encerrar?: boolean } = {},
 ): Promise<ActionResult<{ id: string; encerrada: boolean }>> {
-  const neg = await exigir(db, ator, "gestor_da_loja", "remover uma taxa de cartão");
+  const neg = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "remover uma taxa de cartão");
   if (neg) return neg;
   const atual = await acharTaxa(db, ator, id);
   if (!atual) return NAO_ACHADO("Taxa de cartão");
-  const negLoja = await exigir(db, ator, "gestor_da_loja", "remover uma taxa de cartão", atual.establishment_id);
+  const negLoja = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "remover uma taxa de cartão", atual.establishment_id);
   if (negLoja) return negLoja;
 
   const descricao = `${ROTULO_FORMA[atual.kind as Forma]}${fraseFaixa(atual.kind as Forma, atual.installments_from, atual.installments_to)} ${rotuloBandeira(atual.brand)} da ${atual.acquirer.name} na ${atual.establishment.name}`;
