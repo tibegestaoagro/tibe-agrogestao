@@ -245,6 +245,7 @@ export function useVenda({
   abatimentoCent = 0,
   cargaInicial = null,
   inicial = null,
+  diaDaVenda,
 }: {
   /** A venda que o balcão abre para editar (`/emporio/vender?editar=<id>`). */
   inicial?: InicialDaVenda | null;
@@ -257,7 +258,13 @@ export function useVenda({
   clienteInicial?: ClienteEscolhido | null;
   /** Valor da troca que já paga parte da venda. */
   abatimentoCent?: number;
+  /**
+   * O dia (AAAA-MM-DD, Brasília) em que a taxa é resolvida. Na edição é o dia da
+   * venda antiga (o servidor resolve em `sold_at`, decisão 1); sem ele, hoje.
+   */
+  diaDaVenda?: string;
 }) {
+  const diaDaTaxa = diaDaVenda ?? diaDeHoje();
   const contador = useRef(0);
   const proximo = () => {
     contador.current += 1;
@@ -406,18 +413,18 @@ export function useVenda({
     if (!loja) return;
     let vivo = true;
     void apiGet<TaxaDaVenda[]>(
-      `/api/v1/emporio/card-fee-rates?establishment_id=${encodeURIComponent(loja)}&vigentes_em=${diaDeHoje()}`,
+      `/api/v1/emporio/card-fee-rates?establishment_id=${encodeURIComponent(loja)}&vigentes_em=${diaDaTaxa}`,
     ).then((res) => {
       if (vivo && res.ok) setTaxas({ lojaId: loja, linhas: res.data });
     });
     return () => {
       vivo = false;
     };
-  }, [loja]);
+  }, [loja, diaDaTaxa]);
   const linhasDaLoja = taxas && taxas.lojaId === loja ? taxas.linhas : null;
   const taxasCarregadas = linhasDaLoja !== null;
   const adquirentes = linhasDaLoja
-    ? adquirentesComTaxa(linhasDaLoja, diaDeHoje()).map((id) => ({
+    ? adquirentesComTaxa(linhasDaLoja, diaDaTaxa).map((id) => ({
         id,
         name: linhasDaLoja.find((l) => l.acquirer_id === id)?.acquirer_name ?? "",
       }))
@@ -456,7 +463,9 @@ export function useVenda({
    * loja. Vazio quando há mais de uma e nenhuma foi escolhida.
    */
   function adquirenteDe(p: LinhaPagamento): string {
-    if (p.adquirenteId && adquirentes.some((a) => a.id === p.adquirenteId)) return p.adquirenteId;
+    // A adquirente do pagamento antigo fica, mesmo sem linha vigente no dia: trocar em silêncio
+    // mudaria a taxa sem a pessoa ver. A prévia avisa e ela escolhe outra.
+    if (p.adquirenteId) return p.adquirenteId;
     return adquirentes.length === 1 ? adquirentes[0].id : "";
   }
 
@@ -471,10 +480,10 @@ export function useVenda({
       brand: p.bandeira,
       kind: p.kind as LinhaDeTaxa["kind"],
       installments: parcelas,
-      dia: diaDeHoje(),
+      dia: diaDaTaxa,
     }) as TaxaDaVenda | null;
     if (!linha) return null;
-    return { linha, parcelas, primeira: datasDasParcelas(new Date(), linha.days, 1)[0] };
+    return { linha, parcelas, primeira: datasDasParcelas(new Date(`${diaDaTaxa}T12:00:00Z`), linha.days, 1)[0] };
   }
 
   /** Há cartão sem bandeira, sem adquirente ou sem taxa para a combinação: a venda não fecha. */

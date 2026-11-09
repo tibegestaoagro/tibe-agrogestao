@@ -1,19 +1,20 @@
 import { z } from "zod";
+import { BANDEIRAS } from "@/lib/emporio/cartao";
 import { apiErroDeZod } from "@/lib/api";
 import { readJson } from "@/lib/api-guard";
 import { withApi } from "@/lib/route";
 import { editarTaxaAction, removerTaxaAction } from "@/lib/actions/emporio-cartoes";
 import { diaComMensagem, guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
+const BRANDS_COM_CORINGA = [...BANDEIRAS, "qualquer"] as const;
 
 /**
  * PATCH /api/v1/emporio/card-fee-rates/:id  edita uma linha que nenhuma venda usou (em uso: 409 `RATE_IN_USE`).
  * DELETE /api/v1/emporio/card-fee-rates/:id  ?encerrar=1  remove; em uso, só encerra (vale até ontem).
  */
 
-const BRANDS = ["visa_master", "elo", "hipercard", "amex", "outra", "qualquer"] as const;
 
 const schema = z.object({
-  brand: z.enum(BRANDS, { error: "Escolha a bandeira." }).optional(),
+  brand: z.enum(BRANDS_COM_CORINGA, { error: "Escolha a bandeira." }).optional(),
   kind: z.string({ error: "Escolha a modalidade do cartão." }).min(1, "Escolha a modalidade do cartão.").optional(),
   installments_from: z.number({ error: "Informe a primeira parcela da faixa." }).optional(),
   installments_to: z.number({ error: "Informe a última parcela da faixa." }).optional(),

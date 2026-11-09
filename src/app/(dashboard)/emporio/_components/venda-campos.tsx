@@ -73,7 +73,7 @@ function InfoDoCartao({ v, p }: { v: EstadoDaVenda; p: EstadoDaVenda["pagamentos
   }
   const taxa = v.taxaDe(p);
   if (!taxa) {
-    const adq = v.adquirentes.find((a) => a.id === v.adquirenteDe(p))?.name ?? "";
+    const adq = v.adquirentes.find((a) => a.id === v.adquirenteDe(p))?.name ?? "adquirente sem taxa vigente";
     return (
       <p className="rounded-md bg-atencao-suave px-3 py-2 text-xs text-atencao-tinta">
         Sem taxa para {ROTULO_DA_BANDEIRA[p.bandeira]}, {adq}, {FORMA_ROTULO[p.kind].toLowerCase()}
@@ -143,7 +143,7 @@ function EscolhaDoCartao({
   );
   return (
     <div className="space-y-2">
-      {v.adquirentes.length > 1 ? (
+      {v.adquirentes.length > 1 || (p.adquirenteId !== "" && !v.adquirentes.some((a) => a.id === p.adquirenteId)) ? (
         primeiro ? (
           <Field label="Adquirente" required id={idDoCampo} error={erro}>
             {({ id, ...aria }) => seletor(id, aria)}

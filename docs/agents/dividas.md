@@ -131,6 +131,7 @@ redescobertos como defeito.
 | 2.56 | a parcela do cartão cai pelo prazo em dias corridos, e a taxa é uma só por venda, não por parcela do recebível: não há taxa diferente por parcela nem ajuste para dia útil | entrega 1 das taxas de cartão, 09/11/2026 | taxa por parcela no recebível e prazo em dia útil (entrega 2) |
 | 2.57 | antecipação do recebível do cartão: nenhuma tela antecipa parcela futura com o custo do desconto | entrega 1 das taxas de cartão, 09/11/2026 | antecipar como transferência com custo (entrega 3) |
 | 2.58 | o extrato da Stone não é importado: a conferência do que caiu contra o arquivo da adquirente continua manual | entrega 1 das taxas de cartão, 09/11/2026 | importador do extrato da Stone, com casamento por valor, data e NSU (entrega 4) |
+| 2.59 | minors adiados das taxas de cartão: a sobreposição de taxa é checada sem Serializable; o PATCH de adquirente não é atômico; o detalhe da venda não mostra a taxa fixa à parte; a migração não repõe o CHECK de faixa de parcelas; a recusa de `acquirer_id` muda quando há uma adquirente só | revisão final da entrega 1 das taxas de cartão, 09/11/2026 | cada um é pequeno: transação Serializable na checagem, PATCH numa transação, linha da taxa fixa no detalhe, CHECK na migração, mensagem única de `acquirer_id` |
 
 ## 3. Rede de segurança com furo
 

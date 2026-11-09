@@ -1,21 +1,22 @@
 import { z } from "zod";
+import { BANDEIRAS } from "@/lib/emporio/cartao";
 import { apiErroDeZod } from "@/lib/api";
 import { readJson } from "@/lib/api-guard";
 import { withApi } from "@/lib/route";
 import { criarTaxaAction, listarTaxasAction } from "@/lib/actions/emporio-cartoes";
 import { diaComMensagem, guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
+const BRANDS_COM_CORINGA = [...BANDEIRAS, "qualquer"] as const;
 
 /**
  * GET /api/v1/emporio/card-fee-rates  ?establishment_id=&acquirer_id=&vigentes_em=AAAA-MM-DD&incluir_encerradas=1
  * POST /api/v1/emporio/card-fee-rates  cria uma linha da tabela de taxas: só quem gere a loja.
  */
 
-const BRANDS = ["visa_master", "elo", "hipercard", "amex", "outra", "qualquer"] as const;
 
 const schema = z.object({
   establishment_id: z.string({ error: "Escolha o estabelecimento." }).min(1, "Escolha o estabelecimento."),
   acquirer_id: z.string({ error: "Escolha a adquirente." }).min(1, "Escolha a adquirente."),
-  brand: z.enum(BRANDS, { error: "Escolha a bandeira." }),
+  brand: z.enum(BRANDS_COM_CORINGA, { error: "Escolha a bandeira." }),
   kind: z.string({ error: "Escolha a modalidade do cartão." }).min(1, "Escolha a modalidade do cartão."),
   installments_from: z.number({ error: "Informe a primeira parcela da faixa." }),
   installments_to: z.number({ error: "Informe a última parcela da faixa." }),

@@ -157,6 +157,10 @@ export function Balcao({
       edicao?.venda.establishment_id ?? orcamentoInicial?.establishment_id ?? (lojas.length === 1 ? lojas[0].id : ""),
     cargaInicial,
     inicial: daEdicao?.inicial ?? null,
+    // Na edição a taxa vale no dia da venda antiga, em Brasília (é o que o servidor resolve).
+    diaDaVenda: edicao
+      ? new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date(edicao.venda.sold_at))
+      : undefined,
   });
   const [enviando, setEnviando] = useState(false);
   const [resumo, setResumo] = useState<Resumo | null>(null);
