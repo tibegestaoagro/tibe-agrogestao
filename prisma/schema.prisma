@@ -330,6 +330,17 @@ enum CardKind {
   credito_parcelado
 }
 
+/// Taxas de cartão (Q251): grupos fixos de bandeira. `qualquer` é o coringa e
+/// só existe na tabela de taxas, nunca na venda.
+enum CardBrand {
+  visa_master
+  elo
+  hipercard
+  amex
+  outra
+  qualquer
+}
+
 /// Módulo 39 (F3b, Q91, Q94). `devolvido` é o cheque que voltou do banco (a
 /// dívida reabre); `devolvido_ao_cliente` é o da venda cancelada.
 enum EmporioCheckStatus {
@@ -613,7 +624,8 @@ model Tenant {
   emporio_sale_returns      EmporioSaleReturn[]
   emporio_return_items      EmporioSaleReturnItem[]
   cash_movements            CashMovement[]
-  card_fee_rules            CardFeeRule[]
+  card_fee_rates            CardFeeRate[]
+  card_acquirers            CardAcquirer[]
   card_receivables          CardReceivable[]
   emporio_checks            EmporioCheck[]
   emporio_customers         EmporioCustomer[]
@@ -796,7 +808,7 @@ model Establishment {
   credit_releases           EmporioCreditRelease[]
   quotes                    EmporioQuote[]
   cash_movements            CashMovement[]
-  card_fee_rules            CardFeeRule[]
+  card_fee_rates            CardFeeRate[]
   card_receivables          CardReceivable[]
   checks                    EmporioCheck[]
   cash_counts               CashCount[]
@@ -1195,7 +1207,7 @@ model BankAccount {
 
   tenant           Tenant               @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   pix_of           Establishment[]      @relation("EstablishmentPixAccount")
-  card_fee_rules   CardFeeRule[]
+  card_fee_rates   CardFeeRate[]
   card_receivables CardReceivable[]
   checks           EmporioCheck[]
   sale_payments    EmporioSalePayment[]
@@ -1451,12 +1463,19 @@ model EmporioSalePayment {
   installments         Int?
   fee_pct              Decimal?           @db.Decimal(5, 2)
   fee_amount           Decimal?           @db.Decimal(14, 2)
+  /// Q254: a venda congela adquirente, bandeira, taxa fixa e a linha usada.
+  acquirer_id          String?
+  brand                CardBrand?
+  fee_fixed_amount     Decimal?           @db.Decimal(14, 2)
+  fee_rate_id          String?
   created_at           DateTime           @default(now())
 
   tenant            Tenant            @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   sale              EmporioSale       @relation(fields: [sale_id], references: [id], onDelete: Cascade)
   bank_account      BankAccount?      @relation(fields: [bank_account_id], references: [id], onDelete: Restrict)
   financial_payment FinancialPayment? @relation(fields: [financial_payment_id], references: [id], onDelete: SetNull)
+  acquirer          CardAcquirer?     @relation(fields: [acquirer_id], references: [id], onDelete: Restrict)
+  fee_rate          CardFeeRate?      @relation(fields: [fee_rate_id], references: [id], onDelete: Restrict)
   card_receivables  CardReceivable[]
   check             EmporioCheck?
 
@@ -1464,34 +1483,65 @@ model EmporioSalePayment {
   @@index([sale_id])
 }
 
-/// Módulo 39, F3b (Q89): taxa, prazo e conta de destino do cartão, por loja e
-/// forma. A venda copia a taxa para o pagamento; mudar a regra não mexe no
-/// passado.
-model CardFeeRule {
-  id                 String   @id @default(cuid())
+/// Q250: adquirente da conta (Stone, Cielo...). Os parâmetros de comportamento
+/// entram nas entregas 2 e 3, como colunas novas.
+model CardAcquirer {
+  id                 String    @id @default(cuid())
+  tenant_id          String
+  name               String
+  archived_at        DateTime?
+  updated_by_user_id String?
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @updatedAt
+
+  tenant        Tenant               @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  fee_rates     CardFeeRate[]
+  sale_payments EmporioSalePayment[]
+  receivables   CardReceivable[]
+
+  @@unique([tenant_id, name])
+  @@index([tenant_id])
+}
+
+/// Q252: linha da tabela de taxas, por loja, adquirente, bandeira, modalidade,
+/// faixa de parcelas e vigência (substitui a antiga `CardFeeRule`). A venda
+/// copia a taxa; mudar a tabela não mexe no passado (Q254).
+model CardFeeRate {
+  id                 String    @id @default(cuid())
   tenant_id          String
   establishment_id   String
+  acquirer_id        String
+  brand              CardBrand
   kind               CardKind
-  fee_pct            Decimal  @db.Decimal(5, 2)
+  /// Q252: faixa de parcelas (1 a 1 no débito e no crédito à vista).
+  installments_from  Int
+  installments_to    Int
+  fee_pct            Decimal   @db.Decimal(5, 2)
+  /// Q252: R$ por transação, uma vez por pagamento.
+  fee_fixed          Decimal   @default(0) @db.Decimal(14, 2)
   days               Int
   bank_account_id    String
+  /// Q252/Q253: vigência em datas; `valid_to` nulo é vigência aberta.
+  valid_from         DateTime  @db.Date
+  valid_to           DateTime? @db.Date
   updated_by_user_id String?
-  created_at         DateTime @default(now())
-  updated_at         DateTime @updatedAt
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @updatedAt
 
-  tenant        Tenant        @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  establishment Establishment @relation(fields: [establishment_id], references: [id], onDelete: Cascade)
-  bank_account  BankAccount   @relation(fields: [bank_account_id], references: [id], onDelete: Restrict)
+  tenant        Tenant               @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  establishment Establishment        @relation(fields: [establishment_id], references: [id], onDelete: Cascade)
+  acquirer      CardAcquirer         @relation(fields: [acquirer_id], references: [id], onDelete: Restrict)
+  bank_account  BankAccount          @relation(fields: [bank_account_id], references: [id], onDelete: Restrict)
+  sale_payments EmporioSalePayment[]
 
-  @@unique([establishment_id, kind])
-  @@index([tenant_id])
+  @@index([tenant_id, establishment_id, acquirer_id, kind])
 }
 
 /// Módulo 39, F3b (Q90): uma parcela do cartão. Ela É o a receber: enquanto
 /// `expected_on` está no futuro, soma no "a receber do cartão"; de hoje para
 /// trás, soma no saldo da conta. Nada é gravado na data (sem job).
 model CardReceivable {
-  id                    String    @id @default(cuid())
+  id                    String     @id @default(cuid())
   tenant_id             String
   sale_id               String
   sale_payment_id       String
@@ -1499,16 +1549,20 @@ model CardReceivable {
   bank_account_id       String
   installment           Int
   installments          Int
-  gross_amount          Decimal   @db.Decimal(14, 2)
-  net_amount            Decimal   @db.Decimal(14, 2)
-  expected_on           DateTime  @db.Date
+  gross_amount          Decimal    @db.Decimal(14, 2)
+  net_amount            Decimal    @db.Decimal(14, 2)
+  expected_on           DateTime   @db.Date
   canceled_at           DateTime?
   /// Entrega 3: carimbo de conciliação com o extrato (não mexe no saldo).
   reconciled_at         DateTime?
   reconciled_by_user_id String?
-  created_at            DateTime  @default(now())
+  /// Q254: cópia da adquirente e da bandeira da venda, para listar sem join.
+  acquirer_id           String?
+  brand                 CardBrand?
+  created_at            DateTime   @default(now())
 
   tenant         Tenant             @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  acquirer       CardAcquirer?      @relation(fields: [acquirer_id], references: [id], onDelete: Restrict)
   sale           EmporioSale        @relation(fields: [sale_id], references: [id], onDelete: Restrict)
   sale_payment   EmporioSalePayment @relation(fields: [sale_payment_id], references: [id], onDelete: Cascade)
   establishment  Establishment      @relation(fields: [establishment_id], references: [id], onDelete: Restrict)
