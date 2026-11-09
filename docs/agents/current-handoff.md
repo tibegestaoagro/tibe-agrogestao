@@ -25,18 +25,20 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-09 à noite (entrega 1 das taxas de cartão pronta
-  na branch `emporio-taxas-cartao-1`, à espera da revisão do usuário e da
-  autorização de migrar, mesclar e publicar).
-- `main` em `da18941` (igual a `origin/main`), nenhuma migração pendente no
-  Neon. Em produção desde 09/11: frete na venda, origem e-commerce e editar
-  venda (Q244 a Q249; deploy conferido pelo `/docs/api`). Em produção desde
-  08/11: as quatro entregas do financeiro (Q214 a Q243). Evidências em
+- Atualizado em: 2026-11-09 à noite (entrega 1 das taxas de cartão em
+  produção: migração no Neon, merge fast-forward e push autorizados na
+  conversa; deploy conferido: o `/docs/api` lista `card-fee-rates`).
+- `main` em `cfa36dd` (igual a `origin/main`), nenhuma migração pendente no
+  Neon ("Database schema is up to date!"); a carga da migração criou em
+  produção 2 adquirentes "Maquininha" (dois tenants) e 4 linhas "qualquer
+  bandeira". Em produção desde 09/11 também: frete na venda, origem
+  e-commerce e editar venda (Q244 a Q249). Desde 08/11: as quatro entregas do
+  financeiro (Q214 a Q243). Evidências em
   [financeiro-emporio-relatorio.md](financeiro-emporio-relatorio.md). As
-  branches `emporio-financeiro-spec`, `-1` a `-4` e `emporio-frete-ecommerce`
-  estão na `main` e podem ser apagadas.
+  branches `emporio-financeiro-spec`, `-1` a `-4`, `emporio-frete-ecommerce`
+  e `emporio-taxas-cartao-1` estão na `main` e podem ser apagadas.
 
-### Taxas de cartão (Q250 a Q258): entrega 1 pronta, 3 a esboçar
+### Taxas de cartão (Q250 a Q258): entrega 1 em produção, 3 a esboçar
 
 Pedido do usuário em 09/11: a Stone cobra por bandeira (Visa/Master, Elo),
 modalidade e número de parcelas, a taxa muda todo mês, e há antecipação.
@@ -46,7 +48,7 @@ Pesquisa em `reports/Taxas de cartão no Empório.md` (fora do git). Spec
 `docs/superpowers/plans/2026-11-09-emporio-taxas-cartao-1.md`, ledger em
 `.superpowers/sdd/2026-11-09-emporio-taxas-cartao-1/progress.md`.
 
-**Entrega 1, pronta na branch (14 commits sobre `da18941`, HEAD `b2eeaf9`):** `CardFeeRule`
+**Entrega 1, em produção (15 commits sobre `da18941`, mesclados em 09/11):** `CardFeeRule`
 deu lugar a `CardAcquirer` (cadastro da conta) e `CardFeeRate` (por loja,
 adquirente, bandeira, modalidade e faixa de parcelas, com vigência);
 `resolverTaxa` pura compartilhada entre servidor e balcão; a venda congela
@@ -54,8 +56,8 @@ adquirente, bandeira, taxa fixa e a linha usada; tela em Configurações
 ("Cartões: adquirentes e taxas"; o Caixa ficou só com a operação); balcão
 com adquirente e bandeira; detalhe, recibo e a receber mostram os dois.
 Migração `20261109180000_emporio_adquirente_e_taxas_de_cartao` **carrega**
-as regras antigas na adquirente "Maquininha" (renomear para Stone) e **só
-no Docker**. `test:m103` 89, `test:all` 103/103, build e isolamento verdes, roteiro
+as regras antigas na adquirente "Maquininha" (renomear para Stone), aplicada
+no Docker e no Neon. `test:m103` 89, `test:all` 103/103, build e isolamento verdes, roteiro
 `emporio-cartoes` 48 checks nos dois sentidos (sabotado: 3 falhas), roteiro
 `emporio-f3b` ajustado e verde, manual, `/docs/api`, dívidas 2.56 a 2.58
 (2.25 parcial, 2.28 destravada). Revisão Sonnet por onda e da branch.
@@ -73,15 +75,14 @@ Stone. Dependem das respostas do setor da Agromax (relatório da pesquisa).
 
 ### ⏭️ Próximo passo
 
-1. O usuário revisa a entrega 1 (Configurações, balcão) e, se aprovar,
-   autoriza NA CONVERSA: migração no Neon (URL Direct; ela carrega dados),
-   merge fast-forward, push na `main`, conferir `/docs/api` (rota
-   `card-fee-rates`).
-2. Frete (Q244 a Q249): confirmar as três decisões do agente (conta do frete
-   sempre criada; "Editar" só do gestor; herança da venda antiga).
-3. Depois: Q239 a Q243 do financeiro; a Agromax usa a casa do financeiro;
+1. Na Agromax (usuário, pelas telas): renomear "Maquininha" para "Stone" e
+   cadastrar as taxas por bandeira e parcelas com a vigência do mês; confirmar
+   as decisões do agente do cartão e do frete (acima). Responder as perguntas
+   do setor para as entregas 2 a 4 (vigência mensal, fim de semana,
+   antecipação ativa, arquivo da Stone).
+2. Depois: Q239 a Q243 do financeiro; a Agromax usa a casa do financeiro;
    cenário de demonstração na conta de testes nova (pendência do usuário);
-   dívidas 2.36 a 2.58 esperam pedido.
+   dívidas 2.36 a 2.59 esperam pedido.
 
 As pastas `research_notes/` e `reports/` (pesquisa de mercado que embasou a
 spec) são ignoradas pelo git de propósito: o repositório é público.
@@ -190,8 +191,8 @@ relatórios em [agente-whatsapp/](agente-whatsapp/), detalhe em
 
 ## Últimas rodadas
 
-- 09/11 (noite): pesquisa, spec e entrega 1 das taxas de cartão prontas em
-  `emporio-taxas-cartao-1` (Q250 a Q258, m103 89, roteiro 48/0).
+- 09/11 (noite): pesquisa, spec e entrega 1 das taxas de cartão (Q250 a
+  Q258, m103 89, roteiro 48/0) em produção, autorizadas na conversa.
 - 09/11: frete na venda, origem e-commerce e editar venda (Q244 a Q249,
   m102 76, roteiro 47/0) em produção, autorizados na conversa.
 - 08/11: as quatro entregas do financeiro em produção, na ordem 1 a 4
