@@ -38,6 +38,7 @@ export const ACOES_DO_HISTORICO = {
   "producao.cancelar": "Cancelou uma produção",
   "venda.criar": "Registrou uma venda",
   "venda.cancelar": "Cancelou uma venda",
+  "venda.editar": "Editou uma venda",
   "venda.devolver": "Registrou uma devolução",
   "venda.trocar": "Registrou uma troca",
   "venda.pedido_para_entrega": "Mudou o pedido para entrega de uma venda",

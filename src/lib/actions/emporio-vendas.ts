@@ -1111,7 +1111,7 @@ async function gravarVenda(
   ator: Ator,
   p: Preparada,
   turno: TurnoResolvido,
-  extra: { exchange_return_id?: string | null } = {},
+  extra: { exchange_return_id?: string | null; replaces_sale_id?: string | null } = {},
 ): Promise<string> {
   const { movs, custos } = await planejarBaixa(tx, p);
 
@@ -1131,6 +1131,7 @@ async function gravarVenda(
       discount_amount: p.desconto,
       discount_authorized_by_user_id: p.autorizou,
       exchange_return_id: extra.exchange_return_id ?? null,
+      replaces_sale_id: extra.replaces_sale_id ?? null,
       cash_session_id: turno.id,
       notes: p.notes,
       quote_id: p.quote?.id ?? null,
@@ -1460,12 +1461,26 @@ export async function venderAction(
 // Cancelamento total
 // ---------------------------------------------------------------------------
 
-export async function cancelarVendaAction(
+type VendaParaCancelar = {
+  id: string;
+  establishment_id: string;
+  status: string;
+  exchange_return_id: string | null;
+  net_amount: Prisma.Decimal;
+  sold_at: Date;
+  customer_id: string | null;
+  seller_user_id: string | null;
+  quote_id: string | null;
+  establishment: { name: string };
+  _count: { returns: number };
+};
+
+/** As travas de fora da transação do cancelamento, que a edição da venda reaproveita (Q249). */
+async function conferirCancelamento(
   db: TenantPrismaClient,
   ator: Ator,
   id: string,
-  input: { reason: string; cash_register_id?: string | null },
-): Promise<ActionResult<VendaView>> {
+): Promise<ActionResult<VendaParaCancelar>> {
   const neg = await exigir(db, ator, "gestor_da_loja", "cancelar uma venda");
   if (neg) return neg;
   const venda = await db.emporioSale.findFirst({
@@ -1476,6 +1491,10 @@ export async function cancelarVendaAction(
       status: true,
       exchange_return_id: true,
       net_amount: true,
+      sold_at: true,
+      customer_id: true,
+      seller_user_id: true,
+      quote_id: true,
       establishment: { select: { name: true } },
       _count: { select: { returns: true } },
     },
@@ -1487,169 +1506,279 @@ export async function cancelarVendaAction(
   if (venda.exchange_return_id) {
     return fail("SALE_IS_EXCHANGE", "Essa venda é de uma troca: devolva os itens em vez de cancelar.", 409);
   }
-  const motivo = String(input?.reason ?? "").trim();
-  if (!motivo) return fail("VALIDATION_ERROR", "Diga o motivo do cancelamento.", 422, "reason");
   if (venda._count.returns > 0) {
     return fail("SALE_HAS_RETURNS", "Essa venda tem devolução: não dá para cancelar a venda inteira.", 409);
   }
+  return ok(venda);
+}
+
+export async function cancelarVendaAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  id: string,
+  input: { reason: string; cash_register_id?: string | null },
+): Promise<ActionResult<VendaView>> {
+  const conf = await conferirCancelamento(db, ator, id);
+  if (!conf.ok) return conf;
+  const venda = conf.data;
+  const motivo = String(input?.reason ?? "").trim();
+  if (!motivo) return fail("VALIDATION_ERROR", "Diga o motivo do cancelamento.", 422, "reason");
 
   try {
-    await runSerializableTenantTransaction(db, async (tx) => {
-      const agora = new Date();
-      const emAcordo = await tx.financialEntry.findFirst({
-        where: { related_module: "emporio", entry_type: "income", related_id: id, agreement_id: { not: null } },
-        select: { agreement: { select: { created_at: true } } },
-      });
-      if (emAcordo?.agreement) {
-        const quando = emAcordo.agreement.created_at.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
-        throw new AbortarVenda(
-          fail(
-            "VENDA_EM_ACORDO",
-            `Esta venda entrou no acordo de ${quando} com o cliente. Desfaça o acordo antes de cancelar a venda.`,
-            409,
-            "sale_id",
-          ),
-        );
-      }
-      const r = await tx.emporioSale.updateMany({
-        where: { id, status: "concluida" },
-        data: { status: "cancelada", canceled_at: agora, canceled_by_user_id: ator.id, canceled_reason: motivo },
-      });
-      if (r.count === 0) throw new AbortarVenda(fail("SALE_CANCELED", "Essa venda já foi cancelada.", 409));
-      // Entrega 4: o orçamento que ela faturou volta a aberto (a venda guarda o `quote_id`).
-      await tx.emporioQuote.updateMany({ where: { sale_id: id }, data: { sale_id: null } });
-      await registrarNoHistorico(tx, ator, {
-        action: "venda.cancelar",
-        establishment_id: venda.establishment_id,
-        target_type: "venda",
-        target_id: id,
-        summary: `Cancelou a venda de ${dinheiro(decToNum(venda.net_amount) ?? 0)} da ${venda.establishment.name}: ${motivo}`,
-      });
-
-      // As aberturas ficam: a saca foi aberta de verdade.
-      await tx.stockMovement.updateMany({
-        where: { sale_id: id, movement_type: "venda", canceled_at: null },
-        data: { canceled_at: agora, canceled_reason: motivo },
-      });
-
-      // Cheque (Q94): o que ainda está na carteira volta ao cliente; o que já
-      // foi ao banco não se desfaz por aqui.
-      const cheques = await tx.emporioCheck.findMany({ where: { sale_id: id }, select: { id: true, status: true } });
-      if (cheques.some((c) => c.status === "depositado" || c.status === "compensado")) {
-        throw new AbortarVenda(
-          fail(
-            "SALE_HAS_DEPOSITED_CHECK",
-            "Essa venda tem cheque já depositado ou compensado: não dá para cancelar.",
-            409,
-          ),
-        );
-      }
-      await tx.emporioCheck.updateMany({
-        where: { sale_id: id, status: "recebido" },
-        data: { status: "devolvido_ao_cliente", updated_by_user_id: ator.id },
-      });
-
-      // Cartão (Q94): a parcela futura some; a que já caiu sai da conta. A que
-      // caiu continua não cancelada, e o estorno a compensa no saldo.
-      const hoje = hojeEmBrasilia(agora);
-      const parcelas = await tx.cardReceivable.findMany({ where: { sale_id: id, canceled_at: null } });
-      for (const parcela of parcelas) {
-        if (parcela.expected_on.getTime() > hoje.getTime()) {
-          await tx.cardReceivable.update({ where: { id: parcela.id }, data: { canceled_at: agora } });
-          continue;
-        }
-        await tx.cashMovement.create({
-          data: scoped({
-            establishment_id: null,
-            bank_account_id: parcela.bank_account_id,
-            direction: "saida" as const,
-            amount: decToNum(parcela.net_amount) ?? 0,
-            origin: "estorno_cartao" as const,
-            occurred_at: agora,
-            sale_id: id,
-            card_receivable_id: parcela.id,
-            notes: motivo,
-            created_by_user_id: ator.id,
-          }),
-        });
-      }
-      await tx.financialEntry.updateMany({
-        where: { related_module: "emporio", entry_type: "expense", category: CATEGORIA_TAXAS_CARTAO, related_id: id },
-        data: { status: "cancelled" },
-      });
-      // Frete (Q244): a conta a pagar sem pagamento some; a paga fica. Em aprovação, recusa antes de escrever.
-      const contasDoFrete = await tx.financialEntry.findMany({
-        where: { related_module: "emporio", entry_type: "expense", category: CATEGORIA_FRETE, related_id: id, status: "pending" },
-        select: { id: true },
-      });
-      if (contasDoFrete.length > 0 && (await contaEmAprovacao(tx, contasDoFrete.map((c) => c.id)))) {
-        throw new AbortarVenda(fail("CONTA_EM_APROVACAO", EM_APROVACAO, 409, "sale_id"));
-      }
-      await tx.financialEntry.updateMany({
-        where: { id: { in: contasDoFrete.map((c) => c.id) } },
-        data: { status: "cancelled" },
-      });
-      // F4a (Q99): o "Vendeu, Pagou" não pago some com a venda; o pago fica.
-      const vp = await cancelarVendeuPagou(tx, id, agora, motivo);
-      if (!vp.ok) throw new AbortarVenda(vp);
-
-      const lancamento = await tx.financialEntry.findFirst({
-        where: { related_module: "emporio", entry_type: "income", related_id: id },
-        select: { id: true },
-      });
-      if (!lancamento) return;
-      await tx.financialEntry.update({ where: { id: lancamento.id }, data: { status: "cancelled" } });
-
-      // Só o pagamento que pôs dinheiro na gaveta ou na conta tem saída a
-      // fazer: cartão e cheque não geraram movimento de entrada. A saída da
-      // gaveta cai no turno aberto agora na loja em que o dinheiro entrou, não
-      // no caixa de origem (aquele turno pode já ter encerrado). O fiado pode ter
-      // sido recebido em outra loja: o turno é resolvido por loja, e o caixa
-      // pedido só vale na loja dele.
-      const pagamentos = await tx.financialPayment.findMany({ where: { entry_id: lancamento.id }, select: { id: true } });
-      const pedido = pedidoDeCaixa(input?.cash_register_id);
-      const lojaDoPedido = pedido
-        ? ((await tx.cashRegister.findFirst({ where: { id: pedido }, select: { establishment_id: true } }))?.establishment_id ?? null)
-        : null;
-      const turnos = new Map<string, TurnoResolvido>();
-      const turnoDaLoja = async (lojaId: string): Promise<TurnoResolvido> => {
-        const ja = turnos.get(lojaId);
-        if (ja) return ja;
-        // Caixa pedido que não é de nenhuma loja daqui: vai como pedido, e o resolverTurno recusa.
-        const t = await turnoOuAborta(tx, ator, lojaId, lojaDoPedido === lojaId || !lojaDoPedido ? pedido : null);
-        turnos.set(lojaId, t);
-        return t;
-      };
-      for (const fp of pagamentos) {
-        const entrada = await tx.cashMovement.findFirst({
-          where: { financial_payment_id: fp.id, direction: "entrada", origin: { in: ["venda", "recebimento_fiado"] } },
-        });
-        if (!entrada) continue;
-        const gaveta = entrada.establishment_id ? await turnoDaLoja(entrada.establishment_id) : null;
-        await tx.cashMovement.create({
-          data: scoped({
-            establishment_id: entrada.establishment_id,
-            cash_register_id: gaveta?.cash_register_id ?? null,
-            cash_session_id: gaveta?.id ?? null,
-            bank_account_id: entrada.bank_account_id,
-            direction: "saida" as const,
-            amount: decToNum(entrada.amount) ?? 0,
-            origin: "cancelamento_venda" as const,
-            occurred_at: agora,
-            sale_id: id,
-            financial_payment_id: fp.id,
-            notes: motivo,
-            created_by_user_id: ator.id,
-          }),
-        });
-      }
-    });
+    await runSerializableTenantTransaction(db, (tx) => cancelarNaTransacao(tx, ator, venda, motivo, input?.cash_register_id));
   } catch (err) {
     if (err instanceof AbortarVenda) return err.recusa;
     throw err;
   }
   const v = await vendaPorId(db, id);
   return v ? ok(v) : NAO_ACHADO("Venda");
+}
+
+/** O corpo da transação do cancelamento: a edição o roda antes de gravar a venda nova. */
+async function cancelarNaTransacao(
+  tx: Tx,
+  ator: Ator,
+  venda: VendaParaCancelar,
+  motivo: string,
+  cash_register_id: string | null | undefined,
+): Promise<void> {
+  const id = venda.id;
+  const agora = new Date();
+  const emAcordo = await tx.financialEntry.findFirst({
+    where: { related_module: "emporio", entry_type: "income", related_id: id, agreement_id: { not: null } },
+    select: { agreement: { select: { created_at: true } } },
+  });
+  if (emAcordo?.agreement) {
+    const quando = emAcordo.agreement.created_at.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
+    throw new AbortarVenda(
+      fail(
+        "VENDA_EM_ACORDO",
+        `Esta venda entrou no acordo de ${quando} com o cliente. Desfaça o acordo antes de cancelar a venda.`,
+        409,
+        "sale_id",
+      ),
+    );
+  }
+  const r = await tx.emporioSale.updateMany({
+    where: { id, status: "concluida" },
+    data: { status: "cancelada", canceled_at: agora, canceled_by_user_id: ator.id, canceled_reason: motivo },
+  });
+  if (r.count === 0) throw new AbortarVenda(fail("SALE_CANCELED", "Essa venda já foi cancelada.", 409));
+  // Entrega 4: o orçamento que ela faturou volta a aberto (a venda guarda o `quote_id`).
+  await tx.emporioQuote.updateMany({ where: { sale_id: id }, data: { sale_id: null } });
+  await registrarNoHistorico(tx, ator, {
+    action: "venda.cancelar",
+    establishment_id: venda.establishment_id,
+    target_type: "venda",
+    target_id: id,
+    summary: `Cancelou a venda de ${dinheiro(decToNum(venda.net_amount) ?? 0)} da ${venda.establishment.name}: ${motivo}`,
+  });
+
+  // As aberturas ficam: a saca foi aberta de verdade.
+  await tx.stockMovement.updateMany({
+    where: { sale_id: id, movement_type: "venda", canceled_at: null },
+    data: { canceled_at: agora, canceled_reason: motivo },
+  });
+
+  // Cheque (Q94): o que ainda está na carteira volta ao cliente; o que já
+  // foi ao banco não se desfaz por aqui.
+  const cheques = await tx.emporioCheck.findMany({ where: { sale_id: id }, select: { id: true, status: true } });
+  if (cheques.some((c) => c.status === "depositado" || c.status === "compensado")) {
+    throw new AbortarVenda(
+      fail(
+        "SALE_HAS_DEPOSITED_CHECK",
+        "Essa venda tem cheque já depositado ou compensado: não dá para cancelar.",
+        409,
+      ),
+    );
+  }
+  await tx.emporioCheck.updateMany({
+    where: { sale_id: id, status: "recebido" },
+    data: { status: "devolvido_ao_cliente", updated_by_user_id: ator.id },
+  });
+
+  // Cartão (Q94): a parcela futura some; a que já caiu sai da conta. A que
+  // caiu continua não cancelada, e o estorno a compensa no saldo.
+  const hoje = hojeEmBrasilia(agora);
+  const parcelas = await tx.cardReceivable.findMany({ where: { sale_id: id, canceled_at: null } });
+  for (const parcela of parcelas) {
+    if (parcela.expected_on.getTime() > hoje.getTime()) {
+      await tx.cardReceivable.update({ where: { id: parcela.id }, data: { canceled_at: agora } });
+      continue;
+    }
+    await tx.cashMovement.create({
+      data: scoped({
+        establishment_id: null,
+        bank_account_id: parcela.bank_account_id,
+        direction: "saida" as const,
+        amount: decToNum(parcela.net_amount) ?? 0,
+        origin: "estorno_cartao" as const,
+        occurred_at: agora,
+        sale_id: id,
+        card_receivable_id: parcela.id,
+        notes: motivo,
+        created_by_user_id: ator.id,
+      }),
+    });
+  }
+  await tx.financialEntry.updateMany({
+    where: { related_module: "emporio", entry_type: "expense", category: CATEGORIA_TAXAS_CARTAO, related_id: id },
+    data: { status: "cancelled" },
+  });
+  // Frete (Q244): a conta a pagar sem pagamento some; a paga fica. Em aprovação, recusa antes de escrever.
+  const contasDoFrete = await tx.financialEntry.findMany({
+    where: { related_module: "emporio", entry_type: "expense", category: CATEGORIA_FRETE, related_id: id, status: "pending" },
+    select: { id: true },
+  });
+  if (contasDoFrete.length > 0 && (await contaEmAprovacao(tx, contasDoFrete.map((c) => c.id)))) {
+    throw new AbortarVenda(fail("CONTA_EM_APROVACAO", EM_APROVACAO, 409, "sale_id"));
+  }
+  await tx.financialEntry.updateMany({
+    where: { id: { in: contasDoFrete.map((c) => c.id) } },
+    data: { status: "cancelled" },
+  });
+  // F4a (Q99): o "Vendeu, Pagou" não pago some com a venda; o pago fica.
+  const vp = await cancelarVendeuPagou(tx, id, agora, motivo);
+  if (!vp.ok) throw new AbortarVenda(vp);
+
+  const lancamento = await tx.financialEntry.findFirst({
+    where: { related_module: "emporio", entry_type: "income", related_id: id },
+    select: { id: true },
+  });
+  if (!lancamento) return;
+  await tx.financialEntry.update({ where: { id: lancamento.id }, data: { status: "cancelled" } });
+
+  // Só o pagamento que pôs dinheiro na gaveta ou na conta tem saída a
+  // fazer: cartão e cheque não geraram movimento de entrada. A saída da
+  // gaveta cai no turno aberto agora na loja em que o dinheiro entrou, não
+  // no caixa de origem (aquele turno pode já ter encerrado). O fiado pode ter
+  // sido recebido em outra loja: o turno é resolvido por loja, e o caixa
+  // pedido só vale na loja dele.
+  const pagamentos = await tx.financialPayment.findMany({ where: { entry_id: lancamento.id }, select: { id: true } });
+  const pedido = pedidoDeCaixa(cash_register_id);
+  const lojaDoPedido = pedido
+    ? ((await tx.cashRegister.findFirst({ where: { id: pedido }, select: { establishment_id: true } }))?.establishment_id ?? null)
+    : null;
+  const turnos = new Map<string, TurnoResolvido>();
+  const turnoDaLoja = async (lojaId: string): Promise<TurnoResolvido> => {
+    const ja = turnos.get(lojaId);
+    if (ja) return ja;
+    // Caixa pedido que não é de nenhuma loja daqui: vai como pedido, e o resolverTurno recusa.
+    const t = await turnoOuAborta(tx, ator, lojaId, lojaDoPedido === lojaId || !lojaDoPedido ? pedido : null);
+    turnos.set(lojaId, t);
+    return t;
+  };
+  for (const fp of pagamentos) {
+    const entrada = await tx.cashMovement.findFirst({
+      where: { financial_payment_id: fp.id, direction: "entrada", origin: { in: ["venda", "recebimento_fiado"] } },
+    });
+    if (!entrada) continue;
+    const gaveta = entrada.establishment_id ? await turnoDaLoja(entrada.establishment_id) : null;
+    await tx.cashMovement.create({
+      data: scoped({
+        establishment_id: entrada.establishment_id,
+        cash_register_id: gaveta?.cash_register_id ?? null,
+        cash_session_id: gaveta?.id ?? null,
+        bank_account_id: entrada.bank_account_id,
+        direction: "saida" as const,
+        amount: decToNum(entrada.amount) ?? 0,
+        origin: "cancelamento_venda" as const,
+        occurred_at: agora,
+        sale_id: id,
+        financial_payment_id: fp.id,
+        notes: motivo,
+        created_by_user_id: ator.id,
+      }),
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Editar a venda (Q249): cancela a antiga e registra a nova, numa transação só
+// ---------------------------------------------------------------------------
+
+export type EditarVendaInput = Omit<VenderInput, "establishment_id"> & { reason?: string | null };
+
+/**
+ * Não há edição no lugar: a venda antiga é cancelada (estoque, caixa, financeiro
+ * e "Vendeu, Pagou" voltam como no cancelamento) e a nova nasce com
+ * `replaces_sale_id`. Se qualquer passo recusa, nada muda: a antiga segue
+ * concluída. A loja é a da venda antiga; data, vendedor e orçamento herdam dela
+ * quando o corpo não os traz.
+ */
+export async function editarVendaAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  id: string,
+  input: EditarVendaInput,
+): Promise<ActionResult<VendaView & { replayed: boolean }>> {
+  const neg = await exigir(db, ator, "gestor_da_loja", "editar uma venda");
+  if (neg) return neg;
+  const chave = String(input?.operation_key ?? "").trim();
+  if (!chave) return fail("VALIDATION_ERROR", "Falta a chave da operação.", 422, "operation_key");
+
+  const repetida = await db.emporioSale.findFirst({ where: { operation_key: chave }, select: { id: true } });
+  if (repetida) {
+    const v = await vendaPorId(db, repetida.id);
+    if (v && (await lojaVisivel(db, ator, v.establishment_id))) return ok({ ...v, replayed: true });
+    return NAO_ACHADO("Venda");
+  }
+
+  const conf = await conferirCancelamento(db, ator, id);
+  if (!conf.ok) return conf;
+  const antiga = conf.data;
+
+  const prep = await prepararVenda(db, ator, {
+    ...input,
+    operation_key: chave,
+    establishment_id: antiga.establishment_id,
+    customer_id: input.customer_id ?? antiga.customer_id,
+    sold_at: input.sold_at ?? antiga.sold_at,
+    seller_user_id: input.seller_user_id ?? antiga.seller_user_id,
+    quote_id: input.quote_id ?? antiga.quote_id,
+  });
+  if (!prep.ok) return prep;
+  const motivo = String(input.reason ?? "").trim();
+
+  try {
+    const novaId = await runSerializableTenantTransaction(db, async (tx) => {
+      // A antiga primeiro: o estoque dela volta antes de a nova planejar a baixa.
+      await cancelarNaTransacao(tx, ator, antiga, "Substituída pela venda nº (em edição)", input.cash_register_id);
+      const turno = await turnoOuAborta(tx, ator, prep.data.loja.id, prep.data.cash_register_id);
+      const nova = await gravarVenda(tx, ator, prep.data, turno, { replaces_sale_id: id });
+      const numero = await tx.emporioSale.findFirst({ where: { id: nova }, select: { number: true } });
+      const rotulo = formatarNumero(numero?.number ?? 0);
+      await tx.emporioSale.update({
+        where: { id },
+        data: { canceled_reason: `Substituída pela venda nº ${rotulo}${motivo ? `: ${motivo}` : ""}` },
+      });
+      await registrarNoHistorico(tx, ator, {
+        action: "venda.editar",
+        establishment_id: prep.data.loja.id,
+        target_type: "venda",
+        target_id: nova,
+        summary: `Substituiu a venda nº ${formatarNumero(await numeroDaVenda(tx, id))} pela nº ${rotulo} na ${prep.data.loja.name} (${frasItens(
+          prep.data.itens.length,
+        )}, total ${dinheiro(prep.data.net + prep.data.frete)})${motivo ? `: ${motivo}` : ""}`,
+      });
+      return nova;
+    });
+    const v = await vendaPorId(db, novaId);
+    return v ? ok({ ...v, replayed: false }) : NAO_ACHADO("Venda");
+  } catch (err) {
+    // A mesma chave em paralelo: a outra gravou enquanto esta corria.
+    if (err instanceof AbortarVenda || ehErroUnico(err)) {
+      const igual = await db.emporioSale.findFirst({ where: { operation_key: chave }, select: { id: true } });
+      const v = igual ? await vendaPorId(db, igual.id) : null;
+      if (v) return (await lojaVisivel(db, ator, v.establishment_id)) ? ok({ ...v, replayed: true }) : NAO_ACHADO("Venda");
+      if (err instanceof AbortarVenda) return err.recusa;
+    }
+    throw err;
+  }
+}
+
+async function numeroDaVenda(tx: Tx, id: string): Promise<number> {
+  return (await tx.emporioSale.findFirst({ where: { id }, select: { number: true } }))?.number ?? 0;
 }
 
 // ---------------------------------------------------------------------------
