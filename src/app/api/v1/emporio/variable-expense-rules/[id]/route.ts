@@ -14,6 +14,7 @@ const schema = z.object({
   payment_kind: z.string().nullish(),
   emporio_product_id: z.string().nullish(),
   presentation_id: z.string().nullish(),
+  presentation_name: z.string({ error: "Informe o nome da apresentação." }).nullish(),
   packaging_emporio_product_id: z.string().nullish(),
   archived: z.boolean({ error: "Informe se a regra fica arquivada." }).optional(),
 });

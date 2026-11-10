@@ -1782,6 +1782,7 @@ async function gravarVenda(
     itens: p.itens.map((i) => ({
       emporio_product_id: i.produto.id,
       presentation_id: i.apresentacao.id,
+      presentation_name: i.apresentacao.name,
       quantity: i.quantity,
       total: i.total,
     })),

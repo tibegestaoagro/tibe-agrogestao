@@ -91,6 +91,7 @@
     "test:m108": "tsx scripts/m108-emporio-boleto-e-titular.test.ts",
     "test:m109": "tsx scripts/m109-emporio-orcamento-editar-cancelar.test.ts",
     "test:m110": "tsx scripts/m110-emporio-peso-total.test.ts",
+    "test:m111": "tsx scripts/m111-emporio-regra-por-apresentacao.test.ts",
     "test:isolation": "tsx scripts/tenant-isolation.test.ts",
     "test:docs-api": "tsx scripts/docs-api-completeness.test.ts",
     "test:nav": "tsx scripts/nav-build.test.ts",

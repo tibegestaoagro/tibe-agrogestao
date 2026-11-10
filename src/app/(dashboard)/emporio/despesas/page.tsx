@@ -13,6 +13,7 @@ import {
 } from "@/lib/actions/emporio-despesas";
 import { mesAtualEmBrasilia, textoDoMes } from "@/lib/emporio/mes";
 import { ehCriterioAutomatico } from "@/lib/emporio/rateio";
+import { normalizar } from "@/lib/emporio/vendeu-pagou";
 import { reaisBr } from "@/lib/numero-br";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -77,6 +78,25 @@ export default async function DespesasPage() {
 
   const todosProdutos = produtosDb.map((p) => ({ id: p.id, name: p.product.name, presentations: p.presentations, arquivado: !!p.archived_at }));
   const produtosAtivos = todosProdutos.filter((p) => !p.arquivado).map(({ arquivado: _a, ...p }) => p);
+  // Q292: os nomes de apresentação distintos (sem caixa, acento e espaço), com em quantos produtos aparecem.
+  const grupos = new Map<string, { grafias: Map<string, number>; produtos: Set<string> }>();
+  for (const p of produtosAtivos) {
+    for (const a of p.presentations) {
+      const chave = normalizar(a.name);
+      if (!chave) continue;
+      const g = grupos.get(chave) ?? { grafias: new Map<string, number>(), produtos: new Set<string>() };
+      const grafia = a.name.trim();
+      g.grafias.set(grafia, (g.grafias.get(grafia) ?? 0) + 1);
+      g.produtos.add(p.id);
+      grupos.set(chave, g);
+    }
+  }
+  const nomesDeApresentacao = [...grupos.values()]
+    .map((g) => ({
+      nome: [...g.grafias.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "pt-BR"))[0][0],
+      produtos: g.produtos.size,
+    }))
+    .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
   const nomeDoProduto = new Map(todosProdutos.map((p) => [p.id, p.name]));
   const nomeDaApresentacao = new Map(todosProdutos.flatMap((p) => p.presentations.map((a) => [a.id, a.name] as const)));
 
@@ -96,6 +116,7 @@ export default async function DespesasPage() {
     if (r.payment_kind) partes.push(`pagando em ${(FORMA_ROTULO[r.payment_kind] ?? r.payment_kind).toLowerCase()}`);
     if (r.emporio_product_id) partes.push(`produto ${nomeDoProduto.get(r.emporio_product_id) ?? "?"}`);
     if (r.presentation_id) partes.push(`apresentação ${nomeDaApresentacao.get(r.presentation_id) ?? "?"}`);
+    if (r.presentation_name) partes.push(`Apresentação ${r.presentation_name} (qualquer produto)`);
     return partes.length === 0 ? "Vale para toda venda da loja" : `Só ${partes.join(", ")}`;
   }
 
@@ -237,7 +258,7 @@ export default async function DespesasPage() {
       <section className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-lg font-semibold text-texto">Vendeu, Pagou</h2>
-          {lojas.length > 0 && <RegraVariavelForm lojas={lojas} produtos={produtosAtivos} />}
+          {lojas.length > 0 && <RegraVariavelForm lojas={lojas} produtos={produtosAtivos} nomesDeApresentacao={nomesDeApresentacao} />}
         </div>
         <p className="text-sm text-texto-secundario">
           O que sai de cada venda: comissão, entrega, sacola. A taxa de cartão já entra sozinha, pela taxa cadastrada no
@@ -271,7 +292,7 @@ export default async function DespesasPage() {
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-wrap gap-2">
-                      <RegraVariavelForm lojas={lojas} produtos={produtosAtivos} regra={r} />
+                      <RegraVariavelForm lojas={lojas} produtos={produtosAtivos} nomesDeApresentacao={nomesDeApresentacao} regra={r} />
                       <RegraVariavelArquivar regraId={r.id} nome={r.name} />
                     </div>
                   </TableCell>

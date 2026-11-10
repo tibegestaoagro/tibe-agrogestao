@@ -31,10 +31,13 @@ const ORDEM = [
   "payment_kind",
   "emporio_product_id",
   "presentation_id",
+  "presentation_name",
 ] as const;
 type Campo = (typeof ORDEM)[number];
 
 const QUALQUER = "__qualquer__";
+/** O valor do Select para um nome de apresentação (os ids de apresentação não começam assim). */
+const PREFIXO_NOME = "nome:";
 const FORMAS = ["dinheiro", "pix", "debito", "credito_vista", "credito_parcelado", "cheque", "fiado"] as const;
 
 export type RegraParaEditar = {
@@ -46,8 +49,12 @@ export type RegraParaEditar = {
   payment_kind: string | null;
   emporio_product_id: string | null;
   presentation_id: string | null;
+  presentation_name: string | null;
   packaging_emporio_product_id: string | null;
 };
+
+/** Um nome de apresentação e em quantos produtos ele existe (Q292). */
+export type NomeDeApresentacao = { nome: string; produtos: number };
 
 export type ProdutoDaRegra = {
   id: string;
@@ -64,10 +71,12 @@ export type ProdutoDaRegra = {
 export function RegraVariavelForm({
   lojas,
   produtos,
+  nomesDeApresentacao,
   regra,
 }: {
   lojas: { id: string; name: string }[];
   produtos: ProdutoDaRegra[];
+  nomesDeApresentacao: NomeDeApresentacao[];
   regra?: RegraParaEditar;
 }) {
   const router = useRouter();
@@ -83,13 +92,20 @@ export function RegraVariavelForm({
     valor: regra ? paraCampo(regra.value) : "",
     forma: regra?.payment_kind ?? QUALQUER,
     produto: regra?.emporio_product_id ?? QUALQUER,
-    apresentacao: regra?.presentation_id ?? QUALQUER,
+    apresentacao: regra?.presentation_name ? `${PREFIXO_NOME}${regra.presentation_name}` : (regra?.presentation_id ?? QUALQUER),
     embalagem: regra?.packaging_emporio_product_id ?? "",
   });
   const [f, setF] = useState(inicial);
   const set = (parcial: Partial<ReturnType<typeof inicial>>) => setF((a) => ({ ...a, ...parcial }));
 
   const apresentacoes = produtos.find((p) => p.id === f.produto)?.presentations ?? [];
+  const qualquerProduto = f.produto === QUALQUER;
+  // O nome já salvo na regra continua escolhível mesmo que nenhum produto ativo o tenha mais.
+  const nomeSalvo = regra?.presentation_name;
+  const nomes =
+    nomeSalvo && !nomesDeApresentacao.some((n) => n.nome === nomeSalvo)
+      ? [...nomesDeApresentacao, { nome: nomeSalvo, produtos: 0 }]
+      : nomesDeApresentacao;
   const ehEmbalagem = f.tipo === "embalagem";
   const ehPct = f.tipo === "percentual";
 
@@ -117,7 +133,10 @@ export function RegraVariavelForm({
       value: valor,
       payment_kind: f.forma === QUALQUER ? null : f.forma,
       emporio_product_id: f.produto === QUALQUER ? null : f.produto,
-      presentation_id: f.produto === QUALQUER || f.apresentacao === QUALQUER ? null : f.apresentacao,
+      presentation_id:
+        qualquerProduto || f.apresentacao === QUALQUER || f.apresentacao.startsWith(PREFIXO_NOME) ? null : f.apresentacao,
+      presentation_name:
+        qualquerProduto && f.apresentacao.startsWith(PREFIXO_NOME) ? f.apresentacao.slice(PREFIXO_NOME.length) : null,
       packaging_emporio_product_id: ehEmbalagem ? f.embalagem : null,
     };
     const res = regra
@@ -315,6 +334,7 @@ export function RegraVariavelForm({
               set({ produto: v, apresentacao: QUALQUER });
               err.limparCampo("emporio_product_id");
               err.limparCampo("presentation_id");
+              err.limparCampo("presentation_name");
             }}
           >
             <SelectTrigger id={id} {...aria}>
@@ -335,11 +355,11 @@ export function RegraVariavelForm({
       {/* Sempre visível: escondida até escolher o produto, a Agromax não a achava (10/11/2026). */}
       <Field
         label="Apresentação"
-        id={err.idDe("presentation_id")}
-        error={err.erros.presentation_id}
+        id={qualquerProduto ? err.idDe("presentation_name") : err.idDe("presentation_id")}
+        error={qualquerProduto ? err.erros.presentation_name : err.erros.presentation_id}
         hint={
-          f.produto === QUALQUER
-            ? "Escolha o produto vendido para filtrar por apresentação."
+          qualquerProduto
+            ? "Escolha um nome para valer em todo produto com essa apresentação."
             : apresentacoes.length === 0
               ? "Este produto não tem apresentações cadastradas: a regra vale para toda venda dele. Para separar por apresentação, cadastre-as no produto."
               : undefined
@@ -349,11 +369,12 @@ export function RegraVariavelForm({
             <Select
               // Sem apresentação cadastrada (vendido direto na unidade-base), a lista só teria "Qualquer"
               // e parecia defeito à Agromax (BRAQUIARÃO /PONTOS, 10/11/2026).
-              disabled={f.produto === QUALQUER || apresentacoes.length === 0}
+              disabled={!qualquerProduto && apresentacoes.length === 0}
               value={f.apresentacao}
               onValueChange={(v) => {
                 set({ apresentacao: v });
                 err.limparCampo("presentation_id");
+                err.limparCampo("presentation_name");
               }}
             >
               <SelectTrigger id={id} {...aria}>
@@ -361,11 +382,17 @@ export function RegraVariavelForm({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={QUALQUER}>Qualquer apresentação</SelectItem>
-                {apresentacoes.map((a) => (
-                  <SelectItem key={a.id} value={a.id}>
-                    {a.name}
-                  </SelectItem>
-                ))}
+                {qualquerProduto
+                  ? nomes.map((n) => (
+                      <SelectItem key={n.nome} value={`${PREFIXO_NOME}${n.nome}`}>
+                        {n.produtos === 0 ? n.nome : `${n.nome} (${n.produtos} ${n.produtos === 1 ? "produto" : "produtos"})`}
+                      </SelectItem>
+                    ))
+                  : apresentacoes.map((a) => (
+                      <SelectItem key={a.id} value={a.id}>
+                        {a.name}
+                      </SelectItem>
+                    ))}
               </SelectContent>
             </Select>
           )}

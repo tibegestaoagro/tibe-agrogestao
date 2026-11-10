@@ -105,6 +105,8 @@ export type RegraVariavelView = {
   payment_kind: FormaDaRegra | null;
   emporio_product_id: string | null;
   presentation_id: string | null;
+  /** Q292: o nome da apresentação, em qualquer produto. Exclusivo com `presentation_id`. */
+  presentation_name: string | null;
   packaging_emporio_product_id: string | null;
   archived_at: string | null;
   created_at: string;
@@ -125,6 +127,7 @@ function viewDaRegra(r: RegraRow): RegraVariavelView {
     payment_kind: r.payment_kind as FormaDaRegra | null,
     emporio_product_id: r.emporio_product_id,
     presentation_id: r.presentation_id,
+    presentation_name: r.presentation_name,
     packaging_emporio_product_id: r.packaging_emporio_product_id,
     archived_at: isoOrNull(r.archived_at),
     created_at: r.created_at.toISOString(),
@@ -138,6 +141,7 @@ type RegraDados = {
   payment_kind: FormaDaRegra | null;
   emporio_product_id: string | null;
   presentation_id: string | null;
+  presentation_name: string | null;
   packaging_emporio_product_id: string | null;
 };
 
@@ -187,6 +191,19 @@ async function validarRegra(db: TenantPrismaClient, raw: Record<string, unknown>
     }
   }
 
+  const nomeDaApresentacao = texto(raw.presentation_name) || null;
+  if (nomeDaApresentacao) {
+    if (nomeDaApresentacao.length > 120) {
+      return fail("VALIDATION_ERROR", "O nome da apresentação deve ter até 120 caracteres.", 422, "presentation_name");
+    }
+    if (produtoId) {
+      return fail("VALIDATION_ERROR", "O nome da apresentação vale para qualquer produto: tire o produto da regra ou escolha a apresentação dele.", 422, "presentation_name");
+    }
+    if (apresentacaoId) {
+      return fail("VALIDATION_ERROR", "Escolha o nome da apresentação ou uma apresentação do produto, não os dois.", 422, "presentation_name");
+    }
+  }
+
   const embalagemId = idOuNulo(raw.packaging_emporio_product_id);
   if (tipo === "embalagem") {
     if (!embalagemId) {
@@ -207,6 +224,7 @@ async function validarRegra(db: TenantPrismaClient, raw: Record<string, unknown>
     payment_kind: forma,
     emporio_product_id: produtoId,
     presentation_id: apresentacaoId,
+    presentation_name: nomeDaApresentacao,
     packaging_emporio_product_id: tipo === "embalagem" ? embalagemId : null,
   });
 }
@@ -247,6 +265,7 @@ const ROTULOS_REGRA: Record<string, string> = {
   kind: "Tipo",
   value: "Valor",
   payment_kind: "Forma de pagamento",
+  presentation_name: "Apresentação (nome)",
   arquivada: "Arquivada",
 };
 
@@ -255,12 +274,14 @@ const camposDaRegraNoHistorico = (r: {
   kind: string;
   value: unknown;
   payment_kind: string | null;
+  presentation_name: string | null;
   archived_at: Date | null;
 }) => ({
   name: r.name,
   kind: r.kind,
   value: decToNum(r.value),
   payment_kind: r.payment_kind,
+  presentation_name: r.presentation_name,
   arquivada: r.archived_at !== null,
 });
 
@@ -272,6 +293,7 @@ export type CriarRegraInput = {
   payment_kind?: string | null;
   emporio_product_id?: string | null;
   presentation_id?: string | null;
+  presentation_name?: string | null;
   packaging_emporio_product_id?: string | null;
 };
 
@@ -318,7 +340,7 @@ export async function editarRegraVariavelAction(
   if (!atual || !(await lojaVisivel(db, ator, atual.establishment_id))) return NAO_ACHADO("Regra");
 
   const p = (patch ?? {}) as Record<string, unknown>;
-  const camposDaRegra = ["name", "kind", "value", "payment_kind", "emporio_product_id", "presentation_id", "packaging_emporio_product_id"];
+  const camposDaRegra = ["name", "kind", "value", "payment_kind", "emporio_product_id", "presentation_id", "presentation_name", "packaging_emporio_product_id"];
   const mexeNaRegra = camposDaRegra.some((c) => p[c] !== undefined);
   if (!mexeNaRegra && p.archived === undefined) {
     return fail("VALIDATION_ERROR", "Nada para alterar.", 422, "name");
@@ -339,9 +361,15 @@ export async function editarRegraVariavelAction(
       payment_kind: atual.payment_kind,
       emporio_product_id: atual.emporio_product_id,
       presentation_id: atual.presentation_id,
+      presentation_name: atual.presentation_name,
       packaging_emporio_product_id: atual.packaging_emporio_product_id,
     };
     for (const c of camposDaRegra) if (p[c] !== undefined) mesclado[c] = p[c];
+    // O nome e a apresentação do produto se excluem: quem manda um, sem falar do outro, troca o que estava salvo.
+    if (p.presentation_name === undefined && (idOuNulo(p.emporio_product_id) || idOuNulo(p.presentation_id))) {
+      mesclado.presentation_name = null;
+    }
+    if (p.presentation_id === undefined && texto(p.presentation_name)) mesclado.presentation_id = null;
     const v = await validarRegra(db, mesclado);
     if (!v.ok) return v;
     dados = v.data;

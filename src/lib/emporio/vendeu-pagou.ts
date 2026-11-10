@@ -30,6 +30,15 @@ const arred3 = (n: number) => Math.round(Number((n * 1000).toPrecision(14))) / 1
 const arred4 = (n: number) => Math.round(n * 10000) / 10000;
 const centavos = (n: number) => Math.round(Number((n * 100).toPrecision(12)));
 
+/** Q292: o nome da apresentação para comparar: sem espaço nas pontas, maiúscula nem acento ("Franquia " = "FRANQUIA"). */
+export function normalizar(nome: string | null | undefined): string {
+  return (nome ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "");
+}
+
 export type VendaParaRegras = {
   sale_id: string;
   establishment_id: string;
@@ -37,7 +46,7 @@ export type VendaParaRegras = {
   net: number;
   /** Frete cobrado do cliente: entra na conta de quanto de cada forma foi paga, nunca na base da regra. */
   frete?: number;
-  itens: { emporio_product_id: string; presentation_id: string; quantity: number; total: number }[];
+  itens: { emporio_product_id: string; presentation_id: string; presentation_name: string; quantity: number; total: number }[];
   /** Forma e valor de cada parte paga (a troca inclusive). */
   pagamentos: { kind: string; amount: number }[];
 };
@@ -57,11 +66,13 @@ export async function gravarVendeuPagou(tx: Tx, ator: { id: string }, v: VendaPa
     const valor = decToNum(regra.value) ?? 0;
 
     // Condições de produto e apresentação filtram os itens.
-    const temCondicaoDeItem = !!regra.emporio_product_id || !!regra.presentation_id;
+    const nomeDaRegra = normalizar(regra.presentation_name);
+    const temCondicaoDeItem = !!regra.emporio_product_id || !!regra.presentation_id || !!nomeDaRegra;
     const casam = v.itens.filter(
       (i) =>
         (!regra.emporio_product_id || i.emporio_product_id === regra.emporio_product_id) &&
-        (!regra.presentation_id || i.presentation_id === regra.presentation_id),
+        (!regra.presentation_id || i.presentation_id === regra.presentation_id) &&
+        (!nomeDaRegra || normalizar(i.presentation_name) === nomeDaRegra),
     );
     if (temCondicaoDeItem && casam.length === 0) continue;
 
@@ -79,6 +90,7 @@ export async function gravarVendeuPagou(tx: Tx, ator: { id: string }, v: VendaPa
       payment_kind: regra.payment_kind,
       emporio_product_id: regra.emporio_product_id,
       presentation_id: regra.presentation_id,
+      presentation_name: regra.presentation_name,
       packaging_emporio_product_id: regra.packaging_emporio_product_id,
     };
     const unidades = arred3(casam.reduce((s, i) => s + i.quantity, 0));

@@ -1888,6 +1888,8 @@ model VariableExpenseRule {
   payment_kind                 EmporioPaymentKind?
   emporio_product_id           String?
   presentation_id              String?
+  /// Q292: o nome da apresentação em qualquer produto ("FRANQUIA"), comparado sem maiúscula, acento e espaço nas pontas. Exclusivo com `presentation_id`.
+  presentation_name            String?
   packaging_emporio_product_id String?
   archived_at                  DateTime?
   updated_by_user_id           String?
