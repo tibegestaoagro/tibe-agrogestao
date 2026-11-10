@@ -79,6 +79,7 @@ export const ACOES_DO_HISTORICO = {
   "cartao.taxa.editar": "Editou uma taxa de cartão",
   "cartao.taxa.remover": "Removeu ou encerrou uma taxa de cartão",
   "despesa.fixa": "Mexeu numa despesa fixa",
+  "despesa.fixa.recalcular": "Recalculou o mês de uma despesa fixa",
   "despesa.regra_variavel": "Mexeu numa regra de despesa variável",
   "despesa.corrigir": "Corrigiu uma despesa",
   "despesa.pagar": "Pagou despesas",

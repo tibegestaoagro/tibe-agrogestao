@@ -15,11 +15,17 @@ export function DespesaFixaAcoes({
   despesaId,
   nome,
   podeRenovar,
+  automatica = false,
+  mesAtual,
 }: {
   despesaId: string;
   nome: string;
   /** `needs_renewal` da despesa: faltam menos de 3 meses gerados. */
   podeRenovar: boolean;
+  /** Rateio automático: oferece "Recalcular este mês". */
+  automatica?: boolean;
+  /** "AAAA-MM" do mês corrente em Brasília: o mês que o botão recalcula. */
+  mesAtual?: string;
 }) {
   const router = useRouter();
   const aviso = useAviso();
@@ -35,6 +41,16 @@ export function DespesaFixaAcoes({
     }
     const n = res.data?.created ?? 0;
     aviso.sucesso(n === 1 ? "Despesa renovada: 1 conta gerada." : `Despesa renovada: ${n} contas geradas.`);
+    router.refresh();
+  }
+
+  async function recalcular() {
+    const res = await apiPost(`/api/v1/emporio/fixed-expenses/${despesaId}/recalculate`, { month: mesAtual });
+    if (!res.ok) {
+      aviso.erro(res.message);
+      return;
+    }
+    aviso.sucesso("Mês recalculado entre as lojas de hoje.");
     router.refresh();
   }
 
@@ -54,6 +70,19 @@ export function DespesaFixaAcoes({
         <Button variant="outline" size="sm" onClick={renovar} disabled={renovando}>
           {renovando ? "..." : "Renovar"}
         </Button>
+      )}
+      {automatica && mesAtual && (
+        <ConfirmDialog
+          gatilho={
+            <Button variant="outline" size="sm">
+              Recalcular este mês
+            </Button>
+          }
+          titulo={`Recalcular este mês de "${nome}"?`}
+          descricao="Divide de novo o valor do mês entre as lojas de hoje. As contas ainda não pagas do mês são canceladas e nascem as novas. Se alguma conta do mês já foi paga, nada muda."
+          rotuloConfirmar="Recalcular este mês"
+          aoConfirmar={recalcular}
+        />
       )}
       <ConfirmDialog
         gatilho={

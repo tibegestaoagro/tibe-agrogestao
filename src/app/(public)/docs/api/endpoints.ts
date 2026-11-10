@@ -1152,6 +1152,15 @@ export const GROUPS: Group[] = [
 { "data": { "id": "cl...", "months_ahead": 12, "created": 4 }, "meta": {} }`,
       },
       {
+        method: "POST",
+        path: "/api/v1/emporio/fixed-expenses/:id/recalculate",
+        auth: "Sessão · emporio:write · Gestor da loja, Financeiro, Gerente geral e Dono (os outros papéis: 403)",
+        description: "Divide de novo o valor do mês entre as lojas de hoje, com as bases de hoje (a loja que nasceu ou ganhou área ou funcionários no meio do mês entra). Só despesa de rateio automático (`faturamento`, `area`, `funcionarios`; outra: 422 `split_kind`) e mês corrente ou futuro (422 `month`). Mês em que alguma conta já foi paga é fechado: 409 `MES_FECHADO`, nada muda. As contas não pagas do mês ficam canceladas e nascem as novas. Registra `despesa.fixa.recalcular` no Histórico. Despesa fora da vista: 404; encerrada: 409 `EXPENSE_ENDED`.",
+        request: `{ "month": "2026-11" }`,
+        response: `200
+{ "data": { "month": "2026-11", "parts": [{ "establishment_id": "cl...", "amount": 375 }, { "establishment_id": "cl...", "amount": 625 }] }, "meta": {} }`,
+      },
+      {
         method: "GET",
         path: "/api/v1/emporio/payables",
         auth: "Sessão · emporio:read · só OWNER e ADMIN; com vínculo, só as lojas dele",

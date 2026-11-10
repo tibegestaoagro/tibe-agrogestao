@@ -218,6 +218,8 @@ export default async function DespesasPage() {
                         despesaId={d.id}
                         nome={d.name}
                         podeRenovar={d.needs_renewal && !ehCriterioAutomatico(d.split_kind)}
+                        automatica={ehCriterioAutomatico(d.split_kind)}
+                        mesAtual={textoDoMes(atual)}
                       />
                     </div>
                   </TableCell>

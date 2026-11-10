@@ -30,6 +30,7 @@ import {
 import {
   compararMeses,
   diaDoMes,
+  lerMes,
   mesAtualEmBrasilia,
   mesDaData,
   primeiroDia,
@@ -416,6 +417,13 @@ type FixaRow = Prisma.FixedExpenseTemplateGetPayload<{ include: typeof INCLUDE_F
 /** Nota da conta futura que a troca para critério automático cancelou: o gatilho de leitura a refaz quando o mês chega. */
 export const NOTA_VIROU_AUTOMATICO = "Rateio passou a automático";
 
+/**
+ * Nota da conta que o "Recalcular este mês" cancelou (Q277). Ao contrário de `NOTA_VIROU_AUTOMATICO`, o gatilho de
+ * leitura NÃO a refaz: o mês recalculado continua "nascido" (a divisão está feita) e a conta nova da loja já
+ * existe. Só a edição do modelo a trata como saída do rateio (`semNotaSaiuDoRateio`).
+ */
+export const NOTA_RECALCULADO = "Mês recalculado pelo rateio";
+
 const NOMES_DOS_MESES = [
   "janeiro", "fevereiro", "março", "abril", "maio", "junho",
   "julho", "agosto", "setembro", "outubro", "novembro", "dezembro",
@@ -759,7 +767,7 @@ function canceladaAMao(notas: string | null): boolean {
 /** Tira a marca da conta cancelada pelo rateio (`NOTA_SAIU_DO_RATEIO` ou `NOTA_VIROU_AUTOMATICO`) quando ela volta. */
 function semNotaSaiuDoRateio(notas: string | null): string | null {
   if (notas === null) return null;
-  for (const marca of [NOTA_SAIU_DO_RATEIO, NOTA_VIROU_AUTOMATICO]) {
+  for (const marca of [NOTA_SAIU_DO_RATEIO, NOTA_VIROU_AUTOMATICO, NOTA_RECALCULADO]) {
     if (notas === marca) return null;
     const fim = `${SEPARADOR_NOTA}${marca}`;
     if (notas.endsWith(fim)) return notas.slice(0, -fim.length);
@@ -1270,6 +1278,128 @@ export async function renovarDespesaFixaAction(
     if (ehErroUnico(err)) return fail("CONFLICT", "A despesa foi renovada ao mesmo tempo. Tente de novo.", 409);
     throw err;
   }
+}
+
+/**
+ * Recalcular o mês do rateio automático (Q277, dívida 2.53): divide de novo o valor do modelo entre as lojas de hoje,
+ * com as bases de hoje, para a loja que nasceu ou ganhou base no meio do mês entrar sem esperar o seguinte. Só
+ * modelo automático, mês corrente ou futuro, e mês NÃO fechado: nenhuma conta do modelo no mês com pagamento (a
+ * lição `o-mes-que-ja-tem-conta-paga-nao-se-recalcula`). As contas não pagas ficam canceladas com
+ * `NOTA_RECALCULADO` e nascem as novas; a ocorrência de cada loja (único modelo, loja e mês) passa a apontar para a
+ * conta nova. A conta cancelada à mão fica como está.
+ */
+export async function recalcularMesDaDespesaFixaAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  modeloId: string,
+  input: { month: string },
+): Promise<ActionResult<{ month: string; parts: { establishment_id: string; amount: number }[] }>> {
+  const neg = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "mexer nas despesas da loja");
+  if (neg) return neg;
+  const t = await fixaVisivelParaEscrita(db, ator, modeloId);
+  if (!t) return NAO_ACHADO("Despesa fixa");
+  if (t.ended_at) return fail("EXPENSE_ENDED", "Essa despesa foi encerrada e não pode mais ser alterada.", 409);
+  const kind = t.split_kind;
+  if (!ehCriterioAutomatico(kind)) {
+    return fail("VALIDATION_ERROR", "Só a despesa dividida por faturamento, área ou funcionários se recalcula.", 422, "split_kind");
+  }
+  const mes = lerMes(input?.month);
+  if (!mes) return fail("VALIDATION_ERROR", "Escolha o mês no formato AAAA-MM.", 422, "month");
+  if (compararMeses(mes, mesAtualEmBrasilia()) < 0) {
+    return fail("VALIDATION_ERROR", "Só o mês corrente ou um mês futuro pode ser recalculado.", 422, "month");
+  }
+  if (compararMeses(mes, mesDaData(t.starts_on)) < 0) {
+    return fail("VALIDATION_ERROR", "A despesa ainda não valia nesse mês.", 422, "month");
+  }
+
+  const lojas = await lojasDoRateio(db);
+  if (lojas.length === 0) return fail("VALIDATION_ERROR", "Não há loja para dividir a despesa.", 422, "month");
+  const { partes } = await ratearOMes(db, kind, centavos(decToNum(t.amount) ?? 0), lojas, mes);
+  const nomes = new Map(lojas.map((l) => [l.id, l.name]));
+  const modelo = { id: t.id, category: t.category, due_day: t.due_day };
+
+  try {
+    await transacaoLonga(db, async (tx) => {
+      const doMes = await tx.fixedExpenseOccurrence.findMany({
+        where: { template_id: modeloId, period: primeiroDia(mes) },
+        select: { id: true, establishment_id: true, financial_entry_id: true },
+      });
+      const ids = doMes.map((o) => o.financial_entry_id);
+      const lancamentos = new Map(
+        (await tx.financialEntry.findMany({ where: { id: { in: ids } }, select: { id: true, status: true, notes: true } })).map((e) => [e.id, e]),
+      );
+      const pagas = await comPagamento(tx, ids);
+      if (doMes.some((o) => pagas.has(o.financial_entry_id) || lancamentos.get(o.financial_entry_id)?.status === "paid")) {
+        throw new RecusaDespesa(
+          fail("MES_FECHADO", `${mesPorExtenso(mes)} já tem conta paga: o mês está fechado e não se recalcula.`, 409, "month"),
+        );
+      }
+      if (await contaEmAprovacao(tx, ids)) {
+        throw new RecusaDespesa(fail("CONTA_EM_APROVACAO", EM_APROVACAO, 409, "month"));
+      }
+
+      const mudancas: { campo: string; antes: string | null; depois: string | null }[] = [];
+      for (const l of lojas) {
+        const parte = partes.get(l.id) ?? 0;
+        const o = doMes.find((x) => x.establishment_id === l.id);
+        const lanc = o ? lancamentos.get(o.financial_entry_id) : undefined;
+        if (o && lanc?.status === "cancelled" && canceladaAMao(lanc.notes)) continue;
+        const antes = lanc && lanc.status !== "cancelled" ? "conta ativa" : null;
+        if (lanc && lanc.status !== "cancelled") {
+          await tx.financialEntry.update({
+            where: { id: lanc.id },
+            data: {
+              status: "cancelled",
+              notes: lanc.notes ? `${lanc.notes}${SEPARADOR_NOTA}${NOTA_RECALCULADO}` : NOTA_RECALCULADO,
+              updated_by_user_id: ator.id,
+            },
+          });
+        }
+        if (parte <= 0) {
+          if (antes) mudancas.push({ campo: nomes.get(l.id) ?? "loja", antes, depois: "sem parte" });
+          continue;
+        }
+        if (!o) {
+          await criarOcorrencia(tx, modelo, l.id, mes, parte);
+        } else {
+          // A ocorrência é única por (modelo, loja, mês): ela passa a apontar para a conta nova.
+          const vencimento = diaDoMes(mes, t.due_day);
+          const conta = await createLinkedEntry(tx, {
+            entry_type: "expense",
+            category: t.category,
+            amount: parte / 100,
+            related_module: "emporio",
+            related_id: t.id,
+            occurred_at: vencimento,
+            status: "pending",
+            due_date: vencimento,
+            establishment_id: l.id,
+          });
+          await tx.fixedExpenseOccurrence.update({ where: { id: o.id }, data: { financial_entry_id: conta.id } });
+        }
+        mudancas.push({ campo: nomes.get(l.id) ?? "loja", antes, depois: dinheiro(parte / 100) });
+      }
+
+      await registrarNoHistorico(tx, ator, {
+        action: "despesa.fixa.recalcular",
+        target_type: "despesa_fixa",
+        target_id: t.id,
+        summary: `Recalculou ${mesPorExtenso(mes)} do ${t.name} pelo rateio ${RATEIO_ROTULO_SERVIDOR[kind].toLowerCase()}: ${lojas
+          .map((l) => `${l.name} ${dinheiro((partes.get(l.id) ?? 0) / 100)}`)
+          .join(", ")}`,
+        changes: mudancas,
+      });
+    });
+  } catch (err) {
+    if (err instanceof RecusaDespesa) return err.recusa;
+    if (ehErroUnico(err)) return fail("CONFLICT", "O mês foi recalculado ao mesmo tempo. Tente de novo.", 409);
+    throw err;
+  }
+
+  return ok({
+    month: textoDoMes(mes),
+    parts: lojas.filter((l) => (partes.get(l.id) ?? 0) > 0).map((l) => ({ establishment_id: l.id, amount: (partes.get(l.id) ?? 0) / 100 })),
+  });
 }
 
 /**
