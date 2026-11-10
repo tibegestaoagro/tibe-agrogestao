@@ -25,11 +25,11 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-10. O trabalho do Codex está na branch
-  `codex/dividas-264-265`; leia `AGENTS.md` na raiz. A branch não foi
-  integrada nem enviada à `main`. A migração da conta avulsa só foi aplicada
-  no Postgres local, nunca no Neon.
-- `main` em `7314f69` (igual a `origin/main`), nenhuma migração pendente no
+- Atualizado em: 2026-11-10 (dívidas 2.64 e 2.65 e conta a pagar avulsa em
+  produção: migração no Neon, merge e push autorizados na conversa, deploy
+  conferido no `/docs/api`). Agentes que não sejam o Claude Code: leia
+  `AGENTS.md` na raiz. Em pausa: imposto por produto (ver Próximo passo).
+- `main` em `20f2e5e` (igual a `origin/main`), nenhuma migração pendente no
   Neon. Em produção também: cartão (Q250 a Q267), frete e editar venda (Q244
   a Q249), o financeiro (Q214 a Q243); evidências em
   [financeiro-emporio-relatorio.md](financeiro-emporio-relatorio.md). As
@@ -49,7 +49,7 @@ contas sem vencimento à parte; limpeza da 2.63; email do seed trocado para
 Fechadas 2.45, 2.46, 2.50, 2.54, 2.61. As dívidas 2.64 e 2.65 foram
 resolvidas na branch do Codex descrita abaixo.
 
-### Branch `codex/dividas-264-265`: aguardando revisão, fora de produção
+### Dívidas 2.64 e 2.65 e conta avulsa (branch do Codex): em produção
 
 Fechadas 2.64 e 2.65: calendário m99, escopo da antecipação, CSV por conta,
 datas compartilhadas e campo do cursor. Conta avulsa: loja obrigatória,
@@ -79,8 +79,10 @@ Agromax, a entrega 4 (extrato da Stone) depende de um arquivo real.
 
 ### ⏭️ Próximo passo
 
-1. Revisar a branch `codex/dividas-264-265`; aplicar a migração no Neon,
-   integrar, enviar à `main` e publicar só mediante pedido explícito do usuário.
+1. Imposto por produto (10/11): a Agromax quer manter o "Vendeu, Pagou"
+   percentual por produto e apresentação (o campo "Apresentação" já existe e
+   aparece depois de escolher o produto; nada a mudar no código). Melhoria
+   opcional: frase de ajuda sob "Produto vendido". A alíquota muda por produto.
 2. Na Agromax (usuário, pelas telas): Stone, taxas do mês, regra de dia útil
    e, se usar, a antecipação automática; confirmar as decisões do agente do
    cartão e do frete; responder o setor; decidir se o vendedor vê o líquido
