@@ -249,6 +249,14 @@ export function ParteDeFiado() {
             quando: "O cliente continua bloqueado depois do acordo",
             fazer: "Uma parcela do acordo que venceu e não foi paga bloqueia o fiado como qualquer fiado atrasado. Receba a parcela ou peça ao Gestor a liberação do dia.",
           },
+          {
+            quando: "O acordo foi feito errado",
+            fazer: "Na ficha do cliente, em Acordos, clique em Desfazer acordo e diga o motivo. As parcelas são canceladas e os fiados voltam para a Cobrança, com o mesmo vencimento. O acordo fica listado como Desfeito, com a data e o motivo. Só o Dono e o Financeiro desfazem.",
+          },
+          {
+            quando: "O botão Desfazer acordo não aparece",
+            fazer: "O acordo já tem movimento: uma parcela foi paga (mesmo em parte), foi abatida por devolução ou há parcela extra de cheque devolvido. Desfazer mentiria sobre o dinheiro que já entrou. Nesse caso, fale com o Dono.",
+          },
         ]}
       >
         <Figura id="fiado-acordo" />
@@ -492,6 +500,10 @@ export function ParteDeDespesas() {
           {
             quando: "Uma loja ficou com zero",
             fazer: "Ela não tem a área, os funcionários ou o faturamento do mês anterior. Cadastre o dado em Lojas para as próximas contas.",
+          },
+          {
+            quando: "Abri uma loja ou mudei os funcionários no meio do mês e o mês atual não mudou",
+            fazer: "Em Despesas, na despesa de rateio automático, clique em Recalcular este mês e confirme. O valor do mês é dividido de novo entre as lojas de hoje: as contas ainda não pagas são canceladas e nascem as novas. Se alguma conta do mês já foi paga, nada muda. Só vale para o mês atual ou os seguintes.",
           },
         ]}
       >

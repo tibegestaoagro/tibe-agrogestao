@@ -286,3 +286,24 @@ conta bancária em "Todas as lojas".
 
 Dívida aberta: 2.63, só o item "vendedor vê o líquido efetivo" (decisão do
 usuário).
+
+## Desfazer acordo, aviso por email e recalcular o mês, 10/11
+
+Desfazer acordo de fiado sem movimento, aviso de pedido de pagamento também por
+email e recalcular o mês do rateio automático (Q275 a Q277). Dívidas 2.39, 2.40
+e 2.53 fechadas. Evidências:
+
+| prova | resultado |
+|---|---|
+| `test:m106` | suíte escrita da spec (ver o relatório da rodada de código) |
+| roteiro `emporio-acordo-rateio` (ficha do Des Livre: botão, motivo obrigatório, "Desfeito em dd/mm: motivo", a Cobrança volta a listar o cliente; ficha do Des Pago sem botão e a API recusa com 409; Des Aluguel por funcionários: a Des Loja 2 passa a 9 funcionários, o mês segue com a parte antiga até o botão, depois a parte sobe de R$ 66,66 para R$ 391,30 e a soma do mês fica R$ 1.000,00; 390 px) | 28 checks, 0 falhas |
+| sabotagem (o desfazer não devolve as origens, em `emporio-acordos.ts`) | 2 falhas: a Cobrança não lista o Des Livre de volta, na API e na tela; desfeita, volta a 0 falhas |
+| `npm run check`, `tsc`, `lint` | ver o relatório da tarefa 5 |
+
+O que o roteiro mostrou e a suíte não: o botão aparece e some conforme o
+acordo tem ou não movimento; o motivo vazio é recusado embaixo do campo, com o
+painel aberto; a confirmação do recálculo traz a frase da regra; e antes do
+clique as contas do mês seguem com a parte antiga, mesmo com o cadastro da loja
+já mudado.
+
+Dívida aberta: nenhuma nova.
