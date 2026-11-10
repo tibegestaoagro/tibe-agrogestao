@@ -85,6 +85,7 @@
     "test:m102": "tsx scripts/m102-emporio-frete-ecommerce.test.ts",
     "test:m103": "tsx scripts/m103-emporio-taxas-cartao.test.ts",
     "test:m104": "tsx scripts/m104-emporio-cartao-antecipacao.test.ts",
+    "test:m105": "tsx scripts/m105-emporio-relatorios-exportacao.test.ts",
     "test:isolation": "tsx scripts/tenant-isolation.test.ts",
     "test:docs-api": "tsx scripts/docs-api-completeness.test.ts",
     "test:nav": "tsx scripts/nav-build.test.ts",
