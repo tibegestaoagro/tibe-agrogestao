@@ -79,10 +79,8 @@ Agromax, a entrega 4 (extrato da Stone) depende de um arquivo real.
 
 ### ⏭️ Próximo passo
 
-1. Imposto por produto (10/11): a Agromax quer manter o "Vendeu, Pagou"
-   percentual por produto e apresentação (o campo "Apresentação" já existe e
-   aparece depois de escolher o produto; nada a mudar no código). Melhoria
-   opcional: frase de ajuda sob "Produto vendido". A alíquota muda por produto.
+1. Imposto por produto: resolvido pelo "Vendeu, Pagou" percentual por produto
+   e apresentação (o campo já existe; opcional: frase de ajuda na tela).
 2. Na Agromax (usuário, pelas telas): Stone, taxas do mês, regra de dia útil
    e, se usar, a antecipação automática; confirmar as decisões do agente do
    cartão e do frete; responder o setor; decidir se o vendedor vê o líquido
