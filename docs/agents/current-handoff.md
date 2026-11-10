@@ -25,15 +25,18 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-10 de madrugada (duas branches empilhadas prontas,
-  à espera da autorização do usuário: `emporio-relatorios-e-limpeza`, sem
-  migração, e por cima `emporio-acordo-aviso-rateio`, com duas migrações).
-- `main` em `255a150` (igual a `origin/main`), nenhuma migração pendente no
-  Neon. Em produção: cartão entregas 1 a 3 (Q250 a Q267), frete, origem e
-  editar venda (Q244 a Q249), o financeiro (Q214 a Q243); evidências em
-  [financeiro-emporio-relatorio.md](financeiro-emporio-relatorio.md).
+- Atualizado em: 2026-11-10 de madrugada (relatórios e limpeza, e desfazer
+  acordo, aviso por email e recalcular o mês em produção: migrações no Neon,
+  merge fast-forward e push autorizados na conversa; deploy conferido no
+  `/docs/api` em 10/11). **Daqui em diante o trabalho segue com o Codex: leia `AGENTS.md` na raiz** (as travas do Claude Code em `.claude/hooks/` não valem para ele).
+- `main` em `7314f69` (igual a `origin/main`), nenhuma migração pendente no
+  Neon. Em produção também: cartão (Q250 a Q267), frete e editar venda (Q244
+  a Q249), o financeiro (Q214 a Q243); evidências em
+  [financeiro-emporio-relatorio.md](financeiro-emporio-relatorio.md). As
+  branches `emporio-relatorios-e-limpeza` e `emporio-acordo-aviso-rateio`
+  estão na `main`.
 
-### Relatórios, exportação e limpeza (Q268 a Q274): pronto na branch
+### Relatórios, exportação e limpeza (Q268 a Q274): em produção
 
 Spec [../superpowers/specs/2026-11-09-emporio-relatorios-e-limpeza-design.md](../superpowers/specs/2026-11-09-emporio-relatorios-e-limpeza-design.md),
 plano `docs/superpowers/plans/2026-11-09-emporio-relatorios-e-limpeza.md`.
@@ -45,7 +48,7 @@ contas sem vencimento à parte; limpeza da 2.63; email do seed trocado para
 `emporio-relatorios-exportacao` 44 checks nos dois sentidos (sabotado: 3).
 Fechadas 2.45, 2.46, 2.50, 2.54, 2.61; abertas 2.64 e 2.65 (a m99 reprova entre 21h e meia-noite de Brasília por calcular o dia em UTC; não é regressão).
 
-### Desfazer acordo, aviso por email, recalcular o mês (Q275 a Q277): pronto
+### Desfazer acordo, aviso por email, recalcular o mês (Q275 a Q277): em produção
 
 Branch `emporio-acordo-aviso-rateio`, empilhada sobre a anterior. Spec
 [../superpowers/specs/2026-11-09-emporio-acordo-aviso-rateio-design.md](../superpowers/specs/2026-11-09-emporio-acordo-aviso-rateio-design.md).
@@ -53,7 +56,7 @@ Desfazer acordo só sem movimento (origens voltam pendentes); pedido de
 pagamento avisa também por email; recalcular o mês do rateio automático em
 transação serializável, nunca em mês com conta paga. Migrações
 `20261110120000_emporio_acordo_desfeito` e
-`20261110130000_emporio_email_pedido_pagamento` **só no Docker**.
+`20261110130000_emporio_email_pedido_pagamento` aplicadas no Docker e no Neon.
 `test:m106` verde, `test:all` 105/106 (só a m99 pelo horário: 2.65), build e isolamento verdes, roteiro `emporio-acordo-rateio` 28 checks nos dois
 sentidos (sabotado: 2). Fechadas 2.39, 2.40, 2.53; aberta 2.66.
 
@@ -72,10 +75,8 @@ a entrega 4 (extrato da Stone) depende de um arquivo real.
 
 ### ⏭️ Próximo passo
 
-1. O usuário autoriza NA CONVERSA: migração no Neon das duas migrações da
-   `emporio-acordo-aviso-rateio` (URL Direct), merge fast-forward dessa
-   branch (traz a de relatórios junto) e push na `main`; conferir o deploy
-   pelo `/docs/api` (`recalculate` e `agreements/:id/undo`).
+1. Sem depender de ninguém: corrigir a suíte do fiado para calcular o dia
+   em Brasília (2.65) e os miúdos de limpeza (2.64).
 2. Na Agromax (usuário, pelas telas): Stone, taxas do mês, regra de dia útil
    e, se usar, a antecipação automática; confirmar as decisões do agente do
    cartão e do frete; responder o setor; decidir se o vendedor vê o líquido
@@ -189,8 +190,8 @@ relatórios em [agente-whatsapp/](agente-whatsapp/), detalhe em
 ## Últimas rodadas
 
 - 10/11: desfazer acordo, aviso por email e recalcular o mês (Q275 a Q277)
-  e, por baixo, relatórios e limpeza (Q268 a Q274) prontos, esperando
-  autorização.
+  e, por baixo, relatórios e limpeza (Q268 a Q274) em produção, autorizados
+  na conversa.
 - 09/11: frete e editar venda (Q244 a Q249) e o cartão inteiro (Q250 a
   Q267) em produção, autorizados na conversa.
 - 07 e 08/11: spec e as quatro entregas do financeiro do Empório em produção
