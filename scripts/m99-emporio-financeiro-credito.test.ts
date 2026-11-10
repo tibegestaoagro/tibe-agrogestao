@@ -44,8 +44,10 @@ const DIA = 86_400_000;
 const stamp = Date.now().toString(36);
 
 const hojeStr = new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Sao_Paulo" }).format(new Date());
+const diaEmSaoPaulo = (d: Date) => new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Sao_Paulo" }).format(d);
 const somaDias = (dia: string, n: number) => new Date(new Date(`${dia}T12:00:00Z`).getTime() + n * DIA).toISOString().slice(0, 10);
 const meioDia = (dia: string) => new Date(`${dia}T12:00:00Z`);
+const vendaHaDiasDeCalendario = (agora: Date, dias: number) => meioDia(somaDias(diaEmSaoPaulo(agora), -dias));
 const diaDe = (d: Date | string | null | undefined) => (d ? new Date(d).toISOString().slice(0, 10) : "");
 const perto = (a: unknown, b: number, tol = 0.011) => typeof a === "number" && !Number.isNaN(a) && Math.abs(a - b) < tol;
 const n = (x: unknown) => Number(x);
@@ -64,6 +66,9 @@ async function secao1Pura() {
   const d = (s: string) => new Date(s);
 
   console.log("  base de dias");
+  const noiteEmSaoPaulo = d("2026-11-09T21:30:00-03:00");
+  check("dia de São Paulo não vira com o UTC às 21h30", diaEmSaoPaulo(noiteEmSaoPaulo) === "2026-11-09" && iso(noiteEmSaoPaulo) === "2026-11-10");
+  check("fixture 40 dias antes usa o calendário de São Paulo", diaDe(vendaHaDiasDeCalendario(noiteEmSaoPaulo, 40)) === "2026-09-30");
   check("DIA_MS vale 86.400.000", F.DIA_MS === 86_400_000);
   check("diaUtc devolve a meia-noite UTC do dia", F.diaUtc(d("2026-11-08T15:30:00Z")) === Date.parse("2026-11-08T00:00:00Z"));
   check("somarDias soma na meia-noite UTC (2026-11-08 + 30 = 2026-12-08)", iso(F.somarDias(d("2026-11-08T15:00:00Z"), 30)) === "2026-12-08" && F.somarDias(d("2026-11-08T15:00:00Z"), 30).getTime() % 86_400_000 === 0);
@@ -449,7 +454,7 @@ async function secao3() {
 
   console.log("  (e) o fiado antigo sem data: regra de leitura, sem UPDATE");
   const ce = await cliente(A, "M99 Fiado antigo");
-  const venda40 = new Date(Date.now() - 40 * DIA);
+  const venda40 = vendaHaDiasDeCalendario(new Date(), 40);
   const ve = await vender(A, ce, A.L1, 3, [{ kind: "fiado", amount: 30, due_date: meioDia(diaDe(venda40)) }], { sold_at: venda40 });
   const eEnt = await entradaDaVenda(A, ve, ce);
   const pg = await pagamentoFiado(A, ve);
