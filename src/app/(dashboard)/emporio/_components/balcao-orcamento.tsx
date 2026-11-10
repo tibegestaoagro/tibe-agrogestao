@@ -12,7 +12,7 @@ import { consumidorFinalEscolhido, type ClienteEscolhido } from "@/lib/emporio/c
 import { linhaDoEndereco } from "@/lib/emporio/pedido-para-entrega";
 import { numeroBr, paraCampo, UNIDADE_BASE_SUFIXO } from "./formato";
 import { valorDoPedido, type PedidoParaEntregaValor } from "./pedido-para-entrega-campos";
-import type { CargaDoOrcamento, ProdutoVenda } from "./venda-estado";
+import type { CargaDoOrcamento, PrecosVenda, ProdutoVenda } from "./venda-estado";
 
 /**
  * As peças do orçamento no balcão (entrega 4): o seletor Venda | Orçamento, o
@@ -61,6 +61,44 @@ export function cargaDoOrcamento(q: OrcamentoView, consumidorFinal: { id: string
     cliente: q.customer.id ? clienteDoOrcamento(q.customer, consumidorFinal) : null,
     // Ao faturar, a tela manda o pedido explícito (D3), já preenchido com o do orçamento.
     pedido: valorDoPedido(q),
+  };
+}
+
+/**
+ * O orçamento como ponto de partida de OUTRO orçamento (editar, Q285; a partir deste, Q286): o
+ * cliente, os itens e as quantidades do original, cada item com o preço de HOJE na loja dele
+ * (nunca o orçado). Item cuja apresentação saiu do catálogo fica de fora (`ausentes`); item sem
+ * preço hoje entra com o campo vazio (`semPreco`) e o servidor recusa até alguém preencher.
+ */
+export function cargaParaRefazer(
+  q: OrcamentoView,
+  consumidorFinal: { id: string },
+  produtos: ProdutoVenda[],
+  precos: PrecosVenda,
+): { carga: CargaDoBalcao; ausentes: number; semPreco: number } {
+  const existe = (produtoId: string, apresentacaoId: string) =>
+    !!produtos.find((p) => p.id === produtoId)?.apresentacoes.some((a) => a.id === apresentacaoId);
+  const presentes = q.items.filter((i) => existe(i.emporio_product_id, i.presentation_id));
+  const vale: Record<string, number> = {};
+  for (const i of presentes) {
+    const hoje = precos[i.presentation_id]?.[q.establishment_id];
+    if (hoje !== undefined) vale[i.presentation_id] = hoje;
+  }
+  return {
+    ausentes: q.items.length - presentes.length,
+    semPreco: presentes.filter((i) => vale[i.presentation_id] === undefined).length,
+    carga: {
+      // Sem referência: o desconto se mede contra o preço de hoje, como numa criação.
+      referencia: {},
+      vale,
+      itens: presentes.map((i) => ({
+        produtoId: i.emporio_product_id,
+        apresentacaoId: i.presentation_id,
+        qtd: paraCampo(i.quantity),
+      })),
+      cliente: q.customer.id ? clienteDoOrcamento(q.customer, consumidorFinal) : null,
+      pedido: valorDoPedido(q),
+    },
   };
 }
 
@@ -152,6 +190,11 @@ export function OrcamentoNaVenda({
     if (res.data.situacao === "faturado" && res.data.sale) {
       // A mesma frase do servidor (`QUOTE_ALREADY_INVOICED`): não há o que faturar.
       reprovar({ number: `Este orçamento já foi faturado na venda nº ${res.data.sale.numero}.` });
+      return;
+    }
+    if (res.data.situacao === "cancelado") {
+      // A mesma recusa do servidor (`QUOTE_CANCELED`): o orçamento cancelado não carrega itens.
+      reprovar({ number: "Orçamento cancelado: não pode ser faturado." });
       return;
     }
     setNumero("");

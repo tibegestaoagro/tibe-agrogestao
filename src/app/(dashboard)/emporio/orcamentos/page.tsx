@@ -28,7 +28,7 @@ const DATA_HORA = new Intl.DateTimeFormat("pt-BR", {
 // `valid_until` é uma data sem hora: lida em UTC, para não recuar um dia.
 const DATA = new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC" });
 
-type Situacao = "acompanhamento" | "aberto" | "vencido" | "faturado" | "todos";
+type Situacao = "acompanhamento" | "aberto" | "vencido" | "faturado" | "cancelado" | "todos";
 
 export default async function OrcamentosPage({
   searchParams,
@@ -136,9 +136,10 @@ function SituacaoDoOrcamento({
   situacao,
   vendaNumero,
 }: {
-  situacao: "aberto" | "vencido" | "faturado";
+  situacao: "aberto" | "vencido" | "faturado" | "cancelado";
   vendaNumero: string | null;
 }) {
+  if (situacao === "cancelado") return <Badge variant="red">Cancelado</Badge>;
   if (situacao === "faturado") {
     return <Badge variant="green">Faturado{vendaNumero ? ` (venda nº ${vendaNumero})` : ""}</Badge>;
   }

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useErrosDeFormulario } from "@/components/ui/use-erros-de-formulario";
-import { apiGet, apiPost } from "@/lib/client-api";
+import { apiGet, apiPatch, apiPost } from "@/lib/client-api";
 import { reaisBr } from "@/lib/numero-br";
 import { Field } from "@/components/ui/field";
 import {
@@ -24,6 +24,7 @@ import type { Falta } from "@/lib/emporio/cliente-cadastro";
 import { AbrirTurnoForm } from "./abrir-turno-form";
 import {
   cargaDoOrcamento,
+  cargaParaRefazer,
   ObservacaoDoOrcamento,
   OrcamentoNaVenda,
   ResumoDoOrcamento,
@@ -127,7 +128,14 @@ export function Balcao({
   ehCaixa,
   orcamentoInicial = null,
   edicao = null,
+  refazer = null,
 }: {
+  /**
+   * `?editar_orcamento=<id>` (Q285) ou `?orcamento_base=<id>` (Q286): o balcão abre no modo Orçamento,
+   * preenchido com o orçamento e com o preço de hoje. Editar regrava o mesmo número (PATCH); a partir
+   * deste cria outro, apontando o original.
+   */
+  refazer?: { orcamento: OrcamentoView; tipo: "editar" | "base" } | null;
   /**
    * `/emporio/vender?editar=<id>` (Q249): o balcão abre preenchido com a venda, e salvar a substitui
    * (cancela esta e registra outra, com outro número). `cliente` é o cadastro dela, lido no servidor.
@@ -147,14 +155,22 @@ export function Balcao({
   ehCaixa: boolean;
 }) {
   const err = useErrosDeFormulario(ORDEM);
-  const [cargaInicial] = useState(() => (orcamentoInicial ? cargaDoOrcamento(orcamentoInicial, consumidorFinal) : null));
+  const [daRefeita] = useState(() =>
+    refazer ? cargaParaRefazer(refazer.orcamento, consumidorFinal, produtos, precos) : null,
+  );
+  const [cargaInicial] = useState(() =>
+    daRefeita ? daRefeita.carga : orcamentoInicial ? cargaDoOrcamento(orcamentoInicial, consumidorFinal) : null,
+  );
   const router = useRouter();
   const [daEdicao] = useState(() => (edicao ? inicialDaVenda(edicao.venda, produtos, edicao.cliente) : null));
   const v = useVenda({
     produtos,
     precos,
     lojaInicial:
-      edicao?.venda.establishment_id ?? orcamentoInicial?.establishment_id ?? (lojas.length === 1 ? lojas[0].id : ""),
+      edicao?.venda.establishment_id ??
+      refazer?.orcamento.establishment_id ??
+      orcamentoInicial?.establishment_id ??
+      (lojas.length === 1 ? lojas[0].id : ""),
     cargaInicial,
     inicial: daEdicao?.inicial ?? null,
     // Na edição a taxa vale no dia da venda antiga, em Brasília (é o que o servidor resolve).
@@ -164,10 +180,10 @@ export function Balcao({
   });
   const [enviando, setEnviando] = useState(false);
   const [resumo, setResumo] = useState<Resumo | null>(null);
-  const [modo, setModo] = useState<ModoDoBalcao>("venda");
+  const [modo, setModo] = useState<ModoDoBalcao>(refazer ? "orcamento" : "venda");
   // O orçamento posto na Venda para faturar: o envio leva `quote_id`.
   const [orcamento, setOrcamento] = useState<OrcamentoView | null>(orcamentoInicial);
-  const [notas, setNotas] = useState(edicao?.venda.notes ?? "");
+  const [notas, setNotas] = useState(edicao?.venda.notes ?? refazer?.orcamento.notes ?? "");
   const [orcamentoSalvo, setOrcamentoSalvo] = useState<OrcamentoView | null>(null);
   const [pedido, setPedido] = useState<PedidoParaEntregaValor>(() =>
     edicao ? valorDoPedido(edicao.venda) : (cargaInicial?.pedido ?? PEDIDO_RETIRADA),
@@ -242,7 +258,9 @@ export function Balcao({
 
   // O vendedor: a escolha só vale se ainda está na lista da loja (trocar de loja a descarta). Quem não é Caixa
   // começa nele mesmo, quando ele vende naquela loja.
-  const [vendedorEscolhido, setVendedorEscolhido] = useState(edicao?.venda.seller_user_id ?? "");
+  const [vendedorEscolhido, setVendedorEscolhido] = useState(
+    edicao?.venda.seller_user_id ?? (refazer?.tipo === "editar" ? (refazer.orcamento.seller_user_id ?? "") : ""),
+  );
   // Nunca atravessa lojas: A, B, A volta vazio (o Caixa escolhe de novo, o resto cai nele mesmo).
   const vendedores = vendedoresPorLoja[loja] ?? [];
   const vendedor = vendedores.some((u) => u.id === vendedorEscolhido)
@@ -346,21 +364,33 @@ export function Balcao({
       chave.current = { assinatura, key: crypto.randomUUID() };
     }
     setEnviando(true);
-    const res = await apiPost<OrcamentoView>("/api/v1/emporio/quotes", {
-      operation_key: chave.current.key,
-      establishment_id: m.corpo.establishment_id,
+    const corpoComum = {
       customer_id: m.corpo.customer_id,
       items: m.corpo.items,
       ...corpoDoPedido,
       ...(vendedor ? { seller_user_id: vendedor } : {}),
       notes: observacao || null,
-    });
+    };
+    // Editar (Q285): a loja não muda e o corpo inteiro regrava o estado, sem chave de operação.
+    const res =
+      refazer?.tipo === "editar"
+        ? await apiPatch<OrcamentoView>(`/api/v1/emporio/quotes/${refazer.orcamento.id}`, corpoComum)
+        : await apiPost<OrcamentoView>("/api/v1/emporio/quotes", {
+            operation_key: chave.current.key,
+            establishment_id: m.corpo.establishment_id,
+            ...corpoComum,
+            ...(refazer ? { based_on_quote_id: refazer.orcamento.id } : {}),
+          });
     setEnviando(false);
     if (!res.ok) {
       err.doServidor(res);
       return;
     }
     chave.current = null;
+    if (refazer) {
+      router.push(`/emporio/orcamentos/${res.data.id}`);
+      return;
+    }
     setOrcamentoSalvo(res.data);
     setResumo(null);
     v.reiniciar();
@@ -475,7 +505,34 @@ export function Balcao({
 
   return (
     <div className="space-y-4">
-      {edicao ? (
+      {refazer ? (
+        <section className="space-y-1 rounded-lg bg-atencao-suave px-4 py-3 text-sm text-atencao-tinta">
+          <h2 className="font-semibold">
+            {refazer.tipo === "editar"
+              ? `Editando o orçamento nº ${refazer.orcamento.numero}: a validade e os preços serão renovados`
+              : `Novo orçamento a partir do nº ${refazer.orcamento.numero}`}
+          </h2>
+          <p>
+            {refazer.tipo === "editar"
+              ? "Salvar regrava este orçamento, com o mesmo número e o preço de hoje em cada item."
+              : "Salvar cria outro orçamento, com outro número e o preço de hoje em cada item. O original não muda."}
+          </p>
+          {daRefeita && daRefeita.ausentes > 0 && (
+            <p role="status" className="font-medium">
+              {daRefeita.ausentes === 1
+                ? "Um item do orçamento não está mais à venda e ficou de fora: acrescente-o de novo, se for o caso."
+                : `${daRefeita.ausentes} itens do orçamento não estão mais à venda e ficaram de fora: acrescente-os de novo, se for o caso.`}
+            </p>
+          )}
+          {daRefeita && daRefeita.semPreco > 0 && (
+            <p role="status" className="font-medium">
+              {daRefeita.semPreco === 1
+                ? "Um item está sem preço hoje nesta loja: digite o preço dele."
+                : `${daRefeita.semPreco} itens estão sem preço hoje nesta loja: digite o preço deles.`}
+            </p>
+          )}
+        </section>
+      ) : edicao ? (
         <section className="space-y-1 rounded-lg bg-atencao-suave px-4 py-3 text-sm text-atencao-tinta">
           <h2 className="font-semibold">Editando a venda nº {numeroDaVenda(edicao.venda.number)}</h2>
           <p>
@@ -584,7 +641,7 @@ export function Balcao({
           <VendaCampos
             v={v}
             produtos={produtos}
-            lojas={lojas}
+            lojas={refazer?.tipo === "editar" ? lojas.filter((l) => l.id === refazer.orcamento.establishment_id) : lojas}
             consumidorFinal={consumidorFinal}
             erros={err.erros}
             idDe={err.idDe}
@@ -822,11 +879,13 @@ export function Balcao({
             {modo === "orcamento" ? (
               <div className="flex flex-wrap gap-2">
                 {/* Faturar sem salvar: passa o carrinho para a Venda, sem `quote_id`. */}
-                <Button type="button" variant="outline" size="lg" disabled={enviando} onClick={() => mudarModo("venda")}>
-                  Faturar
-                </Button>
+                {!refazer && (
+                  <Button type="button" variant="outline" size="lg" disabled={enviando} onClick={() => mudarModo("venda")}>
+                    Faturar
+                  </Button>
+                )}
                 <Button type="submit" size="lg" disabled={enviando} className="min-w-40">
-                  {enviando ? "Salvando..." : "Salvar orçamento"}
+                  {enviando ? "Salvando..." : refazer?.tipo === "editar" ? "Salvar alterações" : "Salvar orçamento"}
                 </Button>
               </div>
             ) : (

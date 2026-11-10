@@ -179,7 +179,12 @@ export function ParteDeOrcamento() {
         <Figura id="orcamento-salvo" />
         <Chamada tipo="saiba">
           <p>
-            O orçamento salvo não se edita. Para mudar, ajuste os itens na hora de faturar, ou faça um orçamento novo. O
+            Para mudar um orçamento em aberto ou vencido, abra-o em <strong>Orçamentos</strong> e clique em{" "}
+            <strong>Editar</strong>: ele mantém o número, ganha nova validade e os itens passam para o preço de hoje.
+            Para desistir dele, clique em <strong>Cancelar orçamento</strong> e diga o motivo; o cancelamento não tem
+            volta, e o orçamento fica no filtro <strong>Cancelados</strong>. O orçamento já faturado não se edita:
+            clique em <strong>Novo orçamento a partir deste</strong> (vale para qualquer orçamento) para ajustar itens e
+            quantidades num orçamento novo, com outro número. O
             botão <strong>Faturar</strong> do modo Orçamento leva os itens direto para a venda, sem salvar orçamento. O
             botão <strong>Faturar agora</strong>, do quadro verde, fatura o orçamento que você acabou de salvar.
           </p>

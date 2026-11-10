@@ -4,5 +4,6 @@ export const SITUACOES_DO_ORCAMENTO: { valor: string; rotulo: string }[] = [
   { valor: "aberto", rotulo: "Em aberto" },
   { valor: "vencido", rotulo: "Vencidos" },
   { valor: "faturado", rotulo: "Faturados" },
+  { valor: "cancelado", rotulo: "Cancelados" },
   { valor: "todos", rotulo: "Todos" },
 ];

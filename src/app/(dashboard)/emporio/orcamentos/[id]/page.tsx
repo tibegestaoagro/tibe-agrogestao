@@ -17,6 +17,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { numeroBr } from "../../_components/formato";
+import { CancelarOrcamentoForm } from "../../_components/cancelar-orcamento-form";
 
 const DATA_HORA = new Intl.DateTimeFormat("pt-BR", {
   timeZone: "America/Sao_Paulo",
@@ -36,6 +37,9 @@ export default async function OrcamentoPage({ params }: { params: Promise<{ id: 
   const o = res.data;
   const podeVender = pode(await papelDoEmporio(db, user), "vendedor_da_loja", o.establishment_id);
   const faturado = o.situacao === "faturado";
+  const cancelado = o.situacao === "cancelado";
+  // Editar e cancelar: só o orçamento vivo (aberto ou vencido), como o servidor.
+  const editavel = o.situacao === "aberto" || o.situacao === "vencido";
   const subtotal = Math.round((o.net_amount + o.discount_amount) * 100) / 100;
 
   return (
@@ -71,6 +75,8 @@ export default async function OrcamentoPage({ params }: { params: Promise<{ id: 
           <div className="mt-2 flex flex-wrap items-center gap-2">
             {o.situacao === "faturado" ? (
               <Badge variant="green">Faturado{o.sale ? ` (venda nº ${o.sale.numero})` : ""}</Badge>
+            ) : o.situacao === "cancelado" ? (
+              <Badge variant="red">Cancelado</Badge>
             ) : o.situacao === "vencido" ? (
               <Badge variant="amber">Vencido</Badge>
             ) : (
@@ -78,6 +84,36 @@ export default async function OrcamentoPage({ params }: { params: Promise<{ id: 
             )}
             <span className="text-sm text-texto-secundario">Válido até {DATA.format(new Date(o.valid_until))}</span>
           </div>
+          {cancelado && (
+            <p className="mt-2 rounded-lg bg-perigo-suave px-3 py-2 text-sm text-perigo-tinta">
+              Cancelado
+              {o.canceled_at ? ` em ${DATA_HORA.format(new Date(o.canceled_at))}` : ""}
+              {o.canceled_by ? ` por ${o.canceled_by.name}` : ""}. Motivo: {o.canceled_reason ?? "não informado"}.
+            </p>
+          )}
+          {o.based_on && (
+            <p className="mt-2 text-sm text-texto-secundario">
+              Feito a partir do{" "}
+              <Link href={`/emporio/orcamentos/${o.based_on.id}`} className="font-medium text-texto-marca hover:underline">
+                orçamento nº {o.based_on.number}
+              </Link>
+              .
+            </p>
+          )}
+          {o.derived.length > 0 && (
+            <p className="mt-1 text-sm text-texto-secundario">
+              Orçamentos feitos a partir deste:{" "}
+              {o.derived.map((d, n) => (
+                <span key={d.id}>
+                  {n > 0 ? ", " : ""}
+                  <Link href={`/emporio/orcamentos/${d.id}`} className="font-medium text-texto-marca hover:underline">
+                    nº {d.number}
+                  </Link>
+                </span>
+              ))}
+              .
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="outline" size="sm">
@@ -90,11 +126,22 @@ export default async function OrcamentoPage({ params }: { params: Promise<{ id: 
               Imprimir cupom
             </a>
           </Button>
-          {!faturado && podeVender && (
+          {!faturado && !cancelado && podeVender && (
             <Button asChild size="sm">
               <Link href={`/emporio/vender?orcamento=${o.id}`}>Faturar</Link>
             </Button>
           )}
+          {editavel && podeVender && (
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/emporio/vender?editar_orcamento=${o.id}`}>Editar</Link>
+            </Button>
+          )}
+          {podeVender && (
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/emporio/vender?orcamento_base=${o.id}`}>Novo orçamento a partir deste</Link>
+            </Button>
+          )}
+          {editavel && podeVender && <CancelarOrcamentoForm orcamentoId={o.id} numero={o.numero} />}
         </div>
       </header>
 
