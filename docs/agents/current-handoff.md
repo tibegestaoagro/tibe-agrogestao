@@ -57,7 +57,7 @@ fornecedor ou Outros, pendente ou paga com origem do dinheiro e alçada;
 marcador explícito em `FinancialEntry`, sem efeito no Resultado da Loja.
 Specs e planos em `docs/superpowers/` de 10/11; commits `7622ebd` a `5b66c73`.
 `test:all -- --sem-redis` 107/107, `check`, `tsc`, `lint` (13 avisos antigos),
-build e navegador local verdes. Revisão final pendente antes de integrar.
+build e navegador local verdes; conferido de novo pelo Claude Code em 10/11 (`test:all` 107/107, build) e revisão final aprovada (menores na dívida 2.67). Falta o usuário autorizar a migração no Neon, o merge e o push.
 
 ### Desfazer acordo, aviso por email, recalcular o mês (Q275 a Q277): em produção
 
