@@ -362,6 +362,13 @@ cliente real com as duas coisas vai precisar.
 | Q273 | **Contas sem vencimento** listadas à parte na projeção e no a pagar. | Conta esquecida é pior que conta atrasada. |
 | Q274 | **Email do seed** passa a `owner@example.com` (domínio reservado); o histórico fica como foi escrito. | O par email de empresa e senha na documentação pública é o provável alvo do alerta do GitGuardian. |
 
+| Q275 | **Desfazer acordo de fiado** só sem movimento (nenhuma parcela paga, abatida ou extra de cheque): parcelas canceladas, origens de volta a pendentes, o acordo marcado desfeito com motivo. | Sem movimento, voltar ao estado anterior é seguro; com dinheiro movido, é estorno. |
+| Q276 | **Aviso de pedido de pagamento também por email** a todo Dono e Gerente geral ativo, além do WhatsApp. | Quem aprova sem telefone só via o pedido abrindo o Hoje. |
+| Q277 | **Recalcular o mês do rateio automático** por ação explícita, só em mês corrente ou futuro sem conta paga. | A loja nova entra no mês sem esperar o seguinte, sem nunca tocar mês com conta paga. |
+
+Design do desfazer acordo, do aviso por email e do recálculo do mês (Q275 a Q277) em
+[../superpowers/specs/2026-11-09-emporio-acordo-aviso-rateio-design.md](../superpowers/specs/2026-11-09-emporio-acordo-aviso-rateio-design.md).
+
 Design dos relatórios e da limpeza (Q268 a Q274) em
 [../superpowers/specs/2026-11-09-emporio-relatorios-e-limpeza-design.md](../superpowers/specs/2026-11-09-emporio-relatorios-e-limpeza-design.md).
 
