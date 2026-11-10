@@ -25,8 +25,8 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-10 à noite. Branch `emporio-orcamento-editar-cancelar`
-  (seção abaixo) em produção (migração no Neon, merge e push autorizados), como o boleto.
+- Atualizado em: 2026-11-10 à noite. Branch `emporio-peso-total` (seção
+  abaixo) pronta e NÃO publicada. Orçamento e boleto em produção.
   Outros agentes: leia `AGENTS.md`.
 - `main` igual a `origin/main`, Neon em dia. Em produção também: conta avulsa e
   2.64/2.65, Apresentação sempre visível, observação no impresso, cliente no
@@ -34,31 +34,32 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   e editar venda (Q244 a Q249), o financeiro (Q214 a Q243); evidências em
   [financeiro-emporio-relatorio.md](financeiro-emporio-relatorio.md).
 
+### Peso total, regra por nome de apresentação (Q291, Q292): branch pronta
+
+Branch `emporio-peso-total`, commits `936926b` a `406354a`. Q291: peso por
+item e total (calculado pela unidade e pelo conteúdo) no impresso do orçamento
+e da venda, na tela da venda e no romaneio. Q292: regra do Vendeu, Pagou por
+nome de apresentação em qualquer produto (`presentation_name`; migração
+`20261110230000_emporio_regra_por_nome_de_apresentacao` só no Docker).
+Produto sem apresentação trava o campo com aviso. 14 cenários limpam o rateio.
+`test:all` 111/111; m110 e m111 vistas falhar; roteiros `emporio-regra-apresentacao`
+(nos dois sentidos), `emporio-impressao`, `emporio-romaneio` e
+`emporio-relatorios-exportacao` verdes. Falta: autorizar Neon, merge e push.
+
 ### Editar, cancelar e refazer orçamento (Q285 a Q290): em produção
 
-Branch `emporio-orcamento-editar-cancelar`, commits `a418817` a `2d62ad6`. Spec
+Commits `a418817` a `2d62ad6`, spec
 [../superpowers/specs/2026-11-10-emporio-editar-e-cancelar-orcamento-design.md](../superpowers/specs/2026-11-10-emporio-editar-e-cancelar-orcamento-design.md).
-Editar aberto ou vencido (mesmo número, renova validade e preços); cancelar
-com motivo, definitivo; faturado gera "Novo orçamento a partir deste"
-(`based_on_quote_id`); faturar recusa o cancelado. Migração aditiva
-`20261110210000_emporio_orcamento_editar_cancelar` no Docker e no Neon. `test:m109`
-verde (vermelha antes da implementação), m94/m97 verdes, `test:all` 108/109
-(a `m92`, relógio do turno, falhou uma vez e passa sozinha), roteiro
-`emporio-orcamento-editar` verde e sabotado (18 falhas).
-Falta: a Agromax editar e cancelar um orçamento real.
+Editar aberto ou vencido (renova validade e preços), cancelar com motivo,
+"Novo orçamento a partir deste"; migração no Neon; m109 e roteiro
+`emporio-orcamento-editar` verdes. Falta a Agromax usar num orçamento real.
 
 ### Boleto, titular do cheque, dívidas 2.67 e 2.68: em produção
 
-Branch `emporio-boleto-cheque-dividas`, commits `f4089f3` a `2edd77e`. Spec
-[../superpowers/specs/2026-11-10-emporio-boleto-e-titular-do-cheque-design.md](../superpowers/specs/2026-11-10-emporio-boleto-e-titular-do-cheque-design.md)
-(Q278 a Q284, decisões do usuário em 10/11). Boleto como forma de pagamento,
-como o cheque: parcelas com vencimento, baixa na conta (`boleto_pago`),
-"Mandar para o fiado", vencido conta no bloqueio. Cheque com "Em nome de"
-obrigatório. Migração `20261110180000_emporio_boleto_e_titular_do_cheque`
-aplicada no Docker e no Neon (tem backfill do titular). `test:all -- --sem-redis`
-108/108, `test:m108` provada nos dois sentidos, roteiros `emporio-boleto` e
-`emporio-impressao` verdes (o do boleto nos dois sentidos). Fechadas 2.67 e
-2.68; aberta 2.69 (tarifa). A 2.70 (conferência velha do `emporio-f6b`) fechou depois, na branch `roteiro-f6b-contatos`.
+Spec [../superpowers/specs/2026-11-10-emporio-boleto-e-titular-do-cheque-design.md](../superpowers/specs/2026-11-10-emporio-boleto-e-titular-do-cheque-design.md)
+(Q278 a Q284): boleto como o cheque, "Em nome de" obrigatório; migração no
+Neon; m108 e roteiro `emporio-boleto` nos dois sentidos. Fechadas 2.67, 2.68
+e 2.70; aberta 2.69 (tarifa).
 
 ### Desfazer acordo, aviso por email, recalcular o mês (Q275 a Q277): em produção
 
@@ -80,7 +81,7 @@ Agromax, a entrega 4 (extrato da Stone) depende de um arquivo real.
 
 ### ⏭️ Próximo passo
 
-1. Na Agromax: editar e cancelar um orçamento real; conferir o boleto e o "Em nome de" numa venda real.
+1. Com autorização: migração da Q292 no Neon, merge e push da `emporio-peso-total`. Na Agromax: criar a regra por apresentação (FRANQUIA) e editar e cancelar um orçamento real; conferir o boleto e o "Em nome de" numa venda real.
 2. Na Agromax (usuário, pelas telas): Stone, taxas do mês, regra de dia útil
    e, se usar, a antecipação automática; confirmar as decisões do agente do
    cartão e do frete; responder o setor; decidir se o vendedor vê o líquido
