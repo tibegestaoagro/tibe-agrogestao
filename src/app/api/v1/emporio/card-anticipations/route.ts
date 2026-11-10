@@ -37,7 +37,12 @@ async function GETHandler(request: Request) {
   });
   if (!q.success) return apiErroDeZod(q.error);
   if ((q.data.before === undefined) !== (q.data.before_id === undefined)) {
-    return apiError("VALIDATION_ERROR", "O cursor leva before (AAAA-MM-DD) e before_id juntos.", 422, "before");
+    return apiError(
+      "VALIDATION_ERROR",
+      "O cursor leva before (AAAA-MM-DD) e before_id juntos.",
+      422,
+      q.data.before !== undefined ? "before_id" : "before",
+    );
   }
   return respostaDaAction(
     await listarAntecipacoesAction(g.db, g.user, {
