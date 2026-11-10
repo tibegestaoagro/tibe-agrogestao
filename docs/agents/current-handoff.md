@@ -26,7 +26,7 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 ## Estado atual
 
 - Atualizado em: 2026-11-10 à noite. Branch `emporio-dois-custos` (seção
-  abaixo) pronta e NÃO publicada. Peso, orçamento e boleto em produção.
+  abaixo) em produção (Neon, merge e push autorizados), como peso, orçamento e boleto.
   Outros agentes: leia `AGENTS.md`.
 - `main` igual a `origin/main`, Neon em dia. Em produção também: conta avulsa e
   2.64/2.65, Apresentação sempre visível, observação no impresso, cliente no
@@ -34,7 +34,7 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   e editar venda (Q244 a Q249), o financeiro (Q214 a Q243); evidências em
   [financeiro-emporio-relatorio.md](financeiro-emporio-relatorio.md).
 
-### Dois custos e base do preço sugerido (Q293 a Q297): branch pronta
+### Dois custos e base do preço sugerido (Q293 a Q297): em produção
 
 Branch `emporio-dois-custos`, commits `610b425` a `30b5e8b`. Spec
 [../superpowers/specs/2026-11-10-emporio-dois-custos-design.md](../superpowers/specs/2026-11-10-emporio-dois-custos-design.md).
@@ -42,9 +42,9 @@ Diagnóstico (produção, leitura): o TALCO/ GEL virou 1,31 por estoque fantasma
 (compra lançada antes da contagem). Custo médio e última compra lado a lado,
 base do sugerido por loja (padrão o maior), aviso de 10%, saldo antes da
 compra, sem estoque o sugerido pela última compra. Migração
-`20261111090000_emporio_base_do_preco_sugerido` só no Docker. `test:all` 112/112,
+`20261111090000_emporio_base_do_preco_sugerido` no Docker e no Neon. `test:all` 112/112,
 m112 sabotada, roteiro `emporio-dois-custos` nos dois sentidos. Aberta 2.71.
-Falta: autorizar Neon, merge e push.
+Falta a Agromax conferir a formação de preço e contar antes de repor.
 
 ### Em produção em 09 e 10/11 (detalhe nas specs e no git log)
 
@@ -70,7 +70,7 @@ Agromax, a entrega 4 (extrato da Stone) depende de um arquivo real.
 
 ### ⏭️ Próximo passo
 
-1. Com autorização: migração dos dois custos no Neon, merge e push da `emporio-dois-custos`. Na Agromax: contar o estoque antes de lançar compra de produto que acabou; criar a regra por apresentação (FRANQUIA) e editar e cancelar um orçamento real; conferir o boleto e o "Em nome de" numa venda real.
+1. Na Agromax: contar o estoque antes de lançar compra de produto que acabou; criar a regra por apresentação (FRANQUIA) e editar e cancelar um orçamento real; conferir o boleto e o "Em nome de" numa venda real.
 2. Na Agromax (usuário, pelas telas): Stone, taxas do mês, regra de dia útil
    e, se usar, a antecipação automática; confirmar as decisões do agente do
    cartão e do frete; responder o setor; decidir se o vendedor vê o líquido
