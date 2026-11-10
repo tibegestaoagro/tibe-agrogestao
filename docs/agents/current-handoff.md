@@ -25,39 +25,28 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-10 à tarde (em produção, autorizados na conversa:
-  conta avulsa e dívidas 2.64/2.65; campo Apresentação sempre visível na regra
-  do Vendeu, Pagou; observação no impresso A4 e cupom; cliente e nº da venda no
-  extrato da conta). Outros agentes: leia `AGENTS.md`. Aberta 2.68 (cenários).
-- `main` em `428b3a8` (igual a `origin/main` após o push), nenhuma migração pendente no
-  Neon. Em produção também: cartão (Q250 a Q267), frete e editar venda (Q244
-  a Q249), o financeiro (Q214 a Q243); evidências em
-  [financeiro-emporio-relatorio.md](financeiro-emporio-relatorio.md). As
-  branches `emporio-relatorios-e-limpeza` e `emporio-acordo-aviso-rateio`
-  estão na `main`.
+- Atualizado em: 2026-11-10 à noite. Branch de trabalho
+  `emporio-boleto-cheque-dividas` (seção abaixo), pronta e NÃO publicada.
+  Outros agentes: leia `AGENTS.md`.
+- `main` em `66fe1d7` (igual a `origin/main`). Em produção: conta avulsa e
+  2.64/2.65, Apresentação sempre visível, observação no impresso, cliente no
+  extrato, relatórios e exportação (Q268 a Q274), cartão (Q250 a Q267), frete
+  e editar venda (Q244 a Q249), o financeiro (Q214 a Q243); evidências em
+  [financeiro-emporio-relatorio.md](financeiro-emporio-relatorio.md).
 
-### Relatórios, exportação e limpeza (Q268 a Q274): em produção
+### Boleto, titular do cheque, dívidas 2.67 e 2.68: branch pronta, não publicada
 
-Spec [../superpowers/specs/2026-11-09-emporio-relatorios-e-limpeza-design.md](../superpowers/specs/2026-11-09-emporio-relatorios-e-limpeza-design.md),
-plano `docs/superpowers/plans/2026-11-09-emporio-relatorios-e-limpeza.md`.
-Faturamento por origem no relatório de vendas; relatórios do dinheiro e
-projeção em planilha (CSV para o Excel brasileiro) e em PDF pela página de
-impressão; gráfico do saldo projetado; custo efetivo do cartão no Resultado;
-contas sem vencimento à parte; limpeza da 2.63; email do seed trocado para
-`owner@example.com` (Q274; o banco local também). `test:m105` 101, roteiro
-`emporio-relatorios-exportacao` 44 checks nos dois sentidos (sabotado: 3).
-Fechadas 2.45, 2.46, 2.50, 2.54, 2.61. As dívidas 2.64 e 2.65 foram
-resolvidas na branch do Codex descrita abaixo.
-
-### Dívidas 2.64 e 2.65 e conta avulsa (branch do Codex): em produção
-
-Fechadas 2.64 e 2.65: calendário m99, escopo da antecipação, CSV por conta,
-datas compartilhadas e campo do cursor. Conta avulsa: loja obrigatória,
-fornecedor ou Outros, pendente ou paga com origem do dinheiro e alçada;
-marcador explícito em `FinancialEntry`, sem efeito no Resultado da Loja.
-Specs e planos em `docs/superpowers/` de 10/11; commits `7622ebd` a `5b66c73`.
-`test:all -- --sem-redis` 107/107, `check`, `tsc`, `lint` (13 avisos antigos),
-build e navegador local verdes; conferido de novo pelo Claude Code em 10/11 (`test:all` 107/107, build) e revisão final aprovada (menores na dívida 2.67). Falta o usuário autorizar a migração no Neon, o merge e o push.
+Branch `emporio-boleto-cheque-dividas`, commits `f4089f3` a `2edd77e`. Spec
+[../superpowers/specs/2026-11-10-emporio-boleto-e-titular-do-cheque-design.md](../superpowers/specs/2026-11-10-emporio-boleto-e-titular-do-cheque-design.md)
+(Q278 a Q284, decisões do usuário em 10/11). Boleto como forma de pagamento,
+como o cheque: parcelas com vencimento, baixa na conta (`boleto_pago`),
+"Mandar para o fiado", vencido conta no bloqueio. Cheque com "Em nome de"
+obrigatório. Migração `20261110180000_emporio_boleto_e_titular_do_cheque`
+aplicada só no Docker (tem backfill do titular). `test:all -- --sem-redis`
+108/108, `test:m108` provada nos dois sentidos, roteiros `emporio-boleto` e
+`emporio-impressao` verdes (o do boleto nos dois sentidos). Fechadas 2.67 e
+2.68; abertas 2.69 (tarifa) e 2.70 (conferência velha do `emporio-f6b`).
+Falta: o usuário autorizar a migração no Neon, o merge e o push.
 
 ### Desfazer acordo, aviso por email, recalcular o mês (Q275 a Q277): em produção
 
@@ -79,8 +68,8 @@ Agromax, a entrega 4 (extrato da Stone) depende de um arquivo real.
 
 ### ⏭️ Próximo passo
 
-1. Imposto por produto: resolvido pelo "Vendeu, Pagou" percentual por produto
-   e apresentação; o campo fica sempre visível desde 10/11 (`74dc61f`, em produção).
+1. Com autorização: migração do boleto no Neon (URL Direct), conferir
+   `migrate status`, merge e push da `emporio-boleto-cheque-dividas`.
 2. Na Agromax (usuário, pelas telas): Stone, taxas do mês, regra de dia útil
    e, se usar, a antecipação automática; confirmar as decisões do agente do
    cartão e do frete; responder o setor; decidir se o vendedor vê o líquido
