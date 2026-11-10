@@ -332,10 +332,16 @@ export function RegraVariavelForm({
         )}
       </Field>
 
-      {f.produto !== QUALQUER && (
-        <Field label="Apresentação" id={err.idDe("presentation_id")} error={err.erros.presentation_id}>
+      {/* Sempre visível: escondida até escolher o produto, a Agromax não a achava (10/11/2026). */}
+      <Field
+        label="Apresentação"
+        id={err.idDe("presentation_id")}
+        error={err.erros.presentation_id}
+        hint={f.produto === QUALQUER ? "Escolha o produto vendido para filtrar por apresentação." : undefined}
+      >
           {({ id, ...aria }) => (
             <Select
+              disabled={f.produto === QUALQUER}
               value={f.apresentacao}
               onValueChange={(v) => {
                 set({ apresentacao: v });
@@ -356,7 +362,6 @@ export function RegraVariavelForm({
             </Select>
           )}
         </Field>
-      )}
     </FormSheet>
   );
 }
