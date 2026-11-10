@@ -2902,6 +2902,11 @@ model FinancialEntry {
   emporio_customer_id String?
   emporio_supplier_id String?
 
+  /// Conta a pagar avulsa do Empório, sem efeito no Resultado da Loja.
+  emporio_manual             Boolean @default(false)
+  emporio_manual_description String?
+  emporio_other_name         String?
+
   /// Módulo 39 (Meu Empório): o estabelecimento do lançamento. Anulável, igual
   /// a `property_id`: lançamento da fazenda fica nulo. `SetNull` pelo mesmo
   /// motivo: arquivar um estabelecimento não pode travar o histórico.
