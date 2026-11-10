@@ -25,47 +25,40 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-09 à noite (entregas 2 e 3 do cartão e dívidas em
-  produção: migração no Neon, merge fast-forward e push autorizados na
-  conversa; deploy conferido: o `/docs/api` lista `card-anticipations`).
-- `main` em `c5a5814` (igual a `origin/main`), nenhuma migração pendente no
-  Neon; o preenchimento conferido em produção (11 de 11 recebíveis; as 2
-  adquirentes em próximo dia útil). Em produção também: entrega 1 das taxas
-  de cartão (Q250 a Q258), frete, origem e-commerce e editar venda (Q244 a
-  Q249), o financeiro (Q214 a Q243); evidências em
-  [financeiro-emporio-relatorio.md](financeiro-emporio-relatorio.md); a branch `emporio-cartao-2-3-dividas` está na `main`.
+- Atualizado em: 2026-11-09 à noite (relatórios do dinheiro, exportação e
+  limpeza prontos na branch `emporio-relatorios-e-limpeza`, à espera da
+  autorização do usuário para mesclar e publicar; sem migração).
+- `main` em `255a150` (igual a `origin/main`), nenhuma migração pendente no
+  Neon. Em produção: cartão entregas 1 a 3 (Q250 a Q267), frete, origem e
+  editar venda (Q244 a Q249), o financeiro (Q214 a Q243); evidências em
+  [financeiro-emporio-relatorio.md](financeiro-emporio-relatorio.md).
 
-### Cartão, entregas 2 e 3, e dívidas (Q259 a Q267): em produção
+### Relatórios, exportação e limpeza (Q268 a Q274): pronto na branch
 
-Pedido do usuário em 09/11: seguir sem esperar a Agromax. Spec
-[../superpowers/specs/2026-11-09-emporio-cartao-entregas-2-e-3-design.md](../superpowers/specs/2026-11-09-emporio-cartao-entregas-2-e-3-design.md),
-plano `docs/superpowers/plans/2026-11-09-emporio-cartao-2-3-dividas.md`,
-ledger em `.superpowers/sdd/2026-11-09-emporio-cartao-2-3-dividas/progress.md`.
-Parcela em dia útil bancário (regra da adquirente, padrão próximo dia útil);
-taxa, data e líquido efetivos por parcela (todo leitor de saldo e a receber lê
-os efetivos); antecipação pontual com desfazer e automática por
-configuração, com custo em "Antecipação de recebíveis" fora da margem;
-cancelamento como a Stone (a taxa da venda volta conforme a adquirente, a da
-antecipação não). Fechadas 2.37 (fiado sem corrida), 2.43, 2.51, 2.56, 2.57,
-2.59; abertas 2.60 a 2.63. Migração
-`20261110090000_emporio_cartao_dia_util_antecipacao` (preenche os recebíveis
-existentes, CHECK da faixa) aplicada no Docker e no Neon. `test:m104` 150, `test:all` 104/104, build e isolamento verdes, roteiro
-`emporio-antecipacao` 64 checks nos dois sentidos (sabotado: 2 falhas),
-`emporio-cartoes` verde.
+Spec [../superpowers/specs/2026-11-09-emporio-relatorios-e-limpeza-design.md](../superpowers/specs/2026-11-09-emporio-relatorios-e-limpeza-design.md),
+plano `docs/superpowers/plans/2026-11-09-emporio-relatorios-e-limpeza.md`.
+Faturamento por origem no relatório de vendas; relatórios do dinheiro e
+projeção em planilha (CSV para o Excel brasileiro) e em PDF pela página de
+impressão; gráfico do saldo projetado; custo efetivo do cartão no Resultado;
+contas sem vencimento à parte; limpeza da 2.63; email do seed trocado para
+`owner@example.com` (Q274; o banco local também). `test:m105` 101, roteiro
+`emporio-relatorios-exportacao` 44 checks nos dois sentidos (sabotado: 3).
+Fechadas 2.45, 2.46, 2.50, 2.54, 2.61; abertas 2.64 e 2.65 (a m99 reprova entre 21h e meia-noite de Brasília por calcular o dia em UTC; não é regressão). **Próxima rodada
+(rascunho da spec fora do git, no scratchpad):** desfazer acordo sem
+movimento (2.39), aviso de pedido também por email (2.40), recalcular o mês
+do rateio sem tocar mês com conta paga (2.53), Q275 a Q277.
 
-### Taxas de cartão (Q250 a Q258): entrega 1 em produção
+### Cartão (Q250 a Q267): entregas 1 a 3 em produção
 
-Pedido do usuário em 09/11: a Stone cobra por bandeira (Visa/Master, Elo),
-modalidade e número de parcelas, a taxa muda todo mês, e há antecipação.
-Pesquisa em `reports/Taxas de cartão no Empório.md` (fora do git). Spec
-[../superpowers/specs/2026-11-09-emporio-taxas-de-cartao-design.md](../superpowers/specs/2026-11-09-emporio-taxas-de-cartao-design.md)
-(quatro entregas; a 1 detalhada, com dez decisões do agente no fim), plano
-`docs/superpowers/plans/2026-11-09-emporio-taxas-cartao-1.md`, ledger em
-`.superpowers/sdd/2026-11-09-emporio-taxas-cartao-1/progress.md`.
-
-Em produção: adquirente como cadastro e tabela de taxas por loja, adquirente,
-bandeira, modalidade e faixa de parcelas, com vigência, em Configurações; a
-venda congela tudo; a migração carregou as regras antigas na "Maquininha".
+Specs [../superpowers/specs/2026-11-09-emporio-taxas-de-cartao-design.md](../superpowers/specs/2026-11-09-emporio-taxas-de-cartao-design.md)
+e [../superpowers/specs/2026-11-09-emporio-cartao-entregas-2-e-3-design.md](../superpowers/specs/2026-11-09-emporio-cartao-entregas-2-e-3-design.md);
+pesquisa em `reports/Taxas de cartão no Empório.md` (fora do git). Adquirente
+como cadastro, taxa por loja, adquirente, bandeira, modalidade e faixa de
+parcelas com vigência (Configurações); parcela em dia útil com taxa e
+efetivos próprios; antecipação pontual e automática; cancelamento como a
+Stone. `test:m103` 89, `test:m104` 150, roteiros `emporio-cartoes` e
+`emporio-antecipacao` nos dois sentidos. Abertas 2.60, 2.62, 2.63 (só o
+item do vendedor).
 **Decisões do agente a confirmar:** sem bandeira informada pela API a venda
 grava bandeira nula e resolve só linhas "qualquer bandeira"; as taxas podem
 ser mexidas pelo gestor da loja e pelo Financeiro (Q232); adquirente só pelo
@@ -77,13 +70,14 @@ bandeira e parcelas com a vigência do mês e encerrar as migradas. A entrega 4
 
 ### ⏭️ Próximo passo
 
-1. Na Agromax (usuário, pelas telas): Stone, taxas do mês, regra de dia útil
+1. O usuário autoriza NA CONVERSA o merge fast-forward e o push na `main`
+   da branch `emporio-relatorios-e-limpeza` (sem migração); conferir o deploy
+   pelo `/docs/api` (o `format=csv` nas rotas de relatório).
+2. Seguir com a próxima rodada (Q275 a Q277), sem esperar ninguém.
+3. Na Agromax (usuário, pelas telas): Stone, taxas do mês, regra de dia útil
    e, se usar, a antecipação automática; confirmar as decisões do agente do
-   cartão e do frete; responder o setor (fim de semana, antecipação, arquivo
-   do extrato para a entrega 4); decidir se o vendedor vê o líquido efetivo
-   (2.63).
-2. Depois: Q239 a Q243 do financeiro; cenário de demonstração na conta de
-   testes nova; dívidas 2.36 a 2.63 esperam pedido.
+   cartão e do frete; responder o setor; decidir se o vendedor vê o líquido
+   efetivo (2.63). Depois: Q239 a Q243; cenário de demonstração.
 
 As pastas `research_notes/` e `reports/` (pesquisa de mercado que embasou a
 spec) são ignoradas pelo git de propósito: o repositório é público.
@@ -192,6 +186,8 @@ relatórios em [agente-whatsapp/](agente-whatsapp/), detalhe em
 
 ## Últimas rodadas
 
+- 09/11 (noite): relatórios, exportação e limpeza (Q268 a Q274, m105 101,
+  roteiro 44/0, test:all 104/105 com a m99 reprovando só pelo horário: 2.65) prontos em `emporio-relatorios-e-limpeza`.
 - 09/11 (noite): entregas 2 e 3 do cartão e dívidas (Q259 a Q267, m104
   150, roteiro 64/0) em produção, autorizadas na conversa.
 - 09/11: frete, origem e editar venda (Q244 a Q249) e a entrega 1 das taxas
