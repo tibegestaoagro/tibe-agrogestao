@@ -66,13 +66,12 @@ const INCLUDE_OPERACAO = {
 type OperacaoRow = Prisma.CardAnticipationGetPayload<{ include: typeof INCLUDE_OPERACAO }>;
 
 /**
- * `lojaId` (a loja filtrada na lista) faz os totais saírem só das parcelas dela: uma operação pode juntar parcelas de
- * várias lojas, e quem vê uma loja não deve ler o dinheiro das outras. Operação desfeita não tem parcelas: fica com os
- * totais gravados nela.
+ * O alcance da lista limita também os totais. Depois de desfazer, só o custo por loja
+ * permanece documentado nas despesas: as parcelas desvinculadas não podem ser inferidas.
  */
-function viewDaOperacao(o: OperacaoRow, lojaId: string | null = null): AntecipacaoView {
-  const soDaLoja = lojaId !== null && o.receivables.length > 0;
-  const parcelas = soDaLoja ? o.receivables.filter((r) => r.establishment_id === lojaId) : o.receivables;
+function viewDaOperacao(o: OperacaoRow, lojas: Set<string> | null = null, custoSemParcelasCent = 0): AntecipacaoView {
+  const restrita = lojas !== null;
+  const parcelas = lojas ? o.receivables.filter((r) => lojas.has(r.establishment_id)) : o.receivables;
   let brutoCent = 0;
   let previstoCent = 0;
   let recebidoCent = 0;
@@ -91,8 +90,8 @@ function viewDaOperacao(o: OperacaoRow, lojaId: string | null = null): Antecipac
     pesoTotal += liquido;
     pesoDias += liquido * dias;
   }
-  const fee = soDaLoja ? reais(feeCent) : (decToNum(o.fee_amount) ?? 0);
-  const previsto = soDaLoja ? reais(previstoCent) : (decToNum(o.expected_net) ?? 0);
+  const fee = restrita ? reais(o.receivables.length > 0 ? feeCent : custoSemParcelasCent) : (decToNum(o.fee_amount) ?? 0);
+  const previsto = restrita ? reais(previstoCent) : (decToNum(o.expected_net) ?? 0);
   const mediaDias = pesoTotal > 0 ? pesoDias / pesoTotal : 0;
   const pctMes = pctEfetivoMes(centavos(fee), centavos(previsto), mediaDias);
   const conciliada = o.receivables.some((r) => r.reconciled_at !== null);
@@ -103,14 +102,15 @@ function viewDaOperacao(o: OperacaoRow, lojaId: string | null = null): Antecipac
     bank_account_id: o.bank_account_id,
     bank_account_name: o.bank_account.name,
     operated_on: diaDe(o.operated_on),
-    gross_amount: soDaLoja ? reais(brutoCent) : (decToNum(o.gross_amount) ?? 0),
+    gross_amount: restrita ? reais(brutoCent) : (decToNum(o.gross_amount) ?? 0),
     expected_net: previsto,
-    received_net: soDaLoja ? reais(recebidoCent) : (decToNum(o.received_net) ?? 0),
+    received_net: restrita ? reais(recebidoCent) : (decToNum(o.received_net) ?? 0),
     fee_amount: fee,
     effective_pct_month: pctMes,
     receivables_count: parcelas.length,
     undone_at: isoOrNull(o.undone_at),
     can_undo:
+      (!lojas || o.receivables.every((r) => lojas.has(r.establishment_id))) &&
       o.kind === "pontual" &&
       o.undone_at === null &&
       !conciliada &&
@@ -147,6 +147,8 @@ export async function listarAntecipacoesAction(
 
   const visiveis = await lojasDoAtor(db, ator);
   const pedida = typeof filtro?.establishment_id === "string" && filtro.establishment_id ? filtro.establishment_id : null;
+  const alcance = pedida ? new Set(visiveis && !visiveis.has(pedida) ? [] : [pedida]) : visiveis;
+  const custosPorOperacao = new Map<string, number>();
   const where: Prisma.CardAnticipationWhereInput = {};
   if (dataValida(filtro?.de) || dataValida(filtro?.ate)) {
     where.operated_on = {
@@ -154,8 +156,8 @@ export async function listarAntecipacoesAction(
       ...(dataValida(filtro?.ate) ? { lte: soODia(filtro.ate) } : {}),
     };
   }
-  if (visiveis || pedida) {
-    const lojas = pedida ? (visiveis && !visiveis.has(pedida) ? [] : [pedida]) : [...(visiveis as Set<string>)];
+  if (alcance) {
+    const lojas = [...alcance];
     // A operação desfeita já não tem parcelas: a loja dela é a da despesa (cancelada) que gerou.
     const despesas = await db.financialEntry.findMany({
       where: {
@@ -164,8 +166,11 @@ export async function listarAntecipacoesAction(
         category: CATEGORIA_ANTECIPACAO,
         establishment_id: { in: lojas },
       },
-      select: { related_id: true },
+      select: { related_id: true, amount: true },
     });
+    for (const d of despesas) {
+      if (d.related_id) custosPorOperacao.set(d.related_id, (custosPorOperacao.get(d.related_id) ?? 0) + centavos(decToNum(d.amount) ?? 0));
+    }
     where.OR = [
       { receivables: { some: { establishment_id: { in: lojas } } } },
       { id: { in: despesas.map((d) => d.related_id).filter((x): x is string => !!x) } },
@@ -190,7 +195,7 @@ export async function listarAntecipacoesAction(
     orderBy: [{ operated_on: "desc" }, { id: "desc" }],
     take: 200,
   });
-  return ok(rows.map((r) => viewDaOperacao(r, pedida)));
+  return ok(rows.map((r) => viewDaOperacao(r, alcance, custosPorOperacao.get(r.id) ?? 0)));
 }
 
 // ---------------------------------------------------------------------------

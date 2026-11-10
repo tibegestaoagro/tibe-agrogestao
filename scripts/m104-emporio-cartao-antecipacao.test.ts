@@ -609,6 +609,61 @@ async function comBanco() {
       else check("há uma antecipação automática da seção 2 para tentar desfazer", false);
     });
 
+    await rodar("antecipação multiloja respeita o alcance de leitura", async () => {
+      const uma = await TA.mkUser("gestor-uma", "OPERADOR");
+      const duas = await TA.mkUser("gestor-duas", "OPERADOR");
+      const fora = await TA.mkUser("gestor-fora", "OPERADOR");
+      const financeiro = await TA.mkUser("financeiro", "OPERADOR");
+      for (const u of [uma, duas, fora]) await virarGestor(prisma, u.id);
+      await prisma.user.update({ where: { id: financeiro.id }, data: { emporio_role: "financeiro" } });
+      await vincularTodas(prisma, TA.t.id, [uma.id], [L6.id]);
+      await vincularTodas(prisma, TA.t.id, [duas.id], [L6.id, L7.id]);
+      await vincularTodas(prisma, TA.t.id, [fora.id], [L2.id]);
+      const conta = await mkConta("alcance");
+      const aq = await mkAdq("Alcance");
+      await taxa(L6, aq.id, conta, "credito_parcelado", 2, 12, 0, 30);
+      await taxa(L7, aq.id, conta, "credito_parcelado", 2, 12, 0, 60);
+      const criar = async (custo: number) => {
+        const a = await vender(admin, L6, 2, [cartao("credito_parcelado", 100, { installments: 2, acquirer_id: aq.id })]);
+        const b = await vender(admin, L7, 4, [cartao("credito_parcelado", 200, { installments: 2, acquirer_id: aq.id })]);
+        const parcelas = [...await recebiveisDe(idDe(a)), ...await recebiveisDe(idDe(b))];
+        const r = await aa("anteciparAction", duas, { receivable_ids: parcelas.map((p) => p.id), operated_on: meioDia(HOJE), received_net: 300 - custo });
+        check(`criar multiloja com custo ${custo}: retorno total`, r.ok && dados(r).gross_amount === 300 && dados(r).receivables_count === 4, j(r));
+        if (!r.ok) throw new Error(j(r));
+        return dados(r).id as string;
+      };
+      const ler = async (ator: Ator, id: string, filtro: Dado = {}) => lista(dados(await aa("listarAntecipacoesAction", ator, filtro))).find((v) => v.id === id);
+      const id = await criar(30);
+      const parcial = await ler(uma, id);
+      check("gestor de uma loja sem filtro: todos os valores e contagem são locais", !!parcial && parcial.gross_amount === 100 && parcial.expected_net === 100 && parcial.received_net === 90 && parcial.fee_amount === 10 && parcial.receivables_count === 2, j(parcial));
+      const p6 = await dbx.cardReceivable.findMany({ where: { anticipation_id: id, establishment_id: L6.id } });
+      const media = p6.reduce((s: number, p: Dado) => s + diasEntre(HOJE, dia(p.expected_on)) * n(p.net_amount), 0) / 100;
+      check("percentual mensal usa apenas os dias e valores da loja visível", perto(parcial?.effective_pct_month, 10 * 30 / media), j(parcial));
+      check("gestor parcial não recebe sinal de conciliação da outra loja em can_undo", parcial?.can_undo === false, j(parcial));
+      for (const ator of [duas, owner, admin, financeiro]) {
+        const v = await ler(ator, id);
+        check(`papel ${ator.id}: visão total preservada`, !!v && v.gross_amount === 300 && v.expected_net === 300 && v.received_net === 270 && v.fee_amount === 30 && v.receivables_count === 4, j(v));
+      }
+      check("gestor de outra loja não vê a operação", !await ler(fora, id));
+      check("filtro explícito preserva recorte", (await ler(owner, id, { establishment_id: L6.id }))?.received_net === 90);
+      check("filtro fora do alcance não mostra operação", !await ler(uma, id, { establishment_id: L7.id }));
+      check("gestor parcial não desfaz operação multiloja", recusa(await aa("desfazerAntecipacaoAction", uma, id), "NOT_FOUND"));
+      const desfeita = await aa("desfazerAntecipacaoAction", duas, id);
+      check("gestor de ambas desfaz e recebe total histórico", desfeita.ok && dados(desfeita).received_net === 270 && dados(desfeita).fee_amount === 30, j(desfeita));
+      for (const [ator, custo] of [[uma, 10], [duas, 30]] as const) {
+        const v = await ler(ator, id);
+        check("desfeita restrita: apenas custo documentado, sem inferir parcelas", !!v && v.gross_amount === 0 && v.expected_net === 0 && v.received_net === 0 && v.fee_amount === custo && v.receivables_count === 0 && v.effective_pct_month === null, j(v));
+      }
+      check("desfeita continua invisível a outra loja", !await ler(fora, id));
+      check("desfeita com filtro explícito não devolve total global", (await ler(owner, id, { establishment_id: L6.id }))?.gross_amount === 0);
+      for (const ator of [owner, admin, financeiro]) check("papel global mantém histórico após desfazer", (await ler(ator, id))?.received_net === 270);
+      const zero = await criar(0);
+      check("sem custo, operação ativa continua visível por parcela", (await ler(uma, zero))?.received_net === 100);
+      await aa("desfazerAntecipacaoAction", duas, zero);
+      check("sem custo, desfeita não inventa vínculo com loja", !await ler(uma, zero) && !await ler(duas, zero));
+      check("sem custo, Dono mantém total histórico", (await ler(owner, zero))?.received_net === 300);
+    });
+
     // ---------------------------------------------------------------- 6
     console.log("\n6. Fiado sem corrida: o limite é conferido de novo dentro da transação (dívida 2.37)");
     await rodar("seção 6", async () => {
