@@ -47,6 +47,8 @@ export type ImpressoVenda = {
   pagamentos: { forma: string; valor: number; bandeira: string | null; adquirente: string | null }[];
   troco: number | null;
   vendedor: string | null;
+  /** A observação digitada no balcão ou no orçamento; nula quando vazia. */
+  observacoes: string | null;
   /** `Caixa N (Nome de quem registrou)`; nulo quando a venda não tem turno. */
   caixa: string | null;
   rodape: string | null;
@@ -237,6 +239,7 @@ export async function lerImpressoDaVendaAction(
     })),
     troco: troco > 0 ? troco : null,
     vendedor: v.seller_name,
+    observacoes: v.notes?.trim() || null,
     caixa,
     rodape: cfg.sale_footer,
     largura_bobina: cfg.receipt_width,
@@ -366,6 +369,7 @@ export async function lerImpressoDoOrcamentoAction(
     pagamentos: [],
     troco: null,
     vendedor: q.seller_name,
+    observacoes: q.notes?.trim() || null,
     caixa: null,
     rodape: cfg.quote_footer,
     largura_bobina: cfg.receipt_width,

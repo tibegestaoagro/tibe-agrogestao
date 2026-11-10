@@ -144,6 +144,13 @@ export function PapelA4({ d }: { d: ImpressoVenda }) {
         </section>
       )}
 
+      {d.observacoes && (
+        <section className="bloco" style={{ marginTop: 12 }}>
+          <div className="rot">Observação</div>
+          <div style={{ whiteSpace: "pre-line" }}>{d.observacoes}</div>
+        </section>
+      )}
+
       <footer className="rodape">
         {d.vendedor && (
           <div>

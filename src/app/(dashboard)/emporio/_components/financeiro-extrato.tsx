@@ -179,6 +179,13 @@ export function ExtratoDoLugar({
                         A cair
                       </Badge>
                     )}
+                    {(l.customer_name || l.sale_number) && (
+                      <div className="text-xs text-texto-secundario">
+                        {[l.customer_name, l.sale_number ? `venda nº ${String(l.sale_number).padStart(6, "0")}` : null]
+                          .filter(Boolean)
+                          .join(", ")}
+                      </div>
+                    )}
                   </TableCell>
                   <TableCell>{l.establishment_name ?? "-"}</TableCell>
                   <TableCell className={entrada ? "text-sucesso-tinta" : "text-perigo-tinta"}>

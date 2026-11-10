@@ -102,6 +102,14 @@ export function PapelCupom({ d }: { d: ImpressoVenda }) {
       {d.cliente && <div className="nome">Cliente: {d.cliente.nome}</div>}
       {d.vendedor && <div className="nome">Vendedor: {d.vendedor}</div>}
       {d.caixa && <div className="nome">Caixa: {d.caixa}</div>}
+      {d.observacoes && (
+        <>
+          <hr />
+          <div className="nome" style={{ whiteSpace: "pre-line" }}>
+            Obs.: {d.observacoes}
+          </div>
+        </>
+      )}
       {d.rodape && (
         <>
           <hr />

@@ -100,6 +100,9 @@ export type ExtratoLinhaView = {
   establishment_id: string | null;
   establishment_name: string | null;
   description: string;
+  /** A venda que gerou a linha (PIX, dinheiro, cartão): o cliente e o número; nulos sem venda. */
+  customer_name?: string | null;
+  sale_number?: number | null;
   /** Só na linha de cartão (Q254); nulos nas demais e nas parcelas antigas. */
   acquirer_name?: string | null;
   brand?: string | null;
@@ -417,13 +420,21 @@ export async function lerExtratoAction(
       : null,
     db.cashMovement.findMany({
       where: { ...ondeMovimentos, occurred_at: { gte: desde, lt: ate } },
-      include: { establishment: { select: { name: true } } },
+      include: {
+        establishment: { select: { name: true } },
+        // O PIX e a transferência caem na conta sem loja: a venda diz a loja e o cliente da linha.
+        sale: { select: { number: true, customer: { select: { name: true } }, establishment: { select: { name: true } } } },
+      },
       orderBy: [{ occurred_at: "asc" }, { created_at: "asc" }],
     }),
     conta
       ? db.cardReceivable.findMany({
           where: { bank_account_id: conta.id, canceled_at: null, effective_on: { gte: deDia, lte: ateDia } },
-          include: { establishment: { select: { name: true } }, acquirer: { select: { name: true } } },
+          include: {
+            establishment: { select: { name: true } },
+            acquirer: { select: { name: true } },
+            sale: { select: { number: true, customer: { select: { name: true } } } },
+          },
           orderBy: [{ effective_on: "asc" }, { installment: "asc" }],
         })
       : [],
@@ -461,8 +472,11 @@ export async function lerExtratoAction(
       origin: m.origin,
       // O movimento da gerência grava `manager_establishment_id`, não `establishment_id`: a loja é a do lugar.
       establishment_id: m.establishment_id ?? m.manager_establishment_id ?? null,
-      establishment_name: m.establishment?.name ?? (m.manager_establishment_id ? lugar.name : null),
+      establishment_name:
+        m.establishment?.name ?? (m.manager_establishment_id ? lugar.name : null) ?? m.sale?.establishment.name ?? null,
       description: m.notes?.trim() || ROTULO_ORIGEM[m.origin] || m.origin,
+      customer_name: m.sale?.customer?.name ?? null,
+      sale_number: m.sale?.number ?? null,
       ...carimbo(m),
     })),
     ...parcelas.map((p): ExtratoLinhaView => ({
@@ -475,6 +489,8 @@ export async function lerExtratoAction(
       establishment_id: p.establishment_id,
       establishment_name: p.establishment.name,
       description: `Cartão, parcela ${p.installment}/${p.installments}`,
+      customer_name: p.sale?.customer?.name ?? null,
+      sale_number: p.sale?.number ?? null,
       acquirer_name: p.acquirer?.name ?? null,
       brand: p.brand,
       ...carimbo(p),
