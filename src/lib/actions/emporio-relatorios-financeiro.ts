@@ -165,7 +165,7 @@ const NOTA_TETO_DE_CONTAS = "Mais de 5.000 contas pendentes: a soma considera as
 export async function lerAPagarPorVencimentoAction(
   db: TenantPrismaClient,
   ator: Ator,
-  input: { establishment_id?: string; de: Date; ate: Date },
+  input: { establishment_id?: string; de: Date; ate: Date; teto?: number },
 ): Promise<ActionResult<APagarPorVencimentoView>> {
   const neg = await exigir(db, ator, "dinheiro", "ver o a pagar por vencimento");
   if (neg) return neg;
@@ -175,16 +175,18 @@ export async function lerAPagarPorVencimentoAction(
   if (ehRecusa(al)) return al;
 
   const { de, ate } = periodo;
+  // `teto` só existe para o teste provar o corte sem criar 5.000 contas; as rotas nunca o passam.
+  const teto = input.teto ?? TETO_DE_CONTAS_A_PAGAR;
   const hojeTxt = dia(hojeEmBrasilia());
   const contas = await listarContasAPagarAction(db, ator, {
     establishment_id: al.lojaId,
     status: "pending",
     ate: new Date(ate.getTime() + DIA_MS - 1),
-    limit: TETO_DE_CONTAS_A_PAGAR,
+    limit: teto,
   });
   if (!contas.ok) return contas;
   const notes: string[] = [];
-  if (contas.data.length >= TETO_DE_CONTAS_A_PAGAR) notes.push(NOTA_TETO_DE_CONTAS);
+  if (contas.data.length >= teto) notes.push(NOTA_TETO_DE_CONTAS);
 
   const dias = Math.round((ate.getTime() - de.getTime()) / DIA_MS) + 1;
   const semanas: { de: string; ate: string; total: number; vencido: boolean; itens: Map<string, { total: number; overdue: number }> }[] = [];
@@ -240,15 +242,21 @@ export async function lerAPagarPorVencimentoAction(
       .map(([name, v]) => ({ name, total: v.total / 100, overdue_total: v.overdue / 100 })),
     overdue_total: vencidoTotal / 100,
     total: total / 100,
-    without_due: await contasSemVencimento(db, ator, al.lojaId),
+    without_due: await contasSemVencimento(db, ator, al.lojaId, teto),
     notes,
   });
 }
 
 /** As contas pendentes sem vencimento (Q273): a lista com período as deixa de fora, e o dinheiro delas existe. */
-export async function contasSemVencimento(db: TenantPrismaClient, ator: Ator, lojaId: string | undefined): Promise<SemVencimentoView> {
-  const todas = await listarContasAPagarAction(db, ator, { establishment_id: lojaId, status: "pending", limit: TETO_DE_CONTAS_A_PAGAR });
-  const sem = todas.ok ? todas.data.filter((c) => !c.due_date) : [];
+export async function contasSemVencimento(
+  db: TenantPrismaClient,
+  ator: Ator,
+  lojaId: string | undefined,
+  teto: number = TETO_DE_CONTAS_A_PAGAR,
+): Promise<SemVencimentoView> {
+  // Consulta própria (`sem_vencimento`): a lista com vencimento pode estar no teto e não pode esconder estas.
+  const lista = await listarContasAPagarAction(db, ator, { establishment_id: lojaId, status: "pending", sem_vencimento: true, limit: teto });
+  const sem = lista.ok ? lista.data : [];
   return {
     count: sem.length,
     total: sem.reduce((s, c) => s + centavos(c.open_amount), 0) / 100,

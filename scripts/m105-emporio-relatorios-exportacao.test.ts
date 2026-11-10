@@ -394,6 +394,14 @@ async function comBanco() {
       const iCom = linhas.findIndex((l) => /(^|;)60,00(;|$)/.test(l));
       check("o CSV do a pagar traz as duas contas (pelos valores 60,00 e 80,00) e a sem vencimento vem ao fim, depois da com vencimento", iSem >= 0 && iCom >= 0 && iSem > iCom, j(linhas));
       check("a linha da conta sem vencimento traz o valor 80,00", /(^|;)80,00(;|$)/.test(linhas[iSem] ?? ""), linhas[iSem] ?? "");
+      // Fix round 1: a lista com vencimento no teto não pode esconder as contas sem vencimento. O teto vem por parâmetro
+      // (só do teste, as rotas nunca o passam): com teto 1 e 2 contas com vencimento, a lista principal é cortada.
+      await mk(70, meioDia(somaDias(HOJE, 6)));
+      const FIN = await carregar("@/lib/actions/emporio-relatorios-financeiro");
+      const noTeto = await chamarAcao([FIN], db, "lerAPagarPorVencimentoAction", fin.ator, { de: meioDia(HOJE), ate: meioDia(somaDias(HOJE, 30)), teto: 1 });
+      const dt = dados(noTeto);
+      check("(fixture) com teto 1 a lista principal é cortada (nota de teto e soma menor que 130)", !!dt && (dt.notes ?? []).some((x: string) => /5\.000/.test(x)) && n(dt.total) < 130, j(dt?.notes) + " " + j(dt?.total));
+      check("e a conta sem vencimento continua em without_due (count 1, total 80), com a consulta própria", dt?.without_due?.count === 1 && perto(dt?.without_due?.total, 80), j(dt?.without_due));
     });
 
     // =================================================================== 4

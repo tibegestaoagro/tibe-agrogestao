@@ -1526,6 +1526,8 @@ type FiltroDeContasAPagar = {
   status?: "pending" | "paid" | "cancelled" | "all";
   de?: Date;
   ate?: Date;
+  /** Só as contas sem vencimento (`due_date` nulo); `de` e `ate` não valem junto. */
+  sem_vencimento?: boolean;
   limit?: number;
 };
 
@@ -1557,7 +1559,7 @@ async function filtroDeContasAPagar(
         ? { establishment_id: { in: [...visiveis] } }
         : {}),
     ...(status === "all" ? {} : { status }),
-    ...(Object.keys(vencimento).length > 0 ? { due_date: vencimento } : {}),
+    ...(opts.sem_vencimento ? { due_date: null } : Object.keys(vencimento).length > 0 ? { due_date: vencimento } : {}),
   };
   return ok({
     where: {
