@@ -4,7 +4,7 @@ import { withApi } from "@/lib/route";
 import { respostaCsv } from "@/lib/csv";
 import { csvDoAPagarPorVencimento } from "@/lib/emporio/csv-financeiro";
 import { hojeEmBrasilia } from "@/lib/emporio/cartao";
-import { lerAPagarPorVencimentoAction } from "@/lib/actions/emporio-relatorios-financeiro";
+import { lerAPagarPorVencimentoAction, lerAPagarPorVencimentoCsvAction } from "@/lib/actions/emporio-relatorios-financeiro";
 import { diaIso, guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
 
 /** GET /api/v1/emporio/finance/reports/payables-by-due  ?establishment_id= &de= &ate= (AAAA-MM-DD; padrão: de hoje a hoje + 30)  o a pagar por semana e por nome. */
@@ -28,13 +28,16 @@ async function GETHandler(request: Request) {
     format: sp.get("format") ?? undefined,
   });
   if (!parsed.success) return apiErroDeZod(parsed.error);
-  const res = await lerAPagarPorVencimentoAction(g.db, g.user, {
+  const input = {
     establishment_id: sp.get("establishment_id") ?? undefined,
     de: parsed.data.de,
     ate: parsed.data.ate,
-  });
-  if (parsed.data.format === "csv" && res.ok) return respostaCsv(csvDoAPagarPorVencimento(res.data), "a-pagar-por-vencimento", new Date());
-  return respostaDaAction(res);
+  };
+  if (parsed.data.format === "csv") {
+    const res = await lerAPagarPorVencimentoCsvAction(g.db, g.user, input);
+    return res.ok ? respostaCsv(csvDoAPagarPorVencimento(res.data), "a-pagar-por-vencimento", new Date()) : respostaDaAction(res);
+  }
+  return respostaDaAction(await lerAPagarPorVencimentoAction(g.db, g.user, input));
 }
 
 export const GET = withApi(GETHandler);

@@ -161,12 +161,43 @@ export type SemVencimentoView = { count: number; total: number; entries: { entry
 
 const NOTA_TETO_DE_CONTAS = "Mais de 5.000 contas pendentes: a soma considera as 5.000 primeiras.";
 
-/** As contas pendentes do Empório que vencem até o fim do período, por semana de 7 dias a partir de `de` e por nome; o que já venceu (antes de hoje) entra na primeira semana, em destaque, mesmo que seja anterior a `de`. */
+type APagarPorVencimentoInput = { establishment_id?: string; de: Date; ate: Date; teto?: number };
+export type ContaPorVencimentoCsv = {
+  entry_id: string;
+  name: string;
+  establishment_name: string | null;
+  due_date: string | null;
+  total: number;
+  overdue: boolean;
+  week: { de: string; ate: string } | null;
+};
+export type APagarPorVencimentoCsvView = APagarPorVencimentoView & { entries: ContaPorVencimentoCsv[] };
+
+/** O JSON preserva o agrupamento por nome; o CSV usa as mesmas contas e a mesma classificação temporal. */
 export async function lerAPagarPorVencimentoAction(
   db: TenantPrismaClient,
   ator: Ator,
-  input: { establishment_id?: string; de: Date; ate: Date; teto?: number },
+  input: APagarPorVencimentoInput,
 ): Promise<ActionResult<APagarPorVencimentoView>> {
+  const res = await lerAPagarPorVencimento(db, ator, input);
+  return res.ok ? ok(res.data.report) : res;
+}
+
+export async function lerAPagarPorVencimentoCsvAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  input: APagarPorVencimentoInput,
+): Promise<ActionResult<APagarPorVencimentoCsvView>> {
+  const res = await lerAPagarPorVencimento(db, ator, input);
+  return res.ok ? ok({ ...res.data.report, entries: res.data.entries }) : res;
+}
+
+/** O vencido anterior a `de` entra na primeira semana, mesmo fora do período (Q243). */
+async function lerAPagarPorVencimento(
+  db: TenantPrismaClient,
+  ator: Ator,
+  input: APagarPorVencimentoInput,
+): Promise<ActionResult<{ report: APagarPorVencimentoView; entries: ContaPorVencimentoCsv[] }>> {
   const neg = await exigir(db, ator, "dinheiro", "ver o a pagar por vencimento");
   if (neg) return neg;
   const periodo = conferirPeriodo(input);
@@ -202,6 +233,7 @@ export async function lerAPagarPorVencimentoAction(
   const porNome = new Map<string, { total: number; overdue: number }>();
   let total = 0;
   let vencidoTotal = 0;
+  const entries: ContaPorVencimentoCsv[] = [];
   for (const c of contas.data) {
     if (!c.due_date) continue;
     // O que já VENCEU (antes de hoje) entra na primeira semana mesmo fora do período: o vencido é justo o
@@ -211,6 +243,7 @@ export async function lerAPagarPorVencimentoAction(
     if (!semana) continue;
     const valor = centavos(c.open_amount);
     const vencida = c.due_date < hojeTxt;
+    entries.push({ entry_id: c.entry_id, name: c.name, establishment_name: c.establishment_name, due_date: c.due_date, total: valor / 100, overdue: vencida, week: { de: semana.de, ate: semana.ate } });
     semana.total += valor;
     const item = semana.itens.get(c.name) ?? { total: 0, overdue: 0 };
     item.total += valor;
@@ -230,24 +263,27 @@ export async function lerAPagarPorVencimentoAction(
   if (semVenc.data.nota) notes.push(semVenc.data.nota);
 
   return ok({
-    de: dia(de),
-    ate: dia(ate),
-    weeks: semanas.map((s) => ({
-      de: s.de,
-      ate: s.ate,
-      total: s.total / 100,
-      overdue: s.vencido,
-      items: [...s.itens.entries()]
+    entries: [...entries, ...semVenc.data.entries],
+    report: {
+      de: dia(de),
+      ate: dia(ate),
+      weeks: semanas.map((s) => ({
+        de: s.de,
+        ate: s.ate,
+        total: s.total / 100,
+        overdue: s.vencido,
+        items: [...s.itens.entries()]
+          .sort((a, b) => b[1].total - a[1].total)
+          .map(([name, t]) => ({ name, total: t.total / 100, overdue_total: t.overdue / 100 })),
+      })),
+      by_name: [...porNome.entries()]
         .sort((a, b) => b[1].total - a[1].total)
-        .map(([name, t]) => ({ name, total: t.total / 100, overdue_total: t.overdue / 100 })),
-    })),
-    by_name: [...porNome.entries()]
-      .sort((a, b) => b[1].total - a[1].total)
-      .map(([name, v]) => ({ name, total: v.total / 100, overdue_total: v.overdue / 100 })),
-    overdue_total: vencidoTotal / 100,
-    total: total / 100,
-    without_due: semVenc.data.view,
-    notes,
+        .map(([name, v]) => ({ name, total: v.total / 100, overdue_total: v.overdue / 100 })),
+      overdue_total: vencidoTotal / 100,
+      total: total / 100,
+      without_due: semVenc.data.view,
+      notes,
+    },
   });
 }
 
@@ -257,13 +293,14 @@ export async function contasSemVencimento(
   ator: Ator,
   lojaId: string | undefined,
   teto: number = TETO_DE_CONTAS_A_PAGAR,
-): Promise<ActionResult<{ view: SemVencimentoView; nota: string | null }>> {
+): Promise<ActionResult<{ view: SemVencimentoView; nota: string | null; entries: ContaPorVencimentoCsv[] }>> {
   // Consulta própria (`sem_vencimento`): a lista com vencimento pode estar no teto e não pode esconder estas.
   const lista = await listarContasAPagarAction(db, ator, { establishment_id: lojaId, status: "pending", sem_vencimento: true, limit: teto });
   if (!lista.ok) return lista;
   const sem = lista.data;
   const n = teto.toLocaleString("pt-BR");
   return ok({
+    entries: sem.map((c) => ({ entry_id: c.entry_id, name: c.name, establishment_name: c.establishment_name, due_date: null, total: centavos(c.open_amount) / 100, overdue: false, week: null })),
     view: {
       count: sem.length,
       total: sem.reduce((s, c) => s + centavos(c.open_amount), 0) / 100,

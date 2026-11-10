@@ -1,5 +1,5 @@
 import { diaBr, gerarCsv, type ColunaCsv } from "@/lib/csv";
-import type { AReceberPorIdadeView, APagarPorVencimentoView, PosicaoPorLugarView } from "@/lib/actions/emporio-relatorios-financeiro";
+import type { AReceberPorIdadeView, APagarPorVencimentoCsvView, PosicaoPorLugarView } from "@/lib/actions/emporio-relatorios-financeiro";
 import type { FluxoProjetadoView } from "@/lib/actions/emporio-projecao";
 
 /** As planilhas dos relatórios do dinheiro (Q269): só montam linhas do que a action já devolveu. */
@@ -28,23 +28,22 @@ export function csvDoAReceberPorIdade(v: AReceberPorIdadeView): string {
   return gerarCsv(colunas, linhas);
 }
 
-export function csvDoAPagarPorVencimento(v: APagarPorVencimentoView): string {
-  type L = { semana: string; conta: string; vencimento: string; valor: number; situacao: string };
-  const situacao = (total: number, vencido: number) => (vencido <= 0 ? "A vencer" : vencido >= total ? "Vencida" : "Em parte vencida");
-  const linhas: L[] = v.weeks.flatMap((w) =>
-    w.items.map((i) => ({
-      semana: `${diaBr(w.de)} a ${diaBr(w.ate)}`,
-      conta: i.name,
-      vencimento: "Na semana",
-      valor: i.total,
-      situacao: situacao(i.total, i.overdue_total),
-    })),
-  );
-  for (const e of v.without_due.entries) {
-    linhas.push({ semana: "", conta: e.name, vencimento: "Sem vencimento", valor: e.total, situacao: "Sem vencimento" });
-  }
+export function csvDoAPagarPorVencimento(v: APagarPorVencimentoCsvView): string {
+  type L = { semana: string; id: string; loja: string; conta: string; vencimento: string; valor: number | null; situacao: string };
+  const linhas: L[] = v.entries.map((e) => ({
+    semana: e.week ? `${diaBr(e.week.de)} a ${diaBr(e.week.ate)}` : "",
+    id: e.entry_id,
+    loja: e.establishment_name ?? "",
+    conta: e.name,
+    vencimento: e.due_date ? diaBr(e.due_date) : "Sem vencimento",
+    valor: e.total,
+    situacao: !e.due_date ? "Sem vencimento" : e.overdue ? "Vencida" : "A vencer",
+  }));
+  for (const nota of v.notes) linhas.push({ semana: `Nota: ${nota}`, id: "", loja: "", conta: "", vencimento: "", valor: null, situacao: "" });
   const colunas: ColunaCsv<L>[] = [
     { titulo: "Semana", valor: (l) => l.semana },
+    { titulo: "Identificador da conta", valor: (l) => l.id },
+    { titulo: "Loja", valor: (l) => l.loja },
     { titulo: "Conta", valor: (l) => l.conta },
     { titulo: "Vencimento", valor: (l) => l.vencimento },
     { titulo: "Valor", valor: (l) => l.valor },

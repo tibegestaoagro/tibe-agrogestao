@@ -362,15 +362,15 @@ async function comBanco() {
     let semVencId = "";
     await rodar("seção 3", async () => {
       // Conta a pagar nascida de uma compra a prazo pela rota (a conta criada direto por Prisma não entra no relatório).
-      const mk = async (amount: number, due: Date | null) => {
+      const mk = async (amount: number, due: Date | null, lojaId = LD.id) => {
         const r = await chamar(owner.tok, R_.compras, "emporio/purchases", "POST", {
-          operation_key: chave("compra"), establishment_id: LD.id, purchased_at: new Date().toISOString(), received: false,
+          operation_key: chave("compra"), establishment_id: lojaId, purchased_at: new Date().toISOString(), received: false,
           items: [{ emporio_product_id: P.id, presentation_id: presId, quantity: 1, item_total: amount }],
           payment: { kind: "a_prazo", due_date: `${somaDias(HOJE, 5)}T12:00:00Z` },
         });
         const e = (await dbx.financialEntry.findFirst({ where: { related_module: "emporio", related_id: String(r.corpo?.data?.id), entry_type: "expense" } })) as Dado;
         if (!e) throw new Error(`compra de ${amount}: ${r.status} ${r.texto.slice(0, 200)}`);
-        if (due === null) await dbx.financialEntry.update({ where: { id: e.id }, data: { due_date: null } });
+        await dbx.financialEntry.update({ where: { id: e.id }, data: { due_date: due } });
         return e;
       };
       await mk(60, meioDia(somaDias(HOJE, 5)));
@@ -405,6 +405,32 @@ async function comBanco() {
       const dt = dados(noTeto);
       check("(fixture) com teto 1 a lista principal é cortada (nota de teto e soma menor que 130)", !!dt && (dt.notes ?? []).some((x: string) => /5\.000/.test(x)) && n(dt.total) < 130, j(dt?.notes) + " " + j(dt?.total));
       check("e a conta sem vencimento continua em without_due (count 1, total 80), com a consulta própria", dt?.without_due?.count === 1 && perto(dt?.without_due?.total, 80), j(dt?.without_due));
+
+      const mesmaSemana1 = await mk(31.25, meioDia(somaDias(HOJE, 1)));
+      const mesmaSemana2 = await mk(42.75, meioDia(somaDias(HOJE, 2)));
+      const vencida = await mk(19.5, meioDia(somaDias(HOJE, -10)));
+      const outraLoja = await mk(999, meioDia(somaDias(HOJE, 1)), LS.id);
+      const filtro = `${url}&establishment_id=${LD.id}`;
+      const individual = await chamar(fin.tok, R_.porVenc, `${filtro}&format=csv`);
+      const linhasInd = individual.texto.split("\r\n").filter(Boolean);
+      const dataBr = (s: string) => s.split("-").reverse().join("/");
+      for (const [e, deslocamento, valor] of [[mesmaSemana1, 1, "31,25"], [mesmaSemana2, 2, "42,75"], [vencida, -10, "19,50"]] as [Dado, number, string][]) {
+        const linhasDaConta = linhasInd.filter((l) => l.includes(e.id));
+        check(`CSV individual: ${valor} tem uma linha por entry_id com o próprio vencimento`, linhasDaConta.length === 1 && linhasDaConta[0].includes(dataBr(somaDias(HOJE, deslocamento))) && linhasDaConta[0].includes(`;${valor};`), j(linhasDaConta));
+      }
+      const linhaVencida = linhasInd.find((l) => l.includes(vencida.id)) ?? "";
+      check("CSV individual: a vencida anterior ao período entra na primeira semana como Vencida", linhaVencida.includes(`${dataBr(HOJE)} a ${dataBr(somaDias(HOJE, 6))}`) && linhaVencida.endsWith(";Vencida"), linhaVencida);
+      check("CSV individual: sem vencimento mantém o id e fica após as contas datadas", linhasInd.findIndex((l) => l.includes(sem.id)) > linhasInd.findIndex((l) => l.includes(vencida.id)) && (linhasInd.find((l) => l.includes(sem.id)) ?? "").includes(";Sem vencimento;80,00;"), j(linhasInd));
+      check("CSV individual: o filtro de loja exclui a conta da outra loja", !individual.texto.includes(outraLoja.id) && !individual.texto.includes("999,00"), individual.texto);
+      const agregado = (await chamar(fin.tok, R_.porVenc, filtro)).corpo?.data;
+      check("JSON continua agregado por nome, sem detalhe por conta", !Object.hasOwn(agregado ?? {}, "entries") && agregado?.weeks?.[0]?.items?.length === 1 && perto(agregado?.weeks?.[0]?.total, 223.5), j(agregado?.weeks?.[0]));
+      const detalheNoTeto = await chamarAcao([FIN], db, "lerAPagarPorVencimentoCsvAction", fin.ator, { de: meioDia(HOJE), ate: meioDia(somaDias(HOJE, 30)), establishment_id: LD.id, teto: 1 });
+      const dc = dados(detalheNoTeto);
+      check("CSV individual: detalhe respeita o teto e avisa o corte nas notas", detalheNoTeto.ok && dc?.entries?.filter((e: Dado) => e.due_date !== null).length === 1 && dc?.entries?.filter((e: Dado) => e.due_date === null).length === 1 && dc?.without_due?.count === 1 && dc?.notes?.length > 0, j(detalheNoTeto));
+      if (detalheNoTeto.ok) {
+        const { csvDoAPagarPorVencimento } = await import("@/lib/emporio/csv-financeiro");
+        check("CSV individual: a planilha avisa o corte", csvDoAPagarPorVencimento(dc).includes("Nota: Mais de 5.000 contas pendentes"));
+      }
     });
 
     // =================================================================== 4
