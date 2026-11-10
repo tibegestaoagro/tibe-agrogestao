@@ -25,16 +25,16 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-10 à noite. Branch de trabalho
-  `emporio-boleto-cheque-dividas` (seção abaixo), pronta e NÃO publicada.
+- Atualizado em: 2026-11-10 à noite. Branch `emporio-boleto-cheque-dividas`
+  (seção abaixo) em produção: migração no Neon, merge e push autorizados.
   Outros agentes: leia `AGENTS.md`.
-- `main` em `66fe1d7` (igual a `origin/main`). Em produção: conta avulsa e
+- `main` igual a `origin/main`, Neon em dia. Em produção também: conta avulsa e
   2.64/2.65, Apresentação sempre visível, observação no impresso, cliente no
   extrato, relatórios e exportação (Q268 a Q274), cartão (Q250 a Q267), frete
   e editar venda (Q244 a Q249), o financeiro (Q214 a Q243); evidências em
   [financeiro-emporio-relatorio.md](financeiro-emporio-relatorio.md).
 
-### Boleto, titular do cheque, dívidas 2.67 e 2.68: branch pronta, não publicada
+### Boleto, titular do cheque, dívidas 2.67 e 2.68: em produção
 
 Branch `emporio-boleto-cheque-dividas`, commits `f4089f3` a `2edd77e`. Spec
 [../superpowers/specs/2026-11-10-emporio-boleto-e-titular-do-cheque-design.md](../superpowers/specs/2026-11-10-emporio-boleto-e-titular-do-cheque-design.md)
@@ -42,11 +42,11 @@ Branch `emporio-boleto-cheque-dividas`, commits `f4089f3` a `2edd77e`. Spec
 como o cheque: parcelas com vencimento, baixa na conta (`boleto_pago`),
 "Mandar para o fiado", vencido conta no bloqueio. Cheque com "Em nome de"
 obrigatório. Migração `20261110180000_emporio_boleto_e_titular_do_cheque`
-aplicada só no Docker (tem backfill do titular). `test:all -- --sem-redis`
+aplicada no Docker e no Neon (tem backfill do titular). `test:all -- --sem-redis`
 108/108, `test:m108` provada nos dois sentidos, roteiros `emporio-boleto` e
 `emporio-impressao` verdes (o do boleto nos dois sentidos). Fechadas 2.67 e
 2.68; abertas 2.69 (tarifa) e 2.70 (conferência velha do `emporio-f6b`).
-Falta: o usuário autorizar a migração no Neon, o merge e o push.
+Falta: a Agromax conferir uma venda real com boleto e um cheque com titular.
 
 ### Desfazer acordo, aviso por email, recalcular o mês (Q275 a Q277): em produção
 
@@ -68,8 +68,7 @@ Agromax, a entrega 4 (extrato da Stone) depende de um arquivo real.
 
 ### ⏭️ Próximo passo
 
-1. Com autorização: migração do boleto no Neon (URL Direct), conferir
-   `migrate status`, merge e push da `emporio-boleto-cheque-dividas`.
+1. Na Agromax: conferir o boleto e o "Em nome de" numa venda real.
 2. Na Agromax (usuário, pelas telas): Stone, taxas do mês, regra de dia útil
    e, se usar, a antecipação automática; confirmar as decisões do agente do
    cartão e do frete; responder o setor; decidir se o vendedor vê o líquido
