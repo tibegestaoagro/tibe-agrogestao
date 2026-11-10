@@ -1,4 +1,5 @@
 import "./_env-local";
+import { limparTaxasDeCenario } from "./_cartao-cenario";
 import { prisma, prismaForTenant } from "@/lib/prisma";
 import { exigirBancoLocal } from "./_banco-local";
 import { setTenantFeatureAction } from "@/lib/actions/platform-features";
@@ -72,6 +73,10 @@ async function limpar(tenant_id: string) {
   await prisma.financialEntry.deleteMany({ where: { tenant_id, id: { in: lancamentos } } });
   await prisma.emporioSaleItem.deleteMany({ where: { tenant_id, sale_id: { in: vendas } } });
   await prisma.emporioSale.deleteMany({ where: { tenant_id, id: { in: vendas } } });
+  // O rateio e a ocorrencia de despesa fixa seguram a loja (Restrict).
+  await prisma.fixedExpenseSplit.deleteMany({ where: { tenant_id, establishment_id: { in: lojas } } });
+  await prisma.fixedExpenseOccurrence.deleteMany({ where: { tenant_id, establishment_id: { in: lojas } } });
+  await limparTaxasDeCenario(prisma, { tenant_id, establishment_ids: lojas });
   await prisma.stockLimit.deleteMany({ where: { tenant_id, establishment_id: { in: lojas } } });
   await prisma.presentationPrice.deleteMany({ where: { tenant_id, establishment_id: { in: lojas } } });
   await prisma.productPresentation.deleteMany({ where: { tenant_id, emporio_product_id: { in: emporio } } });

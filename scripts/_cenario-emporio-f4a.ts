@@ -45,6 +45,8 @@ async function limpar(tenant_id: string) {
   await prisma.stockMovement.deleteMany({ where: { tenant_id, OR: [{ establishment_id: { in: lojas } }, { product_id: { in: produtos } }] } });
   await prisma.saleVariableExpense.deleteMany({ where: { tenant_id, sale_id: { in: vendas } } });
   await prisma.fixedExpenseOccurrence.deleteMany({ where: { tenant_id, OR: [{ template_id: { in: modelos } }, { establishment_id: { in: lojas } }] } });
+  // O rateio de um modelo de outro nome (ou de outra rodada) tambem segura a loja (Restrict).
+  await prisma.fixedExpenseSplit.deleteMany({ where: { tenant_id, OR: [{ template_id: { in: modelos } }, { establishment_id: { in: lojas } }] } });
   await prisma.fixedExpenseTemplate.deleteMany({ where: { tenant_id, id: { in: modelos } } });
   await prisma.cardReceivable.deleteMany({ where: { tenant_id, sale_id: { in: vendas } } });
   await prisma.emporioCheck.deleteMany({ where: { tenant_id, sale_id: { in: vendas } } });
