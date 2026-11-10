@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { apiErroDeZod } from "@/lib/api";
+import { apiError, apiErroDeZod } from "@/lib/api";
 import { readJson } from "@/lib/api-guard";
 import { withApi } from "@/lib/route";
 import { anteciparAction, listarAntecipacoesAction } from "@/lib/actions/emporio-antecipacao";
@@ -21,18 +21,29 @@ const schema = z.object({
 const querySchema = z.object({
   de: diaIso("de").optional(),
   ate: diaIso("ate").optional(),
+  before: diaIso("before").optional(),
+  before_id: z.string({ error: "Informe o id do cursor." }).min(1).optional(),
 });
 
 async function GETHandler(request: Request) {
   const g = await guardEmporio("read");
   if ("error" in g) return g.error;
   const sp = new URL(request.url).searchParams;
-  const q = querySchema.safeParse({ de: sp.get("de") ?? undefined, ate: sp.get("ate") ?? undefined });
+  const q = querySchema.safeParse({
+    de: sp.get("de") ?? undefined,
+    ate: sp.get("ate") ?? undefined,
+    before: sp.get("before") ?? undefined,
+    before_id: sp.get("before_id") ?? undefined,
+  });
   if (!q.success) return apiErroDeZod(q.error);
+  if ((q.data.before === undefined) !== (q.data.before_id === undefined)) {
+    return apiError("VALIDATION_ERROR", "O cursor leva before (AAAA-MM-DD) e before_id juntos.", 422, "before");
+  }
   return respostaDaAction(
     await listarAntecipacoesAction(g.db, g.user, {
       de: q.data.de,
       ate: q.data.ate,
+      before: q.data.before && q.data.before_id ? { operated_on: q.data.before, id: q.data.before_id } : undefined,
       establishment_id: sp.get("establishment_id") ?? undefined,
     }),
   );

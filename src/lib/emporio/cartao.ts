@@ -105,7 +105,27 @@ export function taxaDoPagamentoCent(valorCent: number, linha: Pick<LinhaDeTaxa, 
   return Math.round((valorCent * linha.fee_pct) / 100) + Math.round(linha.fee_fixed * 100);
 }
 
-export type RegraDiaUtil = "proximo_dia_util" | "dias_corridos";
+export const REGRAS_DIA_UTIL = ["proximo_dia_util", "dias_corridos"] as const;
+export type RegraDiaUtil = (typeof REGRAS_DIA_UTIL)[number];
+
+/** A configuração completa de uma adquirente (os seis campos da `CardAcquirer`), o formato único para ler e gravar. */
+export type ConfigCompletaDaAdquirente = {
+  business_day_rule: RegraDiaUtil;
+  refunds_mdr_on_cancel: boolean;
+  auto_anticipation_enabled: boolean;
+  auto_anticipation_pct_month: number | null;
+  auto_anticipation_business_days: number;
+  auto_anticipation_since: Date | null;
+};
+
+/**
+ * Custo da antecipação sobre o previsto, ao mês, em % com 2 casas: `custo / previsto * 30 / dias`. `diasPonderados` é a
+ * média dos dias antecipados ponderada pelo líquido. Nulo sem previsto ou sem dias (nada a taxar por mês).
+ */
+export function pctEfetivoMes(custoCent: number, previstoCent: number, diasPonderados: number): number | null {
+  if (!(diasPonderados > 0) || !(previstoCent > 0)) return null;
+  return Math.round(((custoCent / previstoCent) * 100 * 30 * 100) / diasPonderados) / 100;
+}
 
 /** Q260: a regra de dia útil padrão. Todo fallback (servidor, prévia, painel) usa esta constante. */
 export const REGRA_DIA_UTIL_PADRAO: RegraDiaUtil = "proximo_dia_util";

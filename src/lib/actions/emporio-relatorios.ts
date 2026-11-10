@@ -25,6 +25,15 @@ const MAX_DIAS = 366;
 
 export type RelatorioDeVendasInput = { from: string; to: string; establishment_id?: string };
 
+export type VendasPorOrigem = {
+  origin: "balcao" | "ecommerce";
+  count: number;
+  net: number;
+  freight: number;
+  /** Participação no líquido do relatório (ou da loja), em % com 2 casas; 0 quando o total é zero. */
+  share_pct: number;
+}[];
+
 export type RelatorioDeVendas = {
   periodo: { from: string; to: string };
   lojas: { id: string; name: string }[];
@@ -37,8 +46,35 @@ export type RelatorioDeVendas = {
   }[];
   por_produto: { emporio_product_id: string; name: string; base_unit: string; quantity: number; total: number }[];
   parados: { emporio_product_id: string; name: string; establishment_id: string; establishment_name: string }[];
-  por_loja: { establishment_id: string; name: string; sales_count: number; total: number; average_ticket: number | null }[];
+  por_loja: {
+    establishment_id: string;
+    name: string;
+    sales_count: number;
+    total: number;
+    average_ticket: number | null;
+    by_origin: VendasPorOrigem;
+  }[];
+  /** Sempre as duas origens, com zero quando não houver venda; o líquido já desconta o devolvido, como o total. */
+  by_origin: VendasPorOrigem;
 };
+
+type Origem = "balcao" | "ecommerce";
+const ORIGENS: Origem[] = ["balcao", "ecommerce"];
+type SomaOrigem = { count: number; cent: number; freightCent: number };
+const somaVazia = (): Record<Origem, SomaOrigem> => ({
+  balcao: { count: 0, cent: 0, freightCent: 0 },
+  ecommerce: { count: 0, cent: 0, freightCent: 0 },
+});
+function viewDeOrigens(m: Record<Origem, SomaOrigem>): VendasPorOrigem {
+  const total = ORIGENS.reduce((s, o) => s + m[o].cent, 0);
+  return ORIGENS.map((o) => ({
+    origin: o,
+    count: m[o].count,
+    net: reais(m[o].cent),
+    freight: reais(m[o].freightCent),
+    share_pct: total > 0 ? Math.round((m[o].cent * 10000) / total) / 100 : 0,
+  }));
+}
 
 /** "AAAA-MM-DD" -> meia-noite UTC do dia; `null` se não for um dia que existe. */
 function lerDia(texto: unknown): number | null {
@@ -93,13 +129,17 @@ export async function relatorioDeVendasAction(
   }
   const lojaIds = lojas.map((l) => l.id);
   const periodo = { from: String(input.from).trim(), to: String(input.to).trim() };
-  if (lojaIds.length === 0) return ok({ periodo, lojas, por_vendedor: [], por_produto: [], parados: [], por_loja: [] });
+  if (lojaIds.length === 0) {
+    return ok({ periodo, lojas, por_vendedor: [], por_produto: [], parados: [], por_loja: [], by_origin: viewDeOrigens(somaVazia()) });
+  }
 
   const vendas = await db.emporioSale.findMany({
     where: { establishment_id: { in: lojaIds }, status: "concluida", sold_at: janela },
     select: {
       establishment_id: true,
       seller_user_id: true,
+      origin: true,
+      freight_amount: true,
       net_amount: true,
       exchange_return_id: true,
       items: { select: { emporio_product_id: true, base_qty: true, total: true } },
@@ -108,7 +148,7 @@ export async function relatorioDeVendasAction(
   const devolucoes = await db.emporioSaleReturn.findMany({
     where: { returned_at: janela, sale: { establishment_id: { in: lojaIds }, status: "concluida" } },
     select: {
-      sale: { select: { establishment_id: true, seller_user_id: true } },
+      sale: { select: { establishment_id: true, seller_user_id: true, origin: true } },
       items: {
         select: {
           quantity: true,
@@ -123,6 +163,8 @@ export async function relatorioDeVendasAction(
   const porLoja = new Map<string, Soma>(lojaIds.map((id) => [id, { count: 0, cent: 0 }]));
   const porProduto = new Map<string, { qty: number; cent: number }>();
   const vendidoNaLoja = new Set<string>();
+  const origemTotal = somaVazia();
+  const origemDaLoja = new Map<string, Record<Origem, SomaOrigem>>(lojaIds.map((id) => [id, somaVazia()]));
   const soma = <K>(m: Map<K, Soma>, k: K) => {
     let s = m.get(k);
     if (!s) m.set(k, (s = { count: 0, cent: 0 }));
@@ -140,6 +182,11 @@ export async function relatorioDeVendasAction(
     for (const s of [soma(porVendedor, v.seller_user_id), soma(porLoja, v.establishment_id)]) {
       s.count += conta;
       s.cent += cent;
+    }
+    for (const o of [origemTotal[v.origin], (origemDaLoja.get(v.establishment_id) as Record<Origem, SomaOrigem>)[v.origin]]) {
+      o.count += conta;
+      o.cent += cent;
+      o.freightCent += centavos(decToNum(v.freight_amount) ?? 0);
     }
     for (const i of v.items) {
       const p = produto(i.emporio_product_id);
@@ -159,6 +206,8 @@ export async function relatorioDeVendasAction(
     }
     soma(porVendedor, d.sale.seller_user_id).cent -= devolvido;
     soma(porLoja, d.sale.establishment_id).cent -= devolvido;
+    origemTotal[d.sale.origin].cent -= devolvido;
+    (origemDaLoja.get(d.sale.establishment_id) as Record<Origem, SomaOrigem>)[d.sale.origin].cent -= devolvido;
   }
 
   // Nomes: o vendedor desativado continua com o nome dele.
@@ -184,7 +233,14 @@ export async function relatorioDeVendasAction(
   const por_loja = lojas
     .map((l) => {
       const s = porLoja.get(l.id) as Soma;
-      return { establishment_id: l.id, name: l.name, sales_count: s.count, total: reais(s.cent), average_ticket: ticket(s) };
+      return {
+        establishment_id: l.id,
+        name: l.name,
+        sales_count: s.count,
+        total: reais(s.cent),
+        average_ticket: ticket(s),
+        by_origin: viewDeOrigens(origemDaLoja.get(l.id) as Record<Origem, SomaOrigem>),
+      };
     })
     .sort(porNome);
 
@@ -244,5 +300,6 @@ export async function relatorioDeVendasAction(
         a.establishment_name.localeCompare(b.establishment_name, "pt-BR") || a.name.localeCompare(b.name, "pt-BR"),
     ),
     por_loja,
+    by_origin: viewDeOrigens(origemTotal),
   });
 }

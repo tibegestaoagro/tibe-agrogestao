@@ -69,7 +69,20 @@ export type LojaDoResultadoView = {
   /** Despesa financeira "Antecipação de recebíveis" do mês: fora da margem, já dentro de `result`. */
   anticipation_costs: number;
   result: number;
+  card_cost: CustoDoCartaoView;
 };
+
+/** Q272: o custo efetivo do cartão no mês, `pct` = (taxa + antecipação) / vendas no cartão, nulo sem venda no cartão. */
+export type CustoDoCartaoView = { card_sales: number; mdr: number; anticipation: number; pct: number | null };
+
+function custoDoCartao(cartaoCent: number, mdrCent: number, antecipacaoCent: number): CustoDoCartaoView {
+  return {
+    card_sales: reais(cartaoCent),
+    mdr: reais(mdrCent),
+    anticipation: reais(antecipacaoCent),
+    pct: cartaoCent > 0 ? pct2(((mdrCent + antecipacaoCent) / cartaoCent) * 100) : null,
+  };
+}
 
 export type ResultadoDaLojaView = {
   establishment_id: string;
@@ -95,6 +108,7 @@ export type ResultadoDaLojaView = {
   /** Antecipação de recebíveis (despesa financeira): subtraída de `result`, fora da margem e de `variable_expenses`. */
   anticipation_costs: number;
   result: number;
+  card_cost: CustoDoCartaoView;
   break_even: PontoDeEquilibrioView;
   tracking: {
     days: { date: string; sales: number; cumulative: number | null }[];
@@ -323,8 +337,20 @@ async function apurarLoja(db: TenantPrismaClient, lojaId: string, mes: MesCivil,
   });
   const antecipacaoCent = antecipacoes.reduce((s, e) => s + centavos(decToNum(e.amount) ?? 0), 0);
 
+  // Q272: o que passou no cartão nas vendas concluídas do mês (a mesma janela do Resultado), base do custo efetivo.
+  const idsDasVendas = m.vendas.map((v) => v.id);
+  const noCartao =
+    idsDasVendas.length === 0
+      ? []
+      : await db.emporioSalePayment.findMany({
+          where: { sale_id: { in: idsDasVendas }, kind: { in: ["debito", "credito_vista", "credito_parcelado"] } },
+          select: { amount: true },
+        });
+  const cartaoCent = noCartao.reduce((s, p) => s + centavos(decToNum(p.amount) ?? 0), 0);
+
   return {
     m,
+    cartaoCent,
     antecipacaoCent,
     perdasEstoqueCent,
     diferencaTransfCent,
@@ -539,6 +565,7 @@ export async function resultadoDaLojaAction(
     },
     anticipation_costs: reais(antecipacaoCent),
     result: reais(resultadoCent),
+    card_cost: custoDoCartao(soma((a) => a.cartaoCent), m.taxasCent, antecipacaoCent),
     break_even: pe,
     tracking: { days: dias, days_in_month: nDias, days_elapsed: decorridos, projected_sales: projetado },
     estimated: motivos.length > 0,
@@ -564,6 +591,7 @@ export async function resultadoDaLojaAction(
         result: reais(
           a.m.margemCent - a.perdasCent - a.fixasCent + a.m.freteRecebidoCent - a.m.fretePagoCent - a.antecipacaoCent,
         ),
+        card_cost: custoDoCartao(a.cartaoCent, a.m.taxasCent, a.antecipacaoCent),
       };
     });
   }

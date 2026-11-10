@@ -6,7 +6,7 @@ import { createLinkedEntry, runSerializableTenantTransaction } from "@/lib/finan
 import { exigirUma } from "@/lib/emporio/papel";
 import { lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
 import { registrarNoHistorico, dinheiro } from "@/lib/emporio/historico";
-import { CATEGORIA_ANTECIPACAO, hojeEmBrasilia, ratearCustoCent } from "@/lib/emporio/cartao";
+import { CATEGORIA_ANTECIPACAO, hojeEmBrasilia, pctEfetivoMes, ratearCustoCent } from "@/lib/emporio/cartao";
 
 /**
  * Meu Empório, antecipação de recebíveis do cartão (Q262). A validação é em
@@ -51,6 +51,8 @@ const INCLUDE_OPERACAO = {
   bank_account: { select: { name: true } },
   receivables: {
     select: {
+      establishment_id: true,
+      gross_amount: true,
       expected_on: true,
       effective_net: true,
       anticipation_fee: true,
@@ -63,20 +65,36 @@ const INCLUDE_OPERACAO = {
 
 type OperacaoRow = Prisma.CardAnticipationGetPayload<{ include: typeof INCLUDE_OPERACAO }>;
 
-function viewDaOperacao(o: OperacaoRow): AntecipacaoView {
-  const fee = decToNum(o.fee_amount) ?? 0;
-  const previsto = decToNum(o.expected_net) ?? 0;
+/**
+ * `lojaId` (a loja filtrada na lista) faz os totais saírem só das parcelas dela: uma operação pode juntar parcelas de
+ * várias lojas, e quem vê uma loja não deve ler o dinheiro das outras. Operação desfeita não tem parcelas: fica com os
+ * totais gravados nela.
+ */
+function viewDaOperacao(o: OperacaoRow, lojaId: string | null = null): AntecipacaoView {
+  const soDaLoja = lojaId !== null && o.receivables.length > 0;
+  const parcelas = soDaLoja ? o.receivables.filter((r) => r.establishment_id === lojaId) : o.receivables;
+  let brutoCent = 0;
+  let previstoCent = 0;
+  let recebidoCent = 0;
+  let feeCent = 0;
   let pesoTotal = 0;
   let pesoDias = 0;
-  for (const r of o.receivables) {
-    const liquido = (decToNum(r.effective_net) ?? 0) + (decToNum(r.anticipation_fee) ?? 0);
+  for (const r of parcelas) {
+    const efetivo = centavos(decToNum(r.effective_net) ?? 0);
+    const taxa = centavos(decToNum(r.anticipation_fee) ?? 0);
+    const liquido = efetivo + taxa;
     const dias = Math.max(0, Math.round((r.expected_on.getTime() - o.operated_on.getTime()) / DIA_MS));
+    brutoCent += centavos(decToNum(r.gross_amount) ?? 0);
+    previstoCent += liquido;
+    recebidoCent += efetivo;
+    feeCent += taxa;
     pesoTotal += liquido;
     pesoDias += liquido * dias;
   }
+  const fee = soDaLoja ? reais(feeCent) : (decToNum(o.fee_amount) ?? 0);
+  const previsto = soDaLoja ? reais(previstoCent) : (decToNum(o.expected_net) ?? 0);
   const mediaDias = pesoTotal > 0 ? pesoDias / pesoTotal : 0;
-  const pctMes =
-    mediaDias > 0 && previsto > 0 ? Math.round(((fee / previsto) * 100 * 30 * 100) / mediaDias) / 100 : null;
+  const pctMes = pctEfetivoMes(centavos(fee), centavos(previsto), mediaDias);
   const conciliada = o.receivables.some((r) => r.reconciled_at !== null);
   return {
     id: o.id,
@@ -85,12 +103,12 @@ function viewDaOperacao(o: OperacaoRow): AntecipacaoView {
     bank_account_id: o.bank_account_id,
     bank_account_name: o.bank_account.name,
     operated_on: diaDe(o.operated_on),
-    gross_amount: decToNum(o.gross_amount) ?? 0,
+    gross_amount: soDaLoja ? reais(brutoCent) : (decToNum(o.gross_amount) ?? 0),
     expected_net: previsto,
-    received_net: decToNum(o.received_net) ?? 0,
+    received_net: soDaLoja ? reais(recebidoCent) : (decToNum(o.received_net) ?? 0),
     fee_amount: fee,
     effective_pct_month: pctMes,
-    receivables_count: o.receivables.length,
+    receivables_count: parcelas.length,
     undone_at: isoOrNull(o.undone_at),
     can_undo:
       o.kind === "pontual" &&
@@ -117,7 +135,12 @@ const PARCELA_NAO_ACHADA = () => fail("NOT_FOUND", "Parcela não encontrada.", 4
 export async function listarAntecipacoesAction(
   db: TenantPrismaClient,
   ator: Ator,
-  filtro: { de?: Date | null; ate?: Date | null; establishment_id?: string | null } = {},
+  filtro: {
+    de?: Date | null;
+    ate?: Date | null;
+    establishment_id?: string | null;
+    before?: { operated_on: Date; id: string } | null;
+  } = {},
 ): Promise<ActionResult<AntecipacaoView[]>> {
   const neg = await exigirUma(db, ator, PERMISSAO, "ver as antecipações");
   if (neg) return neg;
@@ -149,13 +172,25 @@ export async function listarAntecipacoesAction(
     ];
   }
 
+  // Cursor: o dia e o id da última operação da página anterior; o `id` desempata operações do mesmo dia.
+  const antes = filtro?.before;
+  if (antes != null) {
+    if (typeof antes !== "object" || !dataValida(antes.operated_on) || typeof antes.id !== "string" || !antes.id) {
+      return fail("VALIDATION_ERROR", "Cursor inválido: informe a data e o id da última antecipação da página.", 422, "before");
+    }
+    const corte: Prisma.CardAnticipationWhereInput = {
+      OR: [{ operated_on: { lt: soODia(antes.operated_on) } }, { operated_on: soODia(antes.operated_on), id: { lt: antes.id } }],
+    };
+    where.AND = [corte];
+  }
+
   const rows = await db.cardAnticipation.findMany({
     where,
     include: INCLUDE_OPERACAO,
-    orderBy: [{ operated_on: "desc" }, { created_at: "desc" }],
+    orderBy: [{ operated_on: "desc" }, { id: "desc" }],
     take: 200,
   });
-  return ok(rows.map(viewDaOperacao));
+  return ok(rows.map((r) => viewDaOperacao(r, pedida)));
 }
 
 // ---------------------------------------------------------------------------

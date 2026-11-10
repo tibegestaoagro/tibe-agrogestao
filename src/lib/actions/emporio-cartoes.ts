@@ -5,15 +5,18 @@ import { exigir, exigirUma, papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { lojaVisivel, lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
 import { acharLojaParaEscrita } from "@/lib/actions/emporio-estoque";
 import { diferencas, registrarNoHistorico } from "@/lib/emporio/historico";
-import { runSerializableTenantTransaction } from "@/lib/financial";
+import { runSerializableTenantTransaction, type TenantTransactionClient } from "@/lib/financial";
 import {
   BANDEIRAS,
+  REGRAS_DIA_UTIL,
   REGRA_DIA_UTIL_PADRAO,
   ROTULO_DA_BANDEIRA,
   hojeEmBrasilia,
   somarDias,
   type Bandeira,
+  type ConfigCompletaDaAdquirente as ConfigCompleta,
   type LinhaDeTaxa,
+  type RegraDiaUtil,
 } from "@/lib/emporio/cartao";
 import { dataBr } from "@/lib/emporio/datas";
 
@@ -53,9 +56,6 @@ const rotuloBandeira = (b: string) => ROTULO_DA_BANDEIRA[b as Bandeira | "qualqu
 // ---------------------------------------------------------------------------
 // Adquirentes
 // ---------------------------------------------------------------------------
-
-const REGRAS_DIA_UTIL = ["proximo_dia_util", "dias_corridos"] as const;
-type RegraDiaUtil = (typeof REGRAS_DIA_UTIL)[number];
 
 export type AdquirenteView = {
   id: string;
@@ -105,15 +105,6 @@ export type ConfigDaAdquirente = {
   auto_anticipation_pct_month?: number | null;
   auto_anticipation_business_days?: number;
   auto_anticipation_since?: Date | null;
-};
-
-type ConfigCompleta = {
-  business_day_rule: RegraDiaUtil;
-  refunds_mdr_on_cancel: boolean;
-  auto_anticipation_enabled: boolean;
-  auto_anticipation_pct_month: number | null;
-  auto_anticipation_business_days: number;
-  auto_anticipation_since: Date | null;
 };
 
 const CONFIG_PADRAO: ConfigCompleta = {
@@ -302,20 +293,12 @@ export async function editarAdquirenteAction(
 
   const arquivar = input?.archived === true && !atual.archived_at;
   const reativar = input?.archived === false && !!atual.archived_at;
-  if (arquivar) {
-    const hoje = hojeEmBrasilia();
-    const vigentes = await db.cardFeeRate.count({
-      where: { acquirer_id: atual.id, OR: [{ valid_to: null }, { valid_to: { gte: hoje } }] },
-    });
-    if (vigentes > 0) {
-      return fail("VALIDATION_ERROR", "Encerre as taxas desta adquirente antes de arquivar.", 409);
-    }
-  }
 
   const antesCfg = paraHistorico(atual as unknown as AdquirenteRow);
   const mudancas = diferencas(antesCfg, paraHistorico(config.data), CAMPOS_DA_CONFIG);
   try {
-    const nova = await db.$transaction(async (tx) => {
+    const nova = await runSerializableTenantTransaction(db, async (tx) => {
+      if (arquivar) await exigirSemTaxaVigente(tx, atual.id);
       const a = await tx.cardAcquirer.update({
         where: { id: atual.id },
         data: {
@@ -365,8 +348,26 @@ export async function editarAdquirenteAction(
     });
     return ok(viewDaAdquirente(nova));
   } catch (err) {
+    if (err instanceof RecusaDeCartao) return err.recusa;
     if (!ehErroUnico(err)) throw err;
     return fail("VALIDATION_ERROR", "Já existe uma adquirente com esse nome.", 409, "name");
+  }
+}
+
+/** Aborta a transação com uma recusa de negócio (o rollback desfaz o que já foi escrito). */
+class RecusaDeCartao extends Error {
+  constructor(public recusa: ActionResult<never>) {
+    super("recusa de cartão");
+  }
+}
+
+/** Dentro da transação: arquivar com taxa vigente deixaria a loja sem como resolver a venda dessa adquirente. */
+async function exigirSemTaxaVigente(tx: TenantTransactionClient, acquirerId: string): Promise<void> {
+  const vigentes = await tx.cardFeeRate.count({
+    where: { acquirer_id: acquirerId, OR: [{ valid_to: null }, { valid_to: { gte: hojeEmBrasilia() } }] },
+  });
+  if (vigentes > 0) {
+    throw new RecusaDeCartao(fail("VALIDATION_ERROR", "Encerre as taxas desta adquirente antes de arquivar.", 409));
   }
 }
 
@@ -382,28 +383,27 @@ export async function arquivarAdquirenteAction(
   if (atual.archived_at) {
     return ok(viewDaAdquirente({ ...atual, _count: { fee_rates: await db.cardFeeRate.count({ where: { acquirer_id: id } }) } }));
   }
-  const hoje = hojeEmBrasilia();
-  const vigentes = await db.cardFeeRate.count({
-    where: { acquirer_id: atual.id, OR: [{ valid_to: null }, { valid_to: { gte: hoje } }] },
-  });
-  if (vigentes > 0) {
-    return fail("VALIDATION_ERROR", "Encerre as taxas desta adquirente antes de arquivar.", 409);
+  try {
+    const nova = await runSerializableTenantTransaction(db, async (tx) => {
+      await exigirSemTaxaVigente(tx, atual.id);
+      const a = await tx.cardAcquirer.update({
+        where: { id: atual.id },
+        data: { archived_at: new Date(), updated_by_user_id: ator.id },
+        include: INCLUDE_ADQUIRENTE,
+      });
+      await registrarNoHistorico(tx, ator, {
+        action: "cartao.adquirente.arquivar",
+        target_type: "adquirente",
+        target_id: a.id,
+        summary: `Arquivou a adquirente ${a.name}`,
+      });
+      return a;
+    });
+    return ok(viewDaAdquirente(nova));
+  } catch (err) {
+    if (err instanceof RecusaDeCartao) return err.recusa;
+    throw err;
   }
-  const nova = await db.$transaction(async (tx) => {
-    const a = await tx.cardAcquirer.update({
-      where: { id: atual.id },
-      data: { archived_at: new Date(), updated_by_user_id: ator.id },
-      include: INCLUDE_ADQUIRENTE,
-    });
-    await registrarNoHistorico(tx, ator, {
-      action: "cartao.adquirente.arquivar",
-      target_type: "adquirente",
-      target_id: a.id,
-      summary: `Arquivou a adquirente ${a.name}`,
-    });
-    return a;
-  });
-  return ok(viewDaAdquirente(nova));
 }
 
 export async function reativarAdquirenteAction(

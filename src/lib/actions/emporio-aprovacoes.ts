@@ -1,3 +1,4 @@
+import type { Prisma } from "@/generated/prisma/client";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import type { TenantPrismaClient } from "@/lib/prisma";
 import { runSerializableTenantTransaction } from "@/lib/financial";
@@ -31,7 +32,7 @@ const NAO_PENDENTE = () => fail("PEDIDO_NAO_PENDENTE", "Este pedido já foi deci
 export async function listarPedidosDePagamentoAction(
   db: TenantPrismaClient,
   ator: Ator,
-  opts: { status?: StatusDoPedido | "decididos"; before?: string } = {},
+  opts: { status?: StatusDoPedido | "decididos"; before?: string; before_id?: string } = {},
 ): Promise<ActionResult<PedidoDePagamentoView[]>> {
   const neg = await exigir(db, ator, "dinheiro", "ver os pedidos de pagamento");
   if (neg) return neg;
@@ -40,13 +41,23 @@ export async function listarPedidosDePagamentoAction(
     return fail("VALIDATION_ERROR", "Escolha um estado válido: pendente, aprovado, recusado ou decididos.", 422, "status");
   }
   if (status === "decididos") {
-    // Cursor `before`: decided_at do último item da página anterior (ISO).
+    // Cursor: `before` é o decided_at do último item da página anterior (ISO) e `before_id` o id dele, que desempata
+    // pedidos decididos no mesmo instante. Sem `before_id` vale o corte antigo (só `decided_at` menor).
     const antes = opts?.before ? new Date(opts.before) : null;
     if (antes && Number.isNaN(antes.getTime())) {
       return fail("VALIDATION_ERROR", "Cursor inválido: use uma data ISO8601.", 422, "before");
     }
+    const antesId = typeof opts?.before_id === "string" && opts.before_id ? opts.before_id : null;
+    if (antesId && !antes) {
+      return fail("VALIDATION_ERROR", "Informe também o cursor before (data ISO8601).", 422, "before");
+    }
+    const corte: Prisma.EmporioPaymentRequestWhereInput = !antes
+      ? {}
+      : antesId
+        ? { OR: [{ decided_at: { lt: antes } }, { decided_at: antes, id: { lt: antesId } }] }
+        : { decided_at: { lt: antes } };
     const decididos = await db.emporioPaymentRequest.findMany({
-      where: { status: { in: ["aprovado", "recusado"] }, ...(antes ? { decided_at: { lt: antes } } : {}) },
+      where: { status: { in: ["aprovado", "recusado"] }, ...corte },
       include: INCLUDE_PEDIDO,
       orderBy: [{ decided_at: "desc" }, { id: "desc" }],
       take: 200,
