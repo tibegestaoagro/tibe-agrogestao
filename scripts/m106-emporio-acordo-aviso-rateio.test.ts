@@ -354,6 +354,9 @@ async function secao1() {
   const dB = await desfazer(B.db, B.owner, ac4, { reason: "do outro tenant" });
   check("o dono do tenant B desfazer o acordo de A: NOT_FOUND", recusa(dB, "NOT_FOUND"), j(dB));
   check("A segue intacto (sem undone_at, parcelas pending)", !(await acordoDb(ac4))?.undone_at && (await parcelas(ac4)).every((p) => p.status === "pending"));
+  const dOutroCliente = await desfazer(A.db, A.owner, ac4, { reason: "URL de outro cliente" }, c1.id);
+  check("desfazer o acordo de um cliente pela URL de OUTRO cliente: 404 NOT_FOUND", recusa(dOutroCliente, "NOT_FOUND", undefined, 404), j(dOutroCliente));
+  check("e o acordo segue intacto", !(await acordoDb(ac4))?.undone_at && (await parcelas(ac4)).every((p) => p.status === "pending"));
   const cancelAntes = await chamar(A.tok.owner, R.saleCancel, "POST", `emporio/sales/${k1.vendaId}/cancel`, { reason: "M106" }, k1.vendaId);
   check("(controle) com o acordo ativo, cancelar a venda: 409 VENDA_EM_ACORDO", cancelAntes.status === 409 && cancelAntes.corpo?.error?.code === "VENDA_EM_ACORDO", `${cancelAntes.status} ${j(cancelAntes.corpo)}`);
   const d5 = await desfazer(A.db, A.owner, ac4, { reason: "Vai cancelar a venda" });
@@ -502,6 +505,68 @@ async function secao3() {
   const dB = await recalcular(B.db, B.owner, T2, { month: mesCorrente });
   check("o dono do tenant B recalcular o modelo de A: NOT_FOUND", recusa(dB, "NOT_FOUND"), j(dB));
   check("o modelo de A não mudou", j(Object.values(await ativas(T2)).map((x) => x.id).sort()) === aAntesB);
+
+  console.log("  (f) corrida: pagamento confirmado depois da checagem e antes do cancelamento (I1)");
+  const t4 = await criar(`M106 Corrida ${stamp}`, { split_kind: "funcionarios" });
+  if (!t4.ok) throw new Error(`modelo 4: ${j(t4)}`);
+  const T4 = String((t4.data as Dado).id);
+  const a4 = await ativas(T4);
+  const contaCorrida = a4[A.L1]?.id;
+  check("(fixture) o modelo 4 nasceu com a conta da loja 1", !!contaCorrida, j(a4));
+  let disparou = 0;
+  const envolver = (tx: Dado): Dado =>
+    new Proxy(tx, {
+      get(alvo, prop) {
+        const v = Reflect.get(alvo, prop);
+        if (prop !== "financialPayment") return typeof v === "function" ? v.bind(alvo) : v;
+        return new Proxy(v, {
+          get(m, f) {
+            const fn = Reflect.get(m, f);
+            if (f !== "findMany" || typeof fn !== "function") return typeof fn === "function" ? fn.bind(m) : fn;
+            return async (...args: unknown[]) => {
+              const lido = await fn.apply(m, args); // a checagem enxerga "sem pagamento"
+              if (disparou === 0) {
+                disparou++;
+                // outra conexão confirma o pagamento agora: depois da leitura, antes do cancelamento
+                const e = (await prisma.financialEntry.findFirst({ where: { id: contaCorrida } })) as Dado;
+                await prisma.financialPayment.create({ data: { tenant_id: A.tenantId, entry_id: contaCorrida, amount: e.amount, paid_at: new Date(), method: "dinheiro" } });
+                await prisma.financialEntry.update({ where: { id: contaCorrida }, data: { status: "paid", paid_at: new Date() } });
+              }
+              return lido;
+            };
+          },
+        });
+      },
+    });
+  const dbCorrida: Dado = new Proxy(A.db, {
+    get(alvo, prop) {
+      const v = Reflect.get(alvo, prop);
+      if (prop === "$transaction") return (cb: (tx: Dado) => Promise<unknown>, opts?: unknown) => alvo.$transaction((tx: Dado) => cb(envolver(tx)), opts);
+      return typeof v === "function" ? v.bind(alvo) : v;
+    },
+  });
+  const corrida = await recalcular(dbCorrida, A.owner, T4, { month: mesCorrente });
+  check("(controle) o pagamento concorrente foi injetado", disparou >= 1, String(disparou));
+  check("recalcular perdendo a corrida: 409 MES_FECHADO", recusa(corrida, "MES_FECHADO", undefined, 409), j(corrida));
+  const paga = (await A.db.financialEntry.findFirst({ where: { id: contaCorrida } })) as Dado;
+  check("a conta paga na corrida NÃO foi cancelada", paga?.status === "paid", String(paga?.status));
+  const a4d = await ativas(T4);
+  check("as ativas do mês seguem as mesmas, sem conta nova", j(Object.values(a4d).map((x) => x.id).sort()) === j(Object.values(a4).map((x) => x.id).sort()), j(a4d));
+
+  console.log("  (g) loja arquivada depois do mês nascer (I2)");
+  const t5 = await criar(`M106 Arquivada ${stamp}`, { split_kind: "funcionarios" });
+  if (!t5.ok) throw new Error(`modelo 5: ${j(t5)}`);
+  const T5 = String((t5.data as Dado).id);
+  const a5 = await ativas(T5);
+  check("(fixture) o modelo 5 nasceu com as três lojas", Object.keys(a5).length === 3 && !!a5[L3], j(a5));
+  const contaL3 = a5[L3]?.id;
+  await prisma.establishment.update({ where: { id: L3 }, data: { archived_at: new Date() } });
+  const r5 = await recalcular(A.db, A.owner, T5, { month: mesCorrente });
+  check("recalcular com a loja 3 arquivada: ok", r5.ok === true, j(r5));
+  const l3c = (await A.db.financialEntry.findFirst({ where: { id: contaL3 } })) as Dado;
+  check("a conta pendente da loja arquivada fica cancelled", l3c?.status === "cancelled", String(l3c?.status));
+  const a5d = await ativas(T5);
+  check("o mês soma o valor do modelo (1000) só com as lojas ativas", !a5d[L3] && Object.keys(a5d).length === 2 && perto(soma(a5d), 1000), j(a5d));
 }
 
 // ---------------------------------------------------------------------------

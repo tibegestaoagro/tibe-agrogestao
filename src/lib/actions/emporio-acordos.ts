@@ -310,6 +310,7 @@ export async function desfazerAcordoAction(
   ator: Ator,
   acordoId: string,
   input: DesfazerAcordoInput,
+  clienteId?: string,
 ): Promise<ActionResult<AcordoView>> {
   const neg = await exigir(db, ator, "acordo", "desfazer acordo");
   if (neg) return neg;
@@ -326,7 +327,9 @@ export async function desfazerAcordoAction(
         where: { id: acordoId },
         include: { customer: { select: { name: true } } },
       });
-      if (!acordo) throw new RecusaAcordo(fail("NOT_FOUND", "Acordo não encontrado.", 404, "agreement_id"));
+      if (!acordo || (clienteId !== undefined && acordo.customer_id !== clienteId)) {
+        throw new RecusaAcordo(fail("NOT_FOUND", "Acordo não encontrado.", 404, "agreement_id"));
+      }
       if (acordo.undone_at) throw new RecusaAcordo(fail("ACORDO_DESFEITO", "Esse acordo já foi desfeito.", 409));
 
       const [view] = await montarAcordos(txDb, { id: acordo.id });

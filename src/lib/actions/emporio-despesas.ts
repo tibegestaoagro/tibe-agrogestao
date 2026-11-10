@@ -1319,7 +1319,10 @@ export async function recalcularMesDaDespesaFixaAction(
   const modelo = { id: t.id, category: t.category, due_day: t.due_day };
 
   try {
-    await transacaoLonga(db, async (tx) => {
+    // Serializável e com cancelamento condicional: um pagamento confirmado entre a checagem e o cancelamento não
+    // pode deixar conta paga cancelada (a lição `o-mes-que-ja-tem-conta-paga-nao-se-recalcula`).
+    await runSerializableTenantTransaction(db, async (txs) => {
+      const tx = txs as unknown as Tx;
       const doMes = await tx.fixedExpenseOccurrence.findMany({
         where: { template_id: modeloId, period: primeiroDia(mes) },
         select: { id: true, establishment_id: true, financial_entry_id: true },
@@ -1338,6 +1341,22 @@ export async function recalcularMesDaDespesaFixaAction(
         throw new RecusaDespesa(fail("CONTA_EM_APROVACAO", EM_APROVACAO, 409, "month"));
       }
 
+      const cancelar = async (lanc: { id: string; notes: string | null }) => {
+        const { count } = await tx.financialEntry.updateMany({
+          where: { id: lanc.id, status: "pending", payments: { none: {} } },
+          data: {
+            status: "cancelled",
+            notes: lanc.notes ? `${lanc.notes}${SEPARADOR_NOTA}${NOTA_RECALCULADO}` : NOTA_RECALCULADO,
+            updated_by_user_id: ator.id,
+          },
+        });
+        if (count !== 1) {
+          throw new RecusaDespesa(
+            fail("MES_FECHADO", `${mesPorExtenso(mes)} já tem conta paga: o mês está fechado e não se recalcula.`, 409, "month"),
+          );
+        }
+      };
+
       const mudancas: { campo: string; antes: string | null; depois: string | null }[] = [];
       for (const l of lojas) {
         const parte = partes.get(l.id) ?? 0;
@@ -1345,16 +1364,7 @@ export async function recalcularMesDaDespesaFixaAction(
         const lanc = o ? lancamentos.get(o.financial_entry_id) : undefined;
         if (o && lanc?.status === "cancelled" && canceladaAMao(lanc.notes)) continue;
         const antes = lanc && lanc.status !== "cancelled" ? "conta ativa" : null;
-        if (lanc && lanc.status !== "cancelled") {
-          await tx.financialEntry.update({
-            where: { id: lanc.id },
-            data: {
-              status: "cancelled",
-              notes: lanc.notes ? `${lanc.notes}${SEPARADOR_NOTA}${NOTA_RECALCULADO}` : NOTA_RECALCULADO,
-              updated_by_user_id: ator.id,
-            },
-          });
-        }
+        if (lanc && lanc.status !== "cancelled") await cancelar(lanc);
         if (parte <= 0) {
           if (antes) mudancas.push({ campo: nomes.get(l.id) ?? "loja", antes, depois: "sem parte" });
           continue;
@@ -1378,6 +1388,16 @@ export async function recalcularMesDaDespesaFixaAction(
           await tx.fixedExpenseOccurrence.update({ where: { id: o.id }, data: { financial_entry_id: conta.id } });
         }
         mudancas.push({ campo: nomes.get(l.id) ?? "loja", antes, depois: dinheiro(parte / 100) });
+      }
+
+      // Loja arquivada (ou fora do rateio): a conta não paga dela sai do mês, senão a soma passa do valor do modelo.
+      const doRateio = new Set(lojas.map((l) => l.id));
+      for (const o of doMes) {
+        if (doRateio.has(o.establishment_id)) continue;
+        const lanc = lancamentos.get(o.financial_entry_id);
+        if (!lanc || lanc.status === "cancelled") continue;
+        await cancelar(lanc);
+        mudancas.push({ campo: "loja fora do rateio", antes: "conta ativa", depois: "sem parte" });
       }
 
       await registrarNoHistorico(tx, ator, {

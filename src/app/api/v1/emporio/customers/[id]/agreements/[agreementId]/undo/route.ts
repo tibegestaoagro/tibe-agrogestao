@@ -21,7 +21,7 @@ const schema = z.object({
 type Props = { params: Promise<{ id: string; agreementId: string }> };
 
 async function POSTHandler(request: Request, props: Props) {
-  const { agreementId } = await props.params;
+  const { id, agreementId } = await props.params;
   const g = await guardEmporio("write");
   if ("error" in g) return g.error;
 
@@ -30,7 +30,7 @@ async function POSTHandler(request: Request, props: Props) {
   const parsed = schema.safeParse(body.json);
   if (!parsed.success) return apiErroDeZod(parsed.error);
 
-  return respostaDaAction(await desfazerAcordoAction(g.db, g.user, agreementId, parsed.data));
+  return respostaDaAction(await desfazerAcordoAction(g.db, g.user, agreementId, parsed.data, id));
 }
 
 export const POST = withApi(POSTHandler);
