@@ -354,6 +354,17 @@ cliente real com as duas coisas vai precisar.
 | Q266 | **Telas:** configuração da adquirente em Configurações; "Antecipar" e "Desfazer" no a receber do cartão; prévia do balcão com a data efetiva. | Quem cuida do dinheiro edita o contrato. |
 | Q267 | **Dívidas técnicas 2.37, 2.43, 2.51 e 2.59 fechadas junto.** | Riscos que existem hoje e não dependem da Agromax. |
 
+| Q268 | **Faturamento por origem** no relatório de vendas (`by_origin`: quantidade, valor líquido, frete, %), também por loja. | O e-commerce é lançado à mão; o dono quer o faturamento dele sem o frete. |
+| Q269 | **Relatórios do dinheiro e projeção em planilha** (`format=csv`, `;`, vírgula decimal, DD/MM/AAAA, BOM). | O Excel em português abre sem ajuste. |
+| Q270 | **PDF pela página de impressão** (`/emporio/imprimir/relatorio/<tipo>`), sem gerador no servidor. | É o caminho de recibo, romaneio e turno. |
+| Q271 | **Gráfico do saldo projetado** por semana acima da tabela. | Mostra quando o dinheiro aperta. |
+| Q272 | **Custo efetivo do cartão** no Resultado: (taxa + antecipação) / vendas no cartão. | Diz se a maquininha está cara. |
+| Q273 | **Contas sem vencimento** listadas à parte na projeção e no a pagar. | Conta esquecida é pior que conta atrasada. |
+| Q274 | **Email do seed** passa a `owner@example.com` (domínio reservado); o histórico fica como foi escrito. | O par email de empresa e senha na documentação pública é o provável alvo do alerta do GitGuardian. |
+
+Design dos relatórios e da limpeza (Q268 a Q274) em
+[../superpowers/specs/2026-11-09-emporio-relatorios-e-limpeza-design.md](../superpowers/specs/2026-11-09-emporio-relatorios-e-limpeza-design.md).
+
 Design das entregas 2 e 3 do cartão (Q259 a Q267) em
 [../superpowers/specs/2026-11-09-emporio-cartao-entregas-2-e-3-design.md](../superpowers/specs/2026-11-09-emporio-cartao-entregas-2-e-3-design.md).
 
