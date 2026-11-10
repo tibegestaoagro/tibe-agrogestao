@@ -463,7 +463,8 @@ export default async function ProdutoEmporioPage({ params }: { params: Promise<{
                     <TableCell className="font-medium text-texto">{r.establishment_name}</TableCell>
                     <TableCell>{nome}</TableCell>
                     <TableCell>
-                      {r.cost == null ? "sem custo" : reaisBr(r.cost)}
+                      {/* O custo que o sugerido usa (Q294, Q297); `cost` é só o de referência digitado e ficava "sem custo" ao lado do médio. */}
+                      {r.suggested_cost == null ? "sem custo" : reaisBr(r.suggested_cost)}
                       <LinhaDeCustos medio={r.average_cost} ultima={r.last_purchase_cost} ultimaEm={r.last_purchase_on} />
                       <SeloDiferencaCusto gapPct={r.cost_gap_pct} />
                     </TableCell>
