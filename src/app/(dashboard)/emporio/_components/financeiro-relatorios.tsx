@@ -2,6 +2,7 @@ import type {
   AReceberPorIdadeView,
   APagarPorVencimentoView,
   PosicaoPorLugarView,
+  SemVencimentoView,
 } from "@/lib/actions/emporio-relatorios-financeiro";
 import { reaisBr } from "@/lib/numero-br";
 import { Badge } from "@/components/ui/badge";
@@ -86,6 +87,33 @@ export function AReceberPorIdadeBloco({ r }: { r: AReceberPorIdadeView }) {
   );
 }
 
+/** Contas pendentes sem data de vencimento: ficam fora das semanas, então aparecem à parte. */
+export function SemVencimentoBloco({ r }: { r: SemVencimentoView }) {
+  return (
+    <section className="space-y-3 rounded-lg border border-borda bg-superficie p-5 shadow-sm">
+      <h3 className="text-base font-semibold text-texto">Sem vencimento</h3>
+      {r.count === 0 ? (
+        <p className="text-sm text-texto-secundario">Nenhuma conta pendente está sem data de vencimento.</p>
+      ) : (
+        <>
+          <p className="text-sm text-texto-secundario">
+            {r.count} {r.count === 1 ? "conta" : "contas"}, {reaisBr(r.total)} no total. Não entram nas semanas: ponha uma data para elas
+            aparecerem.
+          </p>
+          <ul className="space-y-1 text-sm text-texto">
+            {r.entries.map((e) => (
+              <li key={e.entry_id} className="flex justify-between gap-3">
+                <span>{e.name}</span>
+                <span className="shrink-0">{reaisBr(e.total)}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </section>
+  );
+}
+
 export function APagarPorVencimentoBloco({ r }: { r: APagarPorVencimentoView }) {
   const semConta = r.weeks.every((s) => s.items.length === 0);
   return (
@@ -143,6 +171,7 @@ export function APagarPorVencimentoBloco({ r }: { r: APagarPorVencimentoView }) 
           </Table>
         </>
       )}
+      <SemVencimentoBloco r={r.without_due} />
     </section>
   );
 }

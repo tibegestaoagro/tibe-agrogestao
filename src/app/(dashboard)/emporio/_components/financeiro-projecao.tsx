@@ -4,6 +4,8 @@ import { reaisBr } from "@/lib/numero-br";
 import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
+import { FluxoProjetadoGrafico } from "./fluxo-projetado-grafico";
+import { SemVencimentoBloco } from "./financeiro-relatorios";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 
 const JANELAS = [30, 60, 90] as const;
@@ -49,6 +51,7 @@ export function FluxoProjetadoTabela({ fluxo }: { fluxo: FluxoProjetadoView }) {
       <p className="text-sm text-texto">
         Saldo de hoje: <strong>{reaisBr(fluxo.opening_balance)}</strong>
       </p>
+      <FluxoProjetadoGrafico abertura={fluxo.opening_balance} semanas={fluxo.weeks} />
       <Table>
         <TableHeader>
           <TableRow>
@@ -90,6 +93,7 @@ export function FluxoProjetadoTabela({ fluxo }: { fluxo: FluxoProjetadoView }) {
           ))}
         </TableBody>
       </Table>
+      <SemVencimentoBloco r={fluxo.without_due} />
       {fluxo.notes.length > 0 && (
         <ul className="space-y-1 text-sm text-texto-secundario">
           {fluxo.notes.map((n) => (

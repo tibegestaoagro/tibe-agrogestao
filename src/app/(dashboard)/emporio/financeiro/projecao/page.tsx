@@ -7,6 +7,7 @@ import { veAPagina } from "@/lib/emporio/paginas";
 import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
 import { lerFluxoProjetadoAction } from "@/lib/actions/emporio-projecao";
 import { EmptyState } from "@/components/ui/empty-state";
+import { RelatorioAcoes, consulta } from "../../_components/relatorio-acoes";
 import { FinanceiroAbas } from "../../_components/financeiro-abas";
 import { LojaFiltro } from "../../_components/loja-filtro";
 import { FluxoProjetadoTabela, ProjecaoJanelas } from "../../_components/financeiro-projecao";
@@ -47,7 +48,13 @@ export default async function FinanceiroProjecaoPage({
       <ProjecaoJanelas dias={dias} loja={loja} />
 
       {fluxo.ok ? (
-        <FluxoProjetadoTabela fluxo={fluxo.data} />
+        <>
+          <RelatorioAcoes
+            csvHref={`/api/v1/emporio/finance/projection${consulta({ establishment_id: loja, days: dias, format: "csv" })}`}
+            imprimirHref={`/emporio/imprimir/relatorio/projecao${consulta({ loja, dias })}`}
+          />
+          <FluxoProjetadoTabela fluxo={fluxo.data} />
+        </>
       ) : (
         <EmptyState titulo="Não foi possível montar a projeção">{fluxo.message}</EmptyState>
       )}

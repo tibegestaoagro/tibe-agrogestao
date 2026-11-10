@@ -12,6 +12,7 @@ import {
   lerPosicaoPorLugarAction,
 } from "@/lib/actions/emporio-relatorios-financeiro";
 import { EmptyState } from "@/components/ui/empty-state";
+import { RelatorioAcoes, consulta } from "../../_components/relatorio-acoes";
 import { FinanceiroAbas } from "../../_components/financeiro-abas";
 import { LojaFiltro } from "../../_components/loja-filtro";
 import {
@@ -21,6 +22,8 @@ import {
   RelatoriosPeriodo,
 } from "../../_components/financeiro-relatorios";
 
+const API = "/api/v1/emporio/finance/reports";
+const IMPRIMIR = "/emporio/imprimir/relatorio";
 const DIA_MS = 86_400_000;
 // Ida e volta: `2026-02-31` passa pelo regex e o V8 rola para março, então a data volta diferente.
 const ehData = (s: string | undefined): s is string =>
@@ -78,9 +81,39 @@ export default async function FinanceiroRelatoriosPage({
       <LojaFiltro lojas={lojas} loja={loja} caminho="/emporio/financeiro/relatorios" />
       <RelatoriosPeriodo loja={loja} de={deUrl} ate={ateUrl} />
 
-      {receber.ok ? <AReceberPorIdadeBloco r={receber.data} /> : falhou("Não foi possível ler o a receber", receber.message)}
-      {pagar.ok ? <APagarPorVencimentoBloco r={pagar.data} /> : falhou("Não foi possível ler o a pagar", pagar.message)}
-      {posicao.ok ? <PosicaoPorLugarBloco r={posicao.data} /> : falhou("Não foi possível ler a posição de caixa", posicao.message)}
+      {receber.ok ? (
+        <>
+          <RelatorioAcoes
+            csvHref={`${API}/receivables-aging${consulta({ establishment_id: estab, format: "csv" })}`}
+            imprimirHref={`${IMPRIMIR}/a-receber${consulta({ loja: estab })}`}
+          />
+          <AReceberPorIdadeBloco r={receber.data} />
+        </>
+      ) : (
+        falhou("Não foi possível ler o a receber", receber.message)
+      )}
+      {pagar.ok ? (
+        <>
+          <RelatorioAcoes
+            csvHref={`${API}/payables-by-due${consulta({ establishment_id: estab, de: pagarDe, ate: pagarAte, format: "csv" })}`}
+            imprimirHref={`${IMPRIMIR}/a-pagar${consulta({ loja: estab, de: pagarDe, ate: pagarAte })}`}
+          />
+          <APagarPorVencimentoBloco r={pagar.data} />
+        </>
+      ) : (
+        falhou("Não foi possível ler o a pagar", pagar.message)
+      )}
+      {posicao.ok ? (
+        <>
+          <RelatorioAcoes
+            csvHref={`${API}/cash-by-place${consulta({ establishment_id: estab, de: posDe, ate: posAte, format: "csv" })}`}
+            imprimirHref={`${IMPRIMIR}/posicao${consulta({ loja: estab, de: posDe, ate: posAte })}`}
+          />
+          <PosicaoPorLugarBloco r={posicao.data} />
+        </>
+      ) : (
+        falhou("Não foi possível ler a posição de caixa", posicao.message)
+      )}
     </div>
   );
 }

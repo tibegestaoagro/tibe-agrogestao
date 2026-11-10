@@ -171,6 +171,24 @@ export function ResultadoMes({ r }: { r: ResultadoDaLojaView }) {
       </section>
 
       <section className="space-y-2 rounded-lg border border-borda bg-superficie p-5 shadow-sm">
+        <h2 className="text-lg font-semibold text-texto">Custo do cartão</h2>
+        {r.card_cost.pct === null ? (
+          <p className="text-sm text-texto-secundario">Sem vendas no cartão no mês</p>
+        ) : (
+          <>
+            <p className="text-sm font-medium text-texto">
+              Custo do cartão: {pctBr(r.card_cost.pct)} das vendas no cartão
+            </p>
+            <div className="space-y-1 rounded-md bg-superficie-afundada p-3 text-sm text-texto-secundario">
+              <Item rotulo="Vendas no cartão" valor={reaisBr(r.card_cost.card_sales)} />
+              <Item rotulo="Taxa do cartão" valor={reaisBr(r.card_cost.mdr)} />
+              <Item rotulo="Antecipação" valor={reaisBr(r.card_cost.anticipation)} />
+            </div>
+          </>
+        )}
+      </section>
+
+      <section className="space-y-2 rounded-lg border border-borda bg-superficie p-5 shadow-sm">
         <h2 className="text-lg font-semibold text-texto">Ponto de equilíbrio</h2>
         {pe.status === "ok" && pe.amount !== null && pe.missing !== null ? (
           <>

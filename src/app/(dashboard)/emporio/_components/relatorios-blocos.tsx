@@ -1,9 +1,9 @@
 import type { ReactNode } from "react";
-import type { RelatorioDeVendas } from "@/lib/actions/emporio-relatorios";
+import type { RelatorioDeVendas, VendasPorOrigem } from "@/lib/actions/emporio-relatorios";
 import { reaisBr } from "@/lib/numero-br";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
-import { UNIDADE_BASE_SUFIXO, numeroBr } from "./formato";
+import { UNIDADE_BASE_SUFIXO, numeroBr, pctBr } from "./formato";
 
 function Bloco({ titulo, children }: { titulo: string; children: ReactNode }) {
   return (
@@ -17,11 +17,56 @@ function Bloco({ titulo, children }: { titulo: string; children: ReactNode }) {
 const ticket = (v: number | null) => (v === null ? "-" : reaisBr(v));
 const classeTotal = (v: number) => `text-right ${v < 0 ? "text-perigo-tinta" : ""}`;
 
-/** Os quatro blocos do relatório de vendas, cada um com o vazio próprio. */
+const ROTULO_ORIGEM = { balcao: "Balcão", ecommerce: "E-commerce" } as const;
+
+function TabelaPorOrigem({ origens }: { origens: VendasPorOrigem }) {
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Origem</TableHead>
+          <TableHead className="text-right">Vendas</TableHead>
+          <TableHead className="text-right">Faturamento</TableHead>
+          <TableHead className="text-right">Frete</TableHead>
+          <TableHead className="text-right">% do faturamento</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {origens.map((o) => (
+          <TableRow key={o.origin}>
+            <TableCell className="font-medium">{ROTULO_ORIGEM[o.origin]}</TableCell>
+            <TableCell className="text-right">{o.count}</TableCell>
+            <TableCell className={classeTotal(o.net)}>{reaisBr(o.net)}</TableCell>
+            <TableCell className="text-right">{reaisBr(o.freight)}</TableCell>
+            <TableCell className="text-right">{pctBr(o.share_pct)}</TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+}
+
+/** Os blocos do relatório de vendas, cada um com o vazio próprio. */
 export function RelatoriosBlocos({ r }: { r: RelatorioDeVendas }) {
   const varias = r.lojas.length > 1;
   return (
     <div className="space-y-4">
+      <Bloco titulo="Por origem">
+        <p className="text-sm text-texto-secundario">Balcão e e-commerce, já sem o que foi devolvido.</p>
+        <TabelaPorOrigem origens={r.by_origin} />
+        {varias && r.por_loja.length > 0 && (
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-texto">Em cada loja</h3>
+            {r.por_loja.map((l) => (
+              <div key={l.establishment_id} className="space-y-1">
+                <p className="text-sm font-medium text-texto">{l.name}</p>
+                <TabelaPorOrigem origens={l.by_origin} />
+              </div>
+            ))}
+          </div>
+        )}
+      </Bloco>
+
       <Bloco titulo="Vendas por vendedor">
         {r.por_vendedor.length === 0 ? (
           <EmptyState compacto titulo="Nenhuma venda no período">
