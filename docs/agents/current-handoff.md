@@ -26,7 +26,7 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 ## Estado atual
 
 - Atualizado em: 2026-11-10 à noite. Branch `emporio-orcamento-editar-cancelar`
-  (seção abaixo) pronta e NÃO publicada. Boleto e titular do cheque em produção.
+  (seção abaixo) em produção (migração no Neon, merge e push autorizados), como o boleto.
   Outros agentes: leia `AGENTS.md`.
 - `main` igual a `origin/main`, Neon em dia. Em produção também: conta avulsa e
   2.64/2.65, Apresentação sempre visível, observação no impresso, cliente no
@@ -34,18 +34,18 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   e editar venda (Q244 a Q249), o financeiro (Q214 a Q243); evidências em
   [financeiro-emporio-relatorio.md](financeiro-emporio-relatorio.md).
 
-### Editar, cancelar e refazer orçamento (Q285 a Q290): branch pronta, não publicada
+### Editar, cancelar e refazer orçamento (Q285 a Q290): em produção
 
 Branch `emporio-orcamento-editar-cancelar`, commits `a418817` a `2d62ad6`. Spec
 [../superpowers/specs/2026-11-10-emporio-editar-e-cancelar-orcamento-design.md](../superpowers/specs/2026-11-10-emporio-editar-e-cancelar-orcamento-design.md).
 Editar aberto ou vencido (mesmo número, renova validade e preços); cancelar
 com motivo, definitivo; faturado gera "Novo orçamento a partir deste"
 (`based_on_quote_id`); faturar recusa o cancelado. Migração aditiva
-`20261110210000_emporio_orcamento_editar_cancelar` só no Docker. `test:m109`
+`20261110210000_emporio_orcamento_editar_cancelar` no Docker e no Neon. `test:m109`
 verde (vermelha antes da implementação), m94/m97 verdes, `test:all` 108/109
 (a `m92`, relógio do turno, falhou uma vez e passa sozinha), roteiro
 `emporio-orcamento-editar` verde e sabotado (18 falhas).
-Falta: autorização para a migração no Neon, o merge e o push.
+Falta: a Agromax editar e cancelar um orçamento real.
 
 ### Boleto, titular do cheque, dívidas 2.67 e 2.68: em produção
 
@@ -80,7 +80,7 @@ Agromax, a entrega 4 (extrato da Stone) depende de um arquivo real.
 
 ### ⏭️ Próximo passo
 
-1. Com autorização: migração do orçamento no Neon, merge e push da `emporio-orcamento-editar-cancelar`. Na Agromax: conferir o boleto e o "Em nome de" numa venda real.
+1. Na Agromax: editar e cancelar um orçamento real; conferir o boleto e o "Em nome de" numa venda real.
 2. Na Agromax (usuário, pelas telas): Stone, taxas do mês, regra de dia útil
    e, se usar, a antecipação automática; confirmar as decisões do agente do
    cartão e do frete; responder o setor; decidir se o vendedor vê o líquido
