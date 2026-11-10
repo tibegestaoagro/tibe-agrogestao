@@ -25,11 +25,11 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-10 (dívidas 2.64 e 2.65 e conta a pagar avulsa em
-  produção: migração no Neon, merge e push autorizados na conversa, deploy
-  conferido no `/docs/api`). Agentes que não sejam o Claude Code: leia
-  `AGENTS.md` na raiz. Em pausa: imposto por produto (ver Próximo passo).
-- `main` em `20f2e5e` (igual a `origin/main`), nenhuma migração pendente no
+- Atualizado em: 2026-11-10 à tarde (em produção, autorizados na conversa:
+  conta avulsa e dívidas 2.64/2.65; campo Apresentação sempre visível na regra
+  do Vendeu, Pagou; observação no impresso A4 e cupom; cliente e nº da venda no
+  extrato da conta). Outros agentes: leia `AGENTS.md`. Aberta 2.68 (cenários).
+- `main` em `428b3a8` (igual a `origin/main` após o push), nenhuma migração pendente no
   Neon. Em produção também: cartão (Q250 a Q267), frete e editar venda (Q244
   a Q249), o financeiro (Q214 a Q243); evidências em
   [financeiro-emporio-relatorio.md](financeiro-emporio-relatorio.md). As
