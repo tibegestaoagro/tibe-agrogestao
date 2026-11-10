@@ -527,6 +527,7 @@ export function ParteDeResultado() {
           "Leia de cima para baixo: vendas, menos o custo, menos o Vendeu, Pagou, dá a margem.",
           "Logo abaixo ficam as perdas e quebras, em linha separada, para você ver quanto custaram.",
           "Depois descontam-se as despesas fixas e sobra o resultado.",
+          <>O quadro <strong>Custo do cartão</strong> diz quantos por cento do que a loja vendeu no cartão no mês foi para a taxa da maquininha e para a antecipação. Abaixo dele estão o valor vendido no cartão, a taxa e a antecipação. Sem venda no cartão no mês, o quadro diz isso.</>,
           "O ponto de equilíbrio mostra quanto a loja precisa vender para cobrir as fixas, e quanto falta.",
         ]}
         problemas={[

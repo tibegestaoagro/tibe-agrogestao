@@ -396,7 +396,7 @@ export function ParteDeRelatorios() {
           "A tela abre no mês atual, do dia 1 até hoje.",
           <>Para outro período, mude <strong>De</strong> e <strong>Até</strong> e clique em <strong>Ver relatório</strong>. Os dois dias entram na conta. O botão <strong>Mês atual</strong> volta ao começo.</>,
           <>Se você cuida de mais de uma loja, escolha a <strong>Loja</strong> ou deixe <strong>Todas as minhas lojas</strong>. O Gestor vê só as lojas dele.</>,
-          "Leia os quatro blocos, de cima para baixo.",
+          "Leia os cinco blocos, de cima para baixo.",
         ]}
         problemas={[
           {
@@ -412,8 +412,13 @@ export function ParteDeRelatorios() {
         <Figura id="relatorios-periodo" />
       </Tarefa>
 
-      <Subtitulo>Os quatro blocos</Subtitulo>
+      <Subtitulo>Os cinco blocos</Subtitulo>
       <ul className="list-disc space-y-2 pl-5 text-texto marker:text-texto-discreto">
+        <li>
+          <strong>Por origem</strong>: quanto vendeu o balcão e quanto vendeu o e-commerce, com o número de vendas, o
+          faturamento, o frete cobrado e a parte de cada um no faturamento. O faturamento não inclui o frete, que
+          aparece em coluna própria. Com mais de uma loja, a mesma quebra vem para cada loja.
+        </li>
         <li>
           <strong>Vendas por vendedor</strong>: quantas vendas, o total e o ticket médio de cada um. O vendedor é quem
           atendeu, não quem registrou no caixa. O sistema não calcula o percentual da comissão: você aplica o seu sobre o
@@ -650,7 +655,10 @@ export function ParteDeFinanceiroDasLojas() {
         passos={[
           <>Abra <strong>Financeiro</strong> e a aba <strong>Projeção</strong>. Escolha <strong>30 dias</strong>, <strong>60 dias</strong> ou <strong>90 dias</strong>.</>,
           <>No alto está o <strong>Saldo de hoje</strong>: a soma do dinheiro de todas as gavetas, gerências e contas bancárias.</>,
+          <>Acima da tabela, o gráfico traz uma linha com o saldo ao fim de cada semana. A semana em que o saldo fica abaixo de zero ganha um ponto vermelho e a frase diz quantas semanas ficam negativas: é o aviso de que o dinheiro aperta.</>,
           <>Cada semana mostra o que deve entrar (fiado, parcela de cartão e cheque) e o que deve sair (contas a pagar e despesas fixas). A última coluna é o saldo ao fim da semana.</>,
+          <>A conta pendente que não tem data de vencimento não cabe em nenhuma semana. Ela aparece à parte, no quadro <strong>Sem vencimento</strong>, com a quantidade e o total. Ponha uma data nela para entrar nas semanas.</>,
+          <>Clique em <strong>Baixar planilha</strong> para abrir a projeção no Excel, ou em <strong>Imprimir ou salvar em PDF</strong> para ter a folha pronta.</>,
           <>O fiado e a conta que já venceram entram na <strong>Semana 1</strong>, porque ainda precisam ser recebidos e pagos.</>,
           <>Para ver uma loja só, escolha a loja no filtro. A conta bancária é da rede inteira e só aparece em <strong>Todas as lojas</strong>.</>,
         ]}
@@ -672,6 +680,8 @@ export function ParteDeFinanceiroDasLojas() {
           <><strong>A receber por idade</strong> mostra cada cliente com o que deve em dia e o que está vencido há 1 a 15 dias, 16 a 30 dias ou mais de 30.</>,
           <><strong>A pagar por vencimento</strong> junta as contas por semana e por nome. O que já venceu fica na primeira semana, com a marca <strong>Vencido</strong>.</>,
           <><strong>Posição de caixa por lugar</strong> mostra o saldo de hoje de cada gaveta, gerência e conta, e o que entrou e saiu no período.</>,
+          <>No <strong>A pagar por vencimento</strong>, as contas sem data de vencimento ficam no quadro <strong>Sem vencimento</strong>, fora das semanas.</>,
+          <>Cada relatório tem dois botões. <strong>Baixar planilha</strong> entrega um arquivo que o Excel abre sem ajuste (colunas separadas por ponto e vírgula, números com vírgula e datas no formato dia/mês/ano). <strong>Imprimir ou salvar em PDF</strong> abre uma folha A4 em outra aba, com o nome da loja e a data de emissão: clique em <strong>Imprimir</strong> e escolha a impressora ou “Salvar como PDF”. Os dois usam a loja e o período que estão na tela.</>,
         ]}
         problemas={[
           {

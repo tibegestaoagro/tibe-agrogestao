@@ -257,3 +257,32 @@ reescrito para a tela nova, que é a pretendida.
 Dívidas abertas: 2.60 (feriado estadual e municipal), 2.61 (custo efetivo do
 cartão como indicador) e 2.62 (uma despesa de taxa por venda decide a devolução
 no cancelamento quando há adquirentes mistas).
+
+## Relatórios, exportação e limpeza, 09/11
+
+Faturamento por origem, planilha e PDF dos relatórios do dinheiro, gráfico do
+fluxo projetado, custo do cartão no Resultado e contas sem vencimento (Q268 a
+Q273), mais a limpeza da dívida 2.63. Dívidas 2.45, 2.46, 2.50, 2.54 e 2.61
+fechadas; da 2.63 só o item do vendedor segue aberto. Evidências:
+
+| prova | resultado |
+|---|---|
+| `test:m105` | suíte escrita da spec antes da implementação (97 checks, 38 falhavam no HEAD de então) |
+| roteiro `emporio-relatorios-exportacao` (bloco "Por origem" na tela e na API; as quatro planilhas com `Content-Type`, BOM, cabeçalho, vírgula decimal e data DD/MM/AAAA; as folhas de impressão; gráfico do saldo com ponto negativo; "Sem vencimento"; "Custo do cartão" no Resultado; 390 px) | 44 checks, 0 falhas |
+| sabotagem (`by_origin.net` soma o frete, em `emporio-relatorios.ts`) | 3 falhas, 41 ok (a linha do e-commerce sai R$ 330,00 em vez de R$ 300,00 e 39,76% em vez de 37,5%, na tela e na API); desfeita, volta a 44 ok |
+| `npm run check`, `tsc`, `lint` | limpos na rodada do manual |
+
+O que o roteiro mostrou e a suíte não: a tabela por origem na tela traz os
+mesmos números da API; o gráfico monta no navegador (linha do Recharts, ponto
+vermelho na semana negativa e a frase do aviso); a planilha do a pagar traz a
+conta sem vencimento depois da com vencimento e sem data; o `Content-Type` e
+o BOM chegam de fato pela rota (a suíte lê os bytes, o roteiro lê o `fetch`).
+
+Três correções do roteiro, nenhuma do app: a coluna Semana do CSV do a pagar
+traz a faixa "DD/MM/AAAA a DD/MM/AAAA" e a coluna Vencimento traz "Na semana"
+(não a data da conta); a posição de caixa filtrada por loja não lista a conta
+bancária (ela é da rede inteira, como diz o manual); e o roteiro conferiu a
+conta bancária em "Todas as lojas".
+
+Dívida aberta: 2.63, só o item "vendedor vê o líquido efetivo" (decisão do
+usuário).
