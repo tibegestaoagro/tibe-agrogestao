@@ -41,7 +41,6 @@ item e total (calculado pela unidade e pelo conteúdo) no impresso do orçamento
 e da venda, na tela da venda e no romaneio. Q292: regra do Vendeu, Pagou por
 nome de apresentação em qualquer produto (`presentation_name`; migração
 `20261110230000_emporio_regra_por_nome_de_apresentacao` só no Docker).
-Produto sem apresentação trava o campo com aviso. 14 cenários limpam o rateio.
 `test:all` 111/111; m110 e m111 vistas falhar; roteiros `emporio-regra-apresentacao`
 (nos dois sentidos), `emporio-impressao`, `emporio-romaneio` e
 `emporio-relatorios-exportacao` verdes. Falta: autorizar Neon, merge e push.
