@@ -59,12 +59,20 @@ export type FormaDePagamento =
   | "credito_vista"
   | "credito_parcelado"
   | "cheque"
+  | "boleto"
   | "fiado";
 export type LinhaPagamento = {
   key: number;
   kind: FormaDePagamento;
   valor: string;
+  /** Fiado: "vence em" (opcional). Boleto: o vencimento (obrigatório), AAAA-MM-DD. */
   vencimento: string;
+  /** Boleto: o número impresso, opcional. */
+  boletoNumero: string;
+  /** Cheque: "Em nome de" (Q284). */
+  chequeTitular: string;
+  /** Falso enquanto o titular é o do cliente da venda: trocar de cliente o acompanha. */
+  chequeTitularEditado: boolean;
   /** Crédito parcelado: 2 a 12. */
   parcelas: string;
   chequeNumero: string;
@@ -137,7 +145,7 @@ const CARTAO_NOME: Record<string, string> = {
 };
 
 /** Hoje em Brasília, AAAA-MM-DD: o dia que vale para a taxa da venda. */
-const diaDeHoje = () => hojeEmBrasilia().toISOString().slice(0, 10);
+export const diaDeHoje = () => hojeEmBrasilia().toISOString().slice(0, 10);
 
 const paraIso =(data: string) => new Date(`${data}T12:00:00`).toISOString();
 
@@ -152,7 +160,8 @@ export type CorpoDaVenda = {
     installments?: number;
     acquirer_id?: string;
     brand?: Bandeira;
-    check?: { number: string; bank: string; good_for: string };
+    check?: { number: string; bank: string; good_for: string; holder_name: string };
+    boleto?: { due_on: string; number?: string };
   }[];
   /** Frete cobrado do cliente (Q244): omitido quando é zero. */
   freight_amount?: number;
@@ -226,11 +235,14 @@ export function inicialDaVenda(
       pagamentos: venda.payments.map((p) => ({
         kind: p.kind as FormaDePagamento,
         valor: centavosParaCampo(cent(p.amount)),
-        vencimento: p.due_date ? p.due_date.slice(0, 10) : "",
+        vencimento: p.boleto ? p.boleto.due_on.slice(0, 10) : p.due_date ? p.due_date.slice(0, 10) : "",
+        boletoNumero: p.boleto?.number ?? "",
         parcelas: String(p.installments ?? 2),
         chequeNumero: p.check?.number ?? "",
         chequeBanco: p.check?.bank ?? "",
         chequeBomPara: p.check ? p.check.good_for.slice(0, 10) : "",
+        chequeTitular: p.check?.holder_name ?? "",
+        chequeTitularEditado: !!p.check && p.check.holder_name !== cliente?.name,
         // O pagamento antigo sem adquirente e bandeira vem vazio: quem edita escolhe de novo.
         adquirenteId: p.acquirer_id ?? "",
         bandeira: (p.brand && p.brand !== "qualquer" ? p.brand : "") as Bandeira | "",
@@ -297,9 +309,16 @@ export function useVenda({
   const [frete, setFrete] = useState(inicial?.frete ?? "");
   const [origem, setOrigem] = useState<OrigemDaVenda>(inicial?.origem ?? "balcao");
   // O Consumidor final é `cliente.fixed`: não serve para fiado nem cheque.
-  const [cliente, setCliente] = useState<ClienteEscolhido | null>(
+  const [cliente, setClienteEstado] = useState<ClienteEscolhido | null>(
     cargaInicial ? cargaInicial.cliente : (inicial?.cliente ?? clienteInicial),
   );
+  /** Trocar o cliente leva junto o "Em nome de" dos cheques que ninguém editou à mão. */
+  function setCliente(novo: ClienteEscolhido | null) {
+    setClienteEstado(novo);
+    setPagamentos((lista) =>
+      lista.map((p) => (p.kind === "cheque" && !p.chequeTitularEditado ? { ...p, chequeTitular: novo?.name ?? "" } : p)),
+    );
+  }
   const [orc, setOrc] = useState<Pick<CargaDoOrcamento, "referencia" | "vale"> | null>(
     cargaInicial ? { referencia: cargaInicial.referencia, vale: cargaInicial.vale } : null,
   );
@@ -470,10 +489,13 @@ export function useVenda({
           kind,
           valor: faltaCent > 0 ? centavosParaCampo(faltaCent) : "",
           vencimento: "",
+          boletoNumero: "",
           parcelas: "2",
           chequeNumero: "",
           chequeBanco: "",
           chequeBomPara: "",
+          chequeTitular: kind === "cheque" ? (cliente?.name ?? "") : "",
+          chequeTitularEditado: false,
           adquirenteId: "",
           bandeira: "",
         },
@@ -563,6 +585,7 @@ export function useVenda({
 
     const temFiado = pagamentos.some((p) => p.kind === "fiado");
     const temCheque = pagamentos.some((p) => p.kind === "cheque");
+    const temBoleto = pagamentos.some((p) => p.kind === "boleto");
     const ehConsumidorFinal = cliente?.fixed === true;
     if (orcamento) {
       // A mesma frase do servidor (`QUOTE_CUSTOMER_REQUIRED`). O Consumidor final serve;
@@ -586,6 +609,7 @@ export function useVenda({
     if (!cliente) novos.customer_id = "Escolha o cliente da venda.";
     else if (temFiado && ehConsumidorFinal) novos.customer_id = "Fiado precisa do cliente de verdade, não do Consumidor final.";
     else if (temCheque && ehConsumidorFinal) novos.customer_id = "Cheque precisa do cliente de verdade, não do Consumidor final.";
+    else if (temBoleto && ehConsumidorFinal) novos.customer_id = "Boleto precisa do cliente de verdade, não do Consumidor final.";
 
     const pagamentosApi: CorpoDaVenda["payments"] = [];
     const ilegivel = pagamentos.some((p) => {
@@ -601,6 +625,9 @@ export function useVenda({
     const chequeIncompleto = pagamentos.some(
       (p) => p.kind === "cheque" && (!p.chequeNumero.trim() || !p.chequeBanco.trim() || !p.chequeBomPara),
     );
+    const chequeSemTitular = pagamentos.some((p) => p.kind === "cheque" && !p.chequeTitular.trim());
+    const boletoSemVencimento = pagamentos.some((p) => p.kind === "boleto" && !p.vencimento);
+    const boletoAntesDoDia = pagamentos.some((p) => p.kind === "boleto" && p.vencimento && p.vencimento < diaDeHoje());
     if (ilegivel) {
       novos.payments = "Cada pagamento precisa de um valor maior que zero.";
     } else if (semAdquirente) {
@@ -613,6 +640,12 @@ export function useVenda({
       novos.payments = `Sem taxa para ${semTaxa.bandeira === "" ? "" : ROTULO_DA_BANDEIRA[semTaxa.bandeira]}, ${CARTAO_NOME[semTaxa.kind] ?? "cartão"}: cadastre em Configurações.`;
     } else if (chequeIncompleto) {
       novos.payments = "Informe o número, o banco e a data do cheque (bom para).";
+    } else if (chequeSemTitular) {
+      novos.payments = "Informe em nome de quem é o cheque.";
+    } else if (boletoSemVencimento) {
+      novos.payments = "Informe o vencimento do boleto.";
+    } else if (boletoAntesDoDia) {
+      novos.payments = "O vencimento do boleto não pode ser antes de hoje.";
     } else if (aPagarCent > 0 && pagamentos.length === 0) {
       novos.payments = "Escolha como o cliente vai pagar.";
     } else if (faltaCent > 0) {
@@ -642,7 +675,17 @@ export function useVenda({
                 ? { brand: p.bandeira, ...(adquirenteDe(p) ? { acquirer_id: adquirenteDe(p) } : {}) }
                 : {}),
               ...(p.kind === "cheque"
-                ? { check: { number: p.chequeNumero.trim(), bank: p.chequeBanco.trim(), good_for: p.chequeBomPara } }
+                ? {
+                    check: {
+                      number: p.chequeNumero.trim(),
+                      bank: p.chequeBanco.trim(),
+                      good_for: p.chequeBomPara,
+                      holder_name: p.chequeTitular.trim(),
+                    },
+                  }
+                : {}),
+              ...(p.kind === "boleto"
+                ? { boleto: { due_on: p.vencimento, ...(p.boletoNumero.trim() ? { number: p.boletoNumero.trim() } : {}) } }
                 : {}),
             });
           }

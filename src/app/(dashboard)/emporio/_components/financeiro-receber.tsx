@@ -14,6 +14,7 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { BoletosLista } from "./boletos-lista";
 import { CartoesAReceber } from "./cartoes-a-receber";
 import { ChequeAcoes } from "./cheque-acoes";
 import { ReceberFiadoForm } from "./receber-fiado-form";
@@ -142,6 +143,7 @@ export function FinanceiroReceber({
                   </TableCell>
                   <TableCell>
                     {c.customer_name}
+                    <span className="block text-xs text-texto-secundario">Em nome de {c.holder_name}</span>
                     <Link href={`/emporio/vendas/${c.sale_id}`} className="block text-xs font-medium text-texto-marca hover:underline">
                       Ver a venda
                     </Link>
@@ -169,6 +171,14 @@ export function FinanceiroReceber({
           </Table>
         )}
       </section>
+
+      <BoletosLista
+        iniciais={dados.boletos}
+        loja={lojas.length === 1 ? lojas[0].id : ""}
+        contas={contasDoBanco}
+        ehDinheiro={pode(papel, "dinheiro")}
+        lojasDoGestor={lojas.filter((l) => pode(papel, "gestor_da_loja", l.id)).map((l) => l.id)}
+      />
 
       <CartoesAReceber cards={dados.cards} antecipacoes={antecipacoes} lojasQueAntecipam={lojasQueAntecipam} />
     </div>

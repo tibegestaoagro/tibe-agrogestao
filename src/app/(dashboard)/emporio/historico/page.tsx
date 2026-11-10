@@ -40,6 +40,7 @@ const AREAS: Record<string, string> = {
   orcamento: "Orçamentos",
   caixa: "Caixa",
   cheque: "Caixa",
+  boleto: "Caixa",
   cartao: "Caixa",
   conta_bancaria: "Caixa",
   despesa: "Despesas",

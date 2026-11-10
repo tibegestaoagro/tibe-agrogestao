@@ -15,6 +15,7 @@ export const FORMA_ROTULO: Record<string, string> = {
   credito_vista: "Crédito",
   credito_parcelado: "Parcelado",
   cheque: "Cheque",
+  boleto: "Boleto",
   troca: "Valor da troca",
 };
 
@@ -34,6 +35,15 @@ export const CHEQUE_SITUACAO_ROTULO: Record<string, string> = {
   devolvido_ao_cliente: "Devolvido ao cliente",
 };
 
+/** Situação do boleto (`EmporioBoletoStatus`); "vencido" é o aberto que passou do vencimento. */
+export const BOLETO_SITUACAO_ROTULO: Record<string, string> = {
+  aberto: "Em aberto",
+  vencido: "Vencido",
+  pago: "Pago",
+  no_fiado: "No fiado",
+  cancelado: "Cancelado",
+};
+
 /** Origem de um movimento de caixa (`CashMovementOrigin`). */
 export const ORIGEM_CAIXA_ROTULO: Record<string, string> = {
   venda: "Venda",
@@ -44,6 +54,7 @@ export const ORIGEM_CAIXA_ROTULO: Record<string, string> = {
   transferencia: "Transferência entre caixas",
   conferencia: "Ajuste de conferência",
   cheque_compensado: "Cheque compensado",
+  boleto_pago: "Boleto pago",
   estorno_cartao: "Estorno de cartão",
   pagamento_despesa: "Pagamento de despesa",
   sangria: "Sangria",

@@ -29,6 +29,7 @@ import { somarDiasUteis } from "@/lib/emporio/dia-util";
 import { pctBr } from "./formato";
 import { FORMA_ROTULO } from "./venda-rotulos";
 import {
+  diaDeHoje,
   ehCartao,
   normalizar,
   produtoCasaBusca,
@@ -48,6 +49,7 @@ const FORMAS_DO_BALCAO: FormaDePagamento[] = [
   "credito_vista",
   "credito_parcelado",
   "cheque",
+  "boleto",
   "fiado",
 ];
 const PARCELAS = Array.from({ length: 11 }, (_, i) => i + 2);
@@ -306,6 +308,7 @@ export function VendaCampos({
   const [busca, setBusca] = useState("");
   const [semTaxaDeCartao, setSemTaxaDeCartao] = useState(false);
   const termo = normalizar(busca);
+  const hoje = diaDeHoje();
   const resultados =
     termo === ""
       ? []
@@ -680,9 +683,61 @@ export function VendaCampos({
                           }}
                         />
                       </div>
+                      <div className="space-y-1 sm:col-span-2">
+                        <label htmlFor={`cheque-titular-${p.key}`} className="text-xs text-texto-secundario">
+                          Em nome de
+                        </label>
+                        <Input
+                          id={`cheque-titular-${p.key}`}
+                          autoComplete="off"
+                          value={p.chequeTitular}
+                          onChange={(e) => {
+                            v.atualizarPagamento(p.key, { chequeTitular: e.target.value, chequeTitularEditado: true });
+                            limpar("payments");
+                          }}
+                        />
+                      </div>
                       {!v.cliente && (
                         <p className="text-xs text-atencao-tinta sm:col-span-2">
                           O cheque precisa de um cliente: escolha acima.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  {p.kind === "boleto" && (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <label htmlFor={`boleto-vencimento-${p.key}`} className="text-xs text-texto-secundario">
+                          Vencimento
+                        </label>
+                        <Input
+                          id={`boleto-vencimento-${p.key}`}
+                          type="date"
+                          min={hoje}
+                          value={p.vencimento}
+                          onChange={(e) => {
+                            v.atualizarPagamento(p.key, { vencimento: e.target.value });
+                            limpar("payments");
+                          }}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label htmlFor={`boleto-numero-${p.key}`} className="text-xs text-texto-secundario">
+                          Número do boleto (opcional)
+                        </label>
+                        <Input
+                          id={`boleto-numero-${p.key}`}
+                          autoComplete="off"
+                          value={p.boletoNumero}
+                          onChange={(e) => {
+                            v.atualizarPagamento(p.key, { boletoNumero: e.target.value });
+                            limpar("payments");
+                          }}
+                        />
+                      </div>
+                      {!v.cliente && (
+                        <p className="text-xs text-atencao-tinta sm:col-span-2">
+                          O boleto precisa de um cliente: escolha acima.
                         </p>
                       )}
                     </div>

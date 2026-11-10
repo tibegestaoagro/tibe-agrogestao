@@ -28,7 +28,7 @@ import { TrocarForm } from "../../_components/trocar-form";
 import { carregarCatalogoDeVenda } from "../../_components/catalogo-venda";
 import { MOTIVO_PERDA_ROTULO, numeroBr, pctBr } from "../../_components/formato";
 import { ROTULO_DA_BANDEIRA, type Bandeira } from "@/lib/emporio/cartao";
-import { CHEQUE_SITUACAO_ROTULO, FORMA_ROTULO } from "../../_components/venda-rotulos";
+import { BOLETO_SITUACAO_ROTULO, CHEQUE_SITUACAO_ROTULO, FORMA_ROTULO } from "../../_components/venda-rotulos";
 
 const DATA_HORA = new Intl.DateTimeFormat("pt-BR", {
   timeZone: "America/Sao_Paulo",
@@ -364,12 +364,27 @@ export default async function VendaPage({ params }: { params: Promise<{ id: stri
                       <span className="block text-xs text-texto-secundario">
                         bom para {DATA.format(new Date(p.check.good_for))}
                       </span>
+                      <span className="block text-xs text-texto-secundario">Em nome de {p.check.holder_name}</span>
                       <Badge variant={p.check.status === "compensado" ? "green" : p.check.status.startsWith("devolvido") ? "red" : "amber"}>
                         {CHEQUE_SITUACAO_ROTULO[p.check.status] ?? p.check.status}
                       </Badge>
                     </>
                   )}
-                  {p.fee_pct === null && !p.check && "-"}
+                  {p.boleto && (
+                    <>
+                      {p.boleto.number ? `Boleto nº ${p.boleto.number}` : "Boleto"}
+                      <span className="block text-xs text-texto-secundario">
+                        vence em {DATA.format(new Date(p.boleto.due_on))}
+                        {p.boleto.paid_on ? `, pago em ${DATA.format(new Date(p.boleto.paid_on))}` : ""}
+                      </span>
+                      <Badge
+                        variant={p.boleto.status === "pago" ? "green" : p.boleto.status === "no_fiado" ? "gray" : "amber"}
+                      >
+                        {BOLETO_SITUACAO_ROTULO[p.boleto.status] ?? p.boleto.status}
+                      </Badge>
+                    </>
+                  )}
+                  {p.fee_pct === null && !p.check && !p.boleto && "-"}
                 </TableCell>
               </TableRow>
             ))}

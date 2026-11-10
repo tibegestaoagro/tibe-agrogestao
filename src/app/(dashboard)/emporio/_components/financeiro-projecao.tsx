@@ -73,7 +73,7 @@ export function FluxoProjetadoTabela({ fluxo }: { fluxo: FluxoProjetadoView }) {
               <TableCell>
                 {reaisBr(s.receivables.total)}
                 <span className="block text-xs font-normal text-texto-secundario">
-                  fiado {reaisBr(s.receivables.fiado)}, cartão {reaisBr(s.receivables.cards)}, cheque {reaisBr(s.receivables.checks)}
+                  fiado {reaisBr(s.receivables.fiado)}, cartão {reaisBr(s.receivables.cards)}, cheque {reaisBr(s.receivables.checks)}, boleto {reaisBr(s.receivables.boletos)}
                 </span>
               </TableCell>
               <TableCell>

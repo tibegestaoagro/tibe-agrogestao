@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
-import { listarContasAction, lerCaixaAction } from "@/lib/actions/emporio-caixa";
+import { listarContasAction, lerCaixaAction, listarBoletosAction } from "@/lib/actions/emporio-caixa";
 import { listarEntregasAction } from "@/lib/actions/emporio-turno";
 import { reaisBr } from "@/lib/numero-br";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +21,7 @@ import { ContaArquivarBotao } from "../_components/conta-arquivar-botao";
 import { PixLojaForm } from "../_components/pix-loja-form";
 import { SaldoInicialForm } from "../_components/saldo-inicial-form";
 import { ChequeAcoes } from "../_components/cheque-acoes";
+import { BoletosLista } from "../_components/boletos-lista";
 import { ConferirGavetaForm } from "../_components/conferir-gaveta-form";
 import { AbrirTurnoForm } from "../_components/abrir-turno-form";
 import { SangriaForm } from "../_components/sangria-form";
@@ -52,8 +53,9 @@ export default async function CaixaPage() {
   // Cadastrar conta bancária, informar o saldo inicial e arquivar: do dono da conta ou do Financeiro.
   const mexeNaConta = ehConta || ehDinheiro;
 
-  const [caixaRes, contasRes, contasDoBanco, implantados, comTurno, entregasRes] = await Promise.all([
+  const [caixaRes, boletosRes, contasRes, contasDoBanco, implantados, comTurno, entregasRes] = await Promise.all([
     lerCaixaAction(db, user),
+    listarBoletosAction(db, user, { status: "aberto" }),
     veContas ? listarContasAction(db, user, { incluir_arquivadas: true }) : Promise.resolve(null),
     // Depositar cheque é do Vendedor com a chave, que não lista contas
     // pela action (é do Gestor para cima): aqui só id e nome, para escolher o destino.
@@ -369,6 +371,7 @@ export default async function CaixaPage() {
                   </TableCell>
                   <TableCell>
                     {c.customer_name}
+                    <span className="block text-xs text-texto-secundario">Em nome de {c.holder_name}</span>
                     <Link href={`/emporio/vendas/${c.sale_id}`} className="block text-xs font-medium text-texto-marca hover:underline">
                       Ver a venda
                     </Link>
@@ -396,6 +399,14 @@ export default async function CaixaPage() {
           </Table>
         )}
       </section>
+
+      <BoletosLista
+        iniciais={boletosRes.ok ? boletosRes.data : []}
+        loja=""
+        contas={contasDoBanco}
+        ehDinheiro={ehDinheiro}
+        lojasDoGestor={caixa.drawers.filter((d) => pode(papel, "gestor_da_loja", d.establishment_id)).map((d) => d.establishment_id)}
+      />
 
       {podeEscrever && origens.length > 0 && (
         <section className="space-y-3">

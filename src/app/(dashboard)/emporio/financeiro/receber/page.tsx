@@ -48,7 +48,7 @@ export default async function FinanceiroReceberPage({
           Meu Empório
         </Link>
         <h1 className="text-2xl font-semibold text-texto">Financeiro: a receber</h1>
-        <p className="mt-1 text-sm text-texto-secundario">O que ainda vai entrar: fiado, cheques e parcelas de cartão.</p>
+        <p className="mt-1 text-sm text-texto-secundario">O que ainda vai entrar: fiado, cheques, boletos e parcelas de cartão.</p>
       </header>
 
       <FinanceiroAbas atual="/emporio/financeiro/receber" loja={loja} />

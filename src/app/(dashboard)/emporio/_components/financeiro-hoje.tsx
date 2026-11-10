@@ -54,7 +54,7 @@ export function FinanceiroHoje({ resumo, loja }: { resumo: HojeView; loja: strin
   const enderecoSemCarimbo = conta
     ? `${enderecoDaAba("/emporio/financeiro/caixa", loja)}${loja ? "&" : "?"}lugar=conta:${conta.id}&carimbo=sem`
     : enderecoDaAba("/emporio/financeiro/caixa", loja);
-  const aReceberHoje = receivables_due.fiado.total + receivables_due.checks.total + receivables_due.cards.total;
+  const aReceberHoje = receivables_due.fiado.total + receivables_due.checks.total + receivables_due.boletos.total + receivables_due.cards.total;
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
@@ -133,6 +133,10 @@ export function FinanceiroHoje({ resumo, loja }: { resumo: HojeView; loja: strin
         <Linha
           rotulo={`Cheques (${plural(receivables_due.checks.count, "cheque", "cheques")})`}
           valor={reaisBr(receivables_due.checks.total)}
+        />
+        <Linha
+          rotulo={`Boletos (${plural(receivables_due.boletos.count, "boleto", "boletos")})`}
+          valor={reaisBr(receivables_due.boletos.total)}
         />
         <Linha
           rotulo={`Cartões (${plural(receivables_due.cards.count, "parcela", "parcelas")})`}
