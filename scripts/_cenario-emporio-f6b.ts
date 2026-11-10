@@ -182,6 +182,21 @@ async function main() {
     "venda",
   );
 
+  // Uma venda com observação, uma hora mais velha: o roteiro emporio-f6b cancela a mais
+  // recente (`[0]`), e o emporio-impressao confere a observação no A4 e no cupom.
+  exigir(
+    await vendas.venderAction(db, dono, {
+      operation_key: `cenario-f6b-venda-obs-${agora}`,
+      establishment_id: loja1.id,
+      sold_at: new Date(agora - 3_600_000),
+      customer_id: (await (await import("@/lib/actions/emporio-clientes")).garantirConsumidorFinal(db)).id,
+      items: [{ emporio_product_id: racao, presentation_id: quilo, quantity: 1, unit_price: 20 }],
+      payments: [{ kind: "dinheiro", amount: 20 }],
+      notes: "Entregar na porteira",
+    } as never),
+    "venda com observação",
+  );
+
   // O cliente antigo do Empório, só com o nome (como os que vieram de Contatos): o roteiro
   // emporio-cliente-menu o completa. Recriado a cada rodada para voltar incompleto.
   await db.emporioCustomer.deleteMany({ where: { name: CLIENTE_ANTIGO, sales: { none: {} }, quotes: { none: {} }, checks: { none: {} } } });

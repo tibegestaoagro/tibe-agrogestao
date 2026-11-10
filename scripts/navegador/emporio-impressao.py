@@ -208,6 +208,19 @@ confere("a bobina tem 58 mm de largura", js("(() => { const a = document.querySe
 js("(() => { const n = document.querySelector('.cupom .nome'); if (n) n.textContent = 'SupercalifragilisticoexpialidosoSupercalifragilisticoexpialidosoSuperRacaoPremium25kgEmbalagemReforcada'; })()")
 confere("nada passa da largura do papel", js("(() => { const a = document.querySelector('.cupom'); const lim = a.getBoundingClientRect().right + 0.5; return a.scrollWidth <= a.clientWidth && Array.from(a.querySelectorAll('*')).every(e => e.getBoundingClientRect().right <= lim); })()"))
 
+passo("6b. Observação da venda: quadro no A4 e Obs. no cupom")
+venda_obs = [s for s in api("GET", "/api/v1/emporio/sales")["body"]["data"] if s.get("notes") == "Entregar na porteira"]
+confere("o cenário tem a venda com observação", len(venda_obs) == 1, len(venda_obs))
+if venda_obs:
+    ir("/emporio/imprimir/venda/" + venda_obs[0]["id"] + "?formato=a4")
+    pagina = texto_da_pagina()
+    confere("o A4 tem o quadro Observação com o texto", bool(re.search(r"observação\s*\n?\s*Entregar na porteira", pagina, re.I)), pagina[:400])
+    ir("/emporio/imprimir/venda/" + venda_obs[0]["id"] + "?formato=cupom")
+    pagina = texto_da_pagina()
+    confere("o cupom tem Obs.: com o texto", "Obs.: Entregar na porteira" in pagina, pagina[:400])
+    ir(href_a4)
+    confere("a venda sem observação não tem o quadro", "OBSERVAÇÃO" not in texto_da_pagina().upper())
+
 passo("7. Vendedor: sem Configurações, vê o papel da venda da loja")
 entrar("vendedor1")
 ir("/emporio")
