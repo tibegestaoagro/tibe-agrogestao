@@ -8,6 +8,7 @@ import { compararMeses, diaDoMes, mesDaData, primeiroDia, somarMeses, textoDoMes
 import { semanasDaJanela } from "@/lib/emporio/projecao";
 import { lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
 import { entradasAbertas } from "@/lib/actions/emporio-caixa";
+import { contasSemVencimento, type SemVencimentoView } from "@/lib/actions/emporio-relatorios-financeiro";
 import { lerPosicoes } from "@/lib/actions/emporio-financeiro";
 import {
   basesDasLojas,
@@ -45,6 +46,8 @@ export type FluxoProjetadoView = {
   opening_balance: number;
   weeks: SemanaProjetadaView[];
   closing_balance: number;
+  /** As contas pendentes sem vencimento: ficam fora das semanas e do saldo projetado. */
+  without_due: SemVencimentoView;
   notes: string[];
 };
 
@@ -162,6 +165,7 @@ export async function lerFluxoProjetadoAction(
     opening_balance: abertura / 100,
     weeks,
     closing_balance: saldo / 100,
+    without_due: await contasSemVencimento(db, ator, lojaId),
     notes,
   });
 }

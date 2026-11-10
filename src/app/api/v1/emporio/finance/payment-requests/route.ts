@@ -9,6 +9,7 @@ import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
 const schema = z.object({
   status: z.enum(["pendente", "aprovado", "recusado", "decididos"], { error: "Escolha um estado válido: pendente, aprovado, recusado ou decididos." }).optional(),
   before: z.string().datetime({ error: "Use uma data ISO8601." }).optional(),
+  before_id: z.string({ error: "Informe o id do cursor." }).min(1).optional(),
 });
 
 async function GETHandler(request: Request) {
@@ -17,7 +18,8 @@ async function GETHandler(request: Request) {
 
   const status = new URL(request.url).searchParams.get("status");
   const before = new URL(request.url).searchParams.get("before");
-  const parsed = schema.safeParse({ status: status || undefined, before: before || undefined });
+  const beforeId = new URL(request.url).searchParams.get("before_id");
+  const parsed = schema.safeParse({ status: status || undefined, before: before || undefined, before_id: beforeId || undefined });
   if (!parsed.success) return apiErroDeZod(parsed.error);
 
   return respostaDaAction(await listarPedidosDePagamentoAction(g.db, g.user, parsed.data));

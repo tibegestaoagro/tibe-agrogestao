@@ -63,7 +63,13 @@ export type LinhaDeIdadeView = Record<FaixaDeIdade, number> & { total: number };
 
 export type AReceberPorIdadeView = {
   today: string;
-  customers: ({ customer_id: string; customer_name: string; phone: string | null } & LinhaDeIdadeView)[];
+  customers: ({
+    customer_id: string;
+    customer_name: string;
+    phone: string | null;
+    /** Por faixa com saldo: a loja (ou lojas) e o vencimento mais antigo (AAAA-MM-DD). Alimenta a planilha. */
+    bands: { band: FaixaDeIdade; total: number; oldest_due: string; stores: string[] }[];
+  } & LinhaDeIdadeView)[];
   totals: LinhaDeIdadeView;
 };
 
@@ -88,9 +94,16 @@ export async function lerAReceberPorIdadeAction(
   const vazia = () => ({ em_dia: 0, "1-15": 0, "16-30": 0, "30+": 0, total: 0 }) as Record<FaixaDeIdade, number> & { total: number };
   const porCliente = new Map<string, ReturnType<typeof vazia>>();
   const totais = vazia();
+  const detalhe = new Map<string, { cent: number; oldest: string; lojas: Set<string> }>();
   for (const e of abertas) {
     if (!e.emporio_customer_id || e.open_cent <= 0) continue;
     const faixa = faixaDeIdade(diasDeAtraso(e.effective_due_date, hoje));
+    const chave = `${e.emporio_customer_id}|${faixa}`;
+    const d = detalhe.get(chave) ?? { cent: 0, oldest: dia(e.effective_due_date), lojas: new Set<string>() };
+    d.cent += e.open_cent;
+    if (dia(e.effective_due_date) < d.oldest) d.oldest = dia(e.effective_due_date);
+    if (e.establishment_id) d.lojas.add(e.establishment_id);
+    detalhe.set(chave, d);
     const linha = porCliente.get(e.emporio_customer_id) ?? vazia();
     linha[faixa] += e.open_cent;
     linha.total += e.open_cent;
@@ -103,6 +116,17 @@ export async function lerAReceberPorIdadeAction(
     ? await db.emporioCustomer.findMany({ where: { id: { in: [...porCliente.keys()] } }, select: { id: true, name: true, phone: true } })
     : [];
   const dadosDe = new Map(clientes.map((c) => [c.id, c]));
+  const lojaIds = [...new Set([...detalhe.values()].flatMap((d) => [...d.lojas]))];
+  const lojas = lojaIds.length ? await db.establishment.findMany({ where: { id: { in: lojaIds } }, select: { id: true, name: true } }) : [];
+  const nomeDaLoja = new Map(lojas.map((l) => [l.id, l.name]));
+  const FAIXAS: FaixaDeIdade[] = ["em_dia", "1-15", "16-30", "30+"];
+  const faixasDe = (clienteId: string): AReceberPorIdadeView["customers"][number]["bands"] =>
+    FAIXAS.flatMap((band) => {
+      const d = detalhe.get(`${clienteId}|${band}`);
+      return d
+        ? [{ band, total: d.cent / 100, oldest_due: d.oldest, stores: [...d.lojas].map((id) => nomeDaLoja.get(id) ?? "").filter(Boolean).sort((a, b) => a.localeCompare(b, "pt-BR")) }]
+        : [];
+    });
   const reais = (l: ReturnType<typeof vazia>): LinhaDeIdadeView => ({
     em_dia: l.em_dia / 100,
     "1-15": l["1-15"] / 100,
@@ -112,7 +136,7 @@ export async function lerAReceberPorIdadeAction(
   });
 
   const customers = [...porCliente.entries()]
-    .map(([id, l]) => ({ customer_id: id, customer_name: dadosDe.get(id)?.name ?? "", phone: dadosDe.get(id)?.phone ?? null, ...reais(l) }))
+    .map(([id, l]) => ({ customer_id: id, customer_name: dadosDe.get(id)?.name ?? "", phone: dadosDe.get(id)?.phone ?? null, bands: faixasDe(id), ...reais(l) }))
     .sort((a, b) => b.total - a.total || a.customer_name.localeCompare(b.customer_name, "pt-BR"));
   return ok({ today: dia(hoje), customers, totals: reais(totais) });
 }
@@ -124,12 +148,16 @@ export async function lerAReceberPorIdadeAction(
 export type APagarPorVencimentoView = {
   de: string;
   ate: string;
-  weeks: { de: string; ate: string; total: number; overdue: boolean; items: { name: string; total: number }[] }[];
+  weeks: { de: string; ate: string; total: number; overdue: boolean; items: { name: string; total: number; overdue_total: number }[] }[];
   by_name: { name: string; total: number; overdue_total: number }[];
   overdue_total: number;
   total: number;
+  /** As contas pendentes sem vencimento: ficam fora das semanas e dos totais acima. */
+  without_due: SemVencimentoView;
   notes: string[];
 };
+
+export type SemVencimentoView = { count: number; total: number; entries: { entry_id: string; name: string; total: number }[] };
 
 const NOTA_TETO_DE_CONTAS = "Mais de 5.000 contas pendentes: a soma considera as 5.000 primeiras.";
 
@@ -159,7 +187,7 @@ export async function lerAPagarPorVencimentoAction(
   if (contas.data.length >= TETO_DE_CONTAS_A_PAGAR) notes.push(NOTA_TETO_DE_CONTAS);
 
   const dias = Math.round((ate.getTime() - de.getTime()) / DIA_MS) + 1;
-  const semanas: { de: string; ate: string; total: number; vencido: boolean; itens: Map<string, number> }[] = [];
+  const semanas: { de: string; ate: string; total: number; vencido: boolean; itens: Map<string, { total: number; overdue: number }> }[] = [];
   for (let ini = 0; ini < dias; ini += 7) {
     semanas.push({
       de: dia(new Date(de.getTime() + ini * DIA_MS)),
@@ -182,7 +210,10 @@ export async function lerAPagarPorVencimentoAction(
     const valor = centavos(c.open_amount);
     const vencida = c.due_date < hojeTxt;
     semana.total += valor;
-    semana.itens.set(c.name, (semana.itens.get(c.name) ?? 0) + valor);
+    const item = semana.itens.get(c.name) ?? { total: 0, overdue: 0 };
+    item.total += valor;
+    if (vencida) item.overdue += valor;
+    semana.itens.set(c.name, item);
     if (vencida) semana.vencido = true;
     const n = porNome.get(c.name) ?? { total: 0, overdue: 0 };
     n.total += valor;
@@ -200,15 +231,29 @@ export async function lerAPagarPorVencimentoAction(
       ate: s.ate,
       total: s.total / 100,
       overdue: s.vencido,
-      items: [...s.itens.entries()].sort((a, b) => b[1] - a[1]).map(([name, t]) => ({ name, total: t / 100 })),
+      items: [...s.itens.entries()]
+        .sort((a, b) => b[1].total - a[1].total)
+        .map(([name, t]) => ({ name, total: t.total / 100, overdue_total: t.overdue / 100 })),
     })),
     by_name: [...porNome.entries()]
       .sort((a, b) => b[1].total - a[1].total)
       .map(([name, v]) => ({ name, total: v.total / 100, overdue_total: v.overdue / 100 })),
     overdue_total: vencidoTotal / 100,
     total: total / 100,
+    without_due: await contasSemVencimento(db, ator, al.lojaId),
     notes,
   });
+}
+
+/** As contas pendentes sem vencimento (Q273): a lista com período as deixa de fora, e o dinheiro delas existe. */
+export async function contasSemVencimento(db: TenantPrismaClient, ator: Ator, lojaId: string | undefined): Promise<SemVencimentoView> {
+  const todas = await listarContasAPagarAction(db, ator, { establishment_id: lojaId, status: "pending", limit: TETO_DE_CONTAS_A_PAGAR });
+  const sem = todas.ok ? todas.data.filter((c) => !c.due_date) : [];
+  return {
+    count: sem.length,
+    total: sem.reduce((s, c) => s + centavos(c.open_amount), 0) / 100,
+    entries: sem.map((c) => ({ entry_id: c.entry_id, name: c.name, total: centavos(c.open_amount) / 100 })),
+  };
 }
 
 // ---------------------------------------------------------------------------
