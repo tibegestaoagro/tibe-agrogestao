@@ -1,5 +1,5 @@
 # Validacao viva: o campo Apresentacao da regra do "Vendeu, Pagou" aparece
-# sempre (desabilitado sem produto) e lista as apresentacoes do produto escolhido.
+# sempre, lista as apresentacoes do produto escolhido e, com Qualquer produto, os nomes (Q292).
 # Pedido da Agromax em 10/11/2026: "nao deixa escolher por apresentacao".
 #
 # cenario: scripts/_cenario-emporio-relatorios.ts
@@ -13,7 +13,7 @@ confere("painel abriu", painel_aberto())
 rotulos = js("Array.from(document.querySelectorAll('[role=dialog] label')).map(l => l.innerText.replace('*','').trim())") or []
 confere("campo Apresentacao visivel sem produto", "Apresentação" in rotulos or "Apresentacao" in rotulos, rotulos)
 desabilitado = js("(() => { const l = Array.from(document.querySelectorAll('[role=dialog] label')).find(x => x.innerText.trim().startsWith('Apresenta')); const el = l && document.getElementById(l.htmlFor); return el ? el.disabled || el.getAttribute('data-disabled') !== null : null; })()")
-confere("desabilitado enquanto o produto e qualquer", desabilitado is True, desabilitado)
+confere("habilitado com Qualquer produto (Q292: vale pelo nome em todo produto)", desabilitado is False, desabilitado)
 
 passo("2. Escolhendo o produto, a lista de apresentacoes abre")
 # escolhe o primeiro produto da lista abrindo o seletor (o campo fica abaixo da dobra do painel)
@@ -51,4 +51,27 @@ travado = js("(() => { const l = Array.from(document.querySelectorAll('[role=dia
 confere("Apresentacao travada para produto sem apresentacao", travado is True, travado)
 texto = js("(document.querySelector('[role=dialog]') || { innerText: '' }).innerText") or ""
 confere("aviso de produto sem apresentacoes", "não tem apresentações cadastradas" in texto, texto[-400:])
+
+passo("3. Qualquer produto: a Apresentacao lista os nomes, para valer em todo produto (Q292)")
+# Pedido da Agromax (10/11/2026): "10% em toda venda na apresentacao FRANQUIA", sem uma regra por produto.
+xy = _centro("(() => { const l = Array.from(document.querySelectorAll('[role=dialog] label')).find(x => x.innerText.trim().startsWith('Produto vendido')); return l && document.getElementById(l.htmlFor); })()")
+click_at_xy(xy[0], xy[1])
+time.sleep(1)
+xy = _centro("Array.from(document.querySelectorAll('[role=option]')).find(o => o.innerText.trim() === 'Qualquer produto')")
+click_at_xy(xy[0], xy[1])
+time.sleep(1)
+habilitado = js("(() => { const l = Array.from(document.querySelectorAll('[role=dialog] label')).find(x => x.innerText.trim().startsWith('Apresenta')); const el = l && document.getElementById(l.htmlFor); return el ? !(el.disabled || el.getAttribute('data-disabled') !== null) : null; })()")
+confere("Apresentacao habilitada com Qualquer produto", habilitado is True, habilitado)
+texto = js("(document.querySelector('[role=dialog]') || { innerText: '' }).innerText") or ""
+confere("dica de valer em todo produto", "valer em todo produto" in texto, texto[-300:])
+xy = _centro("(() => { const l = Array.from(document.querySelectorAll('[role=dialog] label')).find(x => x.innerText.trim().startsWith('Apresenta')); return l && document.getElementById(l.htmlFor); })()")
+click_at_xy(xy[0], xy[1])
+time.sleep(1)
+nomes = js("Array.from(document.querySelectorAll('[role=option]')).map(o => o.innerText.trim())") or []
+confere("lista os nomes com a contagem de produtos", any(n.startswith("Quilo (") and "produto" in n for n in nomes), nomes)
+xy = _centro("Array.from(document.querySelectorAll('[role=option]')).find(o => o.innerText.trim().startsWith('Quilo ('))")
+click_at_xy(xy[0], xy[1])
+time.sleep(1)
+valor = js("(() => { const l = Array.from(document.querySelectorAll('[role=dialog] label')).find(x => x.innerText.trim().startsWith('Apresenta')); const el = l && document.getElementById(l.htmlFor); return el ? el.innerText.trim() : null; })()")
+confere("o nome escolhido fica no campo", bool(valor) and valor.startswith("Quilo"), valor)
 fim()
