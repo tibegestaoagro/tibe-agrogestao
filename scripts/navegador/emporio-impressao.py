@@ -160,6 +160,9 @@ confere("tem o número da venda", bool(re.search(r"Nº\s*\d{6}", pagina)), pagin
 confere("tem o CNPJ da loja", CNPJ in re.sub(r"[^0-9A-Z]", "", pagina.upper()), pagina[:300])
 confere("tem Documento sem valor fiscal.", "Documento sem valor fiscal." in pagina)
 confere("tem o rodapé configurado", RODAPE in pagina)
+# Q291: a ração é vendida em quilo, então tem peso.
+confere("tem a coluna Peso (o cabeçalho sai em maiúsculas pelo CSS) e o peso do item", bool(re.search(r"\tPESO\t", pagina)) and bool(re.search(r"F6b Ração[^\n]*\t[\d.,]+ kg\t", pagina)), pagina[:600])
+confere("tem o Peso total em kg", bool(re.search(r"Peso total: [\d.,]+ kg", pagina)), pagina[:900])
 confere("sem bloco de cliente (Consumidor final)", "Cliente" not in pagina and "CLIENTE" not in pagina, pagina[:300])
 confere("o logo carregou (naturalWidth > 0)", esperar(lambda: js("(() => { const i = document.querySelector('.a4 img.logo'); return !!i && i.complete && i.naturalWidth > 0; })()")))
 confere("o botão Imprimir existe", bool(js("Array.from(document.querySelectorAll('button')).some(x => x.innerText.trim() === 'Imprimir')")))
@@ -176,6 +179,7 @@ ir(href_cupom)
 pagina = texto_da_pagina()
 confere("tem COMPROVANTE DE VENDA", "COMPROVANTE DE VENDA" in pagina)
 confere("tem SEM VALOR FISCAL", "SEM VALOR FISCAL" in pagina)
+confere("o cupom tem o Peso total em kg (Q291)", bool(re.search(r"Peso total: [\d.,]+ kg", pagina)), pagina[:600])
 confere("tem o rodapé configurado", RODAPE in pagina)
 confere("tem o número da venda", bool(re.search(r"Venda nº \d{6}", pagina)), pagina[:300])
 REGRAS_PAGE = "(() => { const out = []; for (const s of document.styleSheets) { let rs; try { rs = s.cssRules; } catch (e) { continue; } for (const r of rs) { if (r.cssText.includes('@page')) out.push(r.cssText); } } return out.join(' ; '); })()"
