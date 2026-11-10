@@ -3,6 +3,8 @@ import type { TenantPrismaClient } from "@/lib/prisma";
 import { decToNum, isoOrNull } from "@/lib/serialize";
 import { dinheiro } from "@/lib/emporio/historico";
 import { notify } from "@/lib/notify";
+import { sendEmail } from "@/lib/email-send";
+import { buildPaymentRequestEmailHtml } from "@/lib/email-templates";
 
 /**
  * Entrega 3 do financeiro (Q227): a visão do pedido de aprovação de pagamento e o aviso aos aprovadores.
@@ -119,13 +121,13 @@ export async function viewDoPedidoDePagamento(db: TenantPrismaClient, id: string
 }
 
 /**
- * Avisa por WhatsApp o Dono e o Gerente geral ativos (com telefone) de que há pagamento esperando aprovação.
- * É um aviso, não parte do pagamento: nunca lança, e quem não tem telefone fica de fora (o pedido segue na tela).
+ * Avisa por email e por WhatsApp (este só para quem tem telefone) o Dono e o Gerente geral ativos de que há
+ * pagamento esperando aprovação. É um aviso, não parte do pagamento: nunca lança (o pedido segue na tela).
  */
 export async function avisarAprovadores(db: TenantPrismaClient, pedido: PedidoDePagamentoView): Promise<void> {
   try {
     const aprovadores = await db.user.findMany({
-      where: { active: true, phone: { not: null }, OR: [{ role: "OWNER" }, { emporio_role: "gerente_geral" }] },
+      where: { active: true, OR: [{ role: "OWNER" }, { emporio_role: "gerente_geral" }] },
       select: { id: true, tenant_id: true, phone: true, email: true },
     });
     const primeira = pedido.entries[0];
@@ -135,9 +137,22 @@ export async function avisarAprovadores(db: TenantPrismaClient, pedido: PedidoDe
     const venc = vencimentos[0] ? `${vencimentos[0].slice(8, 10)}/${vencimentos[0].slice(5, 7)}` : "sem data";
     const total = dinheiro(pedido.total);
     const base = (process.env.NEXTAUTH_URL ?? "http://localhost:3000").replace(/\/+$/, "");
+    const resumo = `${pedido.requested_by.name} pediu aprovação para pagar ${total} a ${aQuem}${maisContas}, vencimento ${venc}.`;
     for (const u of aprovadores) {
+      // Um try por canal e por destinatário: a falha de um envio não cala os seguintes.
+      try {
+        await sendEmail({
+          to: u.email,
+          subject: `Pedido de pagamento de ${total} para aprovar`,
+          html: buildPaymentRequestEmailHtml({ resumo, url: `${base}/emporio/financeiro/aprovacoes` }),
+          tenant_id: u.tenant_id,
+          type: "emporio_pedido_pagamento",
+          related_id: pedido.id,
+        });
+      } catch (err) {
+        console.warn("[emporio] não foi possível enviar o email do pedido de pagamento", err);
+      }
       if (!u.phone) continue;
-      // Um try por destinatário: a falha de um não cala os seguintes.
       try {
         await notify(
           { tenant_id: u.tenant_id, user_id: u.id, phone: u.phone, email: u.email },

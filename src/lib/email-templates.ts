@@ -89,6 +89,22 @@ export function buildAlertEmailHtml(params: { message: string }): string {
   return wrapper(body);
 }
 
+function escapaHtml(t: string): string {
+  return t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+/** Aviso ao Dono e ao Gerente geral do Empório de pagamento esperando aprovação (Q276). */
+export function buildPaymentRequestEmailHtml(params: { resumo: string; url: string }): string {
+  const body = `
+    <p>Olá! Há um pagamento esperando a sua aprovação no Meu Empório:</p>
+    <div style="background-color:${COLORS.light};border-radius:8px;padding:16px;margin:16px 0;">
+      <p style="margin:0;">${escapaHtml(params.resumo)}</p>
+    </div>
+    ${button("Aprovar no painel", params.url)}
+  `;
+  return wrapper(body);
+}
+
 /** Código de verificação do cadastro público (Módulo 19, 6 dígitos, 10 minutos). */
 export function buildSignupCodeEmailHtml(params: { code: string; companyName: string }): string {
   const body = `

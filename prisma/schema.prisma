@@ -485,6 +485,7 @@ enum EmailLogType {
   welcome
   alert
   password_reset
+  emporio_pedido_pagamento
 }
 
 enum EmailLogStatus {
