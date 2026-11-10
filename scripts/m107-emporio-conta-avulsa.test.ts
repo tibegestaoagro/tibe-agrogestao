@@ -92,6 +92,8 @@ async function main() {
     assert.ok(paga.ok && paga.data.entry.status === "paid" && paga.data.payment?.waiting_approval === false);
     const pendentes = await actions.listarContasAPagarAction(a.db, a.ator);
     assert.ok(pendentes.ok && paga.ok && !pendentes.data.some((e) => e.entry_id === paga.data.entry.entry_id));
+    const resultadoComPaga = await resultadoDaLojaAction(a.db, a.ator, { establishment_id: a.loja.id, month: mes });
+    assert.ok(resultadoComPaga.ok && resultadoAntes.ok && resultadoAntes.data.result === resultadoComPaga.data.result, "a conta avulsa PAGA também não mexe no Resultado");
     if (paga.ok) {
       assert.equal(await a.db.financialPayment.count({ where: { entry_id: paga.data.entry.entry_id } }), 1);
       assert.ok(!(await actions.corrigirDespesaAction(a.db, a.ator, paga.data.entry.entry_id, { amount: 2 })).ok);
@@ -125,6 +127,32 @@ async function main() {
     if (comFornecedor.ok && comFornecedor.data.payment?.waiting_approval) {
       assert.equal(comFornecedor.data.payment.request.entries[0].description, "Serviço do fornecedor");
       assert.equal(comFornecedor.data.payment.request.entries[0].supplier_or_category, "Fornecedor");
+    }
+    // Abaixo do teto da alçada o Gestor paga direto; acima dele, o Dono também.
+    const gestorAbaixo = await actions.criarContaAvulsaAction(a.db, atorGestor, { establishment_id: a.loja.id, description: "Abaixo do teto", amount: 30, due_date: new Date(), status: "paid", paid_at: new Date(), from: { bank_account_id: a.conta.id } });
+    assert.ok(gestorAbaixo.ok && gestorAbaixo.data.payment?.waiting_approval === false && gestorAbaixo.data.entry.status === "paid", "Gestor abaixo do teto paga direto");
+    const donoAcima = await actions.criarContaAvulsaAction(a.db, a.ator, { establishment_id: a.loja.id, description: "Dono acima do teto", amount: 60, due_date: new Date(), status: "paid", paid_at: new Date(), from: { bank_account_id: a.conta.id } });
+    assert.ok(donoAcima.ok && donoAcima.data.payment?.waiting_approval === false && donoAcima.data.entry.status === "paid", "Dono acima do teto paga direto");
+    // Papel sem permissão de mexer nas despesas leva 403 e nada é criado.
+    for (const papel of ["vendedor", "caixa"] as const) {
+      const u = await a.db.user.create({ data: scoped({ name: papel, email: `m107-${papel}-${stamp}@teste.local`, password_hash: "teste", role: "OPERADOR", emporio_role: papel }) });
+      await a.db.userEstablishment.create({ data: scoped({ user_id: u.id, establishment_id: a.loja.id }) });
+      const antesPapel = await a.db.financialEntry.count();
+      const negado = await actions.criarContaAvulsaAction(a.db, { id: u.id, role: u.role }, { establishment_id: a.loja.id, description: "Sem permissão", amount: 10, due_date: new Date(), status: "pending" });
+      assert.ok(!negado.ok && negado.status === 403, `${papel} deve levar 403`);
+      assert.equal(await a.db.financialEntry.count(), antesPapel, `${papel} não cria obrigação`);
+    }
+    // Sem descrição, o pedido de pagamento dá nome próprio à avulsa (e não "Compra sem fornecedor").
+    const semDescricao = await actions.criarContaAvulsaAction(a.db, a.ator, { establishment_id: a.loja.id, description: "Será apagada", amount: 70, due_date: new Date(), status: "pending", emporio_supplier_id: a.fornecedor.id });
+    assert.ok(semDescricao.ok);
+    if (semDescricao.ok) {
+      await a.db.financialEntry.update({ where: { id: semDescricao.data.entry.entry_id }, data: { emporio_manual_description: null } });
+      const pedido = await actions.pagarDespesasAction(a.db, atorGestor, { entry_ids: [semDescricao.data.entry.entry_id], from: { bank_account_id: a.conta.id } });
+      assert.ok(pedido.ok && pedido.data.waiting_approval);
+      if (pedido.ok && pedido.data.waiting_approval) {
+        const nome = pedido.data.request.entries[0].description;
+        assert.equal(nome, "Conta avulsa de Fornecedor", "a avulsa sem descrição tem nome próprio no pedido");
+      }
     }
     const { aprovarPedidoDePagamentoAction } = await import("@/lib/actions/emporio-aprovacoes");
     for (const [criada, description, destinatario] of [
@@ -167,7 +195,15 @@ async function main() {
       assert.ok(resposta.status >= 400 && resposta.status < 500);
       assert.equal((await resposta.json()).error.field, field);
     }
-    const httpLista = await withCookie(`${cookie.nome}=${cookie.valor}`, () => rota.GET(new Request("http://localhost/api/v1/emporio/payables")));
+    // paid_at no futuro: recusa do schema da rota, em português, apontando o campo (nada é criado).
+    const antesFuturo = await a.db.financialEntry.count();
+    const futuroResp = await chamarPost({ ...corpo, status: "paid", paid_at: new Date(Date.now() + 3 * 86400000).toISOString(), from: { bank_account_id: a.conta.id } });
+    assert.ok(futuroResp.status >= 400 && futuroResp.status < 500);
+    const futuroErro = (await futuroResp.json()).error;
+    assert.equal(futuroErro.field, "paid_at");
+    assert.match(futuroErro.message, /data de pagamento n[ãa]o pode ser futura/i);
+    assert.equal(await a.db.financialEntry.count(), antesFuturo);
+    const httpLista =await withCookie(`${cookie.nome}=${cookie.valor}`, () => rota.GET(new Request("http://localhost/api/v1/emporio/payables")));
     assert.equal(httpLista.status, 200);
     assert.ok((await httpLista.json()).data.some((e: { entry_id: string }) => e.entry_id === criadaJson.data.entry.entry_id));
     console.log("M107: criação, validação, isolamento, ciclo pendente, pagamento atômico e rota passaram.");

@@ -98,7 +98,11 @@ export async function viewsDosPedidos(db: TenantPrismaClient, linhas: PedidoRow[
         if (!e) return [];
         const fornecedor = e.emporio_supplier?.name ?? (e.emporio_manual ? e.emporio_other_name : null);
         const nome =
-          (e.emporio_manual ? e.emporio_manual_description : null) ?? e.sale_variable_expense?.rule.name ?? e.fixed_occurrence?.template.name ?? fornecedor ?? "Compra sem fornecedor";
+          (e.emporio_manual ? (e.emporio_manual_description ?? `Conta avulsa de ${fornecedor ?? "Outros"}`) : null) ??
+          e.sale_variable_expense?.rule.name ??
+          e.fixed_occurrence?.template.name ??
+          fornecedor ??
+          "Compra sem fornecedor";
         return [
           {
             entry_id: e.id,

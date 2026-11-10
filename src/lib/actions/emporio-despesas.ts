@@ -17,6 +17,7 @@ import {
   type PedidoDePagamentoView,
 } from "@/lib/emporio/pedido-pagamento";
 import { CATEGORIA_FRETE } from "@/lib/emporio/frete";
+import { fimDoDiaEmSaoPaulo } from "@/lib/dia-calendario";
 import { CATEGORIAS_RESERVADAS } from "@/lib/emporio/vendeu-pagou";
 import { faturamentoLiquidoDoMes } from "@/lib/emporio/faturamento";
 import {
@@ -2170,6 +2171,9 @@ export async function criarContaAvulsaAction(
   }
   if (input.status === "paid") {
     if (!dataValida(input.paid_at)) return fail("VALIDATION_ERROR", "Informe uma data de pagamento válida.", 422, "paid_at");
+    if (input.paid_at > fimDoDiaEmSaoPaulo(new Date())) {
+      return fail("VALIDATION_ERROR", "A data de pagamento não pode ser futura.", 422, "paid_at");
+    }
     if (!input.from) return fail("VALIDATION_ERROR", "Diga de onde sai o dinheiro.", 422, "from");
     if (idOuNulo(input.from.establishment_id) && input.from.establishment_id !== loja.data.id) {
       return fail("VALIDATION_ERROR", "Escolha a gaveta da loja da conta.", 422, "from");
