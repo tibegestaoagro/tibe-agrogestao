@@ -4,17 +4,13 @@
  * vai entre aspas duplas, com as aspas internas dobradas.
  */
 
+import { diaIsoEmBrasilia } from "@/lib/dia-calendario";
+export { diaIsoEmBrasilia } from "@/lib/dia-calendario";
+
 export type ColunaCsv<T> = { titulo: string; valor: (linha: T) => string | number | Date | null };
 
 const BOM = "﻿";
 const FIM_DE_LINHA = "\r\n";
-
-const diaEmBrasilia = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" });
-
-/** O dia de Brasília de um instante, como AAAA-MM-DD. */
-export function diaIsoEmBrasilia(d: Date): string {
-  return diaEmBrasilia.format(d);
-}
 
 /** `AAAA-MM-DD` vira `DD/MM/AAAA` (só troca a ordem: não há fuso num dia de calendário). */
 export function diaBr(iso: string): string {

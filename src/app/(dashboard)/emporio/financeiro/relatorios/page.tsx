@@ -5,6 +5,7 @@ import { getTenantDb } from "@/lib/tenant-context";
 import { papelDoEmporio } from "@/lib/emporio/papel";
 import { veAPagina } from "@/lib/emporio/paginas";
 import { hojeEmBrasilia } from "@/lib/emporio/datas";
+import { dataCalendario, ehDataCalendario, somarDiasCalendario } from "@/lib/dia-calendario";
 import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
 import {
   lerAReceberPorIdadeAction,
@@ -24,13 +25,6 @@ import {
 
 const API = "/api/v1/emporio/finance/reports";
 const IMPRIMIR = "/emporio/imprimir/relatorio";
-const DIA_MS = 86_400_000;
-// Ida e volta: `2026-02-31` passa pelo regex e o V8 rola para março, então a data volta diferente.
-const ehData = (s: string | undefined): s is string =>
-  !!s && /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(`${s}T00:00:00Z`)) && new Date(`${s}T00:00:00Z`).toISOString().slice(0, 10) === s;
-const somarDias = (iso: string, n: number) => new Date(Date.parse(`${iso}T00:00:00Z`) + n * DIA_MS).toISOString().slice(0, 10);
-const paraData = (iso: string) => new Date(`${iso}T00:00:00Z`);
-
 /** Financeiro, "Relatórios": a receber por idade, a pagar por vencimento e a posição de caixa por lugar. Só leitura. */
 export default async function FinanceiroRelatoriosPage({
   searchParams,
@@ -49,18 +43,18 @@ export default async function FinanceiroRelatoriosPage({
   const estab = loja || undefined;
 
   const hoje = hojeEmBrasilia();
-  const deUrl = ehData(q.de) ? q.de : "";
-  const ateUrl = ehData(q.ate) ? q.ate : "";
+  const deUrl = ehDataCalendario(q.de) ? q.de : "";
+  const ateUrl = ehDataCalendario(q.ate) ? q.ate : "";
   // O a pagar olha para frente (hoje a hoje+30); a posição olha para trás (30 dias até hoje).
   const pagarDe = deUrl || hoje;
-  const pagarAte = ateUrl || somarDias(pagarDe, 30);
+  const pagarAte = ateUrl || somarDiasCalendario(pagarDe, 30);
   const posAte = ateUrl || hoje;
-  const posDe = deUrl || somarDias(posAte, -29);
+  const posDe = deUrl || somarDiasCalendario(posAte, -29);
 
   const [receber, pagar, posicao] = await Promise.all([
     lerAReceberPorIdadeAction(db, user, { establishment_id: estab }),
-    lerAPagarPorVencimentoAction(db, user, { establishment_id: estab, de: paraData(pagarDe), ate: paraData(pagarAte) }),
-    lerPosicaoPorLugarAction(db, user, { establishment_id: estab, de: paraData(posDe), ate: paraData(posAte) }),
+    lerAPagarPorVencimentoAction(db, user, { establishment_id: estab, de: dataCalendario(pagarDe), ate: dataCalendario(pagarAte) }),
+    lerPosicaoPorLugarAction(db, user, { establishment_id: estab, de: dataCalendario(posDe), ate: dataCalendario(posAte) }),
   ]);
 
   const falhou = (titulo: string, message: string) => <EmptyState titulo={titulo}>{message}</EmptyState>;

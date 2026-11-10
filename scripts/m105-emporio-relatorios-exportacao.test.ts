@@ -130,6 +130,18 @@ async function secao1() {
     const bytes = new Uint8Array(await res.arrayBuffer());
     check("respostaCsv: o corpo começa com os bytes do BOM (EF BB BF)", bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf, j([...bytes.slice(0, 4)]));
   }
+
+  const calendario = await import("@/lib/dia-calendario");
+  const cartao = await import("@/lib/emporio/cartao");
+  const antesDaVirada = new Date("2026-11-10T02:59:59.999Z");
+  const depoisDaVirada = new Date("2026-11-10T03:00:00.000Z");
+  check("o dia centralizado de Brasília ainda é 9 antes da meia-noite local", calendario.diaIsoEmBrasilia(antesDaVirada) === "2026-11-09");
+  check("o CSV usa o mesmo dia centralizado de Brasília", M.diaIsoEmBrasilia(antesDaVirada) === "2026-11-09");
+  check("o cartão mantém hojeEmBrasilia como meia-noite UTC do dia local", cartao.hojeEmBrasilia(antesDaVirada).toISOString() === "2026-11-09T00:00:00.000Z");
+  check("o dia centralizado avança na meia-noite local", calendario.diaIsoEmBrasilia(depoisDaVirada) === "2026-11-10");
+  check("a validação aceita 28/02/2026 e rejeita 31/02/2026", calendario.ehDataCalendario("2026-02-28") && !calendario.ehDataCalendario("2026-02-31"));
+  check("a soma de dias cruza a virada de mês nos dois sentidos", calendario.somarDiasCalendario("2026-02-28", 1) === "2026-03-01" && calendario.somarDiasCalendario("2026-03-01", -1) === "2026-02-28");
+  check("a conversão mantém a data de calendário em meia-noite UTC", calendario.dataCalendario("2026-03-01").toISOString() === "2026-03-01T00:00:00.000Z");
 }
 
 // ------------------------------------------------------------------ rotas

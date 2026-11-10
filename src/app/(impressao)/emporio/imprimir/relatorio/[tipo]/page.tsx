@@ -4,6 +4,7 @@ import { getTenantDb } from "@/lib/tenant-context";
 import { papelDoEmporio } from "@/lib/emporio/papel";
 import { veAPagina } from "@/lib/emporio/paginas";
 import { hojeEmBrasilia } from "@/lib/emporio/datas";
+import { dataCalendario, ehDataCalendario, somarDiasCalendario } from "@/lib/dia-calendario";
 import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
 import {
   lerAReceberPorIdadeAction,
@@ -20,12 +21,6 @@ import { BotaoImprimir } from "@/components/emporio/impresso/botao-imprimir";
 
 export const metadata = { title: "Imprimir relatório" };
 
-const DIA_MS = 86_400_000;
-// Ida e volta: `2026-02-31` passa pelo regex e o V8 rola para março, então a data volta diferente.
-const ehData = (s: string | undefined): s is string =>
-  !!s && /^\d{4}-\d{2}-\d{2}$/.test(s) && new Date(`${s}T00:00:00Z`).toISOString().slice(0, 10) === s;
-const somarDias = (iso: string, n: number) => new Date(Date.parse(`${iso}T00:00:00Z`) + n * DIA_MS).toISOString().slice(0, 10);
-const paraData = (iso: string) => new Date(`${iso}T00:00:00Z`);
 const dmy = (iso: string) => iso.split("-").reverse().join("/");
 
 /**
@@ -54,8 +49,8 @@ export default async function ImprimirRelatorioPage({
   const estab = lojaEscolhida?.id;
 
   const hoje = hojeEmBrasilia();
-  const deUrl = ehData(q.de) ? q.de : "";
-  const ateUrl = ehData(q.ate) ? q.ate : "";
+  const deUrl = ehDataCalendario(q.de) ? q.de : "";
+  const ateUrl = ehDataCalendario(q.ate) ? q.ate : "";
   let dados: DadosDoRelatorio;
   let periodo: string | null = null;
 
@@ -65,15 +60,15 @@ export default async function ImprimirRelatorioPage({
     else notFound();
   } else if (tipo === "a-pagar") {
     const de = deUrl || hoje;
-    const ate = ateUrl || somarDias(de, 30);
-    const res = await lerAPagarPorVencimentoAction(db, user, { establishment_id: estab, de: paraData(de), ate: paraData(ate) });
+    const ate = ateUrl || somarDiasCalendario(de, 30);
+    const res = await lerAPagarPorVencimentoAction(db, user, { establishment_id: estab, de: dataCalendario(de), ate: dataCalendario(ate) });
     if (!res.ok) notFound();
     dados = { tipo, r: res.data };
     periodo = `Vencimentos de ${dmy(de)} a ${dmy(ate)}`;
   } else if (tipo === "posicao") {
     const ate = ateUrl || hoje;
-    const de = deUrl || somarDias(ate, -29);
-    const res = await lerPosicaoPorLugarAction(db, user, { establishment_id: estab, de: paraData(de), ate: paraData(ate) });
+    const de = deUrl || somarDiasCalendario(ate, -29);
+    const res = await lerPosicaoPorLugarAction(db, user, { establishment_id: estab, de: dataCalendario(de), ate: dataCalendario(ate) });
     if (!res.ok) notFound();
     dados = { tipo, r: res.data };
     periodo = `Movimento de ${dmy(de)} a ${dmy(ate)}`;

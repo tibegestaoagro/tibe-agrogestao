@@ -38,6 +38,28 @@ export function inicioDoDiaEmSaoPaulo(momento: Date): Date {
   return new Date(Date.UTC(ano, mes - 1, dia));
 }
 
+/** O dia de calendário de um instante em Brasília, no formato AAAA-MM-DD. */
+export function diaIsoEmBrasilia(momento: Date): string {
+  return inicioDoDiaEmSaoPaulo(momento).toISOString().slice(0, 10);
+}
+
+/** Valida uma data de calendário no formato AAAA-MM-DD, sem aceitar rollover. */
+export function ehDataCalendario(iso: string | undefined): iso is string {
+  if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return false;
+  const instante = Date.parse(`${iso}T00:00:00.000Z`);
+  return Number.isFinite(instante) && new Date(instante).toISOString().slice(0, 10) === iso;
+}
+
+/** Soma dias a uma data de calendário sem depender do fuso do servidor. */
+export function somarDiasCalendario(iso: string, dias: number): string {
+  return new Date(Date.parse(`${iso}T00:00:00.000Z`) + dias * DIA_MS).toISOString().slice(0, 10);
+}
+
+/** Converte AAAA-MM-DD para Date preservando o dia de calendário como UTC. */
+export function dataCalendario(iso: string): Date {
+  return new Date(`${iso}T00:00:00.000Z`);
+}
+
 /**
  * O último milissegundo do dia de `momento` em São Paulo (23:59:59.999 locais). É um INSTANTE,
  * para validade de coisa que expira no fim do dia; a meia-noite de SP é 03:00 UTC (sem horário
