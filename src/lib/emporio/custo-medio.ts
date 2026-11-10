@@ -35,7 +35,16 @@ export type ResultadoCusto = {
   saldo: number;
   custo_medio: number | null;
   estimado: boolean;
+  /** Custo da entrada `compra` mais recente com custo (Q293). */
+  ultima_compra_custo: number | null;
+  ultima_compra_em: Date | null;
 };
+
+export type BaseCustoPreco = "medio" | "ultima_compra" | "maior";
+export type OrigemCustoSugerido = "medio" | "ultima_compra" | "referencia";
+
+/** Diferença entre última compra e médio acima disso (em módulo) vira aviso (Q295). */
+export const LIMITE_AVISO_CUSTO_PCT = 10;
 
 const SAIDAS_DA_LOJA: ReadonlySet<string> = new Set([
   "venda",
@@ -77,8 +86,14 @@ export function custoMedio(movimentos: MovimentoDeCusto[]): ResultadoCusto {
   let saldo = 0;
   let medio: number | null = null;
   let estimado = false;
+  let ultimaCusto: number | null = null;
+  let ultimaEm: Date | null = null;
 
   for (const m of ordenados) {
+    if (m.movement_type === "compra" && m.unit_cost != null) {
+      ultimaCusto = m.unit_cost;
+      ultimaEm = new Date(m.occurred_at);
+    }
     const d = deltaDaLoja(m);
     if (d === 0) continue;
     if (d > 0) {
@@ -95,5 +110,35 @@ export function custoMedio(movimentos: MovimentoDeCusto[]): ResultadoCusto {
   }
 
   if (saldo > 0 && medio === null) estimado = true;
-  return { saldo, custo_medio: medio, estimado };
+  return { saldo, custo_medio: medio, estimado, ultima_compra_custo: ultimaCusto, ultima_compra_em: ultimaEm };
+}
+
+/**
+ * Custo que alimenta o preço SUGERIDO (Q294, Q297). Não mexe no custo da venda
+ * nem no Resultado, que seguem pelo médio.
+ */
+export function custoDoSugerido(
+  dados: {
+    saldo: number;
+    custo_medio: number | null;
+    ultima_compra_custo: number | null;
+    referencia: number | null;
+  },
+  base: BaseCustoPreco,
+): { custo: number | null; origem: OrigemCustoSugerido | null } {
+  const { saldo, custo_medio: medio, ultima_compra_custo: ultima, referencia } = dados;
+  if (saldo <= 0 || medio === null) {
+    if (ultima !== null) return { custo: ultima, origem: "ultima_compra" };
+    return referencia !== null ? { custo: referencia, origem: "referencia" } : { custo: null, origem: null };
+  }
+  if (base === "medio" || (base === "ultima_compra" && ultima === null)) return { custo: medio, origem: "medio" };
+  if (base === "ultima_compra") return { custo: ultima, origem: "ultima_compra" };
+  if (ultima !== null && ultima > medio) return { custo: ultima, origem: "ultima_compra" };
+  return { custo: medio, origem: "medio" };
+}
+
+/** (ultima - medio) / medio * 100, ou null sem os dois ou com médio zero. */
+export function diferencaPct(medio: number | null, ultima: number | null): number | null {
+  if (medio === null || ultima === null || medio === 0) return null;
+  return ((ultima - medio) / medio) * 100;
 }

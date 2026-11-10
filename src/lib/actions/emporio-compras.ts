@@ -6,6 +6,7 @@ import { exigir, exigirUma, recusarCaixa } from "@/lib/emporio/papel";
 import { createLinkedEntry, runSerializableTenantTransaction, type TenantTransactionClient } from "@/lib/financial";
 import { lacradoEfetivo, lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
 import { saldoDoCaixa, saldosDasContas } from "@/lib/actions/emporio-caixa";
+import { camposDeCusto, chaveLojaProduto, lerCustosDasLojas } from "@/lib/emporio/custos-da-loja";
 import { resolverTurno } from "@/lib/emporio/turno";
 import { contaEmAprovacao, EM_APROVACAO } from "@/lib/emporio/pedido-pagamento";
 
@@ -216,6 +217,57 @@ export async function listarComprasAction(
   };
   const limite = opts.limit && opts.limit > 0 ? Math.min(Math.floor(opts.limit), 500) : 200;
   return ok(await montarViews(db, await buscarCompras(db, where, limite)));
+}
+
+export type SaldoParaCompra = {
+  establishment_id: string;
+  emporio_product_id: string;
+  /** O que o sistema tem na loja ANTES da entrada, na unidade-base. */
+  stock_balance: number;
+  /** Custo médio atual por unidade-base; nulo sem estoque (Q296, Q297). */
+  average_cost: number | null;
+};
+
+/**
+ * Q296: o saldo e o custo médio que o sistema tem em cada loja, por produto,
+ * para o formulário de compra avisar antes de lançar. Só das lojas em que o
+ * ator pode lançar compra.
+ */
+export async function lerSaldosParaCompraAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+): Promise<ActionResult<SaldoParaCompra[]>> {
+  const foraDoCaixa = await recusarCaixa(db, ator, "ver as compras");
+  if (foraDoCaixa) return foraDoCaixa;
+  const visiveis = await lojasDoAtor(db, ator);
+  const lojas = await db.establishment.findMany({
+    where: { archived_at: null, ...(visiveis ? { id: { in: [...visiveis] } } : {}) },
+    select: { id: true },
+  });
+  const produtos = await db.emporioProduct.findMany({
+    where: { archived_at: null },
+    select: { id: true, product_id: true },
+  });
+  const custos = await lerCustosDasLojas(
+    db as unknown as Parameters<typeof lerCustosDasLojas>[0],
+    lojas.map((l) => l.id),
+    produtos.map((p) => p.product_id),
+  );
+  const saida: SaldoParaCompra[] = [];
+  for (const l of lojas) {
+    for (const p of produtos) {
+      const r = custos.get(chaveLojaProduto(l.id, p.product_id));
+      if (!r) continue;
+      const c = camposDeCusto(r, "medio", null);
+      saida.push({
+        establishment_id: l.id,
+        emporio_product_id: p.id,
+        stock_balance: r.saldo,
+        average_cost: c.average_cost,
+      });
+    }
+  }
+  return ok(saida);
 }
 
 // ---------------------------------------------------------------------------

@@ -4,7 +4,7 @@ import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
-import { listarComprasAction } from "@/lib/actions/emporio-compras";
+import { listarComprasAction, lerSaldosParaCompraAction } from "@/lib/actions/emporio-compras";
 import { reaisBr } from "@/lib/numero-br";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -75,12 +75,22 @@ export default async function ComprasPage({
   const lojasDoLancamento = lojas.filter((l) => pode(papel, "chave:lancar_compra", l.id));
   const compras = comprasRes.ok ? comprasRes.data : [];
 
+  // Q296: o saldo e o custo médio de hoje, por loja, para a tela avisar antes de lançar.
+  const saldosRes = podeLancar ? await lerSaldosParaCompraAction(db, user) : null;
+  const saldosPorProduto = new Map<string, Record<string, { stock_balance: number; average_cost: number | null }>>();
+  for (const s of saldosRes?.ok ? saldosRes.data : []) {
+    const porLoja = saldosPorProduto.get(s.emporio_product_id) ?? {};
+    porLoja[s.establishment_id] = { stock_balance: s.stock_balance, average_cost: s.average_cost };
+    saldosPorProduto.set(s.emporio_product_id, porLoja);
+  }
+
   const produtosForm = produtos
     .map((p) => ({
       id: p.id,
       name: p.product.name,
       base_unit: p.base_unit,
       apresentacoes: p.presentations,
+      saldos_por_loja: saldosPorProduto.get(p.id) ?? {},
     }))
     .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
 

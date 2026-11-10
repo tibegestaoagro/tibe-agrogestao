@@ -263,6 +263,13 @@ enum EmporioSaleStatus {
 }
 
 /// Q248: de onde veio a venda. `ecommerce` é o pedido da loja online lançado à mão.
+/// Q294: a base de custo do preço sugerido da loja. `maior` é o maior entre o médio e a última compra.
+enum EmporioPriceCostBasis {
+  medio
+  ultima_compra
+  maior
+}
+
 enum EmporioSaleOrigin {
   balcao
   ecommerce
@@ -778,7 +785,7 @@ enum EstablishmentKind {
 /// NÃO `Property` (Q1 da spec): reaproveitar `Property` poria a loja nos
 /// seletores de rebanho, pasto e máquinas.
 model Establishment {
-  id                   String             @id @default(cuid())
+  id                   String                @id @default(cuid())
   tenant_id            String
   name                 String
   /// Q121: Central e Ponto de venda deixaram de existir, e nada mais escreve
@@ -789,10 +796,12 @@ model Establishment {
   address              String?
   city                 String?
   responsible_user_id  String?
-  allow_negative_stock Boolean            @default(false)
-  max_discount_pct     Decimal?           @db.Decimal(5, 2)
-  default_expense_pct  Decimal?           @db.Decimal(7, 2)
-  default_profit_pct   Decimal?           @db.Decimal(7, 2)
+  allow_negative_stock Boolean               @default(false)
+  max_discount_pct     Decimal?              @db.Decimal(5, 2)
+  default_expense_pct  Decimal?              @db.Decimal(7, 2)
+  default_profit_pct   Decimal?              @db.Decimal(7, 2)
+  /// Q294: o custo que o preço sugerido usa (só o sugerido; o preço de venda segue gravado à mão).
+  price_cost_basis     EmporioPriceCostBasis @default(maior)
   archived_at          DateTime?
   /// F3a (Q83): para onde vai o PIX da loja quando a venda não diz.
   pix_bank_account_id  String?
@@ -803,10 +812,10 @@ model Establishment {
   state                String?
   zip                  String?
   /// Entrega 4 do financeiro: bases do rateio automático da despesa fixa.
-  area_m2              Decimal?           @db.Decimal(10, 2)
+  area_m2              Decimal?              @db.Decimal(10, 2)
   employees_count      Int?
-  created_at           DateTime           @default(now())
-  updated_at           DateTime           @updatedAt
+  created_at           DateTime              @default(now())
+  updated_at           DateTime              @updatedAt
 
   tenant                    Tenant                   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   responsible               User?                    @relation("EstablishmentResponsible", fields: [responsible_user_id], references: [id], onDelete: SetNull)
