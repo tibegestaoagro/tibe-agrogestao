@@ -26,7 +26,7 @@
 # transferencias nem a lista de orcamentos.
 #
 # cenario: scripts/_cenario-manual-emporio.ts
-# sessao: dono owner@damata.com.br
+# sessao: dono owner@example.com
 # sessao: gestor gestor.demo.emporio@example.com
 # sessao: vendedor_centro vendedor.centro.demo.emporio@example.com
 # sessao: caixa vendedor.rodovia.demo.emporio@example.com

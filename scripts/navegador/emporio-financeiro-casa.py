@@ -16,7 +16,7 @@
 #   8. A 390 px: as quatro abas sem rolagem horizontal.
 #
 # cenario: scripts/_cenario-emporio-financeiro-casa.ts
-# sessao: owner owner@damata.com.br
+# sessao: owner owner@example.com
 # sessao: financeiro fin-casa@teste.local
 # sessao: gestor fin-gestor@teste.local
 

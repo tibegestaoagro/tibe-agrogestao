@@ -6,7 +6,7 @@
 # navegador, com a sessao, e o roteiro confere o que as telas mostram.
 #
 # cenario: scripts/_cenario-emporio-f1.ts
-# sessao: owner owner@damata.com.br
+# sessao: owner owner@example.com
 # sessao: oper operador-emporio@teste.local
 
 

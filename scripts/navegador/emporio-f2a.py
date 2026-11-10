@@ -11,7 +11,7 @@
 #   limites 60 e 100: precisa repor, sugestao 48 kg
 #
 # cenario: scripts/_cenario-emporio-f2a.ts
-# sessao: owner owner@damata.com.br
+# sessao: owner owner@example.com
 
 
 def tem(texto, n=20000):

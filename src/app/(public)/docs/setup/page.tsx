@@ -81,7 +81,7 @@ npm run db:seed      # cria o tenant de exemplo, owner e catálogo de vacinas`}
         </pre>
         <p className="mt-2">
           Login de exemplo criado pelo seed:{" "}
-          <code className="rounded border border-borda bg-superficie-afundada px-1">owner@damata.com.br</code> /{" "}
+          <code className="rounded border border-borda bg-superficie-afundada px-1">owner@example.com</code> /{" "}
           <code className="rounded border border-borda bg-superficie-afundada px-1">tibe123</code>.
         </p>
         <p className="mt-3 font-medium text-texto">Alterando o schema</p>

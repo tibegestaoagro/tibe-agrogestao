@@ -25,8 +25,8 @@ const EMAIL_OPERADOR = "operador-emporio@teste.local";
 const PREFIXO = "F1 ";
 
 async function main() {
-  const owner = await prisma.user.findUnique({ where: { email: "owner@damata.com.br" } });
-  if (!owner) throw new Error("O seed nao tem owner@damata.com.br: rode npm run db:seed.");
+  const owner = await prisma.user.findUnique({ where: { email: "owner@example.com" } });
+  if (!owner) throw new Error("O seed nao tem owner@example.com: rode npm run db:seed.");
   const tenant_id = owner.tenant_id;
 
   const ligado = await setTenantFeatureAction({ tenantId: tenant_id, key: "emporio", enabled: true, user_ids: [] });

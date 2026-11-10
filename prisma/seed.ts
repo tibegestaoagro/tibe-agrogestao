@@ -15,7 +15,7 @@ exigirBancoLocal();
  * Roda: `npm run db:seed`
  */
 
-const OWNER_EMAIL = "owner@damata.com.br";
+const OWNER_EMAIL = "owner@example.com";
 const OWNER_PASSWORD = "tibe123"; // apenas dev: trocar em produção
 const TENANT_DOCUMENT = "11222333000181"; // CNPJ placeholder da Da Mata Sementes
 

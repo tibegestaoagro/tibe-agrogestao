@@ -3,7 +3,7 @@
 # ignorando o show do link de topo e o Painel rotulando emporio como Prestador.
 #
 # cenario: scripts/_cenario-emporio-f0.ts
-# sessao: owner owner@damata.com.br
+# sessao: owner owner@example.com
 # sessao: so so-emporio@teste.local
 # sessao-plataforma: plat
 

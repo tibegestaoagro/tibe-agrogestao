@@ -16,7 +16,7 @@
 #   9. O telefone gravado so com digitos aparece com mascara nas listas e fichas.
 #
 # cenario: scripts/_cenario-emporio-clientes.ts
-# sessao: owner owner@damata.com.br
+# sessao: owner owner@example.com
 # sessao: gestor cli-gestor@teste.local
 # sessao: vendedor cli-vendedor@teste.local
 # sessao: caixa cli-caixa@teste.local

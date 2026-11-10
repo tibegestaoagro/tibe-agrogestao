@@ -19,7 +19,7 @@ import { emitirCookiePlataforma, emitirCookieTenant, type CookieEmitido } from "
  * O roteiro declara no cabecalho o que precisa, e este script prepara:
  *
  *   # cenario: scripts/_cenario-emporio-f0.ts
- *   # sessao: owner owner@damata.com.br
+ *   # sessao: owner owner@example.com
  *   # sessao-plataforma: plat
  *
  * Os cookies sao emitidos sem senha (`_sessao-cookie.ts`). O roteiro chega ao

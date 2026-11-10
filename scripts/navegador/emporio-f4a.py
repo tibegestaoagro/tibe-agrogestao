@@ -10,7 +10,7 @@
 #   nova despesa fixa de R$ 100: doze contas, uma por mes
 #
 # cenario: scripts/_cenario-emporio-f4a.ts
-# sessao: owner owner@damata.com.br
+# sessao: owner owner@example.com
 
 
 def tem(texto, n=60000):

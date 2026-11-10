@@ -28,7 +28,7 @@ async function main() {
   const c =
     process.argv[2] === "--plataforma"
       ? await emitirCookiePlataforma(process.argv[3])
-      : await emitirCookieTenant(process.argv[2] ?? "owner@damata.com.br");
+      : await emitirCookieTenant(process.argv[2] ?? "owner@example.com");
   console.log(`${c.nome}=${c.valor}`);
   await prisma.$disconnect();
 }

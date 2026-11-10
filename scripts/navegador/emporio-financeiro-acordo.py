@@ -16,7 +16,7 @@
 #      horizontal.
 #
 # cenario: scripts/_cenario-emporio-financeiro-acordo.ts
-# sessao: dono owner@damata.com.br
+# sessao: dono owner@example.com
 # sessao: financeiro aco-casa@teste.local
 # sessao: caixa aco-caixa@teste.local
 # sessao: gestor aco-gestor@teste.local

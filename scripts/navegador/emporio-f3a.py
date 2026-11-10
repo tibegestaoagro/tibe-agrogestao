@@ -10,7 +10,7 @@
 #   cancelar e devolver ajustam estoque e caixa, preservando o historico
 #
 # cenario: scripts/_cenario-emporio-f3a.ts
-# sessao: owner owner@damata.com.br
+# sessao: owner owner@example.com
 
 
 def tem(texto, n=30000):

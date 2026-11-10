@@ -118,7 +118,7 @@ desviaria da matriz de acesso do PRD (§5.2) sem necessidade real.
   em `scripts/m23-token-auth.test.ts`, não relacionados, confirmados
   intocados por este módulo).
 - Testado ao vivo em navegador real (`next dev` local, Postgres Docker,
-  login `owner@damata.com.br`): cadastro de fazenda, edição
+  login `owner@example.com`): cadastro de fazenda, edição
   (município/distrito), cadastro de pasto acima da área total (aviso exibido
   sem bloquear), desativação de pasto (soma volta ao normal), troca entre
   as duas fazendas do tenant seed, e regressão de Rebanho (sem o botão

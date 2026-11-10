@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
  * usuário do seed existe e que a senha confere via bcrypt (mesma lógica do
  * authorize() em lib/auth.ts). Roda: `npm run auth:check`
  */
-const EMAIL = "owner@damata.com.br";
+const EMAIL = "owner@example.com";
 const PASSWORD = "tibe123";
 
 async function main() {

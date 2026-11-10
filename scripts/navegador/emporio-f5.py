@@ -10,7 +10,7 @@
 #   turno aberto desde ontem (Q165), "F5 Ração" abaixo do minimo, e a conta da fazenda "F5 Diesel".
 #
 # cenario: scripts/_cenario-emporio-f5.ts
-# sessao: owner owner@damata.com.br
+# sessao: owner owner@example.com
 # sessao: fora fora-emporio@teste.local
 
 

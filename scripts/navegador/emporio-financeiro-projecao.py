@@ -21,7 +21,7 @@
 # lojas "Pro " e a soma, nao os R$ 750,00 e R$ 250,00 de uma conta so com elas.
 #
 # cenario: scripts/_cenario-emporio-financeiro-projecao.ts
-# sessao: dono owner@damata.com.br
+# sessao: dono owner@example.com
 # sessao: financeiro pro-casa@teste.local
 # sessao: gestor pro-gestor@teste.local
 

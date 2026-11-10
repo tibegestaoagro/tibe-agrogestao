@@ -70,7 +70,7 @@ partir de onde o app roda:
   celular, nunca para o computador.
 
 Credenciais de teste (seed do projeto, ver `CLAUDE.md` na raiz):
-`owner@damata.com.br` / `tibe123`.
+`owner@example.com` / `tibe123`.
 
 ## Estrutura
 

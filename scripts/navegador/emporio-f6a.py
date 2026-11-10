@@ -6,7 +6,7 @@
 # tem esse prefixo, e assim o roteiro roda de novo sem sobrar "Ração gato".
 #
 # cenario: scripts/_cenario-emporio-f1.ts
-# sessao: owner owner@damata.com.br
+# sessao: owner owner@example.com
 
 
 def tem(texto, n=20000):

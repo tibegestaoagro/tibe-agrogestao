@@ -20,7 +20,7 @@
 # datas da Stone caem em dia util.
 #
 # cenario: scripts/_cenario-emporio-antecipacao.ts
-# sessao: owner owner@damata.com.br
+# sessao: owner owner@example.com
 import datetime
 import re
 

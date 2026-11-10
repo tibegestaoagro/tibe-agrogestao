@@ -14,7 +14,7 @@
 #   balcao com duas adquirentes: aparece o seletor; sem taxa para Amex no parcelado
 #
 # cenario: scripts/_cenario-emporio-cartoes.ts
-# sessao: owner owner@damata.com.br
+# sessao: owner owner@example.com
 
 
 def tem(texto, n=40000):

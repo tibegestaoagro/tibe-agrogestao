@@ -8,7 +8,7 @@
 #   pelo custo da origem (R$ 9,00), e sem lancamento financeiro
 #
 # cenario: scripts/_cenario-emporio-f2b.ts
-# sessao: owner owner@damata.com.br
+# sessao: owner owner@example.com
 
 
 def tem(texto, n=30000):

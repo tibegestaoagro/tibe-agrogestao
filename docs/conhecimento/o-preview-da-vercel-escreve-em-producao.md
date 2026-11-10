@@ -37,7 +37,7 @@ O reset nunca diz se o email saiu (resposta genérica contra enumeração), ent�
 - Antes de pedir ao usuário um teste no preview, diga que ele escreve em
   produção e que email só pode ir para endereço que ele recebe.
 - No preview, use um usuário de tenant de teste cujo email seja do usuário,
-  nunca as credenciais do seed (`owner@damata.com.br` existe em produção).
+  nunca as credenciais do seed (`owner@example.com` existe em produção).
 - Para saber se um email saiu, leia o `EmailLog` no Neon. O classificador do
   auto mode recusou essa leitura em 26/10; quem rodou o script foi o usuário.
 - A saída de verdade é um banco de preview separado (branch de banco do Neon

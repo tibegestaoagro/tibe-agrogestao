@@ -8,7 +8,7 @@
 # quilo, preco nas duas lojas) e um Vendedor da Loja 1.
 #
 # cenario: scripts/_cenario-emporio-f6b.ts
-# sessao: owner owner@damata.com.br
+# sessao: owner owner@example.com
 # sessao: vendedor1 f6b-vendedor1@teste.local
 
 import base64

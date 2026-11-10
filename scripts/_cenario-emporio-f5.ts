@@ -103,8 +103,8 @@ async function usuario(tenant_id: string, email: string, name: string, role: "OP
 }
 
 async function main() {
-  const owner = await prisma.user.findUnique({ where: { email: "owner@damata.com.br" } });
-  if (!owner) throw new Error("O seed nao tem owner@damata.com.br: rode npm run db:seed.");
+  const owner = await prisma.user.findUnique({ where: { email: "owner@example.com" } });
+  if (!owner) throw new Error("O seed nao tem owner@example.com: rode npm run db:seed.");
   const tenant_id = owner.tenant_id;
 
   const operador = await usuario(tenant_id, EMAIL_OPERADOR, "Operador do Empório", "OPERADOR", true);

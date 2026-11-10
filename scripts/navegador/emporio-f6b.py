@@ -8,7 +8,7 @@
 # Loja 1: uma em aguardando_gestor e uma em transito.
 #
 # cenario: scripts/_cenario-emporio-f6b.ts
-# sessao: owner owner@damata.com.br
+# sessao: owner owner@example.com
 # sessao: gestor1 f6b-gestor1@teste.local
 # sessao: vendedor1 f6b-vendedor1@teste.local
 
@@ -68,7 +68,7 @@ ir("/emporio/equipe")
 confere("a Equipe abre", caminho() == "/emporio/equipe" and tem("Cadastrar pessoa"), caminho())
 confere("mostra as vagas da equipe do Empório (Q190), não os assentos do plano", tem("de 50 na equipe do Empório") and not tem("assento(s) em uso"))
 confere("a frase das funções", tem("Gerente geral") and tem("Gestor") and tem("Vendedor"))
-confere("o Dono aparece sem botão de editar", "Editar" not in linha("owner@damata.com.br"), linha("owner@damata.com.br"))
+confere("o Dono aparece sem botão de editar", "Editar" not in linha("owner@example.com"), linha("owner@example.com"))
 confere("o Gestor aparece com a Loja 1", "F6b Loja 1" in linha("f6b-gestor1@teste.local"), linha("f6b-gestor1@teste.local"))
 confere("o Gerente geral aparece com todas as lojas", "Todas" in linha("f6b-gerente@teste.local"), linha("f6b-gerente@teste.local"))
 
@@ -218,7 +218,7 @@ ir("/configuracoes/usuarios")
 confere("a página abre", caminho() == "/configuracoes/usuarios", caminho())
 # Q190: a equipe do Empório é separada dos usuários do Tibé.
 confere("o Gestor da equipe não aparece em Usuários", linha("f6b-gestor1@teste.local") == "", linha("f6b-gestor1@teste.local"))
-confere("o Dono aparece", "owner@damata.com.br" in linha("owner@damata.com.br"))
+confere("o Dono aparece", "owner@example.com" in linha("owner@example.com"))
 confere("os assentos são os do plano", tem("assento(s) do plano em uso"))
 confere("a página aponta a Equipe do Empório", js("!!document.querySelector('main a[href=\"/emporio/equipe\"]')"))
 r = api("PATCH", "/api/v1/users/" + equipe()["f6b-gestor1@teste.local"]["id"] + "/active", {"active": False})

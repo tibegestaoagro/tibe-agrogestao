@@ -11,7 +11,7 @@
 #   cancelada e "Substituída pela venda nº", a nova "Substitui a venda nº"
 #
 # cenario: scripts/_cenario-emporio-frete.ts
-# sessao: owner owner@damata.com.br
+# sessao: owner owner@example.com
 
 
 def tem(texto, n=30000):

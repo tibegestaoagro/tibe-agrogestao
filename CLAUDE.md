@@ -537,7 +537,7 @@ dependem do Redis compartilhado e falham na segunda execução da mesma hora.
 
 A lista completa é o `package.json`, e é ela que vale: `npm run check` reprova
 qualquer comando citado na documentação que não exista lá. Credenciais do seed
-(dev): `owner@damata.com.br` / `tibe123`.
+(dev): `owner@example.com` / `tibe123`.
 
 ## Memória local e skills
 

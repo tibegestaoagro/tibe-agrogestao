@@ -11,7 +11,7 @@
 #   conferir a gaveta com R$ 5 a menos: ajuste e "Diferenca de caixa"
 #
 # cenario: scripts/_cenario-emporio-f3b.ts
-# sessao: owner owner@damata.com.br
+# sessao: owner owner@example.com
 
 
 def tem(texto, n=40000):

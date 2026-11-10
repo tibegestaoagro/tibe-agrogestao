@@ -73,7 +73,7 @@ migração localmente, passe a URL do Docker inline, com `127.0.0.1` (e não
 DATABASE_URL="postgresql://tibe:tibe@127.0.0.1:55432/tibe_dev?schema=public" npm run test:m1
 ```
 
-Credenciais do seed (dev): `owner@damata.com.br` / `tibe123`. O tenant do seed
+Credenciais do seed (dev): `owner@example.com` / `tibe123`. O tenant do seed
 nasce sem `TenantProfile`, então o primeiro login cai no onboarding.
 
 ## Verificação

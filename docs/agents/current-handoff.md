@@ -135,7 +135,7 @@ Todo commit é leitura pública. Fechar exige a conta `tibegestaoagro` (o
   `.env.enc`: apague quando a rotação terminar.
 - Alerta do GitGuardian de 06/11 ("Company Email Password exposed", push de
   22:27 UTC): segredo não confirmado; o candidato provável é o par do seed
-  `owner@damata.com.br` / `tibe123`, citado na documentação pública (o email
+  `owner@example.com` / `tibe123`, citado na documentação pública (o email
   não existe em produção). Falta o usuário mandar a parte do email que diz o
   arquivo e o commit; proposta: trocar o email do seed por um domínio de
   exemplo. Não repita a comparação de senha contra os hashes de produção.
