@@ -55,7 +55,7 @@ export default async function FinanceiroPagarPage({
         </Link>
         <h1 className="text-2xl font-semibold text-texto">Financeiro: a pagar</h1>
         <p className="mt-1 text-sm text-texto-secundario">
-          Contas das despesas fixas, do Vendeu, Pagou e das compras. Pagar tira o dinheiro do caixa do Empório.
+          Contas avulsas, das despesas fixas, do Vendeu, Pagou, dos fretes e das compras. Pagar tira o dinheiro do caixa do Empório.
         </p>
       </header>
 
@@ -66,7 +66,7 @@ export default async function FinanceiroPagarPage({
         <EmptyState titulo="Não foi possível ler as contas">{contasRes.message}</EmptyState>
       ) : contas.length === 0 ? (
         <EmptyState titulo="Nenhuma conta a pagar">
-          As contas das despesas fixas, do Vendeu, Pagou e das compras aparecem aqui até serem pagas.
+          As contas avulsas, das despesas fixas, do Vendeu, Pagou, dos fretes e das compras aparecem aqui até serem pagas.
         </EmptyState>
       ) : (
         <ContasAPagar

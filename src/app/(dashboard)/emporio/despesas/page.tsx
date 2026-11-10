@@ -25,6 +25,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { ContasAPagar } from "../_components/contas-a-pagar";
+import { ContaAvulsaForm } from "../_components/conta-avulsa-form";
 import { paraCaixasDaLoja } from "../_components/caixas-da-loja";
 import { DespesaFixaAcoes } from "../_components/despesa-fixa-acoes";
 import { DespesaFixaForm } from "../_components/despesa-fixa-form";
@@ -119,13 +120,16 @@ export default async function DespesasPage() {
       </header>
 
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold text-texto">Contas a pagar</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold text-texto">Contas a pagar</h2>
+          <ContaAvulsaForm lojas={lojas} origens={origens} caixas={caixasDaLoja} usuarioId={user.id} hoje={hoje} />
+        </div>
         <p className="text-sm text-texto-secundario">
           Pague por aqui: o pagamento tira o dinheiro da gaveta da loja ou da conta bancária.
         </p>
         {contas.length === 0 ? (
           <EmptyState titulo="Nenhuma conta a pagar">
-            As contas do &quot;Vendeu, Pagou&quot;, das despesas fixas e das compras a prazo aparecem aqui até serem pagas.
+            Adicione uma conta avulsa. As contas avulsas, do &quot;Vendeu, Pagou&quot;, das despesas fixas, dos fretes e das compras a prazo aparecem aqui até serem pagas.
           </EmptyState>
         ) : (
           <ContasAPagar

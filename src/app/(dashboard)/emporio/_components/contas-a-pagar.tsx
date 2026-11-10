@@ -21,11 +21,12 @@ const ORIGEM_ROTULO: Record<ContaDaLista["origin"], string> = {
   despesa_fixa: "Despesa fixa",
   compra: "Compra",
   frete: "Frete de entrega",
+  avulsa: "Avulsa",
 };
 
 export type ContaDaLista = {
   entry_id: string;
-  origin: "vendeu_pagou" | "despesa_fixa" | "compra" | "frete";
+  origin: "vendeu_pagou" | "despesa_fixa" | "compra" | "frete" | "avulsa";
   name: string;
   /** Da compra: o fornecedor (o `name` já o traz; fica para a frase da origem). */
   supplier_name?: string | null;
@@ -127,6 +128,7 @@ export function ContasAPagar({
                   <span className="block text-xs font-normal text-texto-secundario">
                     {ORIGEM_ROTULO[c.origin]}
                     {c.establishment_name ? `, ${c.establishment_name}` : ""}
+                    {c.origin === "avulsa" && c.supplier_name ? `, ${c.supplier_name}` : ""}
                   </span>
                 </TableCell>
                 <TableCell>
