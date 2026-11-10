@@ -27,7 +27,7 @@ function textoDoValor(v: string | number | Date | null | undefined): string {
   if (v instanceof Date) return Number.isNaN(v.getTime()) ? "" : diaBr(diaIsoEmBrasilia(v));
   if (typeof v === "number") return Number.isFinite(v) ? v.toFixed(2).replace(".", ",") : "";
   // Texto que começa como fórmula não pode ser executado pela planilha.
-  return /^[=+\-@]/.test(v) ? `'${v}` : v;
+  return /^[=+\-@\t\r]/.test(v) ? `'${v}` : v;
 }
 
 function campo(v: string | number | Date | null | undefined): string {

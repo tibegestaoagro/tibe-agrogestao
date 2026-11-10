@@ -141,6 +141,10 @@ export async function lerFluxoProjetadoAction(
   if (estimou) notes.push(NOTA_ESTIMATIVA);
   if (contas.data.length >= TETO_DE_CONTAS_A_PAGAR) notes.push(NOTA_TETO_DE_CONTAS);
 
+  const semVenc = await contasSemVencimento(db, ator, lojaId);
+  if (!semVenc.ok) return semVenc;
+  if (semVenc.data.nota) notes.push(semVenc.data.nota);
+
   let saldo = abertura;
   const weeks = semanas.map((s, i): SemanaProjetadaView => {
     const a = acc[i];
@@ -165,7 +169,7 @@ export async function lerFluxoProjetadoAction(
     opening_balance: abertura / 100,
     weeks,
     closing_balance: saldo / 100,
-    without_due: await contasSemVencimento(db, ator, lojaId),
+    without_due: semVenc.data.view,
     notes,
   });
 }

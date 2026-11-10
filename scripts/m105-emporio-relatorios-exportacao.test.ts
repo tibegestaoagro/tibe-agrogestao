@@ -118,6 +118,9 @@ async function secao1() {
     check("campo com quebra de linha vai entre aspas", sem.includes('"Duas\nlinhas"'), j(sem));
     check("data nula vira campo vazio", sem.includes(";0,50;\r\n") || sem.includes(";0,50;\r"), j(sem));
     check("o fim de linha é \\r\\n (nenhum \\n solto fora das aspas)", sem.replace(/"[^"]*"/g, "").replace(/\r\n/g, "").indexOf("\n") === -1 && sem.includes("\r\n"), j(sem));
+    const csvInj: string = gerarCsv([{ titulo: "T", valor: (l: { t: string }) => l.t }], [{ t: "\tabc" }, { t: "\rabc" }]);
+    check("texto que começa com tab ganha apóstrofo", csvInj.includes("'\tabc"), j(csvInj));
+    check("texto que começa com CR ganha apóstrofo", csvInj.includes("'\rabc"), j(csvInj));
     check("sem linhas, só os títulos", String(gerarCsv(colunas, [])).replace(BOM, "").split("\r\n")[0] === "Cliente;Valor;Data");
   }
   if (typeof respostaCsv === "function") {

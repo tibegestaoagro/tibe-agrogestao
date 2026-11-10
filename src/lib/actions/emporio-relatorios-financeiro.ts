@@ -225,6 +225,10 @@ export async function lerAPagarPorVencimentoAction(
     if (vencida) vencidoTotal += valor;
   }
 
+  const semVenc = await contasSemVencimento(db, ator, al.lojaId, teto);
+  if (!semVenc.ok) return semVenc;
+  if (semVenc.data.nota) notes.push(semVenc.data.nota);
+
   return ok({
     de: dia(de),
     ate: dia(ate),
@@ -242,7 +246,7 @@ export async function lerAPagarPorVencimentoAction(
       .map(([name, v]) => ({ name, total: v.total / 100, overdue_total: v.overdue / 100 })),
     overdue_total: vencidoTotal / 100,
     total: total / 100,
-    without_due: await contasSemVencimento(db, ator, al.lojaId, teto),
+    without_due: semVenc.data.view,
     notes,
   });
 }
@@ -253,15 +257,20 @@ export async function contasSemVencimento(
   ator: Ator,
   lojaId: string | undefined,
   teto: number = TETO_DE_CONTAS_A_PAGAR,
-): Promise<SemVencimentoView> {
+): Promise<ActionResult<{ view: SemVencimentoView; nota: string | null }>> {
   // Consulta própria (`sem_vencimento`): a lista com vencimento pode estar no teto e não pode esconder estas.
   const lista = await listarContasAPagarAction(db, ator, { establishment_id: lojaId, status: "pending", sem_vencimento: true, limit: teto });
-  const sem = lista.ok ? lista.data : [];
-  return {
-    count: sem.length,
-    total: sem.reduce((s, c) => s + centavos(c.open_amount), 0) / 100,
-    entries: sem.map((c) => ({ entry_id: c.entry_id, name: c.name, total: centavos(c.open_amount) / 100 })),
-  };
+  if (!lista.ok) return lista;
+  const sem = lista.data;
+  const n = teto.toLocaleString("pt-BR");
+  return ok({
+    view: {
+      count: sem.length,
+      total: sem.reduce((s, c) => s + centavos(c.open_amount), 0) / 100,
+      entries: sem.map((c) => ({ entry_id: c.entry_id, name: c.name, total: centavos(c.open_amount) / 100 })),
+    },
+    nota: sem.length >= teto ? `Mais de ${n} contas sem vencimento: a lista mostra as ${n} primeiras.` : null,
+  });
 }
 
 // ---------------------------------------------------------------------------
