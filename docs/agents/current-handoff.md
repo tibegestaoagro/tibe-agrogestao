@@ -26,7 +26,7 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 ## Estado atual
 
 - Atualizado em: 2026-11-10 à noite. Branch `emporio-peso-total` (seção
-  abaixo) pronta e NÃO publicada. Orçamento e boleto em produção.
+  abaixo) em produção (Neon, merge e push autorizados), como orçamento e boleto.
   Outros agentes: leia `AGENTS.md`.
 - `main` igual a `origin/main`, Neon em dia. Em produção também: conta avulsa e
   2.64/2.65, Apresentação sempre visível, observação no impresso, cliente no
@@ -34,16 +34,16 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   e editar venda (Q244 a Q249), o financeiro (Q214 a Q243); evidências em
   [financeiro-emporio-relatorio.md](financeiro-emporio-relatorio.md).
 
-### Peso total, regra por nome de apresentação (Q291, Q292): branch pronta
+### Peso total, regra por nome de apresentação (Q291, Q292): em produção
 
 Branch `emporio-peso-total`, commits `936926b` a `406354a`. Q291: peso por
 item e total (calculado pela unidade e pelo conteúdo) no impresso do orçamento
 e da venda, na tela da venda e no romaneio. Q292: regra do Vendeu, Pagou por
 nome de apresentação em qualquer produto (`presentation_name`; migração
-`20261110230000_emporio_regra_por_nome_de_apresentacao` só no Docker).
+`20261110230000_emporio_regra_por_nome_de_apresentacao` no Docker e no Neon).
 `test:all` 111/111; m110 e m111 vistas falhar; roteiros `emporio-regra-apresentacao`
 (nos dois sentidos), `emporio-impressao`, `emporio-romaneio` e
-`emporio-relatorios-exportacao` verdes. Falta: autorizar Neon, merge e push.
+`emporio-relatorios-exportacao` verdes. Falta a Agromax criar a regra de FRANQUIA.
 
 ### Editar, cancelar e refazer orçamento (Q285 a Q290): em produção
 
@@ -80,7 +80,7 @@ Agromax, a entrega 4 (extrato da Stone) depende de um arquivo real.
 
 ### ⏭️ Próximo passo
 
-1. Com autorização: migração da Q292 no Neon, merge e push da `emporio-peso-total`. Na Agromax: criar a regra por apresentação (FRANQUIA) e editar e cancelar um orçamento real; conferir o boleto e o "Em nome de" numa venda real.
+1. Na Agromax: criar a regra por apresentação (FRANQUIA) e editar e cancelar um orçamento real; conferir o boleto e o "Em nome de" numa venda real.
 2. Na Agromax (usuário, pelas telas): Stone, taxas do mês, regra de dia útil
    e, se usar, a antecipação automática; confirmar as decisões do agente do
    cartão e do frete; responder o setor; decidir se o vendedor vê o líquido
