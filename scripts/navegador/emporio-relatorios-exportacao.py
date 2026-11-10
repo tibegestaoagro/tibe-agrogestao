@@ -129,7 +129,7 @@ confere("os hrefs trazem format=csv e a loja", all((h or "") and "format=csv" in
 a_pagar = baixar(csv_pagar)
 confere("a pagar: text/csv utf-8, BOM EF BB BF e nome a-pagar-por-vencimento-AAAA-MM-DD.csv", eh_csv_brasileiro(a_pagar) and nome_do_arquivo(a_pagar, "a-pagar-por-vencimento"), [a_pagar["status"], a_pagar["ct"], a_pagar["cd"], a_pagar["bom"]])
 lp = linhas_do_csv(a_pagar)
-confere("a pagar: cabeçalho 'Semana;Conta;Vencimento;Valor;Situa...'", len(lp) > 0 and lp[0].startswith("Semana;Conta;Vencimento;Valor;Situa"), lp[:1])
+confere("a pagar: cabeçalho 'Semana;Identificador da conta;Loja;Conta;Vencimento;Valor;Situa...'", len(lp) > 0 and lp[0].startswith("Semana;Identificador da conta;Loja;Conta;Vencimento;Valor;Situa"), lp[:1])
 vence = HOJE + datetime.timedelta(days=8)
 linha_9000 = [l for l in lp if re.search(r"(^|;)9000,00(;|$)", l)]
 # O relatorio agrupa por semana: a coluna Semana traz "DD/MM/AAAA a DD/MM/AAAA" e a de vencimento, "Na semana".

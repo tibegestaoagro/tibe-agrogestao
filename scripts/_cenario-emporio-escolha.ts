@@ -81,6 +81,8 @@ async function limpar(tenant_id: string) {
   await prisma.stockMovement.deleteMany({ where: { tenant_id, OR: [{ establishment_id: { in: lojas } }, { product_id: { in: produtos } }] } });
   await prisma.emporioSalePayment.deleteMany({ where: { tenant_id, sale_id: { in: vendas } } });
   await prisma.financialPayment.deleteMany({ where: { tenant_id, entry_id: { in: lancamentos } } });
+  // A ocorrência aponta para o lançamento: sai antes dele.
+  await prisma.fixedExpenseOccurrence.deleteMany({ where: { tenant_id, establishment_id: { in: lojas } } });
   await prisma.financialEntry.deleteMany({ where: { tenant_id, id: { in: lancamentos } } });
   await prisma.emporioSaleItem.deleteMany({ where: { tenant_id, sale_id: { in: vendas } } });
   await prisma.emporioSale.deleteMany({ where: { tenant_id, id: { in: vendas } } });
@@ -101,6 +103,8 @@ async function limpar(tenant_id: string) {
   await prisma.emporioProduct.deleteMany({ where: { tenant_id, id: { in: emporio } } });
   await prisma.product.deleteMany({ where: { tenant_id, id: { in: produtos } } });
   await prisma.userEstablishment.deleteMany({ where: { tenant_id, establishment_id: { in: lojas } } });
+  // O rateio e a ocorrência de despesa fixa seguram a loja (Restrict); ver a dívida 2.68.
+  await prisma.fixedExpenseSplit.deleteMany({ where: { tenant_id, establishment_id: { in: lojas } } });
   await prisma.establishment.deleteMany({ where: { tenant_id, id: { in: lojas } } });
 }
 

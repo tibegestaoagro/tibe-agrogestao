@@ -61,6 +61,9 @@ async function main() {
   await prisma.stockMovement.deleteMany({ where: { tenant_id, product_id: { in: ids } } });
   await prisma.emporioProduct.deleteMany({ where: { tenant_id, product_id: { in: ids } } });
   await prisma.product.deleteMany({ where: { tenant_id, id: { in: ids } } });
+  // O rateio e a ocorrência de despesa fixa seguram a loja (Restrict); ver a dívida 2.68.
+  await prisma.fixedExpenseSplit.deleteMany({ where: { tenant_id, establishment: { name: { startsWith: PREFIXO } } } });
+  await prisma.fixedExpenseOccurrence.deleteMany({ where: { tenant_id, establishment: { name: { startsWith: PREFIXO } } } });
   await prisma.establishment.deleteMany({ where: { tenant_id, name: { startsWith: PREFIXO } } });
 
   console.log("Conta do seed:", tenant_id, "recurso ligado para a conta inteira");

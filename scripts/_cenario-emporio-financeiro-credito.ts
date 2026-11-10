@@ -91,6 +91,9 @@ async function limpar(tenant_id: string) {
   await prisma.product.deleteMany({ where: { tenant_id, id: { in: produtos } } });
   await prisma.userEstablishment.deleteMany({ where: { tenant_id, establishment_id: { in: lojas } } });
   await limparTaxasDeCenario(prisma, { tenant_id, establishment_ids: lojas });
+  // O rateio e a ocorrência de despesa fixa seguram a loja (Restrict); ver a dívida 2.68.
+  await prisma.fixedExpenseSplit.deleteMany({ where: { tenant_id, establishment_id: { in: lojas } } });
+  await prisma.fixedExpenseOccurrence.deleteMany({ where: { tenant_id, establishment_id: { in: lojas } } });
   await prisma.establishment.deleteMany({ where: { tenant_id, id: { in: lojas } } });
 }
 
