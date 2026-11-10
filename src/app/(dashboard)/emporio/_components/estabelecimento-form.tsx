@@ -35,9 +35,12 @@ export type LojaParaForm = {
   max_discount_pct: number | null;
   default_expense_pct: number | null;
   default_profit_pct: number | null;
+  price_cost_basis: BaseDoPreco;
   area_m2: number | null;
   employees_count: number | null;
 };
+
+export type BaseDoPreco = "medio" | "ultima_compra" | "maior";
 
 export type UsuarioParaForm = { id: string; name: string };
 
@@ -54,6 +57,7 @@ const ORDEM = [
   "responsible_user_id",
   "default_expense_pct",
   "default_profit_pct",
+  "price_cost_basis",
   "max_discount_pct",
   "area_m2",
   "employees_count",
@@ -95,6 +99,7 @@ export function EstabelecimentoForm({
   const [responsavel, setResponsavel] = useState(loja?.responsible_user_id ?? NINGUEM);
   const [despesa, setDespesa] = useState(paraCampo(loja?.default_expense_pct));
   const [lucro, setLucro] = useState(paraCampo(loja?.default_profit_pct));
+  const [base, setBase] = useState<BaseDoPreco>(loja?.price_cost_basis ?? "maior");
   const [desconto, setDesconto] = useState(paraCampo(loja?.max_discount_pct));
   const [negativo, setNegativo] = useState(loja?.allow_negative_stock ?? false);
   const [area, setArea] = useState(paraCampo(loja?.area_m2));
@@ -114,6 +119,7 @@ export function EstabelecimentoForm({
     setResponsavel(loja?.responsible_user_id ?? NINGUEM);
     setDespesa(paraCampo(loja?.default_expense_pct));
     setLucro(paraCampo(loja?.default_profit_pct));
+    setBase(loja?.price_cost_basis ?? "maior");
     setDesconto(paraCampo(loja?.max_discount_pct));
     setNegativo(loja?.allow_negative_stock ?? false);
     err.limparTudo();
@@ -156,6 +162,7 @@ export function EstabelecimentoForm({
       responsible_user_id: responsavel === NINGUEM ? null : responsavel,
       default_expense_pct: d as number | null,
       default_profit_pct: l as number | null,
+      price_cost_basis: base,
       max_discount_pct: m as number | null,
       ...(podeLiberarNegativo ? { allow_negative_stock: negativo } : {}),
     };
@@ -393,6 +400,32 @@ export function EstabelecimentoForm({
               err.limparCampo("default_profit_pct");
             }}
           />
+        )}
+      </Field>
+
+      <Field
+        label="Base do preço sugerido"
+        hint="Só muda o preço sugerido; o preço de venda continua o que você grava."
+        id={err.idDe("price_cost_basis")}
+        error={err.erros.price_cost_basis}
+      >
+        {({ id, ...aria }) => (
+          <Select
+            value={base}
+            onValueChange={(v) => {
+              setBase(v as BaseDoPreco);
+              err.limparCampo("price_cost_basis");
+            }}
+          >
+            <SelectTrigger id={id} {...aria}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="maior">O maior dos dois (recomendado)</SelectItem>
+              <SelectItem value="medio">Custo médio</SelectItem>
+              <SelectItem value="ultima_compra">Última compra</SelectItem>
+            </SelectContent>
+          </Select>
         )}
       </Field>
 

@@ -21,7 +21,7 @@ import { CaixaDaOperacao } from "./caixa-da-operacao";
 import { abertosDaLoja, caixaInicial, paraCaixasDaLoja, type CaixaDaLoja } from "./caixas-da-loja";
 import { lerNumeroBr, reaisBr } from "@/lib/numero-br";
 import type { FornecedorEscolhido } from "@/lib/actions/emporio-fornecedores";
-import { UNIDADE_BASE_SUFIXO } from "./formato";
+import { UNIDADE_BASE_SUFIXO, numeroBr } from "./formato";
 import { EscolherFornecedor } from "./escolher-fornecedor";
 
 /**
@@ -36,6 +36,8 @@ export type ProdutoParaCompra = {
   name: string;
   base_unit: string;
   apresentacoes: { id: string; name: string }[];
+  /** Saldo e custo médio de hoje por loja, por unidade-base (Q296). */
+  saldos_por_loja: Record<string, { stock_balance: number; average_cost: number | null }>;
 };
 
 type Kind = "a_vista" | "a_prazo" | "parcelada";
@@ -399,6 +401,7 @@ export function CompraForm({
             {itens.map((item, n) => {
               const prod = produtos.find((p) => p.id === item.produto);
               const sufixo = prod ? (UNIDADE_BASE_SUFIXO[prod.base_unit] ?? prod.base_unit) : "";
+              const saldo = prod && loja ? (prod.saldos_por_loja[loja] ?? { stock_balance: 0, average_cost: null }) : null;
               return (
                 <div key={item.key} className="space-y-2 rounded-lg border border-borda p-3">
                   <Select
@@ -452,6 +455,24 @@ export function CompraForm({
                       onValueChange={(v) => atualizarItem(item.key, { total: v })}
                     />
                   </div>
+
+                  {saldo &&
+                    (saldo.stock_balance > 0 ? (
+                      <div className="space-y-1 text-xs text-texto-secundario">
+                        <p>
+                          Nesta loja o sistema tem {numeroBr(saldo.stock_balance)} {sufixo}
+                          {saldo.average_cost !== null ? ` a ${reaisBr(saldo.average_cost)}` : ""}.
+                        </p>
+                        <p className="text-texto">
+                          Se o produto tinha acabado, faça a contagem antes de lançar a compra, senão o custo novo se
+                          mistura com esse saldo.
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-texto-secundario">
+                        Sem estoque nesta loja: o custo desta compra vira o custo do produto.
+                      </p>
+                    ))}
 
                   {itens.length > 1 && (
                     <Button

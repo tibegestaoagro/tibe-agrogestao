@@ -100,6 +100,32 @@ export function pctBr(n: number): string {
   return `${NUMERO.format(n)}%`;
 }
 
+const DATA_CURTA = new Intl.DateTimeFormat("pt-BR", {
+  timeZone: "America/Sao_Paulo",
+  day: "2-digit",
+  month: "2-digit",
+});
+
+/** "dd/mm" de uma data ISO. */
+export function dataCurta(iso: string): string {
+  return DATA_CURTA.format(new Date(iso));
+}
+
+/** "Última compra 79,8% acima do custo médio"; vazio quando a diferença cabe no limite. */
+export function textoDiferencaCusto(gapPct: number | null, limite: number): string | null {
+  if (gapPct === null || Math.abs(gapPct) <= limite) return null;
+  const valor = NUMERO_1.format(Math.abs(gapPct));
+  return `Última compra ${valor}% ${gapPct > 0 ? "acima" : "abaixo"} do custo médio`;
+}
+
+const NUMERO_1 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 });
+
+export const ORIGEM_SUGERIDO_ROTULO: Record<string, string> = {
+  ultima_compra: "última compra",
+  medio: "custo médio",
+  referencia: "custo de referência",
+};
+
 /** Número vindo do servidor para o texto de um campo (vírgula, sem milhar). */
 export function paraCampo(n: number | null | undefined): string {
   if (n == null) return "";

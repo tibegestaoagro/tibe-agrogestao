@@ -22,7 +22,8 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { EncaminharBotao } from "../_components/encaminhar-botao";
-import { UNIDADE_BASE_SUFIXO, numeroBr, textoLacrado } from "../_components/formato";
+import { UNIDADE_BASE_SUFIXO, numeroBr, textoLacrado, dataCurta } from "../_components/formato";
+import { SeloDiferencaCusto } from "../_components/custos-lado-a-lado";
 
 const TODAS = "todas";
 
@@ -250,6 +251,13 @@ export default async function EstoquePage({
                             <TableCell>
                               {l.average_cost == null ? "-" : `${reaisBr(l.average_cost)} por ${sufixo}`}
                               {l.estimated && <EstimadoSelo />}
+                              {l.last_purchase_cost !== null && (
+                                <span className="block text-xs text-texto-secundario">
+                                  Última compra {reaisBr(l.last_purchase_cost)}
+                                  {l.last_purchase_on ? ` (${dataCurta(l.last_purchase_on)})` : ""}
+                                </span>
+                              )}
+                              <SeloDiferencaCusto gapPct={l.cost_gap_pct} />
                             </TableCell>
                             <TableCell>{l.min_qty == null ? "-" : numeroBr(l.min_qty)}</TableCell>
                             <TableCell>{l.max_qty == null ? "-" : numeroBr(l.max_qty)}</TableCell>

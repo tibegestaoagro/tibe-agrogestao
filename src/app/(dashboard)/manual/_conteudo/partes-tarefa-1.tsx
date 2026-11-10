@@ -247,6 +247,13 @@ export function ParteDeCompras() {
       <Chamada tipo="dica">
         <p>O custo de cada compra alimenta o custo médio. É ele que faz o resultado da loja ser verdadeiro.</p>
       </Chamada>
+      <Chamada tipo="dica">
+        <p>
+          O sistema guarda dois custos: o médio e o da última compra. O preço sugerido usa a base escolhida na loja (por
+          padrão, o maior dos dois), e a tela avisa quando a última compra passa de 10% do médio. Se o produto tinha
+          acabado, faça a contagem antes de lançar a compra, senão o custo novo se mistura com o saldo antigo.
+        </p>
+      </Chamada>
     </Tarefa>
   );
 }

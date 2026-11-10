@@ -37,7 +37,9 @@ import {
   textoConteudo,
   numeroBr,
   pctBr,
+  ORIGEM_SUGERIDO_ROTULO,
 } from "../../_components/formato";
+import { LinhaDeCustos, SeloDiferencaCusto } from "../../_components/custos-lado-a-lado";
 
 const DATA = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo" });
 
@@ -460,7 +462,11 @@ export default async function ProdutoEmporioPage({ params }: { params: Promise<{
                   <TableRow key={`${r.establishment_id}:${r.presentation_id}`}>
                     <TableCell className="font-medium text-texto">{r.establishment_name}</TableCell>
                     <TableCell>{nome}</TableCell>
-                    <TableCell>{r.cost == null ? "sem custo" : reaisBr(r.cost)}</TableCell>
+                    <TableCell>
+                      {r.cost == null ? "sem custo" : reaisBr(r.cost)}
+                      <LinhaDeCustos medio={r.average_cost} ultima={r.last_purchase_cost} ultimaEm={r.last_purchase_on} />
+                      <SeloDiferencaCusto gapPct={r.cost_gap_pct} />
+                    </TableCell>
                     <TableCell>
                       {pctBr(r.expense_pct_efetivo)}
                       {r.expense_pct != null && <Excecao />}
@@ -469,7 +475,14 @@ export default async function ProdutoEmporioPage({ params }: { params: Promise<{
                       {pctBr(r.profit_pct_efetivo)}
                       {r.profit_pct != null && <Excecao />}
                     </TableCell>
-                    <TableCell>{r.suggested_price == null ? "-" : reaisBr(r.suggested_price)}</TableCell>
+                    <TableCell>
+                      {r.suggested_price == null ? "-" : reaisBr(r.suggested_price)}
+                      {r.suggested_price != null && r.suggested_cost_source && (
+                        <span className="block text-xs text-texto-secundario">
+                          Sugerido calculado pela: {ORIGEM_SUGERIDO_ROTULO[r.suggested_cost_source] ?? r.suggested_cost_source}
+                        </span>
+                      )}
+                    </TableCell>
                     <TableCell>
                       {r.price == null ? (
                         <span className="text-texto-secundario">sem preço</span>
