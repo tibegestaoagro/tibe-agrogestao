@@ -1,11 +1,12 @@
 import { z } from "zod";
 import { apiErroDeZod } from "@/lib/api";
+import { readJson } from "@/lib/api-guard";
 import { withApi } from "@/lib/route";
-import { listarContasAPagarAction } from "@/lib/actions/emporio-despesas";
+import { criarContaAvulsaAction, listarContasAPagarAction } from "@/lib/actions/emporio-despesas";
 import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
-import { dataIso } from "@/lib/emporio/venda-schema";
+import { caixaDoTurno, dataIso } from "@/lib/emporio/venda-schema";
 
-/** GET /api/v1/emporio/payables  ?establishment_id= &status=pending|paid|cancelled|all &de= &ate= (vencimento) &limit=  as contas a pagar do "Vendeu, Pagou" e das despesas fixas: só OWNER e ADMIN. */
+/** GET /api/v1/emporio/payables: contas de vendas, despesas fixas, compras, fretes e avulsas, no alcance do papel do Empório. Filtros: establishment_id, status, de, ate (vencimento) e limit. */
 
 async function GETHandler(request: Request) {
   const g = await guardEmporio("read");
@@ -30,3 +31,31 @@ async function GETHandler(request: Request) {
 }
 
 export const GET = withApi(GETHandler);
+
+const criarSchema = z.object({
+  establishment_id: z.string({ error: "Escolha a loja." }),
+  description: z.string({ error: "Informe a descrição." }),
+  amount: z.number({ error: "Informe um valor positivo válido." }),
+  due_date: dataIso,
+  status: z.enum(["pending", "paid"], { error: "Escolha Pendente ou Paga." }),
+  emporio_supplier_id: z.string().nullish(),
+  emporio_other_name: z.string().nullish(),
+  paid_at: dataIso.nullish(),
+  from: z.object({
+    establishment_id: z.string().nullish(),
+    bank_account_id: z.string().nullish(),
+  }, { error: "Diga de onde sai o dinheiro." }).optional(),
+  cash_register_id: caixaDoTurno,
+});
+
+async function POSTHandler(request: Request) {
+  const g = await guardEmporio("write");
+  if ("error" in g) return g.error;
+  const body = await readJson(request);
+  if ("error" in body) return body.error;
+  const parsed = criarSchema.safeParse(body.json);
+  if (!parsed.success) return apiErroDeZod(parsed.error);
+  return respostaDaAction(await criarContaAvulsaAction(g.db, g.user, parsed.data), 201);
+}
+
+export const POST = withApi(POSTHandler);

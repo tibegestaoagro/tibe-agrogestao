@@ -1164,9 +1164,18 @@ export const GROUPS: Group[] = [
         method: "GET",
         path: "/api/v1/emporio/payables",
         auth: "Sessão · emporio:read · só OWNER e ADMIN; com vínculo, só as lojas dele",
-        description: "Contas a pagar do \"Vendeu, Pagou\" (`origin` `vendeu_pagou`), das despesas fixas (`despesa_fixa`) e das compras a prazo ou parceladas (`compra`, desde 07/11/2026: traz `purchase_id` e `supplier_name`, e `can_correct` é sempre falso) e do frete cobrado do cliente (`frete`, desde 09/11/2026: a conta \"Frete de entrega\" de uma venda concluída, com `sale_id` e `sale_number`; `can_correct` vale enquanto pendente e sem pagamento), por vencimento. Filtros: `establishment_id`, `status` (`pending` por padrão, `paid`, `cancelled`, `all`), `de` e `ate` (vencimento), `limit`. `can_correct` diz se ainda dá para corrigir o valor.",
+        description: "Contas a pagar do \"Vendeu, Pagou\" (`origin` `vendeu_pagou`), das despesas fixas (`despesa_fixa`), das compras (`compra`, com `purchase_id` e `supplier_name`, sem correção de valor), dos fretes (`frete`, com `sale_id` e `sale_number`) e avulsas (`avulsa`, com descrição própria em `name` e destinatário opcional em `supplier_name`), por vencimento. Filtros: `establishment_id`, `status` (`pending` por padrão, `paid`, `cancelled`, `all`), `de` e `ate` (vencimento), `limit`. `can_correct` diz se ainda dá para corrigir o valor.",
         response: `200
 { "data": [{ "entry_id": "cl...", "origin": "vendeu_pagou", "name": "Comissão", "establishment_id": "cl...", "amount": 5, "paid_amount": 0, "open_amount": 5, "due_date": "2026-11-30", "status": "pending", "sale_id": "cl...", "can_correct": true }], "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/payables",
+        auth: "Sessão · emporio:write · Gestor nas lojas vinculadas; Financeiro, Gerente geral e Dono nas lojas acessíveis",
+        description: "Cria conta avulsa (`origin: avulsa`), sem alterar o Resultado da Loja. Exige loja, descrição (até 200 caracteres), valor positivo, vencimento e status `pending` ou `paid`. Destinatário opcional: `emporio_supplier_id` ou `emporio_other_name` (nome de Outros), exclusivos. Para paga, exige `paid_at` e `from` com `establishment_id` (gaveta da própria loja, com turno aberto; `cash_register_id` opcional) ou `bank_account_id` acessível. Saldo insuficiente recusa a criação inteira. A alçada pode manter a conta pendente e criar pedido de pagamento: confira `payment.waiting_approval`. Pendente recusa origem e data de pagamento. Recusas indicam `error.field`; loja ou fornecedor fora do alcance não são expostos. Datas são strings ISO8601.",
+        request: `{ "establishment_id": "cl...", "description": "Conserto da porta", "amount": 150, "due_date": "2026-11-30", "status": "pending", "emporio_other_name": "Eletricista" }`,
+        response: `201
+{ "data": { "entry": { "entry_id": "cl...", "origin": "avulsa", "name": "Conserto da porta", "supplier_name": "Eletricista", "establishment_id": "cl...", "amount": 150, "paid_amount": 0, "open_amount": 150, "due_date": "2026-11-30", "status": "pending", "can_correct": true }, "payment": null }, "meta": {} }`,
       },
       {
         method: "PATCH",

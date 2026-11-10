@@ -143,7 +143,34 @@ async function main() {
       assert.equal(entrada.status, "paid");
       assert.equal(await a.db.financialPayment.count({ where: { entry_id: entrada.id } }), 1);
     }
-    console.log("M107: criação, validação, isolamento, ciclo pendente e pagamento atômico passaram.");
+    await prisma.tenantProfile.create({ data: { tenant_id: ids[0], profile_type: "emporio", active: true } });
+    await prisma.tenantFeature.create({ data: { tenant_id: ids[0], feature_key: "emporio", enabled: true } });
+    await prisma.tenant.update({ where: { id: ids[0] }, data: { trial_ends_at: new Date(Date.now() + 86400000) } });
+    const { emitirCookieTenant } = await import("./_sessao-cookie");
+    const { withCookie } = await import("./_escopo-de-requisicao");
+    const owner = await a.db.user.findFirstOrThrow({ where: { id: a.ator.id } });
+    const cookie = await emitirCookieTenant(owner.email);
+    const rota = await import("@/app/api/v1/emporio/payables/route");
+    assert.equal(typeof rota.POST, "function", "rota deve exportar POST");
+    const chamarPost = (body: unknown) => withCookie(`${cookie.nome}=${cookie.valor}`, () => rota.POST(new Request("http://localhost/api/v1/emporio/payables", {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
+    })));
+    const corpo = { establishment_id: a.loja.id, description: "Conta pela API", amount: 23, due_date: "2026-11-30", status: "pending" };
+    const httpCriada = await chamarPost(corpo);
+    assert.equal(httpCriada.status, 201);
+    const criadaJson = await httpCriada.json();
+    assert.equal(criadaJson.data.entry.origin, "avulsa");
+    assert.equal(criadaJson.data.entry.due_date, "2026-11-30");
+    assert.deepEqual(criadaJson.meta, {});
+    for (const [field, patch] of [["due_date", { due_date: "inválida" }], ["amount", { amount: "23" }], ["amount", { amount: 0 }], ["establishment_id", { establishment_id: b.loja.id }]] as const) {
+      const resposta = await chamarPost({ ...corpo, ...patch });
+      assert.ok(resposta.status >= 400 && resposta.status < 500);
+      assert.equal((await resposta.json()).error.field, field);
+    }
+    const httpLista = await withCookie(`${cookie.nome}=${cookie.valor}`, () => rota.GET(new Request("http://localhost/api/v1/emporio/payables")));
+    assert.equal(httpLista.status, 200);
+    assert.ok((await httpLista.json()).data.some((e: { entry_id: string }) => e.entry_id === criadaJson.data.entry.entry_id));
+    console.log("M107: criação, validação, isolamento, ciclo pendente, pagamento atômico e rota passaram.");
   } finally {
     for (const id of ids.reverse()) await prisma.tenant.delete({ where: { id } });
     await prisma.$disconnect();
