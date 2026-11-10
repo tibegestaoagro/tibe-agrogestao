@@ -60,6 +60,9 @@ export async function viewsDosPedidos(db: TenantPrismaClient, linhas: PedidoRow[
       category: true,
       amount: true,
       due_date: true,
+      emporio_manual: true,
+      emporio_manual_description: true,
+      emporio_other_name: true,
       emporio_supplier: { select: { name: true } },
       sale_variable_expense: { select: { rule: { select: { name: true } } } },
       fixed_occurrence: { select: { template: { select: { name: true } } } },
@@ -93,9 +96,9 @@ export async function viewsDosPedidos(db: TenantPrismaClient, linhas: PedidoRow[
       entries: l.entry_ids.flatMap((id) => {
         const e = porId.get(id);
         if (!e) return [];
-        const fornecedor = e.emporio_supplier?.name ?? null;
+        const fornecedor = e.emporio_supplier?.name ?? (e.emporio_manual ? e.emporio_other_name : null);
         const nome =
-          e.sale_variable_expense?.rule.name ?? e.fixed_occurrence?.template.name ?? fornecedor ?? "Compra sem fornecedor";
+          (e.emporio_manual ? e.emporio_manual_description : null) ?? e.sale_variable_expense?.rule.name ?? e.fixed_occurrence?.template.name ?? fornecedor ?? "Compra sem fornecedor";
         return [
           {
             entry_id: e.id,

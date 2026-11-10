@@ -122,6 +122,9 @@ export async function createLinkedEntry(
      */
     emporio_customer_id?: string | null;
     emporio_supplier_id?: string | null;
+    emporio_manual?: boolean;
+    emporio_manual_description?: string | null;
+    emporio_other_name?: string | null;
     /** Módulo 39 (Q28): a loja do Empório dona do dinheiro; nulo na fazenda. */
     establishment_id?: string | null;
     /**
@@ -154,6 +157,9 @@ export async function createLinkedEntry(
       contact_id: params.contact_id ?? null,
       emporio_customer_id: params.emporio_customer_id ?? null,
       emporio_supplier_id: params.emporio_supplier_id ?? null,
+      emporio_manual: params.emporio_manual ?? false,
+      emporio_manual_description: params.emporio_manual_description ?? null,
+      emporio_other_name: params.emporio_other_name ?? null,
       establishment_id: params.establishment_id ?? null,
       payment_method: params.payment_method ?? null,
       agreement_id: params.agreement_id ?? null,

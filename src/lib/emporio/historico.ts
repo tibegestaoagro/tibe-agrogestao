@@ -83,6 +83,7 @@ export const ACOES_DO_HISTORICO = {
   "despesa.regra_variavel": "Mexeu numa regra de despesa variável",
   "despesa.corrigir": "Corrigiu uma despesa",
   "despesa.pagar": "Pagou despesas",
+  "despesa.avulsa.criar": "Criou uma conta avulsa",
   "despesa.adiar": "Adiou o vencimento de uma conta",
   "despesa.cancelar": "Cancelou uma conta",
   "conta_bancaria.criar": "Criou uma conta bancária",

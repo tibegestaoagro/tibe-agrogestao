@@ -1530,7 +1530,7 @@ export async function garantirOcorrenciasDoMes(
 
 export type ContaAPagarView = {
   entry_id: string;
-  origin: "vendeu_pagou" | "despesa_fixa" | "compra" | "frete";
+  origin: "vendeu_pagou" | "despesa_fixa" | "compra" | "frete" | "avulsa";
   /** Da compra: o nome do fornecedor, ou "Compra sem fornecedor". */
   name: string;
   category: string | null;
@@ -1566,21 +1566,22 @@ const INCLUDE_CONTA = {
 type ContaRow = Prisma.FinancialEntryGetPayload<{ include: typeof INCLUDE_CONTA }>;
 
 /**
- * A linha que não é de "Vendeu, Pagou" nem de despesa fixa é a conta de uma
- * compra: quem chama já a filtrou (`filtroDoEmporio`, `acharContaDoEmporio`).
+ * A marca explícita da avulsa prevalece sobre a categoria. As demais origens
+ * já foram conferidas por `filtroDoEmporio` ou `acharContaDoEmporio`.
  */
 function viewDaConta(e: ContaRow, saleNumber: number | null = null): ContaAPagarView {
   const sve = e.sale_variable_expense;
   const occ = e.fixed_occurrence;
-  const frete = !sve && !occ && e.category === CATEGORIA_FRETE;
-  const compra = !sve && !occ && !frete;
+  const avulsa = e.emporio_manual;
+  const frete = !avulsa && !sve && !occ && e.category === CATEGORIA_FRETE;
+  const compra = !avulsa && !sve && !occ && !frete;
   const valorCent = centavos(decToNum(e.amount) ?? 0);
   const pagoCent = e.payments.reduce((s, p) => s + centavos(decToNum(p.amount) ?? 0), 0);
   const aberto = e.status === "cancelled" ? 0 : Math.max(0, valorCent - pagoCent);
   return {
     entry_id: e.id,
-    origin: sve ? "vendeu_pagou" : occ ? "despesa_fixa" : frete ? "frete" : "compra",
-    name: sve
+    origin: avulsa ? "avulsa" : sve ? "vendeu_pagou" : occ ? "despesa_fixa" : frete ? "frete" : "compra",
+    name: avulsa ? (e.emporio_manual_description ?? "Conta avulsa") : sve
       ? sve.rule.name
       : occ
         ? occ.template.name
@@ -1588,7 +1589,7 @@ function viewDaConta(e: ContaRow, saleNumber: number | null = null): ContaAPagar
           ? CATEGORIA_FRETE
           : (e.emporio_supplier?.name ?? "Compra sem fornecedor"),
     purchase_id: compra ? e.related_id : null,
-    supplier_name: compra ? (e.emporio_supplier?.name ?? null) : null,
+    supplier_name: compra || avulsa ? (e.emporio_supplier?.name ?? e.emporio_other_name ?? null) : null,
     category: e.category,
     establishment_id: e.establishment_id,
     establishment_name: e.establishment?.name ?? null,
@@ -1611,7 +1612,7 @@ async function numerosDasVendasDoFrete(db: TenantPrismaClient, linhas: ContaRow[
   const ids = [
     ...new Set(
       linhas
-        .filter((e) => !e.sale_variable_expense && !e.fixed_occurrence && e.category === CATEGORIA_FRETE && e.related_id)
+        .filter((e) => !e.emporio_manual && !e.sale_variable_expense && !e.fixed_occurrence && e.category === CATEGORIA_FRETE && e.related_id)
         .map((e) => e.related_id as string),
     ),
   ];
@@ -1646,7 +1647,7 @@ async function filtroDoEmporio(
   base: Prisma.FinancialEntryWhereInput,
 ): Promise<FiltroDoEmporio> {
   const candidatas = await db.financialEntry.findMany({
-    where: { ...base, related_module: "emporio", entry_type: "expense", ...SEM_AS_DUAS_FORMAS },
+    where: { ...base, related_module: "emporio", entry_type: "expense", emporio_manual: false, ...SEM_AS_DUAS_FORMAS },
     select: { related_id: true },
   });
   const ids = [...new Set(candidatas.map((c) => c.related_id).filter((x): x is string => !!x))];
@@ -1659,6 +1660,7 @@ async function filtroDoEmporio(
     : [];
   return {
     OR: [
+      { emporio_manual: true },
       ...SO_DO_EMPORIO,
       ...(vivas.length > 0 ? [{ related_id: { in: vivas.map((c) => c.id) } }] : []),
       ...(vendasVivas.length > 0
@@ -1763,7 +1765,7 @@ async function acharContaDoEmporio(
     include: INCLUDE_CONTA,
   });
   if (!e) return null;
-  if (!e.sale_variable_expense && !e.fixed_occurrence) {
+  if (!e.emporio_manual && !e.sale_variable_expense && !e.fixed_occurrence) {
     // Sem as duas formas de sempre, só vale a conta de uma compra não cancelada.
     const compra =
       e.related_id && e.category !== CATEGORIA_FRETE
@@ -2005,6 +2007,15 @@ export async function pagarDespesasAction(
   ator: Ator,
   input: PagarDespesasInput,
 ): Promise<ActionResult<PagamentoDeContasView>> {
+  return pagarDespesas(db, ator, input);
+}
+
+async function pagarDespesas(
+  db: TenantPrismaClient,
+  ator: Ator,
+  input: PagarDespesasInput,
+  txExistente?: Tx,
+): Promise<ActionResult<PagamentoDeContasView>> {
   const neg = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "mexer nas despesas da loja");
   if (neg) return neg;
 
@@ -2043,7 +2054,7 @@ export async function pagarDespesasAction(
   const daConta = pode(papel, "conta");
 
   try {
-    const feito = await runSerializableTenantTransaction(db, async (tx) => {
+    const executar = async (tx: Tx) => {
       const leitor = tx as unknown as TenantPrismaClient;
       if (await contaEmAprovacao(tx, ids)) {
         throw new RecusaDespesa(fail("CONTA_EM_APROVACAO", EM_APROVACAO, 409, "entry_ids"));
@@ -2090,12 +2101,13 @@ export async function pagarDespesasAction(
 
       const r = await executarPagamentoDeContas(tx, ator, { ...input, entry_ids: ids, paid_at: pagoEm }, { pagoPor: ator });
       return { pedidoId: null, pago: r };
-    });
+    };
+    const feito = txExistente ? await executar(txExistente) : await runSerializableTenantTransaction(db, executar);
 
     if (feito.pago === null) {
       const view = await viewDoPedidoDePagamento(db, feito.pedidoId);
       if (!view) return NAO_ACHADO("Pedido", "entry_ids");
-      await avisarAprovadores(db, view);
+      if (!txExistente) await avisarAprovadores(db, view);
       return ok({ waiting_approval: true, request: view });
     }
     return ok({
@@ -2105,6 +2117,95 @@ export async function pagarDespesasAction(
       from: { establishment_id: lojaId, bank_account_id: contaId },
       payments: feito.pago.pagos,
     });
+  } catch (err) {
+    if (err instanceof RecusaDespesa) return err.recusa;
+    throw err;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Conta avulsa, sem efeito no Resultado da Loja.
+// ---------------------------------------------------------------------------
+
+export type CriarContaAvulsaInput = {
+  establishment_id: string;
+  description: string;
+  amount: number;
+  due_date: Date;
+  status: "pending" | "paid";
+  emporio_supplier_id?: string | null;
+  emporio_other_name?: string | null;
+  paid_at?: Date | null;
+  from?: OrigemDoPagamento;
+  cash_register_id?: string | null;
+};
+
+export type ContaAvulsaCriadaView = { entry: ContaAPagarView; payment: PagamentoDeContasView | null };
+
+export async function criarContaAvulsaAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  input: CriarContaAvulsaInput,
+): Promise<ActionResult<ContaAvulsaCriadaView>> {
+  const neg = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "mexer nas despesas da loja");
+  if (neg) return neg;
+  if (!idOuNulo(input?.establishment_id)) return fail("VALIDATION_ERROR", "Escolha a loja.", 422, "establishment_id");
+  const loja = await acharLojaParaEscrita(db, ator, input.establishment_id);
+  if (!loja.ok) return { ...loja, field: "establishment_id" };
+  if (!(await lojaVisivel(db, ator, loja.data.id))) return NAO_ACHADO("Estabelecimento", "establishment_id");
+  const description = texto(input.description);
+  if (!description || description.length > 200) return fail("VALIDATION_ERROR", "Informe uma descrição com até 200 caracteres.", 422, "description");
+  if (!numero(input.amount) || arred2(input.amount) <= 0 || input.amount > 9999999999.99) {
+    return fail("VALIDATION_ERROR", "Informe um valor positivo válido.", 422, "amount");
+  }
+  if (!dataValida(input.due_date)) return fail("VALIDATION_ERROR", "Informe um vencimento válido.", 422, "due_date");
+  if (input.status !== "pending" && input.status !== "paid") return fail("VALIDATION_ERROR", "Escolha Pendente ou Paga.", 422, "status");
+  const supplierId = idOuNulo(input.emporio_supplier_id);
+  const otherName = texto(input.emporio_other_name);
+  if (input.emporio_other_name != null && (!otherName || otherName.length > 200 || supplierId)) {
+    return fail("VALIDATION_ERROR", "Informe o nome de Outros, sem escolher fornecedor.", 422, "emporio_other_name");
+  }
+  if (supplierId && !(await db.emporioSupplier.findFirst({ where: { id: supplierId, archived_at: null }, select: { id: true } }))) {
+    return NAO_ACHADO("Fornecedor", "emporio_supplier_id");
+  }
+  if (input.status === "paid") {
+    if (!dataValida(input.paid_at)) return fail("VALIDATION_ERROR", "Informe uma data de pagamento válida.", 422, "paid_at");
+    if (!input.from) return fail("VALIDATION_ERROR", "Diga de onde sai o dinheiro.", 422, "from");
+    if (idOuNulo(input.from.establishment_id) && input.from.establishment_id !== loja.data.id) {
+      return fail("VALIDATION_ERROR", "Escolha a gaveta da loja da conta.", 422, "from");
+    }
+  } else {
+    if (input.from != null || input.cash_register_id != null) return fail("VALIDATION_ERROR", "A conta pendente não tem origem de pagamento.", 422, "from");
+    if (input.paid_at != null) return fail("VALIDATION_ERROR", "A conta pendente não tem data de pagamento.", 422, "paid_at");
+  }
+  try {
+    const feita = await runSerializableTenantTransaction(db, async (tx) => {
+      const entry = await createLinkedEntry(tx, {
+        entry_type: "expense", category: "Conta avulsa", amount: arred2(input.amount),
+        related_module: "emporio", related_id: loja.data.id, occurred_at: new Date(),
+        status: "pending", due_date: input.due_date, establishment_id: loja.data.id,
+        emporio_manual: true, emporio_manual_description: description,
+        emporio_supplier_id: supplierId, emporio_other_name: otherName || null,
+      });
+      await registrarNoHistorico(tx, ator, {
+        action: "despesa.avulsa.criar", establishment_id: loja.data.id,
+        target_type: "despesa", target_id: entry.id,
+        summary: `Criou a conta avulsa ${description} (${dinheiro(arred2(input.amount))}) na ${loja.data.name}`,
+      });
+      let payment: PagamentoDeContasView | null = null;
+      if (input.status === "paid") {
+        const resultado = await pagarDespesas(tx as unknown as TenantPrismaClient, ator, {
+          entry_ids: [entry.id], paid_at: input.paid_at, from: input.from!, cash_register_id: input.cash_register_id,
+        }, tx);
+        if (!resultado.ok) throw new RecusaDespesa(resultado);
+        payment = resultado.data;
+      }
+      const conta = await acharContaDoEmporio(tx as unknown as TenantPrismaClient, ator, entry.id);
+      if (!conta) throw new Error("Conta avulsa criada não encontrada na transação.");
+      return { entry: viewDaConta(conta), payment };
+    });
+    if (feita.payment?.waiting_approval) await avisarAprovadores(db, feita.payment.request);
+    return ok(feita);
   } catch (err) {
     if (err instanceof RecusaDespesa) return err.recusa;
     throw err;
