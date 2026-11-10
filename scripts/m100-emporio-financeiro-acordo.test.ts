@@ -2,6 +2,10 @@ import "./_env-local";
 import { exigirBancoLocal } from "./_banco-local";
 
 exigirBancoLocal();
+// A suíte verifica o pedido e o histórico no banco local; não envia email real.
+process.env.EMAIL_PROVIDER = "gmail_smtp";
+delete process.env.GMAIL_SMTP_USER;
+delete process.env.GMAIL_SMTP_APP_PASSWORD;
 
 /**
  * M100: Módulo 39 (Meu Empório), financeiro das lojas, entrega 3: acordo, alçada e carimbo.
