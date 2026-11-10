@@ -34,4 +34,21 @@ click_at_xy(xy[0], xy[1])
 time.sleep(1)
 aps = js("Array.from(document.querySelectorAll('[role=option]')).map(o => o.innerText.trim())") or []
 confere("lista traz apresentacoes alem de Qualquer", len(aps) > 1, aps)
+press_key("Escape")
+time.sleep(1)
+
+passo("2. Produto sem apresentacao cadastrada: campo travado com o aviso")
+# Como o BRAQUIARAO /PONTOS da Agromax (10/11/2026): a lista so teria "Qualquer" e parecia defeito.
+xy = _centro("(() => { const l = Array.from(document.querySelectorAll('[role=dialog] label')).find(x => x.innerText.trim().startsWith('Produto vendido')); return l && document.getElementById(l.htmlFor); })()")
+click_at_xy(xy[0], xy[1])
+time.sleep(1)
+opcoes = js("Array.from(document.querySelectorAll('[role=option]')).map(o => o.innerText.trim())") or []
+confere("o produto sem apresentacao esta na lista", any("Palha sem apresenta" in o for o in opcoes), opcoes)
+xy = _centro("Array.from(document.querySelectorAll('[role=option]')).find(o => o.innerText.includes('Palha sem apresenta'))")
+click_at_xy(xy[0], xy[1])
+time.sleep(1)
+travado = js("(() => { const l = Array.from(document.querySelectorAll('[role=dialog] label')).find(x => x.innerText.trim().startsWith('Apresenta')); const el = l && document.getElementById(l.htmlFor); return el ? el.disabled || el.getAttribute('data-disabled') !== null : null; })()")
+confere("Apresentacao travada para produto sem apresentacao", travado is True, travado)
+texto = js("(document.querySelector('[role=dialog]') || { innerText: '' }).innerText") or ""
+confere("aviso de produto sem apresentacoes", "não tem apresentações cadastradas" in texto, texto[-400:])
 fim()

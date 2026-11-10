@@ -337,11 +337,19 @@ export function RegraVariavelForm({
         label="Apresentação"
         id={err.idDe("presentation_id")}
         error={err.erros.presentation_id}
-        hint={f.produto === QUALQUER ? "Escolha o produto vendido para filtrar por apresentação." : undefined}
+        hint={
+          f.produto === QUALQUER
+            ? "Escolha o produto vendido para filtrar por apresentação."
+            : apresentacoes.length === 0
+              ? "Este produto não tem apresentações cadastradas: a regra vale para toda venda dele. Para separar por apresentação, cadastre-as no produto."
+              : undefined
+        }
       >
           {({ id, ...aria }) => (
             <Select
-              disabled={f.produto === QUALQUER}
+              // Sem apresentação cadastrada (vendido direto na unidade-base), a lista só teria "Qualquer"
+              // e parecia defeito à Agromax (BRAQUIARÃO /PONTOS, 10/11/2026).
+              disabled={f.produto === QUALQUER || apresentacoes.length === 0}
               value={f.apresentacao}
               onValueChange={(v) => {
                 set({ apresentacao: v });

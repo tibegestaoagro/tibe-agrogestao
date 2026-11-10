@@ -123,6 +123,8 @@ async function main() {
 
   const loja = exigir(await cat.criarEstabelecimentoAction(db, ator, { name: `${PREFIXO}Loja`, max_discount_pct: 10 }), "loja") as { id: string };
   const racao = (exigir(await cat.criarProdutoEmporioAction(db, ator, { name: `${PREFIXO}Ração`, category_id: categoria.id, base_unit: "quilograma" } as never), "racao") as { id: string }).id;
+  // Sem apresentação cadastrada, como o BRAQUIARÃO /PONTOS da Agromax: o roteiro da regra confere o aviso.
+  exigir(await cat.criarProdutoEmporioAction(db, ator, { name: `${PREFIXO}Palha sem apresentação`, category_id: categoria.id, base_unit: "quilograma" } as never), "palha");
   const quilo = (exigir(await cat.criarApresentacaoAction(db, ator, racao, { name: "Quilo", base_qty: 1, is_sealed_package: false } as never), "quilo") as { id: string }).id;
   exigir(await cat.definirPrecoAction(db, ator, { establishment_id: loja.id, presentation_id: quilo, price: 20 }), "preco");
   exigir(await est.implantarEstoqueAction(db, ator, { establishment_id: loja.id, emporio_product_id: racao, sealed: [], loose_qty: 500, unit_cost: 10 } as never), "estoque da racao");
