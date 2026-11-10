@@ -53,7 +53,7 @@ grep -rl "^tipo: armadilha" docs/conhecimento/
 | [o portão mede a relação que lhe deram](portao-mede-a-relacao-que-lhe-deram.md) | licao | três incidentes, o mesmo defeito de categoria |
 | [a suíte cega cobra o que o briefing esqueceu](suite-cega-cobra-mais-do-que-o-briefing-mandou.md) | licao | divergência entre duas leituras do contrato |
 | [contrato incompleto diverge entre agentes paralelos](contrato-incompleto-diverge-entre-agentes-paralelos.md) | licao | o que uma cabeça só resolve sozinha, duas não |
-| [agente só de leitura pode sumir do registro](agente-com-modelo-nao-padrao-pode-nao-registrar.md) | armadilha | e não se substitui o juiz pela sessão que orquestrou |
+| [agente só de leitura pode sumir do registro](agente-com-modelo-nao-padrao-pode-nao-registrar.md) | armadilha | corrigida em 10/11: a causa era `: ` sem aspas no description do YAML, não as ferramentas |
 | [agentes da mesma onda veem o plantio um do outro](agentes-da-mesma-onda-veem-o-plantio-um-do-outro.md) | armadilha | a onda protege arquivo e commit, não o estado de verificação |
 | [ler os .docx do cliente com unzip](ler-docx-do-cliente-sem-ferramenta-extra.md) | referencia | sem Python e sem instalar nada |
 | [git checkout descarta o trabalho do agente](git-checkout-descarta-o-trabalho-do-agente.md) | armadilha | na onda, o trabalho de todos vive só no working tree |
@@ -96,6 +96,9 @@ grep -rl "^tipo: armadilha" docs/conhecimento/
 | [a ausência só prova com o contexto presente](a-ausencia-so-prova-com-o-contexto-presente.md) | licao | "fora da lista, sem o botão" passava porque o botão não aparecia para ninguém |
 | [o formulário que carrega o cadastro salvo apaga o que se digitou antes da carga](formulario-que-carrega-o-salvo-apaga-o-que-se-digitou-antes.md) | licao | o CPF digitado no "Completar cadastro" sumia quando a busca respondia |
 | [o mês que já tem conta paga não se recalcula: o juiz achou o mesmo buraco três vezes](o-mes-que-ja-tem-conta-paga-nao-se-recalcula.md) | licao | corrigir o caminho apontado e não o estado "já pagou" custou três rodadas do juiz na entrega 4 |
+| [o custo médio que parecia errado era estoque fantasma](o-custo-medio-que-parecia-errado-era-estoque-fantasma.md) | licao | a compra entrou antes da contagem e misturou 100 kg reais com 3.892 kg que não existiam |
+| [na Agromax a apresentação é faixa de preço](na-agromax-a-apresentacao-e-faixa-de-preco.md) | decisao | CONSUMIDOR, FRANQUIA e ATACADO no mesmo produto; a regra casa pelo nome |
+| [a suíte que importa a rota de token não encerra sozinha](suite-que-importa-a-rota-de-token-nao-encerra-sozinha.md) | armadilha | o Redis do limitador segura o processo; termine com process.exit |
 
 ⚠️ **`[[wikilink]]` para nota que não existe reprova o `npm run check`**
 (conferência 13). É o que impede esta pasta de virar um cemitério de links

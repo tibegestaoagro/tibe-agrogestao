@@ -25,8 +25,9 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-10 à noite. Branch `emporio-dois-custos` (seção
-  abaixo) em produção (Neon, merge e push autorizados), como peso, orçamento e boleto.
+- Atualizado em: 2026-11-10, fim do dia. Tudo do dia em produção; nenhuma branch
+  aberta. Lições no cofre (`_indice.md`). Os agentes `explorador`, `prova-juiz`,
+  `prova-viva` e `servidor-dados` voltaram a carregar (descrição entre aspas).
   Outros agentes: leia `AGENTS.md`.
 - `main` igual a `origin/main`, Neon em dia. Em produção também: conta avulsa e
   2.64/2.65, Apresentação sempre visível, observação no impresso, cliente no

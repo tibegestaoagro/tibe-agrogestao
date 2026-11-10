@@ -58,6 +58,23 @@ isso é exatamente o julgamento contaminado que o desenho existe para evitar.
   frontmatter. Continua sendo o caminho se o frontmatter algum dia se provar
   culpado, mas **não foi** o que resolveu aqui.
 
+## Correção em 2026-11-10: a causa era o YAML do cabeçalho
+
+A hipótese das ferramentas também estava errada. Em 10/11 sumiram quatro:
+`explorador`, `prova-juiz`, `prova-viva` e `servidor-dados`, e os dois últimos
+têm `Write` e `Edit`. O que os quatro tinham em comum era um `: ` (dois pontos e
+espaço) dentro do `description:` sem aspas, como em "Use para localizar código:
+onde está X". Para o YAML isso abre um mapa no meio do valor, o cabeçalho não
+lê e o Claude Code descarta o agente sem avisar (`Agent type not found`).
+Provado com o `js-yaml`: a versão antiga dos quatro dava "bad indentation of a
+mapping entry", a versão com a descrição entre aspas lê, e os seis que
+registravam já liam. "O frontmatter é idêntico ao dos que funcionam" foi o
+engano de 31/08: idêntico na forma, não no conteúdo.
+
+- Descrição de agente ou skill com `: ` vai entre aspas duplas.
+- Agente que some: leia o cabeçalho com um parser de YAML antes de qualquer
+  hipótese sobre modelo ou ferramenta.
+
 ## Relacionado
 
 - [[suite-cega-cobra-mais-do-que-o-briefing-mandou]]

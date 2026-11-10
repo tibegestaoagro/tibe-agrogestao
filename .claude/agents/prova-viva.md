@@ -1,6 +1,6 @@
 ---
 name: prova-viva
-description: Time Prova. Validação contra o mundo, não contra a suíte: navegador, `npm run wa`, cenário no banco de dev, e quebrar a trava de propósito. Use ANTES de considerar qualquer frente entregue. NÃO use para escrever suíte (é `prova-suite`) nem para julgar por rubrica (é `prova-juiz`).
+description: "Time Prova. Validação contra o mundo, não contra a suíte: navegador, `npm run wa`, cenário no banco de dev, e quebrar a trava de propósito. Use ANTES de considerar qualquer frente entregue. NÃO use para escrever suíte (é `prova-suite`) nem para julgar por rubrica (é `prova-juiz`)."
 tools: ["Read", "Write", "Edit", "Grep", "Glob", "Bash"]
 model: sonnet
 color: magenta

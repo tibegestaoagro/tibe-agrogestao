@@ -1,6 +1,6 @@
 ---
 name: servidor-dados
-description: Time Servidor. `prisma/schema.prisma` e as migrações. Use para model novo, campo novo, índice ou qualquer mudança de schema. NÃO use para regra de negócio (é `servidor-acao`). É o agente mais perigoso do time: o invariante 3 vive aqui.
+description: "Time Servidor. `prisma/schema.prisma` e as migrações. Use para model novo, campo novo, índice ou qualquer mudança de schema. NÃO use para regra de negócio (é `servidor-acao`). É o agente mais perigoso do time: o invariante 3 vive aqui."
 tools: ["Read", "Write", "Edit", "Grep", "Glob", "Bash"]
 model: sonnet
 color: orange

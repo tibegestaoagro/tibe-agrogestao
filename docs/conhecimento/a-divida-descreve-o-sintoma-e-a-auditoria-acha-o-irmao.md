@@ -42,6 +42,24 @@ diário, e o dia 31 é raro; a venda aparecer em Negociações é o §19 inteiro
 - Na correção, prefira a forma que cobre a causa (a âncora da série) à que
   cobre o sintoma (o dia do mês).
 
+## Em 2026-11-10: a 2.68 citava dois cenários, eram dezesseis
+
+A dívida 2.68 dizia que `_cenario-emporio-f6b.ts` e `_cenario-emporio-f4a.ts`
+não limpavam a loja. A causa era o rateio de despesa fixa
+(`FixedExpenseSplit`, `onDelete: Restrict`), que o rateio automático cria em
+toda loja da conta do seed. Fechada a dívida, o roteiro do romaneio caiu no
+mesmo erro horas depois, e um grep (cenário que apaga loja sem apagar o
+rateio) achou mais 14. Um deles ainda pedia outra ordem: a ocorrência da
+despesa fixa aponta para o lançamento e sai antes dele.
+
+No mesmo dia, a 2.70 recebeu uma causa dita antes de ser lida ("o roteiro
+abre o grupo errado do menu"). Lido o código, a regra era outra: desde a
+Q190 a equipe da loja só abre o Empório, e a conferência é que estava velha.
+
+- Ao fechar dívida de cenário ou fixture, procure a mesma causa em todos os
+  irmãos com grep, não só nos citados.
+- Não diga a causa ao usuário antes de ler o código que a confirma.
+
 ## Relacionado
 
 - [[teste-que-passa-antes-e-depois-da-correcao-nao-prova-nada]]
