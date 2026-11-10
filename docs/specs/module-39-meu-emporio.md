@@ -372,6 +372,12 @@ cliente real com as duas coisas vai precisar.
 | Q282 | **O boleto aparece onde o cheque aparece:** a receber, projeção, relatórios, turno, impresso, detalhe da venda | quem confere o caixa vê os dois juntos |
 | Q283 | **Tarifa de boleto fora por enquanto** (dívida 2.69) | decisão do usuário em 10/11/2026 |
 | Q284 | **Cheque com titular** (`holder_name`, obrigatório): "Em nome de", preenchido com o cliente e editável; os antigos herdam o nome do cliente | pedido da Agromax: em nome de quem é o cheque |
+| Q285 | **Editar orçamento** só aberto ou vencido, mesmo número; toda edição renova a validade e atualiza os preços para os de hoje. Detalhe em [a spec de 10/11](../superpowers/specs/2026-11-10-emporio-editar-e-cancelar-orcamento-design.md) | decisão do usuário em 10/11/2026 |
+| Q286 | **Faturado não se edita: "Novo orçamento a partir deste"** cria outro número com a mesma base (`based_on_quote_id`), preço de hoje | decisão do usuário em 10/11/2026 |
+| Q287 | **Cancelar orçamento** com motivo, definitivo; situação `cancelado`; não se fatura nem se edita; faturado não se cancela (cancela-se a venda) | decisão do usuário em 10/11/2026 |
+| Q288 | **Quem edita e cancela** é quem cria orçamento (`vendedor_da_loja`) | decisão do usuário em 10/11/2026 |
+| Q289 | **Editar, cancelar e faturar** em transação com guarda; faturar recusa o cancelado (`QUOTE_CANCELED`) | a venda já protege o orçamento assim |
+| Q290 | **Histórico** `orcamento.editar` e `orcamento.cancelar`; a criação a partir de outro cita a origem | toda escrita do Empório no Histórico |
 
 Design do desfazer acordo, do aviso por email e do recálculo do mês (Q275 a Q277) em
 [../superpowers/specs/2026-11-09-emporio-acordo-aviso-rateio-design.md](../superpowers/specs/2026-11-09-emporio-acordo-aviso-rateio-design.md).

@@ -1339,6 +1339,12 @@ model EmporioQuote {
   /// A venda ATIVA que faturou este orçamento; volta a nulo se ela for cancelada.
   sale_id                        String?                     @unique
   notes                          String?
+  /// Q287: cancelado com motivo, definitivo (a situação `cancelado` é derivada daqui).
+  canceled_at                    DateTime?
+  canceled_by_user_id            String?
+  canceled_reason                String?
+  /// Q286: o orçamento que serviu de base ("Novo orçamento a partir deste").
+  based_on_quote_id              String?
   /// Frente 3 do Empório: pedido para entrega (mesma cópia de endereço da venda).
   for_delivery                   Boolean                     @default(false)
   delivery_address_kind          EmporioDeliveryAddressKind?
@@ -1358,11 +1364,14 @@ model EmporioQuote {
   sale          EmporioSale?       @relation("QuoteInvoice", fields: [sale_id], references: [id], onDelete: SetNull)
   sales         EmporioSale[]      @relation("SaleFromQuote")
   items         EmporioQuoteItem[]
+  based_on      EmporioQuote?      @relation("QuoteBasedOn", fields: [based_on_quote_id], references: [id], onDelete: SetNull)
+  derived       EmporioQuote[]     @relation("QuoteBasedOn")
 
   @@unique([tenant_id, operation_key])
   @@unique([tenant_id, number])
   @@index([tenant_id, establishment_id, created_at])
   @@index([tenant_id, customer_id])
+  @@index([tenant_id, based_on_quote_id])
 }
 
 /// O preço do momento do orçamento: sugerido e praticado ficam gravados.

@@ -775,6 +775,7 @@ const FIADO_BLOQUEADO_CONSUMIDA = () =>
   fail("FIADO_BLOQUEADO", "A liberação deste cliente já foi usada em outra venda. Peça uma nova ao gestor.", 409, "payments");
 
 const QUOTE_NOT_FOUND = () => fail("QUOTE_NOT_FOUND", "Orçamento não encontrado nesta loja.", 404, "quote_id");
+const QUOTE_CANCELED = () => fail("QUOTE_CANCELED", "Este orçamento foi cancelado.", 409, "quote_id");
 const QUOTE_ALREADY_INVOICED = (numeroDaVenda: number) =>
   fail("QUOTE_ALREADY_INVOICED", `Este orçamento já foi faturado na venda nº ${formatarNumero(numeroDaVenda)}.`, 409, "quote_id");
 
@@ -811,6 +812,7 @@ async function orcamentoAFaturar(
       establishment_id: true,
       seller_user_id: true,
       valid_until: true,
+      canceled_at: true,
       discount_authorized_by_user_id: true,
       for_delivery: true,
       delivery_address_kind: true,
@@ -829,6 +831,7 @@ async function orcamentoAFaturar(
   if (q.establishment_id !== lojaId) {
     return fail("QUOTE_OTHER_STORE", "Este orçamento é de outra loja. Fature na loja dele.", 422, "quote_id");
   }
+  if (q.canceled_at) return QUOTE_CANCELED();
   if (q.sale && q.sale.id !== substituindo) return QUOTE_ALREADY_INVOICED(q.sale.number);
 
   const quote = { id: q.id, number: q.number };
@@ -1413,9 +1416,13 @@ async function gravarVenda(
   // Entrega 4: marca o orçamento faturado só se ninguém o faturou entre a
   // conferência e aqui. Dois balcões ao mesmo tempo: o segundo aborta inteiro.
   if (p.quote) {
-    const marcado = await tx.emporioQuote.updateMany({ where: { id: p.quote.id, sale_id: null }, data: { sale_id: venda.id } });
+    const marcado = await tx.emporioQuote.updateMany({ where: { id: p.quote.id, sale_id: null, canceled_at: null }, data: { sale_id: venda.id } });
     if (marcado.count === 0) {
-      const atual = await tx.emporioQuote.findFirst({ where: { id: p.quote.id }, select: { sale: { select: { number: true } } } });
+      const atual = await tx.emporioQuote.findFirst({
+        where: { id: p.quote.id },
+        select: { canceled_at: true, sale: { select: { number: true } } },
+      });
+      if (atual?.canceled_at) throw new AbortarVenda(QUOTE_CANCELED());
       throw new AbortarVenda(atual?.sale ? QUOTE_ALREADY_INVOICED(atual.sale.number) : QUOTE_NOT_FOUND());
     }
   }

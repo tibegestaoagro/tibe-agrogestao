@@ -43,6 +43,8 @@ export const ACOES_DO_HISTORICO = {
   "venda.trocar": "Registrou uma troca",
   "venda.pedido_para_entrega": "Mudou o pedido para entrega de uma venda",
   "orcamento.criar": "Salvou um orçamento",
+  "orcamento.editar": "Editou um orçamento",
+  "orcamento.cancelar": "Cancelou um orçamento",
   "fiado.receber": "Recebeu um fiado",
   "fiado.limite": "Mudou o limite de fiado de um cliente",
   "fiado.prazo": "Mudou o prazo de fiado",

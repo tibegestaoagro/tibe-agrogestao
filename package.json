@@ -89,6 +89,7 @@
     "test:m106": "tsx scripts/m106-emporio-acordo-aviso-rateio.test.ts",
     "test:m107": "tsx scripts/m107-emporio-conta-avulsa.test.ts",
     "test:m108": "tsx scripts/m108-emporio-boleto-e-titular.test.ts",
+    "test:m109": "tsx scripts/m109-emporio-orcamento-editar-cancelar.test.ts",
     "test:isolation": "tsx scripts/tenant-isolation.test.ts",
     "test:docs-api": "tsx scripts/docs-api-completeness.test.ts",
     "test:nav": "tsx scripts/nav-build.test.ts",

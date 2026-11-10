@@ -373,7 +373,7 @@ export async function lerImpressoDoOrcamentoAction(
     tipo: "orcamento",
     numero: q.numero,
     emitida_em: q.created_at,
-    cancelada: false,
+    cancelada: q.situacao === "cancelado",
     loja,
     tem_logo: cfg.has_logo,
     logo_updated_at: cfg.logo_updated_at,

@@ -14,14 +14,15 @@ import { chaveDeOperacao, corpoDoOrcamentoSchema } from "@/lib/emporio/venda-sch
 const schema = corpoDoOrcamentoSchema.extend({
   operation_key: chaveDeOperacao,
   establishment_id: z.string({ error: "Escolha o estabelecimento." }).min(1, "Escolha o estabelecimento."),
+  based_on_quote_id: z.string().nullish(),
 });
 
 const filtros = z.object({
   establishment_id: z.string().min(1).optional(),
   q: z.string().optional(),
   situacao: z
-    .enum(["acompanhamento", "aberto", "vencido", "faturado", "todos"], {
-      error: "Escolha a situação: acompanhamento, aberto, vencido, faturado ou todos.",
+    .enum(["acompanhamento", "aberto", "vencido", "faturado", "cancelado", "todos"], {
+      error: "Escolha a situação: acompanhamento, aberto, vencido, faturado, cancelado ou todos.",
     })
     .optional(),
 });

@@ -60,7 +60,7 @@ export function PapelA4({ d }: { d: ImpressoVenda }) {
         </div>
       </header>
 
-      {d.cancelada && <p className="cancelada">VENDA CANCELADA</p>}
+      {d.cancelada && <p className="cancelada">{d.tipo === "orcamento" ? "ORÇAMENTO CANCELADO" : "VENDA CANCELADA"}</p>}
       {d.faturado_na_venda && <p className="cancelada">FATURADO (venda nº {d.faturado_na_venda})</p>}
 
       {d.cliente && (

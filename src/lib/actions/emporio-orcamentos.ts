@@ -3,7 +3,7 @@ import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { decToNum } from "@/lib/serialize";
 import { delegates } from "@/lib/prisma-delegates";
 import { exigir, exigirUma } from "@/lib/emporio/papel";
-import { runSerializableTenantTransaction } from "@/lib/financial";
+import { runSerializableTenantTransaction, type TenantTransactionClient } from "@/lib/financial";
 import { custoMedio } from "@/lib/emporio/custo-medio";
 import { formatarNumero, proximoNumero } from "@/lib/emporio/numeracao";
 import { hojeEmBrasilia, somarDias } from "@/lib/emporio/cartao";
@@ -54,9 +54,19 @@ function ehErroUnico(e: unknown): boolean {
 }
 
 /** Derivada, nunca gravada: faturado, senão vencido (passou do dia de `valid_until` em Brasília), senão aberto. */
-function situacaoDe(q: { sale_id: string | null; valid_until: Date }, hojeMs: number): "aberto" | "vencido" | "faturado" {
+function situacaoDe(
+  q: { sale_id: string | null; canceled_at: Date | null; valid_until: Date },
+  hojeMs: number,
+): "aberto" | "vencido" | "faturado" | "cancelado" {
+  if (q.canceled_at) return "cancelado";
   return q.sale_id ? "faturado" : hojeMs > q.valid_until.getTime() ? "vencido" : "aberto";
 }
+
+const QUOTE_CANCELED = (frase = "Este orçamento foi cancelado.") => fail("QUOTE_CANCELED", frase, 409);
+const QUOTE_ALREADY_INVOICED = (numeroDaVenda: string) =>
+  fail("QUOTE_ALREADY_INVOICED", `Este orçamento já foi faturado na venda nº ${numeroDaVenda}.`, 409);
+
+const dataBr = (iso: string): string => iso.split("-").reverse().join("/");
 
 // ---------------------------------------------------------------------------
 // Visão
@@ -101,7 +111,15 @@ export type OrcamentoView = {
   created_at: string;
   /** AAAA-MM-DD: vale até o fim deste dia em Brasília. */
   valid_until: string;
-  situacao: "aberto" | "vencido" | "faturado";
+  situacao: "aberto" | "vencido" | "faturado" | "cancelado";
+  /** O cancelamento (Q287): quando, quem e por quê; nulos se não foi cancelado. */
+  canceled_at: string | null;
+  canceled_by: { id: string; name: string } | null;
+  canceled_reason: string | null;
+  /** O orçamento de origem, quando este nasceu de "novo orçamento a partir deste" (Q286). */
+  based_on: { id: string; number: string } | null;
+  /** Os orçamentos feitos a partir deste. */
+  derived: { id: string; number: string }[];
   /** A venda ativa que faturou o orçamento. */
   sale: { id: string; numero: string } | null;
   /** Todas as vendas que saíram dele, canceladas inclusive. */
@@ -121,6 +139,8 @@ const INCLUDE_ORCAMENTO = {
   customer: true,
   sale: { select: { id: true, number: true } },
   sales: { select: { id: true, number: true, status: true }, orderBy: { created_at: "asc" } },
+  based_on: { select: { id: true, number: true } },
+  derived: { select: { id: true, number: true }, orderBy: { number: "asc" } },
   items: {
     include: {
       emporio_product: { select: { product_id: true, product: { select: { name: true } } } },
@@ -146,7 +166,7 @@ async function montarOrcamentos(db: TenantPrismaClient, linhas: OrcamentoRow[]):
   if (linhas.length === 0) return [];
 
   const idsDeUsuario = [
-    ...new Set(linhas.flatMap((l) => [l.seller_user_id, l.created_by_user_id]).filter((x): x is string => !!x)),
+    ...new Set(linhas.flatMap((l) => [l.seller_user_id, l.created_by_user_id, l.canceled_by_user_id]).filter((x): x is string => !!x)),
   ];
   const usuarios =
     idsDeUsuario.length > 0
@@ -232,6 +252,13 @@ async function montarOrcamentos(db: TenantPrismaClient, linhas: OrcamentoRow[]):
       created_at: q.created_at.toISOString(),
       valid_until: q.valid_until.toISOString().slice(0, 10),
       situacao,
+      canceled_at: q.canceled_at ? q.canceled_at.toISOString() : null,
+      canceled_by: q.canceled_by_user_id
+        ? { id: q.canceled_by_user_id, name: nomeDoUsuario.get(q.canceled_by_user_id) ?? "" }
+        : null,
+      canceled_reason: q.canceled_reason,
+      based_on: q.based_on ? { id: q.based_on.id, number: formatarNumero(q.based_on.number) } : null,
+      derived: q.derived.map((d) => ({ id: d.id, number: formatarNumero(d.number) })),
       sale: q.sale ? { id: q.sale.id, numero: formatarNumero(q.sale.number) } : null,
       vendas: q.sales.map((s) => ({ id: s.id, numero: formatarNumero(s.number), status: s.status })),
       net_amount: decToNum(q.net_amount) ?? 0,
@@ -291,8 +318,8 @@ export async function buscarOrcamentoPorNumeroAction(
 // Lista e busca
 // ---------------------------------------------------------------------------
 
-export type OrcamentoSituacaoFiltro = "acompanhamento" | "aberto" | "vencido" | "faturado" | "todos";
-const SITUACOES_DO_FILTRO: readonly string[] = ["acompanhamento", "aberto", "vencido", "faturado", "todos"];
+export type OrcamentoSituacaoFiltro = "acompanhamento" | "aberto" | "vencido" | "faturado" | "cancelado" | "todos";
+const SITUACOES_DO_FILTRO: readonly string[] = ["acompanhamento", "aberto", "vencido", "faturado", "cancelado", "todos"];
 
 export type OrcamentoLinha = {
   id: string;
@@ -306,7 +333,7 @@ export type OrcamentoLinha = {
   criado_em: string;
   /** AAAA-MM-DD. */
   valid_until: string;
-  situacao: "aberto" | "vencido" | "faturado";
+  situacao: "aberto" | "vencido" | "faturado" | "cancelado";
   /** O número da venda ativa que faturou o orçamento. */
   venda_numero: string | null;
   vendedor: string | null;
@@ -334,7 +361,7 @@ export async function listarOrcamentosAction(
 
   const situacao = f.situacao ?? "acompanhamento";
   if (!SITUACOES_DO_FILTRO.includes(situacao)) {
-    return fail("VALIDATION_ERROR", "Escolha a situação: acompanhamento, aberto, vencido, faturado ou todos.", 422, "situacao");
+    return fail("VALIDATION_ERROR", "Escolha a situação: acompanhamento, aberto, vencido, faturado, cancelado ou todos.", 422, "situacao");
   }
   const visiveis = await lojasDoAtor(db, ator);
   const lojaPedida = typeof f.establishment_id === "string" ? f.establishment_id.trim() : "";
@@ -347,7 +374,8 @@ export async function listarOrcamentosAction(
   if (lojaPedida) base.push({ establishment_id: lojaPedida });
   else if (visiveis) base.push({ establishment_id: { in: [...visiveis] } });
   if (situacao === "faturado") base.push({ sale_id: { not: null } });
-  else if (situacao !== "todos") base.push({ sale_id: null });
+  else if (situacao === "cancelado") base.push({ canceled_at: { not: null } });
+  else if (situacao !== "todos") base.push({ sale_id: null, canceled_at: null });
   if (situacao === "aberto") base.push({ valid_until: { gte: hoje } });
   if (situacao === "vencido") base.push({ valid_until: { lt: hoje } });
 
@@ -430,7 +458,51 @@ export type OrcamentoInput = PedidoParaEntregaInput & {
   /** Quem atendeu: obrigatório para o Caixa, como na venda (Q168, Q169). */
   seller_user_id?: string | null;
   notes?: string | null;
+  /** Q286: o orçamento de origem ("novo orçamento a partir deste"); precisa ser visível ao ator. */
+  based_on_quote_id?: string | null;
 };
+
+/** O corpo do orçamento, o mesmo na criação e na edição (Q285): sem chave de operação nem loja. */
+export type OrcamentoCorpo = Pick<OrcamentoInput, "customer_id" | "items" | "seller_user_id" | "notes"> &
+  PedidoParaEntregaInput;
+
+/**
+ * As validações e o preço do orçamento, comuns a salvar e editar: vendedor, cliente
+ * (cadastro completo), pedido para entrega, itens e desconto. Não grava nada.
+ */
+async function prepararCorpo(db: TenantPrismaClient, ator: Ator, loja: { id: string }, input: OrcamentoCorpo) {
+  const lojaExtra = await db.establishment.findFirst({
+    where: { id: loja.id },
+    select: { max_discount_pct: true },
+  });
+
+  const vendedor = await resolverVendedor(db, ator, loja.id, input.seller_user_id);
+  if (!vendedor.ok) return vendedor;
+
+  // O cliente: o Consumidor final serve; os outros, com o cadastro completo para o tipo
+  // (decisão de 06/11: o orçamento deixou de exigir o documento da PF).
+  if (input.customer_id == null || input.customer_id === "") return CLIENTE_OBRIGATORIO();
+  const cliente = await db.emporioCustomer.findFirst({ where: { id: String(input.customer_id) } });
+  if (!cliente || cliente.archived_at) return fail("VALIDATION_ERROR", "Escolha um cliente ativo.", 422, "customer_id");
+  const falta = faltaNoCadastro(cliente);
+  if (falta) return CLIENTE_INCOMPLETO(falta.message);
+  const entrega = resolverPedidoParaEntrega(cliente, input);
+  if (!entrega.ok) return entrega;
+
+  if (!Array.isArray(input.items) || input.items.length === 0) {
+    return fail("VALIDATION_ERROR", "Inclua ao menos um item no orçamento.", 422, "items");
+  }
+  const precificados = await precificarItens(
+    db,
+    ator,
+    { id: loja.id, max_discount_pct: lojaExtra?.max_discount_pct ?? null },
+    input.items,
+  );
+  if (!precificados.ok) return precificados;
+
+  const notes = typeof input.notes === "string" && input.notes.trim() ? input.notes.trim() : null;
+  return ok({ vendedor: vendedor.data, cliente, entrega: entrega.data, p: precificados.data, notes });
+}
 
 export async function salvarOrcamentoAction(
   db: TenantPrismaClient,
@@ -458,40 +530,28 @@ export async function salvarOrcamentoAction(
 
   const loja = await acharLojaParaEscrita(db, ator, input?.establishment_id);
   if (!loja.ok) return loja;
-  const lojaExtra = await db.establishment.findFirst({
-    where: { id: loja.data.id },
-    select: { max_discount_pct: true },
-  });
 
-  const vendedor = await resolverVendedor(db, ator, loja.data.id, input.seller_user_id);
-  if (!vendedor.ok) return vendedor;
-
-  // O cliente: o Consumidor final serve; os outros, com o cadastro completo para o tipo
-  // (decisão de 06/11: o orçamento deixou de exigir o documento da PF).
-  if (input.customer_id == null || input.customer_id === "") return CLIENTE_OBRIGATORIO();
-  const cliente = await db.emporioCustomer.findFirst({ where: { id: String(input.customer_id) } });
-  if (!cliente || cliente.archived_at) return fail("VALIDATION_ERROR", "Escolha um cliente ativo.", 422, "customer_id");
-  const falta = faltaNoCadastro(cliente);
-  if (falta) return CLIENTE_INCOMPLETO(falta.message);
-  const entrega = resolverPedidoParaEntrega(cliente, input);
-  if (!entrega.ok) return entrega;
-
-  if (!Array.isArray(input.items) || input.items.length === 0) {
-    return fail("VALIDATION_ERROR", "Inclua ao menos um item no orçamento.", 422, "items");
+  // Q286: a origem precisa ser um orçamento que o ator enxerga.
+  let origem: { id: string; number: number } | null = null;
+  const origemId = typeof input.based_on_quote_id === "string" ? input.based_on_quote_id.trim() : "";
+  if (origemId) {
+    const o = await db.emporioQuote.findFirst({
+      where: { id: origemId },
+      select: { id: true, number: true, establishment_id: true },
+    });
+    if (!o || !(await lojaVisivel(db, ator, o.establishment_id))) {
+      return fail("NOT_FOUND", "Orçamento de origem não encontrado.", 404, "based_on_quote_id");
+    }
+    origem = { id: o.id, number: o.number };
   }
-  const precificados = await precificarItens(
-    db,
-    ator,
-    { id: loja.data.id, max_discount_pct: lojaExtra?.max_discount_pct ?? null },
-    input.items,
-  );
-  if (!precificados.ok) return precificados;
-  const p = precificados.data;
+
+  const prep = await prepararCorpo(db, ator, loja.data, input);
+  if (!prep.ok) return prep;
+  const { vendedor, cliente, entrega, p, notes } = prep.data;
 
   const config = await db.emporioSettings.findFirst({ select: { quote_validity_days: true } });
   const agora = opts.agora ?? new Date();
   const validUntil = somarDias(hojeEmBrasilia(agora), config?.quote_validity_days ?? VALIDADE_PADRAO);
-  const notes = typeof input.notes === "string" && input.notes.trim() ? input.notes.trim() : null;
 
   try {
     const id = await runSerializableTenantTransaction(db, async (tx) => {
@@ -502,14 +562,15 @@ export async function salvarOrcamentoAction(
           operation_key: chave,
           number: numero,
           customer_id: cliente.id,
-          seller_user_id: vendedor.data,
+          seller_user_id: vendedor,
           created_by_user_id: ator.id,
           valid_until: validUntil,
           net_amount: p.total_cent / 100,
           discount_amount: p.desconto_cent / 100,
           discount_authorized_by_user_id: p.autorizou,
           notes,
-          ...entrega.data,
+          ...entrega,
+          based_on_quote_id: origem?.id ?? null,
           created_at: agora,
         }),
       });
@@ -531,7 +592,7 @@ export async function salvarOrcamentoAction(
         establishment_id: loja.data.id,
         target_type: "orcamento",
         target_id: orcamento.id,
-        summary: `Salvou o orçamento nº ${formatarNumero(numero)} de ${dinheiro(p.total_cent / 100)} para ${cliente.name} na ${loja.data.name} (${frasItens(p.itens.length)})${entrega.data.for_delivery ? ", para entrega" : ""}`,
+        summary: `Salvou o orçamento nº ${formatarNumero(numero)} de ${dinheiro(p.total_cent / 100)} para ${cliente.name} na ${loja.data.name} (${frasItens(p.itens.length)})${entrega.for_delivery ? ", para entrega" : ""}${origem ? `, a partir do orçamento nº ${formatarNumero(origem.number)}` : ""}`,
       });
       return orcamento.id;
     });
@@ -544,4 +605,151 @@ export async function salvarOrcamentoAction(
     }
     throw err;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Editar e cancelar (Q285 a Q290)
+// ---------------------------------------------------------------------------
+
+/** Quem não pode mais mexer no orçamento: faturado ou cancelado. Aberto e vencido passam. */
+function recusaDeOrcamentoFechado(v: OrcamentoView): ActionResult<never> | null {
+  if (v.situacao === "cancelado") return QUOTE_CANCELED();
+  if (v.situacao === "faturado") return QUOTE_ALREADY_INVOICED(v.sale?.numero ?? "");
+  return null;
+}
+
+/** A corrida perdida: relê o orçamento e diz por que o `updateMany` guardado não pegou. */
+async function recusaPorCorrida(
+  tx: TenantTransactionClient,
+  id: string,
+): Promise<ActionResult<never>> {
+  const atual = await tx.emporioQuote.findFirst({
+    where: { id },
+    select: { canceled_at: true, sale: { select: { number: true } } },
+  });
+  if (atual?.canceled_at) return QUOTE_CANCELED();
+  if (atual?.sale) return QUOTE_ALREADY_INVOICED(formatarNumero(atual.sale.number));
+  return NAO_ACHADO();
+}
+
+/**
+ * Q285: editar o orçamento aberto ou vencido, no mesmo número. Regrava cliente, vendedor,
+ * itens, desconto, observação e entrega pelas mesmas validações da criação; o preço
+ * sugerido de cada item passa a ser o de hoje e a validade é renovada pela regra da Q177.
+ * Sem chave de operação: o corpo inteiro regrava o estado, então repetir dá o mesmo.
+ */
+export async function editarOrcamentoAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  id: string,
+  input: OrcamentoCorpo,
+  opts: { agora?: Date } = {},
+): Promise<ActionResult<OrcamentoView>> {
+  const neg = await exigir(db, ator, "vendedor_da_loja", "editar um orçamento");
+  if (neg) return neg;
+  const limpo = typeof id === "string" ? id.trim() : "";
+  if (!limpo) return NAO_ACHADO();
+  const antes = await orcamentoVisivel(db, ator, limpo);
+  if (!antes) return NAO_ACHADO();
+  const fechado = recusaDeOrcamentoFechado(antes);
+  if (fechado) return fechado;
+
+  const loja = await acharLojaParaEscrita(db, ator, antes.establishment_id);
+  if (!loja.ok) return loja;
+  const prep = await prepararCorpo(db, ator, loja.data, input);
+  if (!prep.ok) return prep;
+  const { vendedor, cliente, entrega, p, notes } = prep.data;
+
+  const config = await db.emporioSettings.findFirst({ select: { quote_validity_days: true } });
+  const agora = opts.agora ?? new Date();
+  const validUntil = somarDias(hojeEmBrasilia(agora), config?.quote_validity_days ?? VALIDADE_PADRAO);
+  const validadeDepois = validUntil.toISOString().slice(0, 10);
+
+  const recusa = await runSerializableTenantTransaction(db, async (tx) => {
+    const gravado = await tx.emporioQuote.updateMany({
+      where: { id: limpo, sale_id: null, canceled_at: null },
+      data: {
+        customer_id: cliente.id,
+        seller_user_id: vendedor,
+        valid_until: validUntil,
+        net_amount: p.total_cent / 100,
+        discount_amount: p.desconto_cent / 100,
+        discount_authorized_by_user_id: p.autorizou,
+        notes,
+        ...entrega,
+      },
+    });
+    if (gravado.count === 0) return recusaPorCorrida(tx, limpo);
+    await tx.emporioQuoteItem.deleteMany({ where: { quote_id: limpo } });
+    await tx.emporioQuoteItem.createMany({
+      data: p.itens.map((i) =>
+        scoped({
+          quote_id: limpo,
+          emporio_product_id: i.emporio_product_id,
+          presentation_id: i.presentation_id,
+          quantity: i.quantity,
+          suggested_price: i.suggested_cent === null ? null : i.suggested_cent / 100,
+          unit_price: i.unit_cent / 100,
+          total: i.total_cent / 100,
+        }),
+      ),
+    });
+    await registrarNoHistorico(tx, ator, {
+      action: "orcamento.editar",
+      establishment_id: antes.establishment_id,
+      target_type: "orcamento",
+      target_id: limpo,
+      summary: `Editou o orçamento nº ${antes.numero}: ${frasItens(antes.items.length)} para ${frasItens(p.itens.length)}, total de ${dinheiro(antes.net_amount)} para ${dinheiro(p.total_cent / 100)}, validade de ${dataBr(antes.valid_until)} para ${dataBr(validadeDepois)}`,
+    });
+    return null;
+  });
+  if (recusa) return recusa;
+
+  const v = await orcamentoVisivel(db, ator, limpo);
+  return v ? ok(v) : NAO_ACHADO();
+}
+
+/**
+ * Q287: cancelar o orçamento aberto ou vencido, com motivo, de forma definitiva. O faturado
+ * não se cancela (cancela-se a venda, que reabre o orçamento).
+ */
+export async function cancelarOrcamentoAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  id: string,
+  input: { reason: string },
+  opts: { agora?: Date } = {},
+): Promise<ActionResult<OrcamentoView>> {
+  const neg = await exigir(db, ator, "vendedor_da_loja", "cancelar um orçamento");
+  if (neg) return neg;
+  const limpo = typeof id === "string" ? id.trim() : "";
+  if (!limpo) return NAO_ACHADO();
+  const motivo = typeof input?.reason === "string" ? input.reason.trim() : "";
+  if (!motivo) return fail("VALIDATION_ERROR", "Informe o motivo do cancelamento.", 422, "reason");
+
+  const antes = await orcamentoVisivel(db, ator, limpo);
+  if (!antes) return NAO_ACHADO();
+  if (antes.situacao === "cancelado") return QUOTE_CANCELED("Este orçamento já foi cancelado.");
+  if (antes.situacao === "faturado") return QUOTE_ALREADY_INVOICED(antes.sale?.numero ?? "");
+
+  const agora = opts.agora ?? new Date();
+  const recusa = await runSerializableTenantTransaction(db, async (tx) => {
+    const gravado = await tx.emporioQuote.updateMany({
+      where: { id: limpo, sale_id: null, canceled_at: null },
+      data: { canceled_at: agora, canceled_by_user_id: ator.id, canceled_reason: motivo },
+    });
+    if (gravado.count === 0) return recusaPorCorrida(tx, limpo);
+    await registrarNoHistorico(tx, ator, {
+      action: "orcamento.cancelar",
+      establishment_id: antes.establishment_id,
+      target_type: "orcamento",
+      target_id: limpo,
+      summary: `Cancelou o orçamento nº ${antes.numero} de ${dinheiro(antes.net_amount)} (${antes.customer.name}). Motivo: ${motivo}`,
+    });
+    return null;
+  });
+  if (recusa) return recusa;
+
+  const v = await orcamentoVisivel(db, ator, limpo);
+  return v ? ok(v) : NAO_ACHADO();
 }
