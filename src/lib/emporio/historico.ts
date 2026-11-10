@@ -66,6 +66,8 @@ export const ACOES_DO_HISTORICO = {
   "cheque.depositar": "Depositou um cheque",
   "cheque.compensar": "Compensou um cheque",
   "cheque.devolvido": "Marcou um cheque como devolvido",
+  "boleto.pagar": "Marcou um boleto como pago",
+  "boleto.fiado": "Mandou um boleto para o fiado",
   "cartao.regra": "Mudou uma regra de cartão",
   "cartao.regra_remover": "Removeu uma regra de cartão",
   "cartao.adquirente.criar": "Cadastrou uma adquirente",

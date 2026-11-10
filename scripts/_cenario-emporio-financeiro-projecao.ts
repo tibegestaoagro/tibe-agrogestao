@@ -246,7 +246,7 @@ async function main() {
 
   // O cartao a vista de R$ 100,00 (a parcela cai daqui a 10 dias) e o cheque de R$ 70,00 (bom para daqui a 40 dias).
   await vender("cartao", loja1, turno1, 10, { kind: "credito_vista", amount: 100 }, 0);
-  await vender("cheque", loja1, turno1, 7, { kind: "cheque", amount: 70, check: { number: "7001", bank: "Banco Pro", good_for: meioDia(somaDias(hojeStr, 40)) } }, 0);
+  await vender("cheque", loja1, turno1, 7, { kind: "cheque", amount: 70, check: { holder_name: "Titular Teste", number: "7001", bank: "Banco Pro", good_for: meioDia(somaDias(hojeStr, 40)) } }, 0);
 
   // A conta a pagar do Pro Fornecedor: R$ 200,00 daqui a 8 dias.
   exigir(

@@ -365,6 +365,13 @@ cliente real com as duas coisas vai precisar.
 | Q275 | **Desfazer acordo de fiado** só sem movimento (nenhuma parcela paga, abatida ou extra de cheque): parcelas canceladas, origens de volta a pendentes, o acordo marcado desfeito com motivo. | Sem movimento, voltar ao estado anterior é seguro; com dinheiro movido, é estorno. |
 | Q276 | **Aviso de pedido de pagamento também por email** a todo Dono e Gerente geral ativo, além do WhatsApp. | Quem aprova sem telefone só via o pedido abrindo o Hoje. |
 | Q277 | **Recalcular o mês do rateio automático** por ação explícita, só em mês corrente ou futuro sem conta paga. | A loja nova entra no mês sem esperar o seguinte, sem nunca tocar mês com conta paga. |
+| Q278 | **Boleto é forma de pagamento da venda, como o cheque:** uma ou mais linhas com valor, vencimento (não antes da venda) e número opcional; exige cliente de verdade; é o próprio a receber e não mexe no caixa. Detalhe em [a spec de 10/11](../superpowers/specs/2026-11-10-emporio-boleto-e-titular-do-cheque-design.md) | pedido da Agromax; decisão do usuário em 10/11/2026 |
+| Q279 | **Boleto pago:** quem compensa cheque escolhe a conta e a data (não futura); entra na conta como `boleto_pago` | o dinheiro só existe quando o banco paga |
+| Q280 | **Boleto vencido fica aberto** ("Vencido" calculado), conta no bloqueio por atraso e no a receber por idade; "Mandar para o fiado" faz o que o cheque devolvido faz | decisão do usuário em 10/11/2026 |
+| Q281 | **Cancelar venda com boleto:** aberto vira cancelado; pago recusa (409). Na devolução parcial conta como pago, como o cheque | o desenho do cheque (Q94) |
+| Q282 | **O boleto aparece onde o cheque aparece:** a receber, projeção, relatórios, turno, impresso, detalhe da venda | quem confere o caixa vê os dois juntos |
+| Q283 | **Tarifa de boleto fora por enquanto** (dívida 2.69) | decisão do usuário em 10/11/2026 |
+| Q284 | **Cheque com titular** (`holder_name`, obrigatório): "Em nome de", preenchido com o cliente e editável; os antigos herdam o nome do cliente | pedido da Agromax: em nome de quem é o cheque |
 
 Design do desfazer acordo, do aviso por email e do recálculo do mês (Q275 a Q277) em
 [../superpowers/specs/2026-11-09-emporio-acordo-aviso-rateio-design.md](../superpowers/specs/2026-11-09-emporio-acordo-aviso-rateio-design.md).

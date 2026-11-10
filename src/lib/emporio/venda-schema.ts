@@ -33,12 +33,20 @@ export const pagamentoDeVendaSchema = z.object({
   /** Cartão (Q254): sem a adquirente vale a única com taxa vigente; sem a bandeira, só a linha `qualquer`. */
   acquirer_id: z.string().nullish(),
   brand: z.enum(BANDEIRAS, { error: "Escolha uma bandeira válida." }).nullish(),
-  /** Cheque: número, banco e "bom para". Os três são exigidos pela action (422 `payments`). */
+  /** Cheque: número, banco, "bom para" e o titular (Q284). Os quatro são exigidos pela action (422 `payments`). */
   check: z
     .object({
       number: z.string().nullish(),
       bank: z.string().nullish(),
       good_for: dataIso.nullish(),
+      holder_name: z.string().nullish(),
+    })
+    .nullish(),
+  /** Boleto (Q278): vencimento obrigatório (a action recusa se faltar ou for antes da venda) e número opcional. */
+  boleto: z
+    .object({
+      due_on: dataIso.nullish(),
+      number: z.string().nullish(),
     })
     .nullish(),
 });

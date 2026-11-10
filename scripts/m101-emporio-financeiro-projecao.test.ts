@@ -663,8 +663,8 @@ async function secao4() {
   X.cartaoHoje = n(cartoes[0].net_amount);
   X.cartaoDez = n(cartoes[1].net_amount);
 
-  await vender(P, cCard, P.L1, 6, [{ kind: "cheque", amount: 60, check: { number: "M101-1", bank: "Banco M101", good_for: meioDia(emDias(40)) } }]);
-  await vender(P, cCard, P.L1, 3, [{ kind: "cheque", amount: 30, check: { number: "M101-2", bank: "Banco M101", good_for: meioDia(emDias(3)) } }]);
+  await vender(P, cCard, P.L1, 6, [{ kind: "cheque", amount: 60, check: { holder_name: "Titular Teste", number: "M101-1", bank: "Banco M101", good_for: meioDia(emDias(40)) } }]);
+  await vender(P, cCard, P.L1, 3, [{ kind: "cheque", amount: 30, check: { holder_name: "Titular Teste", number: "M101-2", bank: "Banco M101", good_for: meioDia(emDias(3)) } }]);
   await (prisma as Dado).emporioCheck.updateMany({ where: { tenant_id: P.tenantId, number: "M101-2" }, data: { status: "compensado" } });
 
   const compra = async (valor: number, venc: number) => {

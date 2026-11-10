@@ -251,6 +251,8 @@ enum EmporioPaymentKind {
   credito_vista
   credito_parcelado
   cheque
+  /// Q278: boleto emitido fora e só registrado; é o próprio a receber, como o cheque.
+  boleto
   fiado
   troca
 }
@@ -291,6 +293,8 @@ enum CashMovementOrigin {
   entrega_gerencia
   /// Financeiro das lojas (Q221): compra à vista ou entrada da parcelada.
   pagamento_compra
+  /// Q279: o boleto da venda pago no banco.
+  boleto_pago
 }
 
 /// Entrega 2: o motivo da contagem de um caixa.
@@ -630,6 +634,7 @@ model Tenant {
   card_receivables          CardReceivable[]
   card_anticipations        CardAnticipation[]
   emporio_checks            EmporioCheck[]
+  emporio_boletos           EmporioBoleto[]
   emporio_customers         EmporioCustomer[]
   emporio_credit_releases   EmporioCreditRelease[]
   emporio_credit_agreements EmporioCreditAgreement[]
@@ -813,6 +818,7 @@ model Establishment {
   card_fee_rates            CardFeeRate[]
   card_receivables          CardReceivable[]
   checks                    EmporioCheck[]
+  boletos                   EmporioBoleto[]
   cash_counts               CashCount[]
   cash_registers            CashRegister[]
   cash_sessions             CashSession[]
@@ -1207,14 +1213,15 @@ model BankAccount {
   created_at         DateTime  @default(now())
   updated_at         DateTime  @updatedAt
 
-  tenant           Tenant               @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  pix_of           Establishment[]      @relation("EstablishmentPixAccount")
-  card_fee_rates   CardFeeRate[]
-  card_receivables CardReceivable[]
+  tenant             Tenant               @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  pix_of             Establishment[]      @relation("EstablishmentPixAccount")
+  card_fee_rates     CardFeeRate[]
+  card_receivables   CardReceivable[]
   card_anticipations CardAnticipation[]
-  checks           EmporioCheck[]
-  sale_payments    EmporioSalePayment[]
-  cash_movements   CashMovement[]
+  checks             EmporioCheck[]
+  boletos            EmporioBoleto[]
+  sale_payments      EmporioSalePayment[]
+  cash_movements     CashMovement[]
 
   @@unique([tenant_id, name])
   @@index([tenant_id])
@@ -1288,6 +1295,7 @@ model EmporioSale {
   returns           EmporioSaleReturn[]   @relation("ReturnOfSale")
   card_receivables  CardReceivable[]
   checks            EmporioCheck[]
+  boletos           EmporioBoleto[]
   credit_release    EmporioCreditRelease?
   variable_expenses SaleVariableExpense[]
   stock_movements   StockMovement[]
@@ -1481,6 +1489,7 @@ model EmporioSalePayment {
   fee_rate          CardFeeRate?      @relation(fields: [fee_rate_id], references: [id], onDelete: Restrict)
   card_receivables  CardReceivable[]
   check             EmporioCheck?
+  boleto            EmporioBoleto?
 
   @@index([tenant_id])
   @@index([sale_id])
@@ -1489,22 +1498,22 @@ model EmporioSalePayment {
 /// Q250: adquirente da conta (Stone, Cielo...). Os parâmetros de comportamento
 /// entram nas entregas 2 e 3, como colunas novas.
 model CardAcquirer {
-  id                 String    @id @default(cuid())
-  tenant_id          String
-  name               String
-  archived_at        DateTime?
+  id                              String              @id @default(cuid())
+  tenant_id                       String
+  name                            String
+  archived_at                     DateTime?
   /// Entrega 2: como a adquirente conta o prazo (dia útil seguinte ou dias corridos).
-  business_day_rule  CardBusinessDayRule @default(proximo_dia_util)
+  business_day_rule               CardBusinessDayRule @default(proximo_dia_util)
   /// Entrega 2: o cancelamento devolve a taxa (MDR) ao lojista, como a Stone.
-  refunds_mdr_on_cancel Boolean  @default(true)
+  refunds_mdr_on_cancel           Boolean             @default(true)
   /// Entrega 3: antecipação automática (taxa % ao mês, prazo em dias úteis, desde quando).
-  auto_anticipation_enabled      Boolean   @default(false)
-  auto_anticipation_pct_month    Decimal?  @db.Decimal(5, 2)
-  auto_anticipation_business_days Int      @default(1)
-  auto_anticipation_since        DateTime? @db.Date
-  updated_by_user_id String?
-  created_at         DateTime  @default(now())
-  updated_at         DateTime  @updatedAt
+  auto_anticipation_enabled       Boolean             @default(false)
+  auto_anticipation_pct_month     Decimal?            @db.Decimal(5, 2)
+  auto_anticipation_business_days Int                 @default(1)
+  auto_anticipation_since         DateTime?           @db.Date
+  updated_by_user_id              String?
+  created_at                      DateTime            @default(now())
+  updated_at                      DateTime            @updatedAt
 
   tenant        Tenant               @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   fee_rates     CardFeeRate[]
@@ -1642,6 +1651,8 @@ model EmporioCheck {
   customer_id          String
   establishment_id     String
   number               String
+  /// Q284: em nome de quem é o cheque (o cliente da venda, ou o terceiro que o emitiu).
+  holder_name          String
   bank                 String
   good_for             DateTime           @db.Date
   amount               Decimal            @db.Decimal(14, 2)
@@ -1666,6 +1677,51 @@ model EmporioCheck {
   cash_movements    CashMovement[]
 
   @@index([tenant_id, status])
+  @@index([sale_id])
+  @@index([tenant_id, customer_id])
+}
+
+/// Q280: `aberto` vencido continua `aberto` (o vencido é calculado pelo `due_on`).
+enum EmporioBoletoStatus {
+  aberto
+  pago
+  no_fiado
+  cancelado
+}
+
+/// Q278 a Q281: o boleto da venda, gerado fora do Tibé. É o próprio a receber: o pago
+/// entra na conta (`CashMovement` `boleto_pago`); o mandado ao fiado tira o pagamento e a dívida reabre.
+model EmporioBoleto {
+  id                   String              @id @default(cuid())
+  tenant_id            String
+  sale_id              String
+  sale_payment_id      String              @unique
+  customer_id          String
+  establishment_id     String
+  number               String?
+  due_on               DateTime            @db.Date
+  amount               Decimal             @db.Decimal(14, 2)
+  status               EmporioBoletoStatus @default(aberto)
+  financial_payment_id String?
+  bank_account_id      String?
+  paid_on              DateTime?           @db.Date
+  paid_at              DateTime?
+  sent_to_fiado_at     DateTime?
+  fiado_reason         String?
+  updated_by_user_id   String?
+  created_at           DateTime            @default(now())
+  updated_at           DateTime            @updatedAt
+
+  tenant            Tenant             @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  sale              EmporioSale        @relation(fields: [sale_id], references: [id], onDelete: Restrict)
+  sale_payment      EmporioSalePayment @relation(fields: [sale_payment_id], references: [id], onDelete: Cascade)
+  customer          EmporioCustomer    @relation(fields: [customer_id], references: [id], onDelete: Restrict)
+  establishment     Establishment      @relation(fields: [establishment_id], references: [id], onDelete: Restrict)
+  financial_payment FinancialPayment?  @relation(fields: [financial_payment_id], references: [id], onDelete: SetNull)
+  bank_account      BankAccount?       @relation(fields: [bank_account_id], references: [id], onDelete: Restrict)
+  cash_movements    CashMovement[]
+
+  @@index([tenant_id, status, due_on])
   @@index([sale_id])
   @@index([tenant_id, customer_id])
 }
@@ -1992,6 +2048,8 @@ model CashMovement {
   cash_transfer_id         String?
   cash_count_id            String?
   check_id                 String?
+  /// Q279: o boleto pago que gerou a entrada na conta.
+  boleto_id                String?
   card_receivable_id       String?
   /// Entrega 2: o caixa, o turno, a gerência e a entrega do movimento. A gerência
   /// é um terceiro lugar (CHECK `CashMovement_exactly_one_place`).
@@ -2018,6 +2076,7 @@ model CashMovement {
   cash_transfer         CashTransfer?      @relation(fields: [cash_transfer_id], references: [id], onDelete: Restrict)
   cash_count            CashCount?         @relation(fields: [cash_count_id], references: [id], onDelete: Restrict)
   check                 EmporioCheck?      @relation(fields: [check_id], references: [id], onDelete: Restrict)
+  boleto                EmporioBoleto?     @relation(fields: [boleto_id], references: [id], onDelete: Restrict)
   card_receivable       CardReceivable?    @relation(fields: [card_receivable_id], references: [id], onDelete: Restrict)
   cash_register         CashRegister?      @relation(fields: [cash_register_id], references: [id], onDelete: Restrict)
   cash_session          CashSession?       @relation(fields: [cash_session_id], references: [id], onDelete: Restrict)
@@ -2997,6 +3056,7 @@ model FinancialPayment {
   /// dinheiro entrou.
   sale_payment   EmporioSalePayment?
   checks         EmporioCheck[]
+  boletos        EmporioBoleto[]
   cash_movements CashMovement[]
 
   @@index([tenant_id])
@@ -3690,6 +3750,7 @@ model EmporioCustomer {
   sales             EmporioSale[]
   quotes            EmporioQuote[]
   checks            EmporioCheck[]
+  boletos           EmporioBoleto[]
   financial_entries FinancialEntry[]
   credit_releases   EmporioCreditRelease[]
   credit_agreements EmporioCreditAgreement[]
@@ -3725,14 +3786,14 @@ model EmporioCreditRelease {
 /// Entrega 3 do financeiro: acordo de fiado em parcelas. As origens absorvidas ficam
 /// `cancelled` e as parcelas nascem `pending`, ambas com `FinancialEntry.agreement_id`.
 model EmporioCreditAgreement {
-  id                 String   @id @default(cuid())
+  id                 String    @id @default(cuid())
   tenant_id          String
   customer_id        String
   created_by_user_id String
-  total              Decimal  @db.Decimal(14, 2)
+  total              Decimal   @db.Decimal(14, 2)
   installments       Int
   notes              String?
-  created_at         DateTime @default(now())
+  created_at         DateTime  @default(now())
   /// Q275: acordo desfeito (só sem movimento). As parcelas ficam canceladas e as origens voltam a pendentes.
   undone_at          DateTime?
   undone_by_user_id  String?

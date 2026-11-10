@@ -232,7 +232,7 @@ export async function lerImpressoDaVendaAction(
     total: v.total_amount,
     origem: v.origin,
     pagamentos: v.payments.map((p) => ({
-      forma: FORMA_ROTULO[p.kind] ?? p.kind,
+      forma: formaNoPapel(p),
       valor: p.amount,
       bandeira: p.brand ? (ROTULO_DA_BANDEIRA[p.brand as Bandeira] ?? null) : null,
       adquirente: p.acquirer_name,
@@ -249,6 +249,24 @@ export async function lerImpressoDaVendaAction(
     pedido_para_entrega: v.for_delivery,
     endereco_de_entrega: enderecoDoPedido(colunasDe(v)),
   });
+}
+
+/**
+ * A forma de pagamento como sai no papel. O boleto (Q278) e o titular do cheque (Q284) vão na
+ * própria linha, porque o papel só tem a forma e o valor. O rótulo do boleto é local: o mapa da tela não o tem.
+ */
+function formaNoPapel(p: {
+  kind: string;
+  check: { holder_name: string } | null;
+  boleto: { due_on: string; number: string | null } | null;
+}): string {
+  if (p.kind === "boleto") {
+    const vence = p.boleto ? `, vence ${p.boleto.due_on.slice(0, 10).split("-").reverse().join("/")}` : "";
+    const numero = p.boleto?.number ? `, nº ${p.boleto.number}` : "";
+    return `Boleto${vence}${numero}`;
+  }
+  const rotulo = FORMA_ROTULO[p.kind] ?? p.kind;
+  return p.kind === "cheque" && p.check?.holder_name ? `${rotulo}, em nome de ${p.check.holder_name}` : rotulo;
 }
 
 /** A visão traz o endereço já montado; a regra da linha pede as colunas. */

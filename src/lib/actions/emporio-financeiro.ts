@@ -8,11 +8,13 @@ import { dinheiro, registrarNoHistorico } from "@/lib/emporio/historico";
 import { lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
 import {
   entradasAbertas,
+  listarBoletosAction,
   listarChequesAction,
   listarFiadoAction,
   saldoDaGaveta,
   saldoDaGerencia,
   saldosDasContas,
+  type BoletoView,
   type ChequeView,
   type FiadoClienteView,
 } from "@/lib/actions/emporio-caixa";
@@ -52,6 +54,7 @@ export type HojeView = {
   receivables_due: {
     fiado: { count: number; total: number };
     checks: { count: number; total: number };
+    boletos: { count: number; total: number };
     cards: { count: number; total: number };
   };
   overdue_fiado: { customers: number; total: number };
@@ -87,6 +90,8 @@ export type CartaoAReceberView = {
 export type AReceberView = {
   fiado: FiadoClienteView[];
   checks: ChequeView[];
+  /** Q282: os boletos em aberto (os vencidos inclusive, com `overdue`). */
+  boletos: BoletoView[];
   cards: CartaoAReceberView[];
 };
 
@@ -135,6 +140,7 @@ export const ROTULO_ORIGEM: Record<string, string> = {
   transferencia: "Transferência",
   conferencia: "Conferência",
   cheque_compensado: "Cheque compensado",
+  boleto_pago: "Boleto pago",
   estorno_cartao: "Estorno de cartão",
   pagamento_despesa: "Conta paga",
   sangria: "Sangria",
@@ -220,6 +226,10 @@ export async function lerResumoHojeAction(
     where: { status: { in: ["recebido", "depositado"] }, good_for: { lte: hoje }, ...lojasDoFiltro },
     select: { amount: true },
   });
+  const boletos = await db.emporioBoleto.findMany({
+    where: { status: "aberto", due_on: { lte: hoje }, ...lojasDoFiltro },
+    select: { amount: true },
+  });
   const cartoes = await db.cardReceivable.findMany({
     where: { canceled_at: null, effective_on: hoje, ...lojasDoFiltro },
     select: { effective_net: true },
@@ -260,6 +270,7 @@ export async function lerResumoHojeAction(
         total: abertas.reduce((s, e) => s + e.open_cent, 0) / 100,
       },
       checks: { count: cheques.length, total: cheques.reduce((s, c) => s + centavos(decToNum(c.amount) ?? 0), 0) / 100 },
+      boletos: { count: boletos.length, total: boletos.reduce((s, b) => s + centavos(decToNum(b.amount) ?? 0), 0) / 100 },
       cards: { count: cartoes.length, total: cartoes.reduce((s, c) => s + centavos(decToNum(c.effective_net) ?? 0), 0) / 100 },
     },
     overdue_fiado: {
@@ -287,6 +298,8 @@ export async function listarContasAReceberAction(
   if (!fiado.ok) return fiado;
   const carteira = await listarChequesAction(db, ator, { establishment_id: lojaId });
   if (!carteira.ok) return carteira;
+  const boletos = await listarBoletosAction(db, ator, { establishment_id: lojaId, status: "aberto" });
+  if (!boletos.ok) return boletos;
 
   const hoje = hojeEmBrasilia();
   const parcelas = await db.cardReceivable.findMany({
@@ -301,6 +314,7 @@ export async function listarContasAReceberAction(
   return ok({
     fiado: fiado.data,
     checks: carteira.data.filter((c) => c.status === "recebido" || c.status === "depositado"),
+    boletos: boletos.data,
     cards: parcelas.map((p) => ({
       id: p.id,
       sale_id: p.sale_id,

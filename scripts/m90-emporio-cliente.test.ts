@@ -553,7 +553,7 @@ async function secao4() {
     const cheque = await V.venderAction(
       db,
       owner,
-      corpo({ customer_id: cf }, [{ kind: "cheque", amount: 10, check: { number: "1", bank: "Banco", good_for: new Date(Date.now() + 86_400_000) } }]),
+      corpo({ customer_id: cf }, [{ kind: "cheque", amount: 10, check: { holder_name: "Titular Teste", number: "1", bank: "Banco", good_for: new Date(Date.now() + 86_400_000) } }]),
     );
     check(
       "cheque para o Consumidor final: 422 customer_id",

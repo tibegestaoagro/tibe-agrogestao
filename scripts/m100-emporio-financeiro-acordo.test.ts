@@ -568,7 +568,7 @@ async function secao2() {
   const co = await cliente(A, "Acordo cheque devolvido");
   const numCheque = `M100-${stamp}`;
   const vo = await vender(A, co, 10, [
-    { kind: "cheque", amount: 40, check: { number: numCheque, bank: "Banco M100", good_for: meioDia(emDias(10)) } },
+    { kind: "cheque", amount: 40, check: { holder_name: "Titular Teste", number: numCheque, bank: "Banco M100", good_for: meioDia(emDias(10)) } },
     { kind: "fiado", amount: 60, due_date: meioDia(emDias(10)) },
   ]);
   const eo = (await A.db.financialEntry.findFirst({ where: { emporio_customer_id: co.id, entry_type: "income", status: "pending" } })) as Dado;

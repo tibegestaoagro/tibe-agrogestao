@@ -24,7 +24,7 @@ exigirBancoLocal();
  *   podem estar em `emporio-caixa` OU em `emporio-vendas`: procura nos dois;
  * - `kind` do pagamento de cartão é o valor do enum `CardKind`: `debito`,
  *   `credito_vista`, `credito_parcelado`; no parcelado `installments` fica no
- *   próprio pagamento; no cheque, `check: { number, bank, good_for }` com
+ *   próprio pagamento; no cheque, `check: { holder_name: "Titular Teste", number, bank, good_for }` com
  *   `good_for` como Date (a convenção de `sold_at` e `due_date`); a 1ª
  *   tentativa, com string "AAAA-MM-DD", foi recusada pelo servidor;
  * - `lerCaixaAction` traz `card_receivables` como lista (ou `{ items }`) de
@@ -384,14 +384,14 @@ async function comBanco() {
     await rodar("cheque", async () => {
       console.log("\n5. Cheque: recebido, depositado, compensado, devolvido (Q91)");
       const hojeStr = hoje();
-      const cheque = (amount: number, over: Dado = {}) => ({ kind: "cheque", amount, check: { number: "1234", bank: "Sicredi", good_for: bomPara(somaDias(hojeStr, 15)), ...over } });
+      const cheque = (amount: number, over: Dado = {}) => ({ kind: "cheque", amount, check: { holder_name: "Titular Teste", number: "1234", bank: "Sicredi", good_for: bomPara(somaDias(hojeStr, 15)), ...over } });
       const C1 = await contato("Cliente cheque");
       const v0 = await db.emporioSale.count();
       // Sem cliente a venda nem começa; com o Consumidor final o cheque é recusado (design 2026-11-03-emporio-cliente-nome-menu).
       check("sem customer_id: 422 customer_id", recusa(await vender(op, 10, [cheque(100)], { customer_id: null }), "VALIDATION_ERROR", 422, "customer_id"));
       check("cheque para o Consumidor final: 422 customer_id", recusa(await vender(op, 10, [cheque(100)]), "VALIDATION_ERROR", 422, "customer_id"));
-      for (const campo of ["number", "bank", "good_for"]) {
-        const ck = { number: "1234", bank: "Sicredi", good_for: bomPara(somaDias(hojeStr, 15)) } as Dado;
+      for (const campo of ["number", "bank", "good_for", "holder_name"]) {
+        const ck = { holder_name: "Titular Teste", number: "1234", bank: "Sicredi", good_for: bomPara(somaDias(hojeStr, 15)) } as Dado;
         delete ck[campo];
         check(`cheque sem ${campo}: 422 payments`, recusa(await vender(op, 10, [{ kind: "cheque", amount: 100, check: ck }], { customer_id: C1 }), "VALIDATION_ERROR", 422, "payments"));
       }
@@ -590,7 +590,7 @@ async function comBanco() {
     await rodar("cancelamento", async () => {
       console.log("\n8. Cancelamento e devolução com cartão e cheque (Q94)");
       const hojeStr = hoje();
-      const cheque = (amount: number, number: string) => ({ kind: "cheque", amount, check: { number, bank: "Banco X", good_for: bomPara(somaDias(hojeStr, 10)) } });
+      const cheque = (amount: number, number: string) => ({ kind: "cheque", amount, check: { holder_name: "Titular Teste", number, bank: "Banco X", good_for: bomPara(somaDias(hojeStr, 10)) } });
 
       // a) cartão com parcela futura
       const recA = await aReceberDb();
@@ -805,7 +805,7 @@ async function comBanco() {
       // cheques
       const Cr = await contato("rota cheque");
       const novoCheque = async (num: string) => {
-        const r = await vender(owner, 10, [{ kind: "cheque", amount: 100, check: { number: num, bank: "Banco R", good_for: bomPara(somaDias(hoje(), 5)) } }], { customer_id: Cr });
+        const r = await vender(owner, 10, [{ kind: "cheque", amount: 100, check: { holder_name: "Titular Teste", number: num, bank: "Banco R", good_for: bomPara(somaDias(hoje(), 5)) } }], { customer_id: Cr });
         return (await db.emporioCheck.findFirst({ where: { sale_id: saleId(r) } }))?.id ?? "";
       };
       const cA = await novoCheque("6001");

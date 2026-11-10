@@ -1493,7 +1493,7 @@ async function vender(ctx: Ctx, v: VendaPlan, consumidorFinalId: string): Promis
     const base: vendas.VendaPagamentoInput = { kind: p.kind, amount: p.cents / 100 };
     if (p.kind === "credito_parcelado") base.installments = p.parcelas;
     if (p.kind === "fiado") base.due_date = p.vence;
-    if (p.kind === "cheque") base.check = { number: p.numero, bank: p.banco, good_for: p.bomPara };
+    if (p.kind === "cheque") base.check = { holder_name: "Titular da demonstração", number: p.numero, bank: p.banco, good_for: p.bomPara };
     return base;
   });
   return exigir(await vendas.venderAction(db, atores[v.quem], {

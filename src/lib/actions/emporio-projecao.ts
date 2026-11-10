@@ -33,7 +33,7 @@ export type SemanaProjetadaView = {
   numero: number;
   de: string;
   ate: string;
-  receivables: { fiado: number; cards: number; checks: number; total: number };
+  receivables: { fiado: number; cards: number; checks: number; boletos: number; total: number };
   payables: { entries: number; fixed_estimated: number; total: number };
   net: number;
   closing_balance: number;
@@ -85,7 +85,7 @@ export async function lerFluxoProjetadoAction(
     const i = semanas.findIndex((s) => d <= s.ate);
     return i < 0 ? -1 : i;
   };
-  const zeros = () => semanas.map(() => ({ fiado: 0, cards: 0, checks: 0, entries: 0, fixed: 0 }));
+  const zeros = () => semanas.map(() => ({ fiado: 0, cards: 0, checks: 0, boletos: 0, entries: 0, fixed: 0 }));
   const acc = zeros();
 
   const ondeLoja = lojaId
@@ -121,6 +121,16 @@ export async function lerFluxoProjetadoAction(
     if (i >= 0) acc[i].checks += centavos(decToNum(c.amount) ?? 0);
   }
 
+  // Boleto aberto (Q282): entra pelo vencimento; o vencido e não pago cai na primeira semana, como o cheque atrasado.
+  const boletos = await db.emporioBoleto.findMany({
+    where: { status: "aberto", due_on: { lte: fimDaJanela }, ...ondeLoja },
+    select: { due_on: true, amount: true },
+  });
+  for (const b of boletos) {
+    const i = semanaDoDia(dia(b.due_on));
+    if (i >= 0) acc[i].boletos += centavos(decToNum(b.amount) ?? 0);
+  }
+
   const contas = await listarContasAPagarAction(db, ator, {
     establishment_id: lojaId,
     status: "pending",
@@ -148,14 +158,14 @@ export async function lerFluxoProjetadoAction(
   let saldo = abertura;
   const weeks = semanas.map((s, i): SemanaProjetadaView => {
     const a = acc[i];
-    const rec = a.fiado + a.cards + a.checks;
+    const rec = a.fiado + a.cards + a.checks + a.boletos;
     const pag = a.entries + a.fixed;
     saldo += rec - pag;
     return {
       numero: s.numero,
       de: s.de,
       ate: s.ate,
-      receivables: { fiado: a.fiado / 100, cards: a.cards / 100, checks: a.checks / 100, total: rec / 100 },
+      receivables: { fiado: a.fiado / 100, cards: a.cards / 100, checks: a.checks / 100, boletos: a.boletos / 100, total: rec / 100 },
       payables: { entries: a.entries / 100, fixed_estimated: a.fixed / 100, total: pag / 100 },
       net: (rec - pag) / 100,
       closing_balance: saldo / 100,

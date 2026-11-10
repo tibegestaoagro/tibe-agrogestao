@@ -168,7 +168,9 @@ export type VendaPagamentoView = {
   brand: string | null;
   fee_fixed_amount: number | null;
   fee_rate_id: string | null;
-  check: { id: string; number: string; bank: string; good_for: string; status: string } | null;
+  check: { id: string; number: string; holder_name: string; bank: string; good_for: string; status: string } | null;
+  /** Boleto (Q278): o vencimento é data de calendário (ISO à meia-noite UTC), como o `good_for` do cheque. */
+  boleto: { id: string; number: string | null; due_on: string; status: string; paid_on: string | null } | null;
   /** Parcelas vivas do cartão (Q261), com o previsto e o efetivo (a antecipação muda o efetivo). */
   receivables: VendaParcelaCartaoView[];
 };
@@ -269,6 +271,7 @@ const INCLUDE_VENDA = {
   payments: {
     include: {
       check: true,
+      boleto: true,
       acquirer: { select: { name: true } },
       card_receivables: { where: { canceled_at: null }, orderBy: { installment: "asc" } },
     },
@@ -430,9 +433,19 @@ async function montarVendas(db: TenantPrismaClient, linhas: VendaRow[]): Promise
           ? {
               id: p.check.id,
               number: p.check.number,
+              holder_name: p.check.holder_name,
               bank: p.check.bank,
               good_for: p.check.good_for.toISOString(),
               status: p.check.status,
+            }
+          : null,
+        boleto: p.boleto
+          ? {
+              id: p.boleto.id,
+              number: p.boleto.number,
+              due_on: p.boleto.due_on.toISOString(),
+              status: p.boleto.status,
+              paid_on: isoOrNull(p.boleto.paid_on),
             }
           : null,
       })),
@@ -540,8 +553,10 @@ export type VendaPagamentoInput = {
   /** Cartão (Q254): a adquirente e a bandeira. Sem a adquirente, vale a única com taxa vigente na loja. */
   acquirer_id?: string | null;
   brand?: Bandeira | null;
-  /** Cheque: os três campos são obrigatórios. */
-  check?: { number?: string | null; bank?: string | null; good_for?: Date | null } | null;
+  /** Cheque: número, banco, "bom para" e o titular (Q284) são obrigatórios. */
+  check?: { number?: string | null; bank?: string | null; good_for?: Date | null; holder_name?: string | null } | null;
+  /** Boleto (Q278): o vencimento é obrigatório; o número é opcional. */
+  boleto?: { due_on?: Date | null; number?: string | null } | null;
 };
 
 export type VenderInput = PedidoParaEntregaInput & {
@@ -707,7 +722,7 @@ async function conferirFiado(
 }
 
 type PagamentoPreparado = {
-  kind: "dinheiro" | "pix" | "fiado" | FormaDeCartao | "cheque";
+  kind: "dinheiro" | "pix" | "fiado" | FormaDeCartao | "cheque" | "boleto";
   amount: number;
   bank_account_id: string | null;
   due_date: Date | null;
@@ -726,7 +741,8 @@ type PagamentoPreparado = {
     /** A antecipação automática da adquirente que vale para esta venda (crédito, ligada, com taxa e já em vigor); senão nulo. */
     auto: { pct_mes: number; dias_uteis: number } | null;
   } | null;
-  cheque: { number: string; bank: string; good_for: Date } | null;
+  cheque: { number: string; bank: string; good_for: Date; holder_name: string } | null;
+  boleto: { number: string | null; due_on: Date } | null;
 };
 
 type Preparada = {
@@ -1003,10 +1019,10 @@ async function prepararVenda(
     if (kind === "troca") {
       return fail("VALIDATION_ERROR", "O pagamento por troca só nasce na troca de mercadoria.", 422, "payments");
     }
-    if (kind !== "dinheiro" && kind !== "pix" && kind !== "fiado" && kind !== "cheque" && !ehCartao(kind)) {
+    if (kind !== "dinheiro" && kind !== "pix" && kind !== "fiado" && kind !== "cheque" && kind !== "boleto" && !ehCartao(kind)) {
       return fail(
         "VALIDATION_ERROR",
-        "Escolha a forma de pagamento: dinheiro, PIX, débito, crédito, cheque ou fiado.",
+        "Escolha a forma de pagamento: dinheiro, PIX, débito, crédito, cheque, boleto ou fiado.",
         422,
         "payments",
       );
@@ -1018,6 +1034,7 @@ async function prepararVenda(
     let venc: Date | null = null;
     let cartao: PagamentoPreparado["cartao"] = null;
     let cheque: PagamentoPreparado["cheque"] = null;
+    let boleto: PagamentoPreparado["boleto"] = null;
     if (ehCartao(kind)) {
       let parcelas = 1;
       let installments: number | null = null;
@@ -1110,13 +1127,36 @@ async function prepararVenda(
       const c = p.check;
       const numeroDoCheque = typeof c?.number === "string" ? c.number.trim() : "";
       const banco = typeof c?.bank === "string" ? c.bank.trim() : "";
+      const titular = typeof c?.holder_name === "string" ? c.holder_name.trim() : "";
       if (!numeroDoCheque || !banco || !dataValida(c?.good_for)) {
         return fail("VALIDATION_ERROR", "Informe o número, o banco e a data do cheque (bom para).", 422, "payments");
+      }
+      if (!titular) {
+        return fail("VALIDATION_ERROR", "Informe em nome de quem é o cheque.", 422, "payments");
+      }
+      if (titular.length > 120) {
+        return fail("VALIDATION_ERROR", "O nome do titular do cheque aceita até 120 letras.", 422, "payments");
       }
       if (ehConsumidorFinal) {
         return fail("VALIDATION_ERROR", "Cheque precisa do cliente de verdade, não do Consumidor final.", 422, "customer_id");
       }
-      cheque = { number: numeroDoCheque, bank: banco, good_for: c?.good_for as Date };
+      cheque = { number: numeroDoCheque, bank: banco, good_for: c?.good_for as Date, holder_name: titular };
+    }
+    if (kind === "boleto") {
+      const b = p.boleto;
+      if (!dataValida(b?.due_on)) {
+        return fail("VALIDATION_ERROR", "Informe o vencimento do boleto.", 422, "payments");
+      }
+      // Dia de calendário: o horário que vier junto não conta.
+      const vencimento = new Date(b.due_on.toISOString().slice(0, 10));
+      if (vencimento.getTime() < hojeEmBrasilia(soldAt).getTime()) {
+        return fail("VALIDATION_ERROR", "O vencimento do boleto não pode ser antes do dia da venda.", 422, "payments");
+      }
+      const numeroDoBoleto = typeof b?.number === "string" && b.number.trim() ? b.number.trim() : null;
+      if (ehConsumidorFinal) {
+        return fail("VALIDATION_ERROR", "Boleto precisa do cliente de verdade, não do Consumidor final.", 422, "customer_id");
+      }
+      boleto = { number: numeroDoBoleto, due_on: vencimento };
     }
     if (kind === "fiado") {
       if (temFiado) return fail("VALIDATION_ERROR", "O fiado aparece uma vez só na venda.", 422, "payments");
@@ -1149,7 +1189,7 @@ async function prepararVenda(
       }
       contaId = conta.id;
     }
-    pagamentos.push({ kind, amount: arred2(p.amount), bank_account_id: contaId, due_date: venc, cartao, cheque });
+    pagamentos.push({ kind, amount: arred2(p.amount), bank_account_id: contaId, due_date: venc, cartao, cheque, boleto });
   }
 
   const valorTroca = opts.valorTroca ?? 0;
@@ -1565,10 +1605,40 @@ async function gravarVenda(
           customer_id: p.customer_id as string,
           establishment_id: p.loja.id,
           number: pg.cheque.number,
+          holder_name: pg.cheque.holder_name,
           bank: pg.cheque.bank,
           good_for: pg.cheque.good_for,
           amount: pg.amount,
           status: "recebido" as const,
+          financial_payment_id: fp.id,
+          updated_by_user_id: ator.id,
+        }),
+      });
+      continue;
+    }
+    if (pg.kind === "boleto" && pg.boleto) {
+      const fp = await tx.financialPayment.create({
+        data: scoped({
+          entry_id: lancamento.id,
+          amount: pg.amount,
+          paid_at: p.sold_at,
+          method: "boleto" as const,
+          created_by_user_id: ator.id,
+        }),
+      });
+      const sp = await tx.emporioSalePayment.create({
+        data: scoped({ sale_id: venda.id, kind: "boleto" as const, amount: pg.amount, financial_payment_id: fp.id }),
+      });
+      await tx.emporioBoleto.create({
+        data: scoped({
+          sale_id: venda.id,
+          sale_payment_id: sp.id,
+          customer_id: p.customer_id as string,
+          establishment_id: p.loja.id,
+          number: pg.boleto.number,
+          due_on: pg.boleto.due_on,
+          amount: pg.amount,
+          status: "aberto" as const,
           financial_payment_id: fp.id,
           updated_by_user_id: ator.id,
         }),
@@ -1903,6 +1973,19 @@ async function cancelarNaTransacao(
   await tx.emporioCheck.updateMany({
     where: { sale_id: id, status: "recebido" },
     data: { status: "devolvido_ao_cliente", updated_by_user_id: ator.id },
+  });
+
+  // Boleto (Q281): o aberto some com a venda; o pago já pôs dinheiro na conta e não se desfaz por aqui.
+  // O mandado ao fiado (`no_fiado`) fica como está: a dívida dele já é da venda cancelada.
+  const boletos = await tx.emporioBoleto.findMany({ where: { sale_id: id }, select: { status: true } });
+  if (boletos.some((b) => b.status === "pago")) {
+    throw new AbortarVenda(
+      fail("SALE_HAS_PAID_BOLETO", "Essa venda tem boleto já pago: não dá para cancelar.", 409),
+    );
+  }
+  await tx.emporioBoleto.updateMany({
+    where: { sale_id: id, status: "aberto" },
+    data: { status: "cancelado", updated_by_user_id: ator.id },
   });
 
   // Cartão (Q94, Q261): a parcela que ainda não caiu de fato (data efetiva

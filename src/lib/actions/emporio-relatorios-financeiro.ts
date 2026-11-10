@@ -95,21 +95,30 @@ export async function lerAReceberPorIdadeAction(
   const porCliente = new Map<string, ReturnType<typeof vazia>>();
   const totais = vazia();
   const detalhe = new Map<string, { cent: number; oldest: string; lojas: Set<string> }>();
-  for (const e of abertas) {
-    if (!e.emporio_customer_id || e.open_cent <= 0) continue;
-    const faixa = faixaDeIdade(diasDeAtraso(e.effective_due_date, hoje));
-    const chave = `${e.emporio_customer_id}|${faixa}`;
-    const d = detalhe.get(chave) ?? { cent: 0, oldest: dia(e.effective_due_date), lojas: new Set<string>() };
-    d.cent += e.open_cent;
-    if (dia(e.effective_due_date) < d.oldest) d.oldest = dia(e.effective_due_date);
-    if (e.establishment_id) d.lojas.add(e.establishment_id);
+  // Q280/Q282: o boleto aberto é a receber pelo vencimento dele, ao lado do fiado (o lançamento da venda já está pago).
+  const boletos = await db.emporioBoleto.findMany({
+    where: { status: "aberto", ...(lojaId ? { establishment_id: lojaId } : visiveis ? { establishment_id: { in: [...visiveis] } } : {}) },
+    select: { customer_id: true, establishment_id: true, due_on: true, amount: true },
+  });
+  const itens = [
+    ...abertas.map((e) => ({ cliente: e.emporio_customer_id, vence: e.effective_due_date, cent: e.open_cent, loja: e.establishment_id })),
+    ...boletos.map((b) => ({ cliente: b.customer_id as string | null, vence: b.due_on, cent: centavos(decToNum(b.amount) ?? 0), loja: b.establishment_id as string | null })),
+  ];
+  for (const e of itens) {
+    if (!e.cliente || e.cent <= 0) continue;
+    const faixa = faixaDeIdade(diasDeAtraso(e.vence, hoje));
+    const chave = `${e.cliente}|${faixa}`;
+    const d = detalhe.get(chave) ?? { cent: 0, oldest: dia(e.vence), lojas: new Set<string>() };
+    d.cent += e.cent;
+    if (dia(e.vence) < d.oldest) d.oldest = dia(e.vence);
+    if (e.loja) d.lojas.add(e.loja);
     detalhe.set(chave, d);
-    const linha = porCliente.get(e.emporio_customer_id) ?? vazia();
-    linha[faixa] += e.open_cent;
-    linha.total += e.open_cent;
-    porCliente.set(e.emporio_customer_id, linha);
-    totais[faixa] += e.open_cent;
-    totais.total += e.open_cent;
+    const linha = porCliente.get(e.cliente) ?? vazia();
+    linha[faixa] += e.cent;
+    linha.total += e.cent;
+    porCliente.set(e.cliente, linha);
+    totais[faixa] += e.cent;
+    totais.total += e.cent;
   }
 
   const clientes = porCliente.size

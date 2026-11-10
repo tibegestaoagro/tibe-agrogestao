@@ -218,7 +218,7 @@ async function main() {
       `venda ${chave}`,
     );
   await vender("fiado", 3, [{ kind: "fiado", amount: 30, due_date: meioDia(somaDias(hojeStr, -1)) }], { sold_at: new Date(Date.now() - 3 * DIA) });
-  await vender("cheque", 5, [{ kind: "cheque", amount: 50, check: { number: "9001", bank: "Banco Fin", good_for: meioDia(hojeStr) } }]);
+  await vender("cheque", 5, [{ kind: "cheque", amount: 50, check: { holder_name: "Titular Teste", number: "9001", bank: "Banco Fin", good_for: meioDia(hojeStr) } }]);
   await vender("cartao", 10, [{ kind: "credito_vista", amount: 100 }], { sold_at: new Date(Date.now() - 1 * DIA) });
 
   // Um orcamento da Loja 1, para o Financeiro abrir (a leitura dele vale para o Financeiro).

@@ -674,7 +674,7 @@ async function secao5() {
     return r.data as Dado;
   };
   await vender(3, [{ kind: "fiado", amount: 30, due_date: meioDia(somaDias(hojeStr, -1)) }], { sold_at: new Date(Date.now() - 3 * DIA) });
-  await vender(5, [{ kind: "cheque", amount: 50, check: { number: "9001", bank: "Banco M98", good_for: meioDia(hojeStr) } }]);
+  await vender(5, [{ kind: "cheque", amount: 50, check: { holder_name: "Titular Teste", number: "9001", bank: "Banco M98", good_for: meioDia(hojeStr) } }]);
   await vender(10, [{ kind: "credito_vista", amount: 100 }], { sold_at: new Date(Date.now() - 1 * DIA) });
   const cV = await comprar(A, A.tok.gestor, { supplier_id: A.fornecedor, items: [{ emporio_product_id: A.prodId, presentation_id: A.presId, quantity: 1, item_total: 77 }] });
   const eV = await entradaDaCompra(A, cV.corpo?.data?.id);
@@ -835,8 +835,8 @@ async function secao5() {
   check("o Financeiro NÃO salva orçamento: 403", salvaFin.status === 403, `${salvaFin.status} ${j(salvaFin.corpo)}`);
 
   console.log("  cheques: o Financeiro compensa e marca devolvido; o Vendedor sem a chave não");
-  await vender(2, [{ kind: "cheque", amount: 20, check: { number: "9101", bank: "Banco M98", good_for: meioDia(somaDias(hojeStr, 20)) } }]);
-  await vender(3, [{ kind: "cheque", amount: 30, check: { number: "9102", bank: "Banco M98", good_for: meioDia(somaDias(hojeStr, 20)) } }]);
+  await vender(2, [{ kind: "cheque", amount: 20, check: { holder_name: "Titular Teste", number: "9101", bank: "Banco M98", good_for: meioDia(somaDias(hojeStr, 20)) } }]);
+  await vender(3, [{ kind: "cheque", amount: 30, check: { holder_name: "Titular Teste", number: "9102", bank: "Banco M98", good_for: meioDia(somaDias(hojeStr, 20)) } }]);
   const chq = async (num: string) => (await A.db.emporioCheck.findFirst({ where: { number: num } })) as Dado;
   const c1 = await chq("9101");
   const c2 = await chq("9102");

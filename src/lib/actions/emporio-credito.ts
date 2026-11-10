@@ -151,8 +151,24 @@ export async function estadoDeCredito(
     }
   }
 
+  // Q280: o boleto aberto e vencido conta nos dias de atraso (e no bloqueio), pelo vencimento dele.
+  // Não soma em `owed` nem em `overdue`: o lançamento da venda já está pago, o dinheiro é que ainda não chegou.
+  const boletosVencidos = await db.emporioBoleto.findMany({
+    where: {
+      customer_id: customerId,
+      status: "aberto",
+      due_on: { lt: hoje },
+      ...(opts.semAVenda ? { sale_id: { not: opts.semAVenda } } : {}),
+    },
+    select: { due_on: true },
+  });
+  for (const b of boletosVencidos) {
+    const dias = diasDeAtraso(b.due_on, hoje);
+    if (dias > 0 && (!oldest || dias > oldest.days)) oldest = { due_date: new Date(diaUtc(b.due_on)), days: dias };
+  }
+
   const limiteDoCliente = decToNum(c.fiado_limit as never);
-  const limit = limiteDoCliente ?? settings.fiado_default_limit;
+  const limit =limiteDoCliente ?? settings.fiado_default_limit;
   return {
     customer: {
       id: c.id,

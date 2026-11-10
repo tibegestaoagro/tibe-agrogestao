@@ -441,7 +441,7 @@ async function secao3() {
   const chCf = await V.venderAction(
     db,
     owner,
-    corpo({ customer_id: cf.id }, [{ kind: "cheque", amount: 10, check: { number: "1", bank: "Banco", good_for: new Date(Date.now() + 86_400_000) } }]) as Dado,
+    corpo({ customer_id: cf.id }, [{ kind: "cheque", amount: 10, check: { holder_name: "Titular Teste", number: "1", bank: "Banco", good_for: new Date(Date.now() + 86_400_000) } }]) as Dado,
   );
   check("cheque para o Consumidor final: 422 customer_id", !chCf.ok && chCf.status === 422 && chCf.field === "customer_id", j(chCf));
 
@@ -456,7 +456,7 @@ async function secao3() {
   const cheque = await V.venderAction(
     db,
     owner,
-    corpo({ customer_id: maria.id }, [{ kind: "cheque", amount: 10, check: { number: "77", bank: "Banco X", good_for: new Date(Date.now() + 86_400_000) } }]) as Dado,
+    corpo({ customer_id: maria.id }, [{ kind: "cheque", amount: 10, check: { holder_name: "Titular Teste", number: "77", bank: "Banco X", good_for: new Date(Date.now() + 86_400_000) } }]) as Dado,
   );
   const cheques = await Cx.listarChequesAction(db, owner, { customer_id: maria.id } as Dado);
   check(

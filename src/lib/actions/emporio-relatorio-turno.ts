@@ -75,12 +75,14 @@ export async function lerRelatorioDoTurnoAction(
     where: { sale: { cash_session_id: t.id } },
     _sum: { amount: true },
   });
-  const ordem = Object.keys(FORMA_ROTULO);
+  // O rótulo do boleto é local: o mapa da tela (`FORMA_ROTULO`) ainda não o tem.
+  const rotulos: Record<string, string> = { ...FORMA_ROTULO, boleto: "Boleto" };
+  const ordem = Object.keys(rotulos);
   const vendas_por_forma = pagamentos
     .map((p) => ({ chave: p.kind as string, cent: centavos(decToNum(p._sum.amount) ?? 0) }))
     .filter((p) => p.cent !== 0)
     .sort((a, b) => ordem.indexOf(a.chave) - ordem.indexOf(b.chave))
-    .map((p) => ({ forma: p.chave === "troca" ? "Valor da troca (crédito, não é dinheiro)" : (FORMA_ROTULO[p.chave] ?? p.chave), valor: p.cent / 100 }));
+    .map((p) => ({ forma: p.chave === "troca" ? "Valor da troca (crédito, não é dinheiro)" : (rotulos[p.chave] ?? p.chave), valor: p.cent / 100 }));
 
   const movs = await db.cashMovement.groupBy({
     by: ["origin", "direction", "cash_register_id"],

@@ -762,6 +762,7 @@ export type MovimentoDeCaixaView = {
   cash_transfer_id: string | null;
   cash_count_id: string | null;
   check_id: string | null;
+  boleto_id: string | null;
   card_receivable_id: string | null;
   /** Entrega 2: o caixa e o turno (na gaveta), a gerência (o terceiro lugar) e a entrega. */
   cash_register_id: string | null;
@@ -785,6 +786,7 @@ type MovimentoRow = {
   cash_transfer_id: string | null;
   cash_count_id: string | null;
   check_id: string | null;
+  boleto_id: string | null;
   card_receivable_id: string | null;
   cash_register_id: string | null;
   cash_session_id: string | null;
@@ -808,6 +810,7 @@ function viewDoMovimento(m: MovimentoRow): MovimentoDeCaixaView {
     cash_transfer_id: m.cash_transfer_id,
     cash_count_id: m.cash_count_id,
     check_id: m.check_id,
+    boleto_id: m.boleto_id,
     card_receivable_id: m.card_receivable_id,
     cash_register_id: m.cash_register_id,
     cash_session_id: m.cash_session_id,
@@ -862,6 +865,8 @@ export type ChequeView = {
   customer_name: string;
   establishment_id: string;
   number: string;
+  /** Q284: em nome de quem é o cheque. */
+  holder_name: string;
   bank: string;
   /** Data de calendário (AAAA-MM-DD). */
   good_for: string;
@@ -996,6 +1001,7 @@ type ChequeRow = {
   customer_id: string | null;
   establishment_id: string;
   number: string;
+  holder_name: string;
   bank: string;
   good_for: Date;
   amount: unknown;
@@ -1017,6 +1023,7 @@ function viewDoCheque(c: ChequeRow): ChequeView {
     customer_name: c.customer?.name ?? "",
     establishment_id: c.establishment_id,
     number: c.number,
+    holder_name: c.holder_name,
     bank: c.bank,
     good_for: dia(c.good_for),
     amount: decToNum(c.amount as never) ?? 0,
@@ -1707,6 +1714,295 @@ export async function chequeVoltouAction(
     throw err;
   }
   return chequePorId(db, id);
+}
+
+// ---------------------------------------------------------------------------
+// Boletos (Q278 a Q282): gerados fora do Tibé, só registrados na venda
+// ---------------------------------------------------------------------------
+
+export type BoletoView = {
+  id: string;
+  sale_id: string;
+  sale_number: number;
+  customer_id: string;
+  customer_name: string;
+  establishment_id: string;
+  establishment_name: string;
+  number: string | null;
+  /** Data de calendário (AAAA-MM-DD). */
+  due_on: string;
+  amount: number;
+  status: string;
+  /** Q280: `aberto` com o vencimento antes de hoje em Brasília (calculado, não gravado). */
+  overdue: boolean;
+  bank_account_id: string | null;
+  bank_account_name: string | null;
+  /** Data de calendário (AAAA-MM-DD) do pagamento no banco. */
+  paid_on: string | null;
+  sent_to_fiado_at: string | null;
+  reason: string | null;
+};
+
+const STATUS_DE_BOLETO = ["aberto", "vencido", "pago", "no_fiado"] as const;
+
+const NOME_DO_STATUS_DO_BOLETO: Record<string, string> = {
+  aberto: "em aberto",
+  pago: "pago",
+  no_fiado: "no fiado",
+  cancelado: "cancelado",
+};
+
+const BOLETO_FORA_DE_ORDEM = (status: string) =>
+  fail("BOLETO_STATUS", `Esse boleto está ${NOME_DO_STATUS_DO_BOLETO[status] ?? status} e não pode seguir para essa etapa.`, 409);
+
+const INCLUDE_BOLETO = {
+  customer: { select: { name: true } },
+  establishment: { select: { name: true } },
+  sale: { select: { number: true } },
+  bank_account: { select: { name: true } },
+} as const;
+
+type BoletoRow = {
+  id: string;
+  sale_id: string;
+  customer_id: string;
+  establishment_id: string;
+  number: string | null;
+  due_on: Date;
+  amount: unknown;
+  status: string;
+  bank_account_id: string | null;
+  paid_on: Date | null;
+  sent_to_fiado_at: Date | null;
+  fiado_reason: string | null;
+  customer: { name: string };
+  establishment: { name: string };
+  sale: { number: number };
+  bank_account: { name: string } | null;
+};
+
+function viewDoBoleto(b: BoletoRow, hoje: Date): BoletoView {
+  return {
+    id: b.id,
+    sale_id: b.sale_id,
+    sale_number: b.sale.number,
+    customer_id: b.customer_id,
+    customer_name: b.customer.name,
+    establishment_id: b.establishment_id,
+    establishment_name: b.establishment.name,
+    number: b.number,
+    due_on: dia(b.due_on),
+    amount: decToNum(b.amount as never) ?? 0,
+    status: b.status,
+    overdue: b.status === "aberto" && b.due_on.getTime() < hoje.getTime(),
+    bank_account_id: b.bank_account_id,
+    bank_account_name: b.bank_account?.name ?? null,
+    paid_on: b.paid_on ? dia(b.paid_on) : null,
+    sent_to_fiado_at: isoOrNull(b.sent_to_fiado_at),
+    reason: b.fiado_reason,
+  };
+}
+
+/** Os boletos das lojas do ator, do vencimento mais antigo ao mais novo. Os cancelados (venda cancelada) não aparecem. */
+export async function listarBoletosAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  opts: { establishment_id?: string; customer_id?: string; status?: string } = {},
+): Promise<ActionResult<BoletoView[]>> {
+  const visiveis = await lojasDoAtor(db, ator);
+  if (opts.establishment_id && visiveis && !visiveis.has(opts.establishment_id)) {
+    return NAO_ACHADO("Estabelecimento", "establishment_id");
+  }
+  if (opts.status && !(STATUS_DE_BOLETO as readonly string[]).includes(opts.status)) {
+    return fail("VALIDATION_ERROR", "Escolha uma situação de boleto válida: aberto, vencido, pago ou no fiado.", 422, "status");
+  }
+  const hoje = hojeEmBrasilia();
+  // "aberto" é todo boleto em aberto (os vencidos inclusive); "vencido" é só o que já passou do vencimento.
+  const doStatus =
+    opts.status === "vencido"
+      ? { status: "aberto" as const, due_on: { lt: hoje } }
+      : opts.status
+        ? { status: opts.status as "aberto" | "pago" | "no_fiado" }
+        : { status: { not: "cancelado" as const } };
+  const boletos = await db.emporioBoleto.findMany({
+    where: {
+      ...(opts.establishment_id ? { establishment_id: opts.establishment_id } : filtroDeLojas(visiveis)),
+      ...(opts.customer_id ? { customer_id: opts.customer_id } : {}),
+      ...doStatus,
+    },
+    include: INCLUDE_BOLETO,
+    orderBy: [{ due_on: "asc" }, { created_at: "asc" }],
+  });
+  return ok(boletos.map((b) => viewDoBoleto(b, hoje)));
+}
+
+async function acharBoleto(db: TenantPrismaClient, ator: Ator, id: string) {
+  const b = await db.emporioBoleto.findFirst({ where: { id } });
+  if (!b || !(await lojaVisivel(db, ator, b.establishment_id))) return null;
+  return b;
+}
+
+async function boletoPorId(db: TenantPrismaClient, id: string): Promise<ActionResult<BoletoView>> {
+  const b = await db.emporioBoleto.findFirst({ where: { id }, include: INCLUDE_BOLETO });
+  return b ? ok(viewDoBoleto(b, hojeEmBrasilia())) : NAO_ACHADO("Boleto");
+}
+
+/** Boleto pago: `aberto` para `pago`, e o dinheiro entra na conta escolhida na data do pagamento. */
+export async function pagarBoletoAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  id: string,
+  input: { bank_account_id: string; paid_on?: Date | null },
+): Promise<ActionResult<BoletoView>> {
+  const neg = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "marcar o boleto como pago");
+  if (neg) return neg;
+  const boleto = await acharBoleto(db, ator, id);
+  if (!boleto) return NAO_ACHADO("Boleto");
+  if (boleto.status !== "aberto") return BOLETO_FORA_DE_ORDEM(boleto.status);
+  const conta =
+    typeof input?.bank_account_id === "string" && input.bank_account_id
+      ? await db.bankAccount.findFirst({ where: { id: input.bank_account_id }, select: { id: true, archived_at: true } })
+      : null;
+  if (!conta || conta.archived_at) {
+    return fail("VALIDATION_ERROR", "Escolha a conta bancária onde o boleto foi pago.", 422, "bank_account_id");
+  }
+  const hoje = hojeEmBrasilia();
+  let pagoEm = hoje;
+  if (input.paid_on != null) {
+    if (!dataValida(input.paid_on)) return fail("VALIDATION_ERROR", "Informe uma data de pagamento válida.", 422, "paid_on");
+    // Dia de calendário: o horário que vier junto não conta.
+    pagoEm = new Date(input.paid_on.toISOString().slice(0, 10));
+    if (pagoEm.getTime() > hoje.getTime()) {
+      return fail("VALIDATION_ERROR", "A data do pagamento não pode ser futura.", 422, "paid_on");
+    }
+  }
+  try {
+    await runSerializableTenantTransaction(db, async (tx) => {
+      const agora = new Date();
+      const r = await tx.emporioBoleto.updateMany({
+        where: { id, status: "aberto" },
+        data: { status: "pago", bank_account_id: conta.id, paid_on: pagoEm, paid_at: agora, updated_by_user_id: ator.id },
+      });
+      if (r.count === 0) throw new RecusaCaixa(BOLETO_FORA_DE_ORDEM("pago"));
+      await tx.cashMovement.create({
+        data: scoped({
+          establishment_id: null,
+          bank_account_id: conta.id,
+          direction: "entrada" as const,
+          amount: decToNum(boleto.amount) ?? 0,
+          origin: "boleto_pago" as const,
+          // `pagoEm` é a meia-noite UTC do dia, que em Brasília ainda é a véspera: hoje vale o instante
+          // da baixa; dia passado, o meio-dia de Brasília (15h UTC), para o extrato mostrar o dia certo.
+          occurred_at: pagoEm.getTime() === hoje.getTime() ? agora : new Date(pagoEm.getTime() + 15 * 3_600_000),
+          sale_id: boleto.sale_id,
+          boleto_id: boleto.id,
+          created_by_user_id: ator.id,
+        }),
+      });
+      await registrarNoHistorico(tx, ator, {
+        action: "boleto.pagar",
+        establishment_id: boleto.establishment_id,
+        target_type: "boleto",
+        target_id: id,
+        summary: `Marcou o boleto${boleto.number ? ` ${boleto.number}` : ""} de ${dinheiro(decToNum(boleto.amount) ?? 0)} como pago`,
+      });
+    });
+  } catch (err) {
+    if (err instanceof RecusaCaixa) return err.recusa;
+    throw err;
+  }
+  return boletoPorId(db, id);
+}
+
+/** Mandar para o fiado: `aberto` para `no_fiado`; o pagamento sai do lançamento e a dívida reabre (como o cheque devolvido). */
+export async function boletoParaFiadoAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  id: string,
+  input: { reason: string },
+): Promise<ActionResult<BoletoView>> {
+  const neg = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "mandar o boleto para o fiado");
+  if (neg) return neg;
+  const boleto = await acharBoleto(db, ator, id);
+  if (!boleto) return NAO_ACHADO("Boleto");
+  if (boleto.status !== "aberto") return BOLETO_FORA_DE_ORDEM(boleto.status);
+  const motivo = typeof input?.reason === "string" ? input.reason.trim() : "";
+  if (!motivo) return fail("VALIDATION_ERROR", "Diga por que o boleto vai para o fiado.", 422, "reason");
+  const rotulo = `boleto${boleto.number ? ` ${boleto.number}` : ""}`;
+
+  try {
+    await runSerializableTenantTransaction(db, async (tx) => {
+      const agora = new Date();
+      const r = await tx.emporioBoleto.updateMany({
+        where: { id, status: "aberto" },
+        data: {
+          status: "no_fiado",
+          sent_to_fiado_at: agora,
+          fiado_reason: motivo,
+          financial_payment_id: null,
+          updated_by_user_id: ator.id,
+        },
+      });
+      if (r.count === 0) throw new RecusaCaixa(BOLETO_FORA_DE_ORDEM("no_fiado"));
+      await registrarNoHistorico(tx, ator, {
+        action: "boleto.fiado",
+        establishment_id: boleto.establishment_id,
+        target_type: "boleto",
+        target_id: id,
+        summary: `Mandou o ${rotulo} de ${dinheiro(decToNum(boleto.amount) ?? 0)} para o fiado: ${motivo}`,
+      });
+      if (!boleto.financial_payment_id) return;
+
+      // Como `cancelarPagamentoAction`: o pagamento sai e, se o lançamento
+      // deixou de estar coberto, volta a pendente (e a dívida aparece no fiado).
+      const pagamento = await tx.financialPayment.findFirst({
+        where: { id: boleto.financial_payment_id },
+        select: { id: true, entry_id: true, amount: true },
+      });
+      if (!pagamento) return;
+      await tx.financialPayment.delete({ where: { id: pagamento.id } });
+      const lancamento = await tx.financialEntry.findFirst({ where: { id: pagamento.entry_id } });
+      // A origem já foi absorvida por um acordo: ela não revive. O valor do boleto
+      // volta como parcela extra do acordo, vencendo hoje.
+      if (lancamento && lancamento.status === "cancelled" && lancamento.agreement_id) {
+        const valor = decToNum(pagamento.amount) ?? 0;
+        const venda = lancamento.related_id
+          ? await tx.emporioSale.findFirst({ where: { id: lancamento.related_id }, select: { sold_at: true } })
+          : null;
+        await createLinkedEntry(tx, {
+          entry_type: "income",
+          category: CATEGORIA_ACORDO,
+          amount: valor,
+          related_module: "emporio",
+          related_id: lancamento.agreement_id,
+          occurred_at: new Date(),
+          status: "pending",
+          due_date: hojeEmBrasilia(),
+          agreement_id: lancamento.agreement_id,
+          emporio_customer_id: lancamento.emporio_customer_id,
+          establishment_id: lancamento.establishment_id,
+          notes: `Boleto mandado ao fiado da venda de ${venda ? dataBr(venda.sold_at.toISOString()) : "data desconhecida"}, ${SUFIXO_PARCELA_EXTRA}`,
+        });
+        await registrarNoHistorico(tx, ator, {
+          action: "boleto.fiado",
+          establishment_id: boleto.establishment_id,
+          target_type: "boleto",
+          target_id: id,
+          summary: `O valor do ${rotulo} (${dinheiro(valor)}) virou parcela extra do acordo de fiado do cliente`,
+        });
+        return;
+      }
+      if (!lancamento || lancamento.status !== "paid") return;
+      const pago = await tx.financialPayment.aggregate({ where: { entry_id: lancamento.id }, _sum: { amount: true } });
+      if (centavos(decToNum(pago._sum.amount) ?? 0) < centavos(decToNum(lancamento.amount) ?? 0)) {
+        await tx.financialEntry.update({ where: { id: lancamento.id }, data: { status: "pending", paid_at: null } });
+      }
+    });
+  } catch (err) {
+    if (err instanceof RecusaCaixa) return err.recusa;
+    throw err;
+  }
+  return boletoPorId(db, id);
 }
 
 // ---------------------------------------------------------------------------
