@@ -59,7 +59,6 @@ aplicada no Docker e no Neon (tem backfill do titular). `test:all -- --sem-redis
 108/108, `test:m108` provada nos dois sentidos, roteiros `emporio-boleto` e
 `emporio-impressao` verdes (o do boleto nos dois sentidos). Fechadas 2.67 e
 2.68; aberta 2.69 (tarifa). A 2.70 (conferência velha do `emporio-f6b`) fechou depois, na branch `roteiro-f6b-contatos`.
-Falta: a Agromax conferir uma venda real com boleto e um cheque com titular.
 
 ### Desfazer acordo, aviso por email, recalcular o mês (Q275 a Q277): em produção
 
