@@ -50,8 +50,15 @@ export type AcordoView = {
   installments: AcordoParcelaView[];
   origins: { entry_id: string; sale_id: string | null; sold_at: string | null; amount: number }[];
   open_total: number;
-  status: "ativo" | "quitado";
+  status: "ativo" | "quitado" | "desfeito";
+  /** Q275: quando foi desfeito e por quê (nulos num acordo vivo). */
+  undone_at: string | null;
+  undone_reason: string | null;
+  /** Vivo e sem movimento (nada pago, abatido nem parcela extra de cheque): pode ser desfeito. */
+  can_undo: boolean;
 };
+
+export type DesfazerAcordoInput = { reason: string };
 
 export type FazerAcordoInput = {
   entry_ids: string[];
@@ -125,7 +132,15 @@ async function montarAcordos(db: TenantPrismaClient, where: Record<string, unkno
           status: l.status === "cancelled" ? "abatida" : aberto === 0 ? "paga" : diaUtc(venc) < hoje ? "vencida" : "em_dia",
         };
       });
-    const abertoTotal = parcelas.reduce((s, p) => s + centavos(p.open), 0);
+    const desfeito = a.undone_at !== null;
+    const abertoTotal = desfeito ? 0 : parcelas.reduce((s, p) => s + centavos(p.open), 0);
+    const doAcordo = meus.filter((l) => l.category === CATEGORIA_ACORDO);
+    // Sem movimento: nada pago, nenhuma parcela cancelada ou reduzida (devolução abatida) e nenhuma extra de cheque.
+    const semMovimento =
+      !desfeito &&
+      doAcordo.length > 0 &&
+      doAcordo.every((l) => l.status === "pending" && !ehParcelaExtra(l.notes) && (pagoDe.get(l.id) ?? 0) === 0) &&
+      doAcordo.reduce((s, l) => s + centavos(decToNum(l.amount) ?? 0), 0) === centavos(decToNum(a.total) ?? 0);
     return {
       id: a.id,
       customer_id: a.customer_id,
@@ -144,7 +159,10 @@ async function montarAcordos(db: TenantPrismaClient, where: Record<string, unkno
           amount: (centavos(decToNum(l.amount) ?? 0) - (pagoDe.get(l.id) ?? 0)) / 100,
         })),
       open_total: abertoTotal / 100,
-      status: abertoTotal === 0 ? "quitado" : "ativo",
+      status: desfeito ? "desfeito" : abertoTotal === 0 ? "quitado" : "ativo",
+      undone_at: a.undone_at?.toISOString() ?? null,
+      undone_reason: a.undone_reason,
+      can_undo: semMovimento,
     };
   });
 }
@@ -280,4 +298,81 @@ export async function listarAcordosDoClienteAction(
   });
   const permitidos = new Set(lojas.filter((l) => l.establishment_id && visiveis.has(l.establishment_id)).map((l) => l.agreement_id));
   return ok(acordos.filter((a) => permitidos.has(a.id)));
+}
+
+/**
+ * Q275, dívida 2.39: desfaz um acordo SEM movimento. As parcelas ficam canceladas, as origens voltam a pendentes
+ * (com o mesmo vencimento e o que já tinham recebido) e o acordo guarda quem desfez, quando e por quê.
+ * Parcela paga, abatida por devolução ou extra de cheque devolvido: recusa (409), porque desfazer mentiria sobre o caixa.
+ */
+export async function desfazerAcordoAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  acordoId: string,
+  input: DesfazerAcordoInput,
+): Promise<ActionResult<AcordoView>> {
+  const neg = await exigir(db, ator, "acordo", "desfazer acordo");
+  if (neg) return neg;
+
+  if (typeof acordoId !== "string" || !acordoId) return fail("NOT_FOUND", "Acordo não encontrado.", 404, "agreement_id");
+  const motivo = typeof input?.reason === "string" ? input.reason.trim() : "";
+  if (!motivo) return fail("VALIDATION_ERROR", "Diga por que o acordo está sendo desfeito.", 422, "reason");
+  if (motivo.length > 500) return fail("VALIDATION_ERROR", "O motivo deve ter no máximo 500 caracteres.", 422, "reason");
+
+  try {
+    await runSerializableTenantTransaction(db, async (tx) => {
+      const txDb = tx as unknown as TenantPrismaClient;
+      const acordo = await tx.emporioCreditAgreement.findFirst({
+        where: { id: acordoId },
+        include: { customer: { select: { name: true } } },
+      });
+      if (!acordo) throw new RecusaAcordo(fail("NOT_FOUND", "Acordo não encontrado.", 404, "agreement_id"));
+      if (acordo.undone_at) throw new RecusaAcordo(fail("ACORDO_DESFEITO", "Esse acordo já foi desfeito.", 409));
+
+      const [view] = await montarAcordos(txDb, { id: acordo.id });
+      if (!view.can_undo) {
+        throw new RecusaAcordo(
+          fail(
+            "ACORDO_COM_MOVIMENTO",
+            "Esse acordo já tem movimento (parcela paga, abatida por devolução ou parcela extra de cheque devolvido) e não pode ser desfeito.",
+            409,
+          ),
+        );
+      }
+
+      const lancamentos = await tx.financialEntry.findMany({
+        where: { agreement_id: acordo.id },
+        select: { id: true, category: true, establishment_id: true, amount: true, due_date: true },
+      });
+      const parcelasIds = lancamentos.filter((l) => l.category === CATEGORIA_ACORDO).map((l) => l.id);
+      const origensIds = lancamentos.filter((l) => l.category !== CATEGORIA_ACORDO).map((l) => l.id);
+      await tx.financialEntry.updateMany({ where: { id: { in: parcelasIds } }, data: { status: "cancelled" } });
+      await tx.financialEntry.updateMany({
+        where: { id: { in: origensIds } },
+        data: { status: "pending", agreement_id: null },
+      });
+      await tx.emporioCreditAgreement.update({
+        where: { id: acordo.id },
+        data: { undone_at: new Date(), undone_by_user_id: ator.id, undone_reason: motivo },
+      });
+
+      await registrarNoHistorico(tx, ator, {
+        action: "fiado.acordo.desfazer",
+        establishment_id: lancamentos.find((l) => l.establishment_id)?.establishment_id ?? null,
+        target_type: "cliente",
+        target_id: acordo.customer_id,
+        summary: `Acordo de ${acordo.customer.name} desfeito: ${brl(centavos(decToNum(acordo.total) ?? 0))} voltam ao fiado (${motivo})`,
+        changes: [
+          { campo: "Acordo", antes: `${acordo.installments} ${acordo.installments === 1 ? "parcela" : "parcelas"}`, depois: "desfeito" },
+          { campo: "Contas de origem", antes: "no acordo", depois: `${origensIds.length} de volta ao fiado em aberto` },
+          { campo: "Motivo", antes: null, depois: motivo },
+        ],
+      });
+    });
+    const [view] = await montarAcordos(db, { id: acordoId });
+    return ok(view);
+  } catch (err) {
+    if (err instanceof RecusaAcordo) return err.recusa;
+    throw err;
+  }
 }

@@ -49,6 +49,7 @@ export const ACOES_DO_HISTORICO = {
   "fiado.liberar": "Liberou o crédito de um cliente bloqueado",
   "fiado.cobrar": "Cobrou um fiado atrasado",
   "fiado.acordo": "Acordo de fiado",
+  "fiado.acordo.desfazer": "Acordo de fiado desfeito",
   "pagamento.pedir": "Pedido de aprovação de pagamento",
   "pagamento.aprovar": "Pagamento aprovado",
   "pagamento.recusar": "Pagamento recusado",

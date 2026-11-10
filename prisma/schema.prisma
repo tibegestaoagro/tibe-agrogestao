@@ -3727,6 +3727,10 @@ model EmporioCreditAgreement {
   installments       Int
   notes              String?
   created_at         DateTime @default(now())
+  /// Q275: acordo desfeito (só sem movimento). As parcelas ficam canceladas e as origens voltam a pendentes.
+  undone_at          DateTime?
+  undone_by_user_id  String?
+  undone_reason      String?
 
   tenant     Tenant           @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   customer   EmporioCustomer  @relation(fields: [customer_id], references: [id], onDelete: Restrict)

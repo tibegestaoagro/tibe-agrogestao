@@ -3,6 +3,7 @@ import { reaisBr } from "@/lib/numero-br";
 import { dataBr } from "@/lib/emporio/datas";
 import { Badge } from "@/components/ui/badge";
 import { AcordoForm, type OrigemDoAcordo } from "./acordo-form";
+import { DesfazerAcordo } from "./desfazer-acordo";
 
 const DATA = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo" });
 
@@ -40,6 +41,22 @@ export function AcordosDoCliente({
       ) : (
         <ul className="space-y-3">
           {acordos.map((a) => {
+            if (a.status === "desfeito" && a.undone_at) {
+              return (
+                <li key={a.id} className="rounded-lg border border-borda bg-superficie p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-medium text-texto">
+                      Acordo de {DATA.format(new Date(a.created_at))}, {reaisBr(a.total)}
+                    </p>
+                    <Badge variant="gray">Desfeito</Badge>
+                  </div>
+                  <p className="mt-1 break-words text-sm text-texto-secundario">
+                    Desfeito em {DATA.format(new Date(a.undone_at)).slice(0, 5)}
+                    {a.undone_reason ? `: ${a.undone_reason}` : ""}
+                  </p>
+                </li>
+              );
+            }
             const pagas = a.installments.filter((p) => p.status === "paga").length;
             const abatidas = a.installments.filter((p) => p.status === "abatida").length;
             // A parcela abatida (zerada por devolução abatida no fiado) não é paga nem aberta.
@@ -72,6 +89,11 @@ export function AcordosDoCliente({
                   </p>
                 )}
                 {a.notes && <p className="mt-1 break-words text-sm text-texto-secundario">{a.notes}</p>}
+                {podeFazer && a.can_undo && (
+                  <div className="mt-3">
+                    <DesfazerAcordo customerId={customerId} agreementId={a.id} />
+                  </div>
+                )}
               </li>
             );
           })}
