@@ -25,8 +25,8 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-10 à noite. Branch `emporio-peso-total` (seção
-  abaixo) em produção (Neon, merge e push autorizados), como orçamento e boleto.
+- Atualizado em: 2026-11-10 à noite. Branch `emporio-dois-custos` (seção
+  abaixo) pronta e NÃO publicada. Peso, orçamento e boleto em produção.
   Outros agentes: leia `AGENTS.md`.
 - `main` igual a `origin/main`, Neon em dia. Em produção também: conta avulsa e
   2.64/2.65, Apresentação sempre visível, observação no impresso, cliente no
@@ -34,42 +34,32 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   e editar venda (Q244 a Q249), o financeiro (Q214 a Q243); evidências em
   [financeiro-emporio-relatorio.md](financeiro-emporio-relatorio.md).
 
-### Peso total, regra por nome de apresentação (Q291, Q292): em produção
+### Dois custos e base do preço sugerido (Q293 a Q297): branch pronta
 
-Branch `emporio-peso-total`, commits `936926b` a `406354a`. Q291: peso por
-item e total (calculado pela unidade e pelo conteúdo) no impresso do orçamento
-e da venda, na tela da venda e no romaneio. Q292: regra do Vendeu, Pagou por
-nome de apresentação em qualquer produto (`presentation_name`; migração
-`20261110230000_emporio_regra_por_nome_de_apresentacao` no Docker e no Neon).
-`test:all` 111/111; m110 e m111 vistas falhar; roteiros `emporio-regra-apresentacao`
-(nos dois sentidos), `emporio-impressao`, `emporio-romaneio` e
-`emporio-relatorios-exportacao` verdes. Falta a Agromax criar a regra de FRANQUIA.
+Branch `emporio-dois-custos`, commits `610b425` a `30b5e8b`. Spec
+[../superpowers/specs/2026-11-10-emporio-dois-custos-design.md](../superpowers/specs/2026-11-10-emporio-dois-custos-design.md).
+Diagnóstico (produção, leitura): o TALCO/ GEL virou 1,31 por estoque fantasma
+(compra lançada antes da contagem). Custo médio e última compra lado a lado,
+base do sugerido por loja (padrão o maior), aviso de 10%, saldo antes da
+compra, sem estoque o sugerido pela última compra. Migração
+`20261111090000_emporio_base_do_preco_sugerido` só no Docker. `test:all` 112/112,
+m112 sabotada, roteiro `emporio-dois-custos` nos dois sentidos. Aberta 2.71.
+Falta: autorizar Neon, merge e push.
 
-### Editar, cancelar e refazer orçamento (Q285 a Q290): em produção
+### Em produção em 09 e 10/11 (detalhe nas specs e no git log)
 
-Commits `a418817` a `2d62ad6`, spec
-[../superpowers/specs/2026-11-10-emporio-editar-e-cancelar-orcamento-design.md](../superpowers/specs/2026-11-10-emporio-editar-e-cancelar-orcamento-design.md).
-Editar aberto ou vencido (renova validade e preços), cancelar com motivo,
-"Novo orçamento a partir deste"; migração no Neon; m109 e roteiro
-`emporio-orcamento-editar` verdes. Falta a Agromax usar num orçamento real.
-
-### Boleto, titular do cheque, dívidas 2.67 e 2.68: em produção
-
-Spec [../superpowers/specs/2026-11-10-emporio-boleto-e-titular-do-cheque-design.md](../superpowers/specs/2026-11-10-emporio-boleto-e-titular-do-cheque-design.md)
-(Q278 a Q284): boleto como o cheque, "Em nome de" obrigatório; migração no
-Neon; m108 e roteiro `emporio-boleto` nos dois sentidos. Fechadas 2.67, 2.68
-e 2.70; aberta 2.69 (tarifa).
-
-### Desfazer acordo, aviso por email, recalcular o mês (Q275 a Q277): em produção
-
-Branch `emporio-acordo-aviso-rateio`, empilhada sobre a anterior. Spec
-[../superpowers/specs/2026-11-09-emporio-acordo-aviso-rateio-design.md](../superpowers/specs/2026-11-09-emporio-acordo-aviso-rateio-design.md).
-Desfazer acordo só sem movimento (origens voltam pendentes); pedido de
-pagamento avisa também por email; recalcular o mês do rateio automático em
-transação serializável, nunca em mês com conta paga. Migrações
-`20261110120000_emporio_acordo_desfeito` e
-`20261110130000_emporio_email_pedido_pagamento` aplicadas no Docker e Neon.
-`test:m106`, build e isolamento verdes. Fechadas 2.39, 2.40, 2.53; aberta 2.66.
+- Peso total (Q291) e regra do Vendeu, Pagou por nome de apresentação (Q292):
+  m110, m111, roteiros `emporio-regra-apresentacao` e `emporio-impressao`.
+  Falta a Agromax criar a regra de FRANQUIA.
+- Editar, cancelar e refazer orçamento (Q285 a Q290,
+  [spec](../superpowers/specs/2026-11-10-emporio-editar-e-cancelar-orcamento-design.md)):
+  m109 e roteiro `emporio-orcamento-editar`.
+- Boleto e titular do cheque (Q278 a Q284,
+  [spec](../superpowers/specs/2026-11-10-emporio-boleto-e-titular-do-cheque-design.md)):
+  m108 e roteiro `emporio-boleto`. Fechadas 2.67, 2.68, 2.70; aberta 2.69.
+- Desfazer acordo, aviso por email, recalcular o mês (Q275 a Q277,
+  [spec](../superpowers/specs/2026-11-09-emporio-acordo-aviso-rateio-design.md)):
+  m106. Fechadas 2.39, 2.40, 2.53; aberta 2.66.
 
 ### Cartão (Q250 a Q267): entregas 1 a 3 em produção
 
@@ -80,7 +70,7 @@ Agromax, a entrega 4 (extrato da Stone) depende de um arquivo real.
 
 ### ⏭️ Próximo passo
 
-1. Na Agromax: criar a regra por apresentação (FRANQUIA) e editar e cancelar um orçamento real; conferir o boleto e o "Em nome de" numa venda real.
+1. Com autorização: migração dos dois custos no Neon, merge e push da `emporio-dois-custos`. Na Agromax: contar o estoque antes de lançar compra de produto que acabou; criar a regra por apresentação (FRANQUIA) e editar e cancelar um orçamento real; conferir o boleto e o "Em nome de" numa venda real.
 2. Na Agromax (usuário, pelas telas): Stone, taxas do mês, regra de dia útil
    e, se usar, a antecipação automática; confirmar as decisões do agente do
    cartão e do frete; responder o setor; decidir se o vendedor vê o líquido
