@@ -27,6 +27,7 @@ import {
 import { lojaVisivel, lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
 import { acharLojaParaEscrita, lerMovimentos } from "@/lib/actions/emporio-estoque";
 import { normalizarTermo } from "@/lib/actions/whatsapp-handlers/shared";
+import { pesoDoItemKg } from "@/lib/emporio/peso";
 
 /**
  * Meu Empório, entrega 4: o orçamento. Salvar não mexe em estoque, caixa nem
@@ -93,6 +94,8 @@ export type OrcamentoItemView = {
   saldo_base: number;
   /** A quantidade do item, na unidade-base, passa do saldo. */
   falta: boolean;
+  /** Q291: peso do item em quilos (só o papel o mostra); nulo sem conteúdo em quilograma. */
+  peso_kg: number | null;
   total: number;
 };
 
@@ -143,7 +146,9 @@ const INCLUDE_ORCAMENTO = {
   derived: { select: { id: true, number: true }, orderBy: { number: "asc" } },
   items: {
     include: {
-      emporio_product: { select: { product_id: true, product: { select: { name: true } } } },
+      emporio_product: {
+        select: { product_id: true, base_unit: true, content_qty: true, content_unit: true, product: { select: { name: true } } },
+      },
       presentation: { select: { name: true, base_qty: true } },
     },
     orderBy: { id: "asc" },
@@ -229,6 +234,14 @@ async function montarOrcamentos(db: TenantPrismaClient, linhas: OrcamentoRow[]):
         mudou: precoQueValeHoje !== orcado,
         saldo_base: saldo,
         falta: baseQty > saldo,
+        peso_kg: pesoDoItemKg(
+          {
+            base_unit: i.emporio_product.base_unit,
+            content_qty: decToNum(i.emporio_product.content_qty),
+            content_unit: i.emporio_product.content_unit,
+          },
+          baseQty,
+        ),
         total: decToNum(i.total) ?? 0,
       };
     });

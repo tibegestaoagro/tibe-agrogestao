@@ -1,4 +1,5 @@
 import type { RomaneioView } from "@/lib/actions/emporio-impressao";
+import { pesoBr, textoDoPesoTotal } from "@/lib/emporio/peso";
 import { TamanhoDaBobina } from "./tamanho-da-bobina";
 import { avisoDaSituacao } from "./romaneio-aviso";
 
@@ -25,6 +26,7 @@ function estilo(largura: 80 | 58): string {
 
 export function RomaneioCupom({ d }: { d: RomaneioView }) {
   const aviso = avisoDaSituacao(d.situacao);
+  const pesoTotalTexto = textoDoPesoTotal(d.peso_total_kg, d.itens_sem_peso);
   return (
     <article className="cupom">
       <style>{estilo(d.largura_bobina)}</style>
@@ -50,6 +52,7 @@ export function RomaneioCupom({ d }: { d: RomaneioView }) {
           <span className="caixa" />
           <span>
             {i.quantidade} x {i.produto} ({i.apresentacao})
+            {i.peso_kg !== null ? ` [${pesoBr(i.peso_kg)}]` : ""}
           </span>
         </div>
       ))}
@@ -57,6 +60,7 @@ export function RomaneioCupom({ d }: { d: RomaneioView }) {
       <div>
         {d.linhas} {d.linhas === 1 ? "linha de produto" : "linhas de produto"}
       </div>
+      {pesoTotalTexto && <div className="nome g">{pesoTotalTexto}</div>}
       {d.observacoes && (
         <>
           <hr />

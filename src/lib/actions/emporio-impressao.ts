@@ -9,6 +9,7 @@ import type { OrigemDaVenda } from "@/lib/emporio/frete";
 import { CONSUMIDOR_FINAL, formatarCep, formatarDocumento } from "@/lib/contatos/cadastro";
 import { ehConsumidorFinal } from "@/lib/emporio/cliente-cadastro";
 import { formatarNumero } from "@/lib/emporio/numeracao";
+import { pesoTotal } from "@/lib/emporio/peso";
 import { ROTULO_DA_BANDEIRA, type Bandeira } from "@/lib/emporio/cartao";
 import { FORMA_ROTULO } from "@/app/(dashboard)/emporio/_components/venda-rotulos";
 import { numeroBr } from "@/app/(dashboard)/emporio/_components/formato";
@@ -35,7 +36,10 @@ export type ImpressoVenda = {
   tem_logo: boolean;
   logo_updated_at: string | null;
   cliente: { nome: string; documento: string | null; telefone: string | null; endereco: string | null } | null;
-  itens: { produto: string; quantidade: string; preco: number; total: number }[];
+  itens: { produto: string; quantidade: string; peso_kg: number | null; preco: number; total: number }[];
+  /** Q291: soma dos pesos; nulo quando nenhum item tem peso (o papel não mostra a linha). */
+  peso_total_kg: number | null;
+  itens_sem_peso: number;
   subtotal: number;
   desconto: number;
   /** Frete cobrado do cliente (Q244); 0 sem frete e no orçamento. */
@@ -77,7 +81,10 @@ export type RomaneioView = {
   cliente: { nome: string; telefone: string | null; documento: string | null };
   pedido_para_entrega: boolean;
   endereco_de_entrega: string | null;
-  itens: { produto: string; apresentacao: string; quantidade: string }[];
+  itens: { produto: string; apresentacao: string; quantidade: string; peso_kg: number | null }[];
+  /** Q291: soma dos pesos; nulo quando nenhum item tem peso. */
+  peso_total_kg: number | null;
+  itens_sem_peso: number;
   linhas: number;
   observacoes: string | null;
   vendedor: string | null;
@@ -168,7 +175,14 @@ async function lerLojaEClienteDoPapel(
  * sugerido x quantidade erraria 1 centavo no granel fracionado.
  */
 function itensNoPrecoSugerido(
-  linhas: { produto: string; quantity: number; unit_price: number; suggested_price: number | null; total: number }[],
+  linhas: {
+    produto: string;
+    quantity: number;
+    unit_price: number;
+    suggested_price: number | null;
+    total: number;
+    peso_kg: number | null;
+  }[],
 ): { itens: ImpressoVenda["itens"]; subtotal: number } {
   const centavos = (n: number) => Math.round(Number((n * 100).toPrecision(12)));
   const itens = linhas.map((i) => {
@@ -177,7 +191,7 @@ function itensNoPrecoSugerido(
     const total = comDesconto
       ? (centavos(i.total) + centavos((preco - i.unit_price) * i.quantity)) / 100
       : i.total;
-    return { produto: i.produto, quantidade: numeroBr(i.quantity), preco, total };
+    return { produto: i.produto, quantidade: numeroBr(i.quantity), peso_kg: i.peso_kg, preco, total };
   });
   const subtotal = Math.round(itens.reduce((t, x) => t + Math.round(x.total * 100), 0)) / 100;
   return { itens, subtotal };
@@ -210,8 +224,10 @@ export async function lerImpressoDaVendaAction(
       unit_price: i.unit_price,
       suggested_price: i.suggested_price,
       total: i.total,
+      peso_kg: i.weight_kg,
     })),
   );
+  const pesos = pesoTotal(itens.map((i) => i.peso_kg));
   const pago = v.payments.reduce((t, p) => t + p.amount, 0);
   // So e nao nulo se a soma dos pagamentos passar do total; hoje o dinheiro e gravado sem o valor entregue, entao fica null.
   const troco = Math.round((pago - v.total_amount) * 100) / 100;
@@ -226,6 +242,8 @@ export async function lerImpressoDaVendaAction(
     logo_updated_at: cfg.logo_updated_at,
     cliente,
     itens,
+    peso_total_kg: pesos.total_kg,
+    itens_sem_peso: pesos.sem_peso,
     subtotal,
     desconto: v.discount_amount,
     frete: v.freight_amount,
@@ -333,7 +351,10 @@ export async function lerRomaneioDaVendaAction(
       produto: i.product_name,
       apresentacao: i.presentation_name,
       quantidade: numeroBr(i.quantity),
+      peso_kg: i.weight_kg,
     })),
+    peso_total_kg: v.total_weight_kg,
+    itens_sem_peso: v.items_without_weight,
     linhas: v.items.length,
     observacoes: v.notes,
     vendedor: v.seller_name,
@@ -365,8 +386,10 @@ export async function lerImpressoDoOrcamentoAction(
       unit_price: i.preco_orcado,
       suggested_price: i.preco_sugerido,
       total: i.total,
+      peso_kg: i.peso_kg,
     })),
   );
+  const pesos = pesoTotal(itens.map((i) => i.peso_kg));
   const [ano, mes, dia] = q.valid_until.split("-");
 
   return ok({
@@ -379,6 +402,8 @@ export async function lerImpressoDoOrcamentoAction(
     logo_updated_at: cfg.logo_updated_at,
     cliente,
     itens,
+    peso_total_kg: pesos.total_kg,
+    itens_sem_peso: pesos.sem_peso,
     subtotal,
     desconto: q.discount_amount,
     frete: 0,

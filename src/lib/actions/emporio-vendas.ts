@@ -3,6 +3,7 @@ import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { dinheiro, itens as frasItens, registrarNoHistorico } from "@/lib/emporio/historico";
 import { CATEGORIA_ACORDO } from "@/lib/emporio/acordo";
+import { pesoDoItemKg, pesoTotal } from "@/lib/emporio/peso";
 import { CATEGORIA_FRETE, ORIGENS_DA_VENDA, type OrigemDaVenda } from "@/lib/emporio/frete";
 import { contaEmAprovacao, EM_APROVACAO } from "@/lib/emporio/pedido-pagamento";
 import { decToNum, isoOrNull } from "@/lib/serialize";
@@ -141,6 +142,8 @@ export type VendaItemView = {
   presentation_name: string;
   quantity: number;
   base_qty: number;
+  /** Q291: peso do item em quilos, calculado da quantidade-base; nulo sem conteúdo em quilograma. */
+  weight_kg: number | null;
   suggested_price: number | null;
   unit_price: number;
   total: number;
@@ -250,6 +253,9 @@ export type VendaView = {
   open_amount: number;
   created_at: string;
   items: VendaItemView[];
+  /** Q291: soma dos pesos dos itens; nulo quando nenhum item tem peso. */
+  total_weight_kg: number | null;
+  items_without_weight: number;
   payments: VendaPagamentoView[];
   returns: DevolucaoView[];
 };
@@ -351,6 +357,14 @@ async function montarVendas(db: TenantPrismaClient, linhas: VendaRow[]): Promise
         presentation_name: i.presentation.name,
         quantity,
         base_qty: decToNum(i.base_qty) ?? 0,
+        weight_kg: pesoDoItemKg(
+          {
+            base_unit: i.emporio_product.base_unit,
+            content_qty: decToNum(i.emporio_product.content_qty),
+            content_unit: i.emporio_product.content_unit,
+          },
+          decToNum(i.base_qty) ?? 0,
+        ),
         suggested_price: sugerido,
         unit_price: decToNum(i.unit_price) ?? 0,
         total: decToNum(i.total) ?? 0,
@@ -361,6 +375,7 @@ async function montarVendas(db: TenantPrismaClient, linhas: VendaRow[]): Promise
         returnable_qty: Math.max(0, arred3(quantity - devolvido)),
       };
     });
+    const pesos = pesoTotal(itens.map((i) => i.weight_kg));
     const desconto = decToNum(s.discount_amount) ?? 0;
     return {
       id: s.id,
@@ -401,6 +416,8 @@ async function montarVendas(db: TenantPrismaClient, linhas: VendaRow[]): Promise
       open_amount: aberto,
       created_at: s.created_at.toISOString(),
       items: itens,
+      total_weight_kg: pesos.total_kg,
+      items_without_weight: pesos.sem_peso,
       payments: s.payments.map((p) => ({
         id: p.id,
         kind: p.kind,

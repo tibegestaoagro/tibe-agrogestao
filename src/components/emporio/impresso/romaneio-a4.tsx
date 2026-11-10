@@ -1,4 +1,5 @@
 import type { RomaneioView } from "@/lib/actions/emporio-impressao";
+import { pesoBr, textoDoPesoTotal } from "@/lib/emporio/peso";
 import { LogoDoPapel } from "./logo-do-papel";
 import { avisoDaSituacao } from "./romaneio-aviso";
 
@@ -38,6 +39,7 @@ export function RomaneioA4({ d }: { d: RomaneioView }) {
   const contato = [d.loja.telefone, d.loja.whatsapp ? `WhatsApp ${d.loja.whatsapp}` : null].filter(Boolean).join(" · ");
   const dadosCliente = [d.cliente.telefone, d.cliente.documento].filter(Boolean).join(" · ");
   const aviso = avisoDaSituacao(d.situacao);
+  const pesoTotalTexto = textoDoPesoTotal(d.peso_total_kg, d.itens_sem_peso);
   return (
     <article className="a4">
       <style>{ESTILO}</style>
@@ -98,6 +100,7 @@ export function RomaneioA4({ d }: { d: RomaneioView }) {
             <th>Produto</th>
             <th>Apresentação</th>
             <th className="n">Quantidade</th>
+            <th className="n">Peso</th>
           </tr>
         </thead>
         <tbody>
@@ -111,6 +114,7 @@ export function RomaneioA4({ d }: { d: RomaneioView }) {
               <td className="n">
                 <b>{i.quantidade}</b>
               </td>
+              <td className="n">{i.peso_kg === null ? "Sem peso" : pesoBr(i.peso_kg)}</td>
             </tr>
           ))}
         </tbody>
@@ -118,6 +122,11 @@ export function RomaneioA4({ d }: { d: RomaneioView }) {
       <p className="contagem">
         {d.linhas} {d.linhas === 1 ? "linha de produto" : "linhas de produto"}
       </p>
+      {pesoTotalTexto && (
+        <p className="contagem">
+          <b>{pesoTotalTexto}</b>
+        </p>
+      )}
 
       {d.observacoes && (
         <section className="bloco">

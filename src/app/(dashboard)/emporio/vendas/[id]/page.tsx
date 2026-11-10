@@ -11,6 +11,7 @@ import { formatarNumero } from "@/lib/emporio/numeracao";
 import { ROTULO_DA_ORIGEM } from "@/lib/emporio/frete";
 import { linhaDoEndereco } from "@/lib/emporio/pedido-para-entrega";
 import { reaisBr } from "@/lib/numero-br";
+import { pesoBr, textoDoPesoTotal } from "@/lib/emporio/peso";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -252,6 +253,7 @@ export default async function VendaPage({ params }: { params: Promise<{ id: stri
             <TableRow>
               <TableHead>Produto</TableHead>
               <TableHead>Quantidade</TableHead>
+              <TableHead>Peso</TableHead>
               <TableHead>Preço</TableHead>
               <TableHead>Total</TableHead>
               <TableHead>Devolvido</TableHead>
@@ -266,6 +268,7 @@ export default async function VendaPage({ params }: { params: Promise<{ id: stri
                   {i.cost_provisional && <Badge variant="amber">Custo provisório</Badge>}
                 </TableCell>
                 <TableCell>{numeroBr(i.quantity)}</TableCell>
+                <TableCell>{i.weight_kg === null ? "Sem peso" : pesoBr(i.weight_kg)}</TableCell>
                 <TableCell>
                   {reaisBr(i.unit_price)}
                   {i.suggested_price !== null && i.unit_price < i.suggested_price && (
@@ -297,6 +300,9 @@ export default async function VendaPage({ params }: { params: Promise<{ id: stri
               Total com frete: <strong>{reaisBr(venda.total_amount)}</strong>
             </p>
           </>
+        )}
+        {textoDoPesoTotal(venda.total_weight_kg, venda.items_without_weight) && (
+          <p className="text-sm font-medium text-texto">{textoDoPesoTotal(venda.total_weight_kg, venda.items_without_weight)}</p>
         )}
         {venda.notes && <p className="text-sm text-texto-secundario">Observação: {venda.notes}</p>}
       </section>

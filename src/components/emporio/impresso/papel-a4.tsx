@@ -1,5 +1,6 @@
 import type { ImpressoVenda } from "@/lib/actions/emporio-impressao";
 import { reaisBr } from "@/lib/numero-br";
+import { pesoBr, textoDoPesoTotal } from "@/lib/emporio/peso";
 import { LogoDoPapel } from "./logo-do-papel";
 
 /**
@@ -34,6 +35,7 @@ const DATA_HORA = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paul
 
 export function PapelA4({ d }: { d: ImpressoVenda }) {
   const orcamento = d.tipo === "orcamento";
+  const pesoTotalTexto = textoDoPesoTotal(d.peso_total_kg, d.itens_sem_peso);
   const contato = [d.loja.telefone, d.loja.whatsapp ? `WhatsApp ${d.loja.whatsapp}` : null].filter(Boolean).join(" · ");
   const dadosCliente = d.cliente ? [d.cliente.documento, d.cliente.telefone, d.cliente.endereco].filter(Boolean).join(" · ") : "";
   return (
@@ -83,6 +85,7 @@ export function PapelA4({ d }: { d: ImpressoVenda }) {
           <tr>
             <th>Produto</th>
             <th className="n">Qtd</th>
+            <th className="n">Peso</th>
             <th className="n">Preço</th>
             <th className="n">Total</th>
           </tr>
@@ -92,6 +95,7 @@ export function PapelA4({ d }: { d: ImpressoVenda }) {
             <tr key={k}>
               <td>{i.produto}</td>
               <td className="n">{i.quantidade}</td>
+              <td className="n">{i.peso_kg === null ? "Sem peso" : pesoBr(i.peso_kg)}</td>
               <td className="n">{reaisBr(i.preco)}</td>
               <td className="n">{reaisBr(i.total)}</td>
             </tr>
@@ -120,6 +124,7 @@ export function PapelA4({ d }: { d: ImpressoVenda }) {
           <span>Total</span>
           <span>{reaisBr(d.total)}</span>
         </div>
+        {pesoTotalTexto && <div>{pesoTotalTexto}</div>}
       </div>
 
       {orcamento ? (

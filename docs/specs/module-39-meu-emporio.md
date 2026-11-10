@@ -378,6 +378,7 @@ cliente real com as duas coisas vai precisar.
 | Q288 | **Quem edita e cancela** é quem cria orçamento (`vendedor_da_loja`) | decisão do usuário em 10/11/2026 |
 | Q289 | **Editar, cancelar e faturar** em transação com guarda; faturar recusa o cancelado (`QUOTE_CANCELED`) | a venda já protege o orçamento assim |
 | Q290 | **Histórico** `orcamento.editar` e `orcamento.cancelar`; a criação a partir de outro cita a origem | toda escrita do Empório no Histórico |
+| Q291 | **Peso total** no impresso do orçamento (A4 e cupom), na venda (tela e impresso) e no romaneio: peso por item e "Peso total: X kg". Calculado, nunca gravado: quilograma é a própria quantidade-base, tonelada vezes 1.000, saca, fardo, unidade e as outras com `content_unit` quilograma são quantidade-base vezes `content_qty`. Litro e unidade sem conteúdo em kg ficam "sem peso": o total soma os demais e avisa "(N itens sem peso)"; sem nenhum item com peso, o total não aparece. Função pura em `src/lib/emporio/peso.ts` | pedido do usuário em 10/11/2026: "fazer aparecer o peso total do produto no orçamento", e também na venda e no romaneio, para carregar a entrega |
 
 Design do desfazer acordo, do aviso por email e do recálculo do mês (Q275 a Q277) em
 [../superpowers/specs/2026-11-09-emporio-acordo-aviso-rateio-design.md](../superpowers/specs/2026-11-09-emporio-acordo-aviso-rateio-design.md).

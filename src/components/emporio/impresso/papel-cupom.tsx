@@ -1,5 +1,6 @@
 import type { ImpressoVenda } from "@/lib/actions/emporio-impressao";
 import { reaisBr } from "@/lib/numero-br";
+import { pesoBr, textoDoPesoTotal } from "@/lib/emporio/peso";
 import { TamanhoDaBobina } from "./tamanho-da-bobina";
 
 /** Comprovante de venda na bobina (80 ou 58 mm). Sem logo, preto sobre branco. */
@@ -23,6 +24,7 @@ function estilo(largura: 80 | 58): string {
 
 export function PapelCupom({ d }: { d: ImpressoVenda }) {
   const orcamento = d.tipo === "orcamento";
+  const pesoTotalTexto = textoDoPesoTotal(d.peso_total_kg, d.itens_sem_peso);
   return (
     <article className="cupom">
       <style>{estilo(d.largura_bobina)}</style>
@@ -54,6 +56,7 @@ export function PapelCupom({ d }: { d: ImpressoVenda }) {
           <div className="l">
             <span>
               {i.quantidade} x {reaisBr(i.preco)}
+              {i.peso_kg !== null ? ` (${pesoBr(i.peso_kg)})` : ""}
             </span>
             <span>{reaisBr(i.total)}</span>
           </div>
@@ -80,6 +83,7 @@ export function PapelCupom({ d }: { d: ImpressoVenda }) {
         <span>TOTAL</span>
         <span>{reaisBr(d.total)}</span>
       </div>
+      {pesoTotalTexto && <div className="nome">{pesoTotalTexto}</div>}
       {d.pagamentos.length > 0 && <hr />}
       {d.pagamentos.map((p, k) => (
         <div key={k} className="l">
