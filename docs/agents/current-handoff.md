@@ -25,10 +25,10 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-10 de madrugada (relatórios e limpeza, e desfazer
-  acordo, aviso por email e recalcular o mês em produção: migrações no Neon,
-  merge fast-forward e push autorizados na conversa; deploy conferido no
-  `/docs/api` em 10/11). **Daqui em diante o trabalho segue com o Codex: leia `AGENTS.md` na raiz** (as travas do Claude Code em `.claude/hooks/` não valem para ele).
+- Atualizado em: 2026-11-10. O trabalho do Codex está na branch
+  `codex/dividas-264-265`; leia `AGENTS.md` na raiz. A branch não foi
+  integrada nem enviada à `main`. A migração da conta avulsa só foi aplicada
+  no Postgres local, nunca no Neon.
 - `main` em `7314f69` (igual a `origin/main`), nenhuma migração pendente no
   Neon. Em produção também: cartão (Q250 a Q267), frete e editar venda (Q244
   a Q249), o financeiro (Q214 a Q243); evidências em
@@ -46,7 +46,18 @@ impressão; gráfico do saldo projetado; custo efetivo do cartão no Resultado;
 contas sem vencimento à parte; limpeza da 2.63; email do seed trocado para
 `owner@example.com` (Q274; o banco local também). `test:m105` 101, roteiro
 `emporio-relatorios-exportacao` 44 checks nos dois sentidos (sabotado: 3).
-Fechadas 2.45, 2.46, 2.50, 2.54, 2.61; abertas 2.64 e 2.65 (a m99 reprova entre 21h e meia-noite de Brasília por calcular o dia em UTC; não é regressão).
+Fechadas 2.45, 2.46, 2.50, 2.54, 2.61. As dívidas 2.64 e 2.65 foram
+resolvidas na branch do Codex descrita abaixo.
+
+### Branch `codex/dividas-264-265`: aguardando revisão, fora de produção
+
+Fechadas 2.64 e 2.65: calendário m99, escopo da antecipação, CSV por conta,
+datas compartilhadas e campo do cursor. Conta avulsa: loja obrigatória,
+fornecedor ou Outros, pendente ou paga com origem do dinheiro e alçada;
+marcador explícito em `FinancialEntry`, sem efeito no Resultado da Loja.
+Specs e planos em `docs/superpowers/` de 10/11; commits `7622ebd` a `5b66c73`.
+`test:all -- --sem-redis` 107/107, `check`, `tsc`, `lint` (13 avisos antigos),
+build e navegador local verdes. Revisão final pendente antes de integrar.
 
 ### Desfazer acordo, aviso por email, recalcular o mês (Q275 a Q277): em produção
 
@@ -56,27 +67,20 @@ Desfazer acordo só sem movimento (origens voltam pendentes); pedido de
 pagamento avisa também por email; recalcular o mês do rateio automático em
 transação serializável, nunca em mês com conta paga. Migrações
 `20261110120000_emporio_acordo_desfeito` e
-`20261110130000_emporio_email_pedido_pagamento` aplicadas no Docker e no Neon.
-`test:m106` verde, `test:all` 105/106 (só a m99 pelo horário: 2.65), build e isolamento verdes, roteiro `emporio-acordo-rateio` 28 checks nos dois
-sentidos (sabotado: 2). Fechadas 2.39, 2.40, 2.53; aberta 2.66.
+`20261110130000_emporio_email_pedido_pagamento` aplicadas no Docker e Neon.
+`test:m106`, build e isolamento verdes. Fechadas 2.39, 2.40, 2.53; aberta 2.66.
 
 ### Cartão (Q250 a Q267): entregas 1 a 3 em produção
 
-Specs [../superpowers/specs/2026-11-09-emporio-taxas-de-cartao-design.md](../superpowers/specs/2026-11-09-emporio-taxas-de-cartao-design.md)
-e [../superpowers/specs/2026-11-09-emporio-cartao-entregas-2-e-3-design.md](../superpowers/specs/2026-11-09-emporio-cartao-entregas-2-e-3-design.md);
-pesquisa em `reports/Taxas de cartão no Empório.md` (fora do git). Adquirente
-como cadastro, taxa por loja, adquirente, bandeira, modalidade e faixa de
-parcelas com vigência (Configurações); parcela em dia útil com taxa e
-efetivos próprios; antecipação pontual e automática; cancelamento como a
-Stone. Abertas 2.60, 2.62, 2.63 (só o item do vendedor). A confirmar: taxas
-mexidas pelo gestor e pelo Financeiro; adquirente só Dono e Gerente geral.
-Na Agromax: "Maquininha" vira "Stone", taxas do mês por bandeira e parcelas;
-a entrega 4 (extrato da Stone) depende de um arquivo real.
+Specs em `docs/superpowers/specs/` de 09/11. Adquirentes e taxas por loja,
+bandeira, modalidade e parcelas; recebíveis em dia útil, antecipação pontual
+e automática, cancelamento como a Stone. Abertas 2.60, 2.62 e 2.63. Na
+Agromax, a entrega 4 (extrato da Stone) depende de um arquivo real.
 
 ### ⏭️ Próximo passo
 
-1. Sem depender de ninguém: corrigir a suíte do fiado para calcular o dia
-   em Brasília (2.65) e os miúdos de limpeza (2.64).
+1. Revisar a branch `codex/dividas-264-265`; aplicar a migração no Neon,
+   integrar, enviar à `main` e publicar só mediante pedido explícito do usuário.
 2. Na Agromax (usuário, pelas telas): Stone, taxas do mês, regra de dia útil
    e, se usar, a antecipação automática; confirmar as decisões do agente do
    cartão e do frete; responder o setor; decidir se o vendedor vê o líquido
@@ -91,10 +95,8 @@ Spec do módulo: [../specs/module-39-meu-emporio.md](../specs/module-39-meu-empo
 (decisões até a Q213). Dívidas do módulo em [dividas.md](dividas.md), de 2.15 a
 2.27 e de 5.19 a 5.22. Manual em `/manual`, roteiro `manual-emporio`.
 
-Os três planos de 06/11 (clientes e fornecedores, a escolha, entrega e
-romaneio; `test:m95` a `m97`, Q191 a Q213) estão em produção desde 07/11
-(detalhe em `historico/2026-11.md`; `emporio-romaneio` precisa de `pypdf`).
-As pendências de produto do Empório que esperam o usuário estão em
+Os planos de 06/11 (Q191 a Q213, `test:m95` a `m97`) estão em produção;
+detalhe em `historico/2026-11.md`. Pendências do usuário em
 [pendencias-do-usuario.md](pendencias-do-usuario.md), seção do Empório.
 
 Não ligue recurso nem escreva dado da Da Mata pelo agente: quem faz é o
@@ -189,10 +191,10 @@ relatórios em [agente-whatsapp/](agente-whatsapp/), detalhe em
 
 ## Últimas rodadas
 
+- 10/11: dívidas 2.64 e 2.65 e conta avulsa na branch do Codex; banco local,
+  sem integração à `main` nem deploy.
 - 10/11: desfazer acordo, aviso por email e recalcular o mês (Q275 a Q277)
   e, por baixo, relatórios e limpeza (Q268 a Q274) em produção, autorizados
   na conversa.
 - 09/11: frete e editar venda (Q244 a Q249) e o cartão inteiro (Q250 a
   Q267) em produção, autorizados na conversa.
-- 07 e 08/11: spec e as quatro entregas do financeiro do Empório em produção
-  (juiz 8 a 9/10); handoff arquivado em `historico/2026-11.md`.
