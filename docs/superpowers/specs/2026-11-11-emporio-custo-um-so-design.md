@@ -55,7 +55,10 @@ Q297 (sem estoque, o custo é a última compra).
   loja (o PATCH ignora o campo, como qualquer campo desconhecido).
 - Ficam `average_cost` (nulo sem estoque), `suggested_cost` (o custo único) e
   `suggested_cost_source` (`medio`, `ultima_compra` ou `referencia`).
-- Migração `20261111150000_emporio_custo_um_so`: derruba a coluna e o enum.
+- A coluna `Establishment.price_cost_basis` e o enum ficam no banco, sem uso,
+  neste deploy: o código que estava no ar ainda os lia, e derrubar antes do
+  push quebraria as telas do Empório durante o deploy. Saem num deploy
+  pequeno, fora do horário da loja (expandir e depois contrair).
 
 ## Correção do histórico em produção
 
