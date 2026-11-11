@@ -501,7 +501,14 @@ export type OrcamentoCorpo = Pick<
  * As validações e o preço do orçamento, comuns a salvar e editar: vendedor, cliente
  * (cadastro completo), pedido para entrega, itens e desconto. Não grava nada.
  */
-async function prepararCorpo(db: TenantPrismaClient, ator: Ator, loja: { id: string }, input: OrcamentoCorpo) {
+async function prepararCorpo(
+  db: TenantPrismaClient,
+  ator: Ator,
+  loja: { id: string },
+  input: OrcamentoCorpo,
+  /** Na edição, o franqueado que o orçamento já tinha: aceito mesmo arquivado. */
+  franqueadoAtual: string | null = null,
+) {
   const lojaExtra = await db.establishment.findFirst({
     where: { id: loja.id },
     select: { max_discount_pct: true },
@@ -520,7 +527,7 @@ async function prepararCorpo(db: TenantPrismaClient, ator: Ator, loja: { id: str
   const entrega = resolverPedidoParaEntrega(cliente, input);
   if (!entrega.ok) return entrega;
 
-  const franquia = await resolverFranqueadoDoCredito(db, input.franchisee_id, input.franchisee_credit);
+  const franquia = await resolverFranqueadoDoCredito(db, input.franchisee_id, input.franchisee_credit, [franqueadoAtual]);
   if (!franquia.ok) return franquia;
 
   if (!Array.isArray(input.items) || input.items.length === 0) {
@@ -706,7 +713,7 @@ export async function editarOrcamentoAction(
 
   const loja = await acharLojaParaEscrita(db, ator, antes.establishment_id);
   if (!loja.ok) return loja;
-  const prep = await prepararCorpo(db, ator, loja.data, input);
+  const prep = await prepararCorpo(db, ator, loja.data, input, antes.franchisee_id);
   if (!prep.ok) return prep;
   const { vendedor, cliente, entrega, p, notes, franquia } = prep.data;
 

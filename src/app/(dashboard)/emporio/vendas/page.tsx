@@ -98,9 +98,15 @@ export default async function VendasPage({
                   <TableCell>{v.seller_name ?? "-"}</TableCell>
                   <TableCell>
                     {reaisBr(v.net_amount)}
-                    {v.freight_amount > 0 && (
+                    {(v.freight_amount > 0 || v.franchisee_credit > 0) && (
                       <span className="block text-xs text-texto-secundario">
-                        Frete {reaisBr(v.freight_amount)}, total {reaisBr(v.total_amount)}
+                        {[
+                          v.freight_amount > 0 ? `Frete ${reaisBr(v.freight_amount)}` : null,
+                          v.franchisee_credit > 0 ? `Crédito do franqueado ${reaisBr(v.franchisee_credit)}` : null,
+                        ]
+                          .filter(Boolean)
+                          .join(", ")}
+                        , total {reaisBr(v.total_amount)}
                       </span>
                     )}
                   </TableCell>

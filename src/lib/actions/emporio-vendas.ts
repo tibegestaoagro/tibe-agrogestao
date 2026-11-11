@@ -133,12 +133,14 @@ const pedidoDeCaixa = (v: unknown): string | null => (typeof v === "string" && v
 /**
  * Q301, Q302, Q309: o franqueado e o crédito dele, comuns à venda e ao orçamento. O crédito é digitado
  * (nada é calculado) e cobrado a mais do cliente, como o frete. Sem crédito não há o que controlar: o
- * franqueado grava nulo. Não grava nada.
+ * franqueado grava nulo. Não grava nada. `FRANCHISEE_ARCHIVED` vale só para escolha nova: o franqueado
+ * que já estava no documento (`jaNoDocumento`: a venda editada, o orçamento faturado ou editado) segue aceito.
  */
 export async function resolverFranqueadoDoCredito(
   db: TenantPrismaClient,
   franchiseeId: unknown,
   credit: unknown,
+  jaNoDocumento: (string | null | undefined)[] = [],
 ): Promise<ActionResult<{ franchisee_id: string | null; credit_cent: number }>> {
   let creditCent = 0;
   if (credit != null) {
@@ -153,7 +155,7 @@ export async function resolverFranqueadoDoCredito(
   if (!id) return fail("VALIDATION_ERROR", "Escolha o franqueado do crédito.", 422, "franchisee_id");
   const f = await db.emporioFranchisee.findFirst({ where: { id }, select: { id: true, archived_at: true } });
   if (!f) return NAO_ACHADO("Franqueado", "franchisee_id");
-  if (f.archived_at) return fail("FRANCHISEE_ARCHIVED", "Esse franqueado está arquivado.", 422, "franchisee_id");
+  if (f.archived_at && !jaNoDocumento.includes(f.id)) return fail("FRANCHISEE_ARCHIVED", "Esse franqueado está arquivado.", 422, "franchisee_id");
   return ok({ franchisee_id: f.id, credit_cent: creditCent });
 }
 
@@ -984,7 +986,13 @@ async function prepararVenda(
   ator: Ator,
   input: VenderInput,
   /** `vendedorHerdado`: a troca leva o vendedor da venda original, sem revalidá-lo (pode ter sido desativado depois). */
-  opts: { valorTroca?: number; vendedorHerdado?: string | null; substituindo?: string | null } = {},
+  opts: {
+    valorTroca?: number;
+    vendedorHerdado?: string | null;
+    substituindo?: string | null;
+    /** O franqueado da venda que está sendo substituída: aceito mesmo arquivado. */
+    franqueadoAtual?: string | null;
+  } = {},
 ): Promise<ActionResult<Preparada>> {
   const neg = await exigir(db, ator, "vendedor_da_loja", "vender");
   if (neg) return neg;
@@ -1029,6 +1037,7 @@ async function prepararVenda(
     db,
     herdada ? herdada.franchisee_id : input.franchisee_id,
     herdada ? herdada.franchisee_credit : input.franchisee_credit,
+    [orcamento?.franchisee_id, opts.franqueadoAtual],
   );
   if (!franquia.ok) return franquia;
   const creditoCent = franquia.data.credit_cent;
@@ -2271,7 +2280,7 @@ export async function editarVendaAction(
         ? { franchisee_id: antiga.franchisee_id, franchisee_credit: decToNum(antiga.franchisee_credit) ?? 0 }
         : {}),
     },
-    { substituindo: id },
+    { substituindo: id, franqueadoAtual: antiga.franchisee_id },
   );
   if (!prep.ok) return prep;
   const motivo = String(input.reason ?? "").trim();

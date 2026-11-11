@@ -452,6 +452,17 @@ export async function resultadoDaLojaAction(
   const fixasNaoPagas = soma((a) => a.fixasNaoPagas);
   const fixas = apuradas.flatMap((a) => a.fixas).sort((a, b) => (a.due_date as Date).getTime() - (b.due_date as Date).getTime());
 
+  // Pagamento ao franqueado por conta bancária grava establishment_id nulo: não é de loja nenhuma, então
+  // só a visão somada o consolida (a da loja mostra o que saiu da gaveta dela). Só informativo.
+  let creditoPagoCent = m.creditoPagoCent;
+  if (todas) {
+    const semLoja = await db.emporioFranchiseePayment.findMany({
+      where: { establishment_id: null, canceled_at: null, paid_at: { gte: mesJanela.de, lt: mesJanela.ate } },
+      select: { amount: true },
+    });
+    creditoPagoCent += semLoja.reduce((s, p) => s + centavos(decToNum(p.amount) ?? 0), 0);
+  }
+
   const freteDifCent = m.freteRecebidoCent - m.fretePagoCent;
   const antecipacaoCent = soma((a) => a.antecipacaoCent);
   const resultadoCent = m.margemCent - perdasCent - fixasCent + freteDifCent - antecipacaoCent;
@@ -583,7 +594,7 @@ export async function resultadoDaLojaAction(
       paid: reais(m.fretePagoCent),
       difference: reais(freteDifCent),
     },
-    franchisee_credit: { received: reais(m.creditoRecebidoCent), paid: reais(m.creditoPagoCent) },
+    franchisee_credit: { received: reais(m.creditoRecebidoCent), paid: reais(creditoPagoCent) },
     anticipation_costs: reais(antecipacaoCent),
     result: reais(resultadoCent),
     card_cost: custoDoCartao(soma((a) => a.cartaoCent), m.taxasCent, antecipacaoCent),

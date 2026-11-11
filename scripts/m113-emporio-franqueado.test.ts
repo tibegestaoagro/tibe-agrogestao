@@ -122,6 +122,7 @@ const R = {
   receipt: () => import("@/app/api/v1/emporio/sales/[id]/receipt/route"),
   quotes: () => import("@/app/api/v1/emporio/quotes/route"),
   quote: () => import("@/app/api/v1/emporio/quotes/[id]/route"),
+  replace: () => import("@/app/api/v1/emporio/sales/[id]/replace/route"),
 };
 
 type Resp = { status: number; corpo: Dado };
@@ -378,6 +379,48 @@ async function main() {
       const rs = await chamar(A.tok, R.receipt, "GET", `emporio/sales/${idDe(vs)}/receipt`, undefined, idDe(vs));
       const ts = (rs.corpo?.data?.itens ?? []).map((i: Dado) => cent(i.total));
       check("venda sem crédito: itens 60 e 40, sem rateio", ts.length === 2 && ts[0] === 6000 && ts[1] === 4000 && cent(rs.corpo?.data?.total) === 10000, `${j(ts)}`);
+    });
+
+    // -------------------------------------------------------------------- 8
+    await rodar("arquivado depois, brinde e rateio", async () => {
+      console.log("\n8. Franqueado arquivado depois, e o brinde no rateio (correções do juiz)");
+      const { ratearCreditoNosItens } = await import("@/lib/emporio/rateio-impresso");
+      const brinde = ratearCreditoNosItens([3000, 3000, 0], 1);
+      check("rateio [3000,3000,0] com crédito 1: o brinde fica em 0 e a soma é exata", brinde[2] === 0 && brinde.reduce((a, b) => a + b, 0) === 6001, j(brinde));
+      const todosZero = ratearCreditoNosItens([0, 0], 5);
+      check("rateio com tudo zero: o crédito cai na última", j(todosZero) === "[0,5]", j(todosZero));
+
+      const arquivar = (id: string) => chamar(A.tok, R.archive, "POST", `emporio/franchisees/${id}/archive`, {}, id);
+      const Fa = idDe(await cadastrar(A, { name: "M113 Vai Arquivar", phone: "11922221111" }));
+      const Fb = idDe(await cadastrar(A, { name: "M113 Outro Arquivado", phone: "11911110000" }));
+      const Fn = idDe(await cadastrar(A, { name: "M113 Novo Ativo", phone: "11900009999" }));
+
+      // (b) editar a venda (replace) depois de arquivar o franqueado dela
+      const v = await vender(A, CA, itensDe(A, ["a", 10]), [dinheiro(110)], { franchisee_id: Fa, franchisee_credit: 10 });
+      check("venda com crédito 10 do franqueado a arquivar: 201", v.status === 201, `${v.status} ${j(v.corpo)}`);
+      await arquivar(Fa);
+      await arquivar(Fb);
+      const corpoTroca = (extra: Dado) => ({ operation_key: chave("repl"), cash_register_id: A.reg, customer_id: CA.id, items: itensDe(A, ["a", 10]), payments: [dinheiro(110)], reason: "ajuste", ...extra });
+      const outro = await chamar(A.tok, R.replace, "POST", `emporio/sales/${idDe(v)}/replace`, corpoTroca({ franchisee_id: Fb, franchisee_credit: 10 }), idDe(v));
+      check("replace trocando para OUTRO franqueado arquivado: 422 FRANCHISEE_ARCHIVED", erro(outro, 422, "franchisee_id", "FRANCHISEE_ARCHIVED"), `${outro.status} ${j(outro.corpo)}`);
+      check("a recusa não cancelou a venda e o crédito segue", perto(await saldoDe(A, Fa), 10), `${await saldoDe(A, Fa)}`);
+      const mesmo = await chamar(A.tok, R.replace, "POST", `emporio/sales/${idDe(v)}/replace`, corpoTroca({}), idDe(v));
+      check("replace sem mudar o franqueado arquivado: 201", mesmo.status === 201, `${mesmo.status} ${j(mesmo.corpo)}`);
+      check("o crédito segue na venda nova (saldo 10)", perto(await saldoDe(A, Fa), 10), `${await saldoDe(A, Fa)}`);
+      const nova = await P.emporioSale.findUnique({ where: { id: idDe(mesmo) } });
+      check("a venda nova guarda franqueado e crédito", nova?.franchisee_id === Fa && perto(n(nova?.franchisee_credit), 10), j(nova));
+
+      // (c) faturar o orçamento depois de arquivar o franqueado dele
+      const oc = await orcar(A, CA, itensDe(A, ["a", 5]), { franchisee_id: Fn, franchisee_credit: 6 });
+      check("orçamento com crédito 6 do franqueado ativo: 201", oc.status === 201, `${oc.status} ${j(oc.corpo)}`);
+      await arquivar(Fn);
+      const edArq = await chamar(A.tok, R.quote, "PATCH", `emporio/quotes/${idDe(oc)}`, { customer_id: CA.id, items: itensDe(A, ["a", 4]), franchisee_id: Fn, franchisee_credit: 6 }, idDe(oc));
+      check("editar o orçamento sem mudar o franqueado arquivado: 200", edArq.status === 200, `${edArq.status} ${j(edArq.corpo)}`);
+      const edOutro = await chamar(A.tok, R.quote, "PATCH", `emporio/quotes/${idDe(oc)}`, { customer_id: CA.id, items: itensDe(A, ["a", 4]), franchisee_id: Fb, franchisee_credit: 6 }, idDe(oc));
+      check("editar o orçamento para OUTRO arquivado: 422 FRANCHISEE_ARCHIVED", erro(edOutro, 422, "franchisee_id", "FRANCHISEE_ARCHIVED"), `${edOutro.status} ${j(edOutro.corpo)}`);
+      const fat = await vender(A, CA, itensDe(A, ["a", 4]), [dinheiro(46)], { quote_id: idDe(oc) });
+      check("faturar o orçamento com franqueado arquivado: 201", fat.status === 201, `${fat.status} ${j(fat.corpo)}`);
+      check("a venda nasceu com o crédito 6 do franqueado", perto(await saldoDe(A, Fn), 6), `${await saldoDe(A, Fn)}`);
     });
 
     // -------------------------------------------------------------------- 7
