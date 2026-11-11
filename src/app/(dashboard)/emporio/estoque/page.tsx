@@ -22,8 +22,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { EncaminharBotao } from "../_components/encaminhar-botao";
-import { UNIDADE_BASE_SUFIXO, numeroBr, textoLacrado, dataCurta } from "../_components/formato";
-import { SeloDiferencaCusto } from "../_components/custos-lado-a-lado";
+import { UNIDADE_BASE_SUFIXO, numeroBr, textoLacrado, ORIGEM_DO_CUSTO_AVISO } from "../_components/formato";
 
 const TODAS = "todas";
 
@@ -223,7 +222,7 @@ export default async function EstoquePage({
                         <TableHead>Total</TableHead>
                         <TableHead>Lacrado</TableHead>
                         <TableHead>Avulso</TableHead>
-                        <TableHead>Custo médio</TableHead>
+                        <TableHead>Custo</TableHead>
                         <TableHead>Mínimo</TableHead>
                         <TableHead>Máximo</TableHead>
                       </TableRow>
@@ -249,15 +248,14 @@ export default async function EstoquePage({
                             <TableCell>{textoLacrado(l.sealed)}</TableCell>
                             <TableCell>{`${numeroBr(l.loose_qty)} ${sufixo}`}</TableCell>
                             <TableCell>
-                              {l.average_cost == null ? "-" : `${reaisBr(l.average_cost)} por ${sufixo}`}
+                              {/* Um custo só (Q299): o médio com estoque; sem estoque, a última compra. */}
+                              {l.suggested_cost == null ? "-" : `${reaisBr(l.suggested_cost)} por ${sufixo}`}
                               {l.estimated && <EstimadoSelo />}
-                              {l.last_purchase_cost !== null && (
+                              {l.suggested_cost_source && ORIGEM_DO_CUSTO_AVISO[l.suggested_cost_source] && (
                                 <span className="block text-xs text-texto-secundario">
-                                  Última compra {reaisBr(l.last_purchase_cost)}
-                                  {l.last_purchase_on ? ` (${dataCurta(l.last_purchase_on)})` : ""}
+                                  {ORIGEM_DO_CUSTO_AVISO[l.suggested_cost_source]}
                                 </span>
                               )}
-                              <SeloDiferencaCusto gapPct={l.cost_gap_pct} />
                             </TableCell>
                             <TableCell>{l.min_qty == null ? "-" : numeroBr(l.min_qty)}</TableCell>
                             <TableCell>{l.max_qty == null ? "-" : numeroBr(l.max_qty)}</TableCell>

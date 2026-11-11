@@ -4,7 +4,6 @@ import { decToNum, isoOrNull } from "@/lib/serialize";
 import { alcanceDeLeitura, exigir, lojasDoPapel, papelDoEmporio, pode, recusaDe, recusarCaixa } from "@/lib/emporio/papel";
 import { precoSugerido, percentualEfetivo } from "@/lib/emporio/preco";
 import { camposDeCusto, lerCustosDasLojas, chaveLojaProduto, SEM_MOVIMENTO, type CamposDeCusto } from "@/lib/emporio/custos-da-loja";
-import type { BaseCustoPreco } from "@/lib/emporio/custo-medio";
 import { findUnit } from "@/lib/stock/units";
 import { diferencas, dinheiro, registrarNoHistorico } from "@/lib/emporio/historico";
 import { cnpjValido, normalizarCnpj, UFS } from "@/lib/contatos/cadastro";
@@ -110,7 +109,6 @@ export type EstablishmentView = {
   max_discount_pct: number | null;
   default_expense_pct: number | null;
   default_profit_pct: number | null;
-  price_cost_basis: BaseCustoPreco;
   area_m2: number | null;
   employees_count: number | null;
   archived_at: string | null;
@@ -132,7 +130,6 @@ type EstablishmentRow = {
   max_discount_pct: unknown;
   default_expense_pct: unknown;
   default_profit_pct: unknown;
-  price_cost_basis: BaseCustoPreco;
   area_m2: unknown;
   employees_count: number | null;
   archived_at: Date | null;
@@ -155,7 +152,6 @@ function viewEstabelecimento(e: EstablishmentRow): EstablishmentView {
     max_discount_pct: decToNum(e.max_discount_pct),
     default_expense_pct: decToNum(e.default_expense_pct),
     default_profit_pct: decToNum(e.default_profit_pct),
-    price_cost_basis: e.price_cost_basis,
     area_m2: decToNum(e.area_m2),
     employees_count: e.employees_count,
     archived_at: isoOrNull(e.archived_at),
@@ -209,16 +205,8 @@ export type EstablishmentInput = {
   max_discount_pct?: number | null;
   default_expense_pct?: number | null;
   default_profit_pct?: number | null;
-  price_cost_basis?: string;
   area_m2?: number | null;
   employees_count?: number | null;
-};
-
-const BASES_DO_PRECO: readonly BaseCustoPreco[] = ["medio", "ultima_compra", "maior"];
-const ROTULOS_BASE: Record<string, string> = {
-  medio: "Custo médio",
-  ultima_compra: "Última compra",
-  maior: "O maior dos dois",
 };
 
 /** Validação comum à criação e à edição; só olha o que veio (`undefined` = não mexe). */
@@ -246,14 +234,6 @@ async function validarLoja(
   if (rd) return fail("VALIDATION_ERROR", rd, 422, "default_expense_pct");
   const rl = recusaPct(input.default_profit_pct, "O percentual de lucro");
   if (rl) return fail("VALIDATION_ERROR", rl, 422, "default_profit_pct");
-  if (input.price_cost_basis !== undefined && !BASES_DO_PRECO.includes(input.price_cost_basis as BaseCustoPreco)) {
-    return fail(
-      "VALIDATION_ERROR",
-      "Escolha a base do preço sugerido: custo médio, última compra ou o maior dos dois.",
-      422,
-      "price_cost_basis",
-    );
-  }
   const area = input.area_m2;
   if (area != null && (typeof area !== "number" || !Number.isFinite(area) || area < 0 || area > 999999.99)) {
     return fail("VALIDATION_ERROR", "Informe a área em m², de 0 a 999.999,99.", 422, "area_m2");
@@ -316,7 +296,6 @@ const ROTULOS_LOJA: Record<string, string> = {
   max_discount_pct: "Desconto máximo (%)",
   default_expense_pct: "Despesas padrão (%)",
   default_profit_pct: "Lucro padrão (%)",
-  price_cost_basis: "Base do preço sugerido",
   area_m2: "Área (m²)",
   employees_count: "Funcionários",
 };
@@ -335,7 +314,6 @@ function pegarLoja(e: {
   max_discount_pct: unknown;
   default_expense_pct: unknown;
   default_profit_pct: unknown;
-  price_cost_basis: string;
   area_m2: unknown;
   employees_count: number | null;
 }): Record<string, unknown> {
@@ -353,7 +331,6 @@ function pegarLoja(e: {
     max_discount_pct: decToNum(e.max_discount_pct as never),
     default_expense_pct: decToNum(e.default_expense_pct as never),
     default_profit_pct: decToNum(e.default_profit_pct as never),
-    price_cost_basis: e.price_cost_basis,
     area_m2: decToNum(e.area_m2 as never),
     employees_count: e.employees_count,
   };
@@ -387,7 +364,6 @@ export async function criarEstabelecimentoAction(
           max_discount_pct: input.max_discount_pct ?? null,
           default_expense_pct: input.default_expense_pct ?? null,
           default_profit_pct: input.default_profit_pct ?? null,
-          ...(input.price_cost_basis !== undefined ? { price_cost_basis: input.price_cost_basis as BaseCustoPreco } : {}),
           area_m2: input.area_m2 ?? null,
           employees_count: input.employees_count ?? null,
         }),
@@ -456,7 +432,6 @@ export async function editarEstabelecimentoAction(
         ...(input.max_discount_pct !== undefined ? { max_discount_pct: input.max_discount_pct } : {}),
         ...(input.default_expense_pct !== undefined ? { default_expense_pct: input.default_expense_pct } : {}),
         ...(input.default_profit_pct !== undefined ? { default_profit_pct: input.default_profit_pct } : {}),
-        ...(input.price_cost_basis !== undefined ? { price_cost_basis: input.price_cost_basis as BaseCustoPreco } : {}),
         ...(input.area_m2 !== undefined ? { area_m2: input.area_m2 } : {}),
         ...(input.employees_count !== undefined ? { employees_count: input.employees_count } : {}),
       },
@@ -466,10 +441,7 @@ export async function editarEstabelecimentoAction(
       pegarLoja(atual),
       pegarLoja(atualizada),
       ROTULOS_LOJA,
-      {
-        allow_negative_stock: (x) => (x ? "Sim" : "Não"),
-        price_cost_basis: (x) => ROTULOS_BASE[String(x)] ?? String(x),
-      },
+      { allow_negative_stock: (x) => (x ? "Sim" : "Não") },
     );
     if (mudancas.length > 0) {
       await registrarNoHistorico(tx, ator, {
@@ -599,7 +571,7 @@ export type PresentationView = {
 };
 
 /**
- * Os custos novos (Q293 a Q297) vêm por APRESENTAÇÃO (a unidade-base vezes a
+ * Os campos de custo (Q297, Q299) vêm por APRESENTAÇÃO (a unidade-base vezes a
  * `base_qty`), como o `cost` de sempre, e valem para a loja da linha.
  */
 export type PriceRowView = CamposDeCusto & {
@@ -814,7 +786,7 @@ export async function lerProdutoEmporioAction(
       const desp = percentualEfetivo(exDesp, pctProdutoDesp, decToNum(loja.default_expense_pct));
       const lucro = percentualEfetivo(exLucro, pctProdutoLucro, decToNum(loja.default_profit_pct));
       const baseQty = decToNum(ap.base_qty) ?? 0;
-      const custoNovo = camposDeCusto(resultadoCusto, loja.price_cost_basis, custoRef, baseQty);
+      const custoNovo = camposDeCusto(resultadoCusto, custoRef, baseQty);
       prices.push({
         ...custoNovo,
         establishment_id: loja.id,

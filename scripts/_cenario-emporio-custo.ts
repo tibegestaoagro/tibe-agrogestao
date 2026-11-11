@@ -5,15 +5,19 @@ import { exigirBancoLocal } from "./_banco-local";
 import { setTenantFeatureAction } from "@/lib/actions/platform-features";
 
 /**
- * Monta, no banco LOCAL, o cenario dos dois custos do Meu Emporio (Modulo 39,
- * Q293 a Q297) para o roteiro `scripts/navegador/emporio-dois-custos.py`. Nao e suite.
+ * Monta, no banco LOCAL, o cenario do custo do produto do Meu Emporio (Modulo 39,
+ * Q297 a Q299) para o roteiro `scripts/navegador/emporio-custo.py`. Nao e suite.
  *
  * Na conta do seed, com o prefixo "Dc ":
- *   - "Dc Loja" (base do preco sugerido nasce "maior");
- *   - "Dc Talco": Quilo, preco gravado R$ 10,00; implantacao de 5000 kg a 1,28,
- *     saida de 1108 kg (perda), compra de 100 kg a 2,35: saldo 3992, medio 1,31;
+ *   - "Dc Loja";
+ *   - "Dc Talco", o caso real da Agromax em 10/11: Quilo, preco gravado R$ 10,00;
+ *     implantacao de 5000 kg a 1,28, saida de 1108 kg, contagem com o fisico 0 e,
+ *     DEPOIS, a compra de 100 kg a 2,35 com a data de hoje. Custo certo: 2,35;
+ *     com o defeito da ordem, 1,30;
  *   - "Dc Aveia": Quilo, preco R$ 10,00; compra de 10 kg a 3,00 e depois a saida
  *     dos 10 kg: saldo zero com compra (Q297).
+ * A data da compra vai com 00:00:01 de hoje, nao com o meio-dia da tela: assim o
+ * cenario reprova a ordem errada mesmo rodado de manha (ver a m112).
  * Apaga antes tudo o que rodadas anteriores criaram com o prefixo. Idempotente.
  */
 exigirBancoLocal();
@@ -85,12 +89,13 @@ async function main() {
     exigir(await cat.definirPrecoAction(db, ator, { establishment_id: loja.id, presentation_id: quilo, price: 10 }), "preco");
     return { id, quilo };
   };
+  const hoje = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
   const compra = async (chave: string, produto: { id: string; quilo: string }, qtd: number, total: number) =>
     exigir(
       await compras.criarCompraAction(db, ator, {
         operation_key: `cenario-dc-${chave}-${Date.now()}`,
         establishment_id: loja.id,
-        purchased_at: new Date(),
+        purchased_at: new Date(`${hoje}T00:00:01-03:00`),
         received: true,
         freight: 0,
         items: [{ emporio_product_id: produto.id, presentation_id: produto.quilo, quantity: qtd, item_total: total }],
@@ -101,10 +106,11 @@ async function main() {
   const perda = async (produto: { id: string }, quantity: number) =>
     exigir(await est.registrarPerdaAction(db, ator, { establishment_id: loja.id, emporio_product_id: produto.id, quantity, reason: "outro" }), "perda");
 
-  // Caso real do TALCO/ GEL: 5000 a 1,28, saem 1108, entram 100 a 2,35.
+  // Caso real do TALCO/ GEL: 5000 a 1,28, saem 1108, a contagem zera e so entao entram 100 a 2,35.
   const talco = await novoProduto("Talco");
   exigir(await est.implantarEstoqueAction(db, ator, { establishment_id: loja.id, emporio_product_id: talco.id, sealed: [], loose_qty: 5000, unit_cost: 1.28 } as never), "implantacao");
   await perda(talco, 1108);
+  exigir(await est.registrarContagemAction(db, ator, { establishment_id: loja.id, emporio_product_id: talco.id, loose_qty: 0, reason: "acabou na prateleira" }), "contagem");
   await compra("talco", talco, 100, 235);
 
   // Saldo zero depois de uma compra (Q297).

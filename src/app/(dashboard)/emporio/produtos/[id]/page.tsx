@@ -37,9 +37,8 @@ import {
   textoConteudo,
   numeroBr,
   pctBr,
-  ORIGEM_SUGERIDO_ROTULO,
+  ORIGEM_DO_CUSTO_AVISO,
 } from "../../_components/formato";
-import { LinhaDeCustos, SeloDiferencaCusto } from "../../_components/custos-lado-a-lado";
 
 const DATA = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo" });
 
@@ -463,10 +462,13 @@ export default async function ProdutoEmporioPage({ params }: { params: Promise<{
                     <TableCell className="font-medium text-texto">{r.establishment_name}</TableCell>
                     <TableCell>{nome}</TableCell>
                     <TableCell>
-                      {/* O custo que o sugerido usa (Q294, Q297); `cost` é só o de referência digitado e ficava "sem custo" ao lado do médio. */}
+                      {/* O custo único do produto, o mesmo que o sugerido usa (Q299); `cost` é só o de referência digitado. */}
                       {r.suggested_cost == null ? "sem custo" : reaisBr(r.suggested_cost)}
-                      <LinhaDeCustos medio={r.average_cost} ultima={r.last_purchase_cost} ultimaEm={r.last_purchase_on} />
-                      <SeloDiferencaCusto gapPct={r.cost_gap_pct} />
+                      {r.suggested_cost_source && ORIGEM_DO_CUSTO_AVISO[r.suggested_cost_source] && (
+                        <span className="block text-xs text-texto-secundario">
+                          {ORIGEM_DO_CUSTO_AVISO[r.suggested_cost_source]}
+                        </span>
+                      )}
                     </TableCell>
                     <TableCell>
                       {pctBr(r.expense_pct_efetivo)}
@@ -476,14 +478,7 @@ export default async function ProdutoEmporioPage({ params }: { params: Promise<{
                       {pctBr(r.profit_pct_efetivo)}
                       {r.profit_pct != null && <Excecao />}
                     </TableCell>
-                    <TableCell>
-                      {r.suggested_price == null ? "-" : reaisBr(r.suggested_price)}
-                      {r.suggested_price != null && r.suggested_cost_source && (
-                        <span className="block text-xs text-texto-secundario">
-                          Sugerido calculado pela: {ORIGEM_SUGERIDO_ROTULO[r.suggested_cost_source] ?? r.suggested_cost_source}
-                        </span>
-                      )}
-                    </TableCell>
+                    <TableCell>{r.suggested_price == null ? "-" : reaisBr(r.suggested_price)}</TableCell>
                     <TableCell>
                       {r.price == null ? (
                         <span className="text-texto-secundario">sem preço</span>

@@ -249,9 +249,9 @@ export function ParteDeCompras() {
       </Chamada>
       <Chamada tipo="dica">
         <p>
-          O sistema guarda dois custos: o médio e o da última compra. O preço sugerido usa a base escolhida na loja (por
-          padrão, o maior dos dois), e a tela avisa quando a última compra passa de 10% do médio. Se o produto tinha
-          acabado, faça a contagem antes de lançar a compra, senão o custo novo se mistura com o saldo antigo.
+          Enquanto há estoque, cada compra entra na média. Quando o estoque zera, a média recomeça: a próxima compra
+          vira o custo do produto. Se o produto acabou na prateleira mas o sistema ainda mostra saldo, faça a contagem
+          antes de lançar a compra, senão o custo novo se mistura com o saldo que não existe.
         </p>
       </Chamada>
     </Tarefa>
