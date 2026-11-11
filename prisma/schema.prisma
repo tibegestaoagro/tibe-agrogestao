@@ -279,6 +279,8 @@ enum CashMovementOrigin {
   cancelamento_venda
   devolucao
   implantacao
+  /// Q304: pagamento do crédito ao franqueado.
+  pagamento_franqueado
   /// F3b (Q92 a Q94).
   transferencia
   conferencia
@@ -556,100 +558,102 @@ model Tenant {
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  profiles                  TenantProfile[]
-  users                     User[]
-  properties                Property[]
-  contacts                  Contact[]
-  negotiations              Negotiation[]
-  product_categories        ProductCategory[]
-  products                  Product[]
-  stock_movements           StockMovement[]
-  animal_categories         AnimalCategory[]
-  animal_batches            AnimalBatch[]
-  machines                  Machine[]
-  tasks                     Task[]
-  financial_categories      FinancialCategory[]
-  alert_preferences         AlertPreference[]
-  vaccines                  Vaccine[]
-  plots                     Plot[]
-  pastures                  Pasture[]
-  service_clients           ServiceClient[]
-  services                  Service[]
-  service_orders            ServiceOrder[]
-  financial_entries         FinancialEntry[]
-  financial_payments        FinancialPayment[]
-  whatsapp_contacts         WhatsAppContact[]
-  conversation_logs         AgentConversationLog[]
-  agent_requests            AgentRequest[]
-  alerts                    Alert[]
-  email_logs                EmailLog[]
-  password_resets           PasswordResetCode[]
-  agent_flows               AgentFlowState[]
-  refresh_tokens            RefreshToken[]
-  push_subscriptions        PushSubscription[]
-  herd_movements            HerdMovement[]
-  herd_stays                HerdStay[]
-  confinement_sites         ConfinementSite[]
-  subscription              Subscription?
-  milk_groups               MilkGroup[]
-  lactation_entries         LactationEntry[]
-  milk_productions          MilkProduction[]
-  milk_sites                MilkSite[]
-  milk_movements            MilkMovement[]
-  milk_charges              MilkCharge[]
-  workers                   Worker[]
-  service_jobs              ServiceJob[]
-  worker_logs               WorkerLog[]
-  service_job_costs         ServiceJobCost[]
-  shopping_items            ShoppingItem[]
-  tenant_features           TenantFeature[]
-  tenant_feature_users      TenantFeatureUser[]
-  establishments            Establishment[]
-  user_establishments       UserEstablishment[]
-  emporio_products          EmporioProduct[]
-  emporio_audit_logs        EmporioAuditLog[]
-  presentations             ProductPresentation[]
-  presentation_prices       PresentationPrice[]
-  emporio_purchases         EmporioPurchase[]
-  emporio_purchase_items    EmporioPurchaseItem[]
-  stock_limits              StockLimit[]
-  stock_transfers           StockTransfer[]
-  stock_transfer_items      StockTransferItem[]
-  compositions              Composition[]
-  composition_items         CompositionItem[]
-  production_entries        ProductionEntry[]
-  bank_accounts             BankAccount[]
-  emporio_sales             EmporioSale[]
-  emporio_settings          EmporioSettings?
-  emporio_counters          EmporioCounter[]
-  emporio_sale_items        EmporioSaleItem[]
-  emporio_quotes            EmporioQuote[]
-  emporio_quote_items       EmporioQuoteItem[]
-  emporio_sale_payments     EmporioSalePayment[]
-  emporio_sale_returns      EmporioSaleReturn[]
-  emporio_return_items      EmporioSaleReturnItem[]
-  cash_movements            CashMovement[]
-  card_fee_rates            CardFeeRate[]
-  card_acquirers            CardAcquirer[]
-  card_receivables          CardReceivable[]
-  card_anticipations        CardAnticipation[]
-  emporio_checks            EmporioCheck[]
-  emporio_boletos           EmporioBoleto[]
-  emporio_customers         EmporioCustomer[]
-  emporio_credit_releases   EmporioCreditRelease[]
-  emporio_credit_agreements EmporioCreditAgreement[]
-  emporio_payment_requests  EmporioPaymentRequest[]
-  emporio_suppliers         EmporioSupplier[]
-  cash_transfers            CashTransfer[]
-  cash_counts               CashCount[]
-  cash_registers            CashRegister[]
-  cash_sessions             CashSession[]
-  cash_handovers            CashHandover[]
-  variable_expense_rules    VariableExpenseRule[]
-  sale_variable_expenses    SaleVariableExpense[]
-  fixed_expense_templates   FixedExpenseTemplate[]
-  fixed_expense_splits      FixedExpenseSplit[]
-  fixed_expense_occurrences FixedExpenseOccurrence[]
+  profiles                    TenantProfile[]
+  users                       User[]
+  properties                  Property[]
+  contacts                    Contact[]
+  negotiations                Negotiation[]
+  product_categories          ProductCategory[]
+  products                    Product[]
+  stock_movements             StockMovement[]
+  animal_categories           AnimalCategory[]
+  animal_batches              AnimalBatch[]
+  machines                    Machine[]
+  tasks                       Task[]
+  financial_categories        FinancialCategory[]
+  alert_preferences           AlertPreference[]
+  vaccines                    Vaccine[]
+  plots                       Plot[]
+  pastures                    Pasture[]
+  service_clients             ServiceClient[]
+  services                    Service[]
+  service_orders              ServiceOrder[]
+  financial_entries           FinancialEntry[]
+  financial_payments          FinancialPayment[]
+  whatsapp_contacts           WhatsAppContact[]
+  conversation_logs           AgentConversationLog[]
+  agent_requests              AgentRequest[]
+  alerts                      Alert[]
+  email_logs                  EmailLog[]
+  password_resets             PasswordResetCode[]
+  agent_flows                 AgentFlowState[]
+  refresh_tokens              RefreshToken[]
+  push_subscriptions          PushSubscription[]
+  herd_movements              HerdMovement[]
+  herd_stays                  HerdStay[]
+  confinement_sites           ConfinementSite[]
+  subscription                Subscription?
+  milk_groups                 MilkGroup[]
+  lactation_entries           LactationEntry[]
+  milk_productions            MilkProduction[]
+  milk_sites                  MilkSite[]
+  milk_movements              MilkMovement[]
+  milk_charges                MilkCharge[]
+  workers                     Worker[]
+  service_jobs                ServiceJob[]
+  worker_logs                 WorkerLog[]
+  service_job_costs           ServiceJobCost[]
+  shopping_items              ShoppingItem[]
+  tenant_features             TenantFeature[]
+  tenant_feature_users        TenantFeatureUser[]
+  establishments              Establishment[]
+  user_establishments         UserEstablishment[]
+  emporio_products            EmporioProduct[]
+  emporio_audit_logs          EmporioAuditLog[]
+  presentations               ProductPresentation[]
+  presentation_prices         PresentationPrice[]
+  emporio_purchases           EmporioPurchase[]
+  emporio_purchase_items      EmporioPurchaseItem[]
+  stock_limits                StockLimit[]
+  stock_transfers             StockTransfer[]
+  stock_transfer_items        StockTransferItem[]
+  compositions                Composition[]
+  composition_items           CompositionItem[]
+  production_entries          ProductionEntry[]
+  bank_accounts               BankAccount[]
+  emporio_sales               EmporioSale[]
+  emporio_settings            EmporioSettings?
+  emporio_counters            EmporioCounter[]
+  emporio_sale_items          EmporioSaleItem[]
+  emporio_quotes              EmporioQuote[]
+  emporio_quote_items         EmporioQuoteItem[]
+  emporio_sale_payments       EmporioSalePayment[]
+  emporio_sale_returns        EmporioSaleReturn[]
+  emporio_return_items        EmporioSaleReturnItem[]
+  cash_movements              CashMovement[]
+  card_fee_rates              CardFeeRate[]
+  card_acquirers              CardAcquirer[]
+  card_receivables            CardReceivable[]
+  card_anticipations          CardAnticipation[]
+  emporio_checks              EmporioCheck[]
+  emporio_boletos             EmporioBoleto[]
+  emporio_customers           EmporioCustomer[]
+  emporio_credit_releases     EmporioCreditRelease[]
+  emporio_credit_agreements   EmporioCreditAgreement[]
+  emporio_payment_requests    EmporioPaymentRequest[]
+  emporio_suppliers           EmporioSupplier[]
+  emporio_franchisees         EmporioFranchisee[]
+  emporio_franchisee_payments EmporioFranchiseePayment[]
+  cash_transfers              CashTransfer[]
+  cash_counts                 CashCount[]
+  cash_registers              CashRegister[]
+  cash_sessions               CashSession[]
+  cash_handovers              CashHandover[]
+  variable_expense_rules      VariableExpenseRule[]
+  sale_variable_expenses      SaleVariableExpense[]
+  fixed_expense_templates     FixedExpenseTemplate[]
+  fixed_expense_splits        FixedExpenseSplit[]
+  fixed_expense_occurrences   FixedExpenseOccurrence[]
 }
 
 // Equipe da Pleno Digital. NÃO carrega tenant_id: fora do isolamento (PRD 4 / 10.4).
@@ -808,9 +812,9 @@ model Establishment {
   created_at           DateTime           @default(now())
   updated_at           DateTime           @updatedAt
 
-  tenant                    Tenant                   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  responsible               User?                    @relation("EstablishmentResponsible", fields: [responsible_user_id], references: [id], onDelete: SetNull)
-  pix_bank_account          BankAccount?             @relation("EstablishmentPixAccount", fields: [pix_bank_account_id], references: [id], onDelete: SetNull)
+  tenant                    Tenant                     @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  responsible               User?                      @relation("EstablishmentResponsible", fields: [responsible_user_id], references: [id], onDelete: SetNull)
+  pix_bank_account          BankAccount?               @relation("EstablishmentPixAccount", fields: [pix_bank_account_id], references: [id], onDelete: SetNull)
   sales                     EmporioSale[]
   credit_releases           EmporioCreditRelease[]
   quotes                    EmporioQuote[]
@@ -823,7 +827,8 @@ model Establishment {
   cash_registers            CashRegister[]
   cash_sessions             CashSession[]
   cash_handovers            CashHandover[]
-  manager_cash_movements    CashMovement[]           @relation("ManagerPlace")
+  manager_cash_movements    CashMovement[]             @relation("ManagerPlace")
+  franchisee_payments       EmporioFranchiseePayment[]
   variable_expense_rules    VariableExpenseRule[]
   fixed_expense_splits      FixedExpenseSplit[]
   fixed_expense_occurrences FixedExpenseOccurrence[]
@@ -834,8 +839,8 @@ model Establishment {
   purchases                 EmporioPurchase[]
   stock_limits              StockLimit[]
   shopping_items            ShoppingItem[]
-  transfers_out             StockTransfer[]          @relation("TransferOrigin")
-  transfers_in              StockTransfer[]          @relation("TransferDestination")
+  transfers_out             StockTransfer[]            @relation("TransferOrigin")
+  transfers_in              StockTransfer[]            @relation("TransferDestination")
   productions               ProductionEntry[]
 
   @@unique([tenant_id, name])
@@ -1213,15 +1218,16 @@ model BankAccount {
   created_at         DateTime  @default(now())
   updated_at         DateTime  @updatedAt
 
-  tenant             Tenant               @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  pix_of             Establishment[]      @relation("EstablishmentPixAccount")
-  card_fee_rates     CardFeeRate[]
-  card_receivables   CardReceivable[]
-  card_anticipations CardAnticipation[]
-  checks             EmporioCheck[]
-  boletos            EmporioBoleto[]
-  sale_payments      EmporioSalePayment[]
-  cash_movements     CashMovement[]
+  tenant              Tenant                     @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  pix_of              Establishment[]            @relation("EstablishmentPixAccount")
+  card_fee_rates      CardFeeRate[]
+  card_receivables    CardReceivable[]
+  card_anticipations  CardAnticipation[]
+  checks              EmporioCheck[]
+  boletos             EmporioBoleto[]
+  sale_payments       EmporioSalePayment[]
+  cash_movements      CashMovement[]
+  franchisee_payments EmporioFranchiseePayment[]
 
   @@unique([tenant_id, name])
   @@index([tenant_id])
@@ -1274,6 +1280,10 @@ model EmporioSale {
   delivery_state                 String?
   /// Q244: frete cobrado do cliente, repassado à transportadora; fora de `net_amount` (o faturamento).
   freight_amount                 Decimal                     @default(0) @db.Decimal(14, 2)
+  /// Q300: o franqueado que traz a venda (opcional). O crédito dele vira dívida interna do Empório.
+  franchisee_id                  String?
+  /// Q301 e Q302: crédito do franqueado nesta venda, rateado nos itens do impresso; fora de `net_amount`.
+  franchisee_credit              Decimal                     @default(0) @db.Decimal(14, 2)
   /// Q248: balcão ou e-commerce.
   origin                         EmporioSaleOrigin           @default(balcao)
   /// Q249: a venda que esta substitui ao ser editada (a original é cancelada).
@@ -1284,6 +1294,7 @@ model EmporioSale {
   tenant            Tenant                @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   establishment     Establishment         @relation(fields: [establishment_id], references: [id], onDelete: Restrict)
   customer          EmporioCustomer?      @relation(fields: [customer_id], references: [id], onDelete: Restrict)
+  franchisee        EmporioFranchisee?    @relation(fields: [franchisee_id], references: [id], onDelete: Restrict)
   replaces          EmporioSale?          @relation("SaleReplacement", fields: [replaces_sale_id], references: [id], onDelete: Restrict)
   replaced_by       EmporioSale?          @relation("SaleReplacement")
   exchange_return   EmporioSaleReturn?    @relation("ExchangeSale", fields: [exchange_return_id], references: [id], onDelete: Restrict)
@@ -1308,6 +1319,7 @@ model EmporioSale {
   @@index([tenant_id, customer_id])
   @@index([tenant_id, seller_user_id, sold_at])
   @@index([tenant_id, quote_id])
+  @@index([tenant_id, franchisee_id])
 }
 
 /// Frente 3 do Empório: de onde veio o endereço do pedido para entrega.
@@ -1355,12 +1367,16 @@ model EmporioQuote {
   delivery_district              String?
   delivery_city                  String?
   delivery_state                 String?
+  /// Q309: o orçamento leva o franqueado e o crédito, e a venda faturada os herda.
+  franchisee_id                  String?
+  franchisee_credit              Decimal                     @default(0) @db.Decimal(14, 2)
   created_at                     DateTime                    @default(now())
   updated_at                     DateTime                    @updatedAt
 
   tenant        Tenant             @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   establishment Establishment      @relation(fields: [establishment_id], references: [id], onDelete: Restrict)
   customer      EmporioCustomer    @relation(fields: [customer_id], references: [id], onDelete: Restrict)
+  franchisee    EmporioFranchisee? @relation(fields: [franchisee_id], references: [id], onDelete: Restrict)
   sale          EmporioSale?       @relation("QuoteInvoice", fields: [sale_id], references: [id], onDelete: SetNull)
   sales         EmporioSale[]      @relation("SaleFromQuote")
   items         EmporioQuoteItem[]
@@ -1372,6 +1388,7 @@ model EmporioQuote {
   @@index([tenant_id, establishment_id, created_at])
   @@index([tenant_id, customer_id])
   @@index([tenant_id, based_on_quote_id])
+  @@index([tenant_id, franchisee_id])
 }
 
 /// O preço do momento do orçamento: sugerido e praticado ficam gravados.
@@ -2054,6 +2071,8 @@ model CashMovement {
   sale_id                  String?
   sale_return_id           String?
   financial_payment_id     String?
+  /// Q304: o pagamento de crédito ao franqueado que gerou a saída.
+  franchisee_payment_id    String?
   /// F3b: a transferência, a conferência, o cheque compensado ou a parcela de
   /// cartão estornada que gerou o movimento.
   cash_transfer_id         String?
@@ -2078,21 +2097,22 @@ model CashMovement {
   reconciled_by_user_id    String?
   created_at               DateTime           @default(now())
 
-  tenant                Tenant             @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  establishment         Establishment?     @relation(fields: [establishment_id], references: [id], onDelete: Restrict)
-  bank_account          BankAccount?       @relation(fields: [bank_account_id], references: [id], onDelete: Restrict)
-  sale                  EmporioSale?       @relation(fields: [sale_id], references: [id], onDelete: Restrict)
-  sale_return           EmporioSaleReturn? @relation(fields: [sale_return_id], references: [id], onDelete: Restrict)
-  financial_payment     FinancialPayment?  @relation(fields: [financial_payment_id], references: [id], onDelete: SetNull)
-  cash_transfer         CashTransfer?      @relation(fields: [cash_transfer_id], references: [id], onDelete: Restrict)
-  cash_count            CashCount?         @relation(fields: [cash_count_id], references: [id], onDelete: Restrict)
-  check                 EmporioCheck?      @relation(fields: [check_id], references: [id], onDelete: Restrict)
-  boleto                EmporioBoleto?     @relation(fields: [boleto_id], references: [id], onDelete: Restrict)
-  card_receivable       CardReceivable?    @relation(fields: [card_receivable_id], references: [id], onDelete: Restrict)
-  cash_register         CashRegister?      @relation(fields: [cash_register_id], references: [id], onDelete: Restrict)
-  cash_session          CashSession?       @relation(fields: [cash_session_id], references: [id], onDelete: Restrict)
-  manager_establishment Establishment?     @relation("ManagerPlace", fields: [manager_establishment_id], references: [id], onDelete: Restrict)
-  cash_handover         CashHandover?      @relation(fields: [cash_handover_id], references: [id], onDelete: Restrict)
+  tenant                Tenant                    @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  establishment         Establishment?            @relation(fields: [establishment_id], references: [id], onDelete: Restrict)
+  bank_account          BankAccount?              @relation(fields: [bank_account_id], references: [id], onDelete: Restrict)
+  sale                  EmporioSale?              @relation(fields: [sale_id], references: [id], onDelete: Restrict)
+  sale_return           EmporioSaleReturn?        @relation(fields: [sale_return_id], references: [id], onDelete: Restrict)
+  financial_payment     FinancialPayment?         @relation(fields: [financial_payment_id], references: [id], onDelete: SetNull)
+  franchisee_payment    EmporioFranchiseePayment? @relation(fields: [franchisee_payment_id], references: [id], onDelete: Restrict)
+  cash_transfer         CashTransfer?             @relation(fields: [cash_transfer_id], references: [id], onDelete: Restrict)
+  cash_count            CashCount?                @relation(fields: [cash_count_id], references: [id], onDelete: Restrict)
+  check                 EmporioCheck?             @relation(fields: [check_id], references: [id], onDelete: Restrict)
+  boleto                EmporioBoleto?            @relation(fields: [boleto_id], references: [id], onDelete: Restrict)
+  card_receivable       CardReceivable?           @relation(fields: [card_receivable_id], references: [id], onDelete: Restrict)
+  cash_register         CashRegister?             @relation(fields: [cash_register_id], references: [id], onDelete: Restrict)
+  cash_session          CashSession?              @relation(fields: [cash_session_id], references: [id], onDelete: Restrict)
+  manager_establishment Establishment?            @relation("ManagerPlace", fields: [manager_establishment_id], references: [id], onDelete: Restrict)
+  cash_handover         CashHandover?             @relation(fields: [cash_handover_id], references: [id], onDelete: Restrict)
 
   @@index([tenant_id, operation_key])
   @@index([tenant_id, establishment_id])
@@ -2100,6 +2120,7 @@ model CashMovement {
   @@index([tenant_id, cash_register_id])
   @@index([tenant_id, cash_session_id])
   @@index([tenant_id, manager_establishment_id])
+  @@index([tenant_id, franchisee_payment_id])
 }
 
 // Sessão do aplicativo (identidade por token, Onda 1). O access token é um JWT
@@ -3841,6 +3862,58 @@ model EmporioPaymentRequest {
   requested_by User   @relation(fields: [requested_by_user_id], references: [id], onDelete: Restrict)
 
   @@index([tenant_id, status])
+}
+
+/// Q300: quem traz vendas ao Empório e ganha crédito interno por elas. Cadastro
+/// curto: nome e telefone obrigatórios. O saldo nunca é gravado: é a soma do
+/// `franchisee_credit` das vendas ativas menos os `EmporioFranchiseePayment` ativos.
+model EmporioFranchisee {
+  id          String    @id @default(cuid())
+  tenant_id   String
+  name        String
+  phone       String
+  document    String?
+  notes       String?
+  archived_at DateTime?
+  created_at  DateTime  @default(now())
+  updated_at  DateTime  @updatedAt
+
+  tenant   Tenant                     @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  sales    EmporioSale[]
+  quotes   EmporioQuote[]
+  payments EmporioFranchiseePayment[]
+
+  @@index([tenant_id])
+}
+
+/// Q304: pagamento do crédito ao franqueado (sai do caixa ou da conta). Cancelar
+/// carimba `canceled_at`; o movimento de caixa é estornado pela action.
+model EmporioFranchiseePayment {
+  id                 String    @id @default(cuid())
+  tenant_id          String
+  franchisee_id      String
+  amount             Decimal   @db.Decimal(14, 2)
+  paid_at            DateTime
+  establishment_id   String?
+  bank_account_id    String?
+  cash_register_id   String?
+  cash_session_id    String?
+  notes              String?
+  /// §23.2: repetir a chave devolve este pagamento, sem duplicar.
+  operation_key      String
+  created_by_user_id String?
+  canceled_at        DateTime?
+  created_at         DateTime  @default(now())
+
+  tenant         Tenant            @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  franchisee     EmporioFranchisee @relation(fields: [franchisee_id], references: [id], onDelete: Restrict)
+  establishment  Establishment?    @relation(fields: [establishment_id], references: [id], onDelete: Restrict)
+  bank_account   BankAccount?      @relation(fields: [bank_account_id], references: [id], onDelete: Restrict)
+  cash_movements CashMovement[]
+
+  @@unique([tenant_id, operation_key])
+  @@index([tenant_id])
+  @@index([tenant_id, franchisee_id])
 }
 
 enum EmporioSupplierKind {
