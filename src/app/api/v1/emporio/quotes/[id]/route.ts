@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { apiErroDeZod } from "@/lib/api";
 import { readJson } from "@/lib/api-guard";
 import { withApi } from "@/lib/route";
@@ -9,6 +10,15 @@ import { corpoDoOrcamentoSchema } from "@/lib/emporio/venda-schema";
  * GET   /api/v1/emporio/quotes/:id  o orçamento com itens, preço de hoje, saldo e situação.
  * PATCH /api/v1/emporio/quotes/:id  edita o orçamento aberto ou vencido (Q285): wrapper fino.
  */
+
+/** Q309: editar o orçamento regrava também o franqueado e o crédito (ausentes valem sem crédito). */
+const schema = corpoDoOrcamentoSchema.extend({
+  franchisee_id: z.string().nullish(),
+  franchisee_credit: z
+    .number({ error: "O crédito do franqueado deve ser um número." })
+    .min(0, { error: "O crédito do franqueado não pode ser negativo." })
+    .nullish(),
+});
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -26,7 +36,7 @@ async function PATCHHandler(request: Request, props: Props) {
 
   const body = await readJson(request);
   if ("error" in body) return body.error;
-  const parsed = corpoDoOrcamentoSchema.safeParse(body.json);
+  const parsed = schema.safeParse(body.json);
   if (!parsed.success) return apiErroDeZod(parsed.error);
 
   return respostaDaAction(await editarOrcamentoAction(g.db, g.user, id, parsed.data));

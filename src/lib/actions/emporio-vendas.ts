@@ -130,6 +130,36 @@ async function turnoOuAborta(tx: Tx, ator: Ator, lojaId: string, pedido: string 
 
 const pedidoDeCaixa = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
 
+/**
+ * Q301, Q302, Q309: o franqueado e o crédito dele, comuns à venda e ao orçamento. O crédito é digitado
+ * (nada é calculado) e cobrado a mais do cliente, como o frete. Sem crédito não há o que controlar: o
+ * franqueado grava nulo. Não grava nada.
+ */
+export async function resolverFranqueadoDoCredito(
+  db: TenantPrismaClient,
+  franchiseeId: unknown,
+  credit: unknown,
+): Promise<ActionResult<{ franchisee_id: string | null; credit_cent: number }>> {
+  let creditCent = 0;
+  if (credit != null) {
+    if (typeof credit !== "number" || !Number.isFinite(credit)) {
+      return fail("VALIDATION_ERROR", "O crédito do franqueado deve ser um número.", 422, "franchisee_credit");
+    }
+    if (credit < 0) return fail("VALIDATION_ERROR", "O crédito do franqueado não pode ser negativo.", 422, "franchisee_credit");
+    creditCent = centavos(credit);
+  }
+  const id = typeof franchiseeId === "string" ? franchiseeId.trim() : "";
+  if (creditCent === 0) return ok({ franchisee_id: null, credit_cent: 0 });
+  if (!id) return fail("VALIDATION_ERROR", "Escolha o franqueado do crédito.", 422, "franchisee_id");
+  const f = await db.emporioFranchisee.findFirst({ where: { id }, select: { id: true, archived_at: true } });
+  if (!f) return NAO_ACHADO("Franqueado", "franchisee_id");
+  if (f.archived_at) return fail("FRANCHISEE_ARCHIVED", "Esse franqueado está arquivado.", 422, "franchisee_id");
+  return ok({ franchisee_id: f.id, credit_cent: creditCent });
+}
+
+/** A frase do Histórico: vazia sem crédito. */
+const fraseDoCredito = (credito: number): string => (credito > 0 ? `, crédito do franqueado ${dinheiro(credito)}` : "");
+
 // ---------------------------------------------------------------------------
 // Visões
 // ---------------------------------------------------------------------------
@@ -226,7 +256,11 @@ export type VendaView = {
   net_amount: number;
   /** Frete cobrado do cliente: fora do faturamento (os itens), dentro do recibo e do que o cliente paga. */
   freight_amount: number;
-  /** `net_amount + freight_amount`: o que o cliente paga. */
+  /** Q301 a Q303: o franqueado e o crédito dele, cobrado a mais do cliente, fora do faturamento. Interno: nunca vai ao impresso do cliente. */
+  franchisee_id: string | null;
+  franchisee_name: string | null;
+  franchisee_credit: number;
+  /** `net_amount + freight_amount + franchisee_credit`: o que o cliente paga. */
   total_amount: number;
   origin: OrigemDaVenda;
   /** A venda que esta substituiu (Q249), e a que a substituiu. */
@@ -263,6 +297,7 @@ export type VendaView = {
 const INCLUDE_VENDA = {
   establishment: { select: { name: true } },
   customer: { select: { name: true } },
+  franchisee: { select: { name: true } },
   quote: { select: { id: true, number: true } },
   replaces: { select: { id: true, number: true } },
   replaced_by: { select: { id: true, number: true } },
@@ -393,7 +428,12 @@ async function montarVendas(db: TenantPrismaClient, linhas: VendaRow[]): Promise
       cash_session_id: s.cash_session_id,
       net_amount: decToNum(s.net_amount) ?? 0,
       freight_amount: decToNum(s.freight_amount) ?? 0,
-      total_amount: arred2((decToNum(s.net_amount) ?? 0) + (decToNum(s.freight_amount) ?? 0)),
+      franchisee_id: s.franchisee_id,
+      franchisee_name: s.franchisee?.name ?? null,
+      franchisee_credit: decToNum(s.franchisee_credit) ?? 0,
+      total_amount: arred2(
+        (decToNum(s.net_amount) ?? 0) + (decToNum(s.freight_amount) ?? 0) + (decToNum(s.franchisee_credit) ?? 0),
+      ),
       origin: s.origin,
       replaces: s.replaces ? { id: s.replaces.id, number: s.replaces.number } : null,
       replaced_by: s.replaced_by ? { id: s.replaced_by.id, number: s.replaced_by.number } : null,
@@ -597,6 +637,12 @@ export type VenderInput = PedidoParaEntregaInput & {
   quote_id?: string | null;
   /** Frete cobrado do cliente (Q244): soma ao que ele paga, não ao faturamento. */
   freight_amount?: number | null;
+  /**
+   * Q301: o franqueado e o crédito dele, digitados, cobrados a mais do cliente como o frete. Ausentes
+   * (`undefined`) ao faturar um orçamento herdam os dele; `null` é "sem franqueado".
+   */
+  franchisee_id?: string | null;
+  franchisee_credit?: number | null;
   /** De onde veio o pedido (Q248); sem ela, balcão. */
   origin?: OrigemDaVenda | null;
 };
@@ -772,6 +818,9 @@ type Preparada = {
   net: number;
   /** Frete cobrado do cliente, 0 quando ausente. */
   frete: number;
+  /** O franqueado e o crédito dele (0 e nulo quando não há). Fora do `net`, do custo e do "Vendeu, Pagou". */
+  franchisee_id: string | null;
+  franchisee_credit: number;
   origin: OrigemDaVenda;
   desconto: number;
   autorizou: string | null;
@@ -803,6 +852,9 @@ type OrcamentoAFaturar = {
   precificacao: OrcamentoNaPrecificacao | null;
   /** O pedido para entrega gravado no orçamento: a venda herda quando o corpo não diz (D3). */
   pedido: PedidoParaEntregaColunas;
+  /** Q309: o franqueado e o crédito do orçamento; a venda herda quando o corpo não os traz. */
+  franchisee_id: string | null;
+  franchisee_credit: number;
 };
 
 /**
@@ -831,6 +883,8 @@ async function orcamentoAFaturar(
       valid_until: true,
       canceled_at: true,
       discount_authorized_by_user_id: true,
+      franchisee_id: true,
+      franchisee_credit: true,
       for_delivery: true,
       delivery_address_kind: true,
       delivery_zip: true,
@@ -863,9 +917,10 @@ async function orcamentoAFaturar(
     delivery_city: q.delivery_city,
     delivery_state: q.delivery_state,
   };
+  const franquia = { franchisee_id: q.franchisee_id, franchisee_credit: decToNum(q.franchisee_credit) ?? 0 };
   // Vencido: os itens do orçamento seguem a regra normal, sem referência nem autorização herdada.
   if (hojeEmBrasilia(soldAt).getTime() > q.valid_until.getTime()) {
-    return ok({ quote, vendedor: q.seller_user_id, precificacao: null, pedido });
+    return ok({ quote, vendedor: q.seller_user_id, precificacao: null, pedido, ...franquia });
   }
   const precos = await db.presentationPrice.findMany({
     where: { establishment_id: lojaId, presentation_id: { in: q.items.map((i) => i.presentation_id) } },
@@ -893,6 +948,7 @@ async function orcamentoAFaturar(
     vendedor: q.seller_user_id,
     precificacao: { linhas, autorizou: q.discount_authorized_by_user_id },
     pedido,
+    ...franquia,
   });
 }
 
@@ -965,6 +1021,17 @@ async function prepararVenda(
     if (!r.ok) return r;
     orcamento = r.data;
   }
+
+  // Q301, Q309: o franqueado e o crédito. Ausentes no corpo, valem os do orçamento faturado.
+  const herdada =
+    orcamento && input.franchisee_id === undefined && input.franchisee_credit === undefined ? orcamento : null;
+  const franquia = await resolverFranqueadoDoCredito(
+    db,
+    herdada ? herdada.franchisee_id : input.franchisee_id,
+    herdada ? herdada.franchisee_credit : input.franchisee_credit,
+  );
+  if (!franquia.ok) return franquia;
+  const creditoCent = franquia.data.credit_cent;
 
   // O vendedor (entrega 3), validado aqui fora da transação como a loja e o cliente.
   // Ao faturar, é o do orçamento, como a troca herda o da venda original.
@@ -1213,7 +1280,7 @@ async function prepararVenda(
   }
 
   const valorTroca = opts.valorTroca ?? 0;
-  const totalCent = netCent + freteCent;
+  const totalCent = netCent + freteCent + creditoCent;
   const trocaCent = Math.min(centavos(valorTroca), totalCent);
   const somaCent = pagamentos.reduce((s, p) => s + centavos(p.amount), 0);
   if (somaCent + trocaCent !== totalCent) {
@@ -1222,8 +1289,10 @@ async function prepararVenda(
       "VALIDATION_ERROR",
       trocaCent > 0
         ? `Os pagamentos (${brl(somaCent / 100)}) precisam cobrir o que sobra da venda depois da troca (${brl(esperado)}).`
-        : freteCent > 0
-          ? `A soma dos pagamentos (${brl(somaCent / 100)}) precisa ser igual ao total da venda com o frete (${brl(totalCent / 100)}).`
+        : freteCent > 0 || creditoCent > 0
+          ? `A soma dos pagamentos (${brl(somaCent / 100)}) precisa ser igual ao total da venda com ${
+              freteCent > 0 && creditoCent > 0 ? "o frete e o crédito do franqueado" : freteCent > 0 ? "o frete" : "o crédito do franqueado"
+            } (${brl(totalCent / 100)}).`
           : `A soma dos pagamentos (${brl(somaCent / 100)}) precisa ser igual ao total da venda (${brl(net)}).`,
       422,
       "payments",
@@ -1249,6 +1318,8 @@ async function prepararVenda(
     pagamentos,
     net,
     frete: freteCent / 100,
+    franchisee_id: franquia.data.franchisee_id,
+    franchisee_credit: creditoCent / 100,
     origin: origin as OrigemDaVenda,
     desconto: descontoCent / 100,
     autorizou,
@@ -1418,6 +1489,8 @@ async function gravarVenda(
       seller_user_id: p.seller_user_id,
       net_amount: p.net,
       freight_amount: p.frete,
+      franchisee_id: p.franchisee_id,
+      franchisee_credit: p.franchisee_credit,
       origin: p.origin,
       discount_amount: p.desconto,
       discount_authorized_by_user_id: p.autorizou,
@@ -1504,7 +1577,7 @@ async function gravarVenda(
   const lancamento = await createLinkedEntry(tx, {
     entry_type: "income",
     category: CATEGORIA_VENDAS,
-    amount: arred2(p.net + p.frete),
+    amount: arred2(p.net + p.frete + p.franchisee_credit),
     related_module: "emporio",
     related_id: venda.id,
     occurred_at: p.sold_at,
@@ -1778,7 +1851,9 @@ async function gravarVenda(
     establishment_id: p.loja.id,
     sold_at: p.sold_at,
     net: p.net,
-    frete: p.frete,
+    // O crédito do franqueado, como o frete, é cobrado a mais: entra na conta de quanto de cada forma foi
+    // paga (os pagamentos fecham net + frete + crédito), nunca na base das regras (Q303).
+    frete: arred2(p.frete + p.franchisee_credit),
     itens: p.itens.map((i) => ({
       emporio_product_id: i.produto.id,
       presentation_id: i.apresentacao.id,
@@ -1828,7 +1903,7 @@ export async function venderAction(
           prep.data.quote ? ` do orçamento nº ${formatarNumero(prep.data.quote.number)}` : ""
         }${prep.data.pedido.for_delivery ? ", para entrega" : ""}${
           prep.data.frete > 0 ? `, com frete ${dinheiro(prep.data.frete)}` : ""
-        }`,
+        }${fraseDoCredito(prep.data.franchisee_credit)}`,
       });
       return novaId;
     });
@@ -1861,6 +1936,8 @@ type VendaParaCancelar = PedidoParaEntregaColunas & {
   customer_id: string | null;
   seller_user_id: string | null;
   quote_id: string | null;
+  franchisee_id: string | null;
+  franchisee_credit: Prisma.Decimal;
   establishment: { name: string };
   _count: { returns: number };
 };
@@ -1898,6 +1975,8 @@ async function conferirCancelamento(
       seller_user_id: true,
       ...COLUNAS_DE_ENTREGA_DA_VENDA,
       quote_id: true,
+      franchisee_id: true,
+      franchisee_credit: true,
       establishment: { select: { name: true } },
       _count: { select: { returns: true } },
     },
@@ -2187,6 +2266,10 @@ export async function editarVendaAction(
       seller_user_id: input.seller_user_id ?? antiga.seller_user_id,
       // `undefined` herda o orçamento da antiga; `null` é "sem orçamento" (o cancelamento já o solta).
       quote_id: input.quote_id === undefined ? antiga.quote_id : input.quote_id,
+      // Q305: a nova carrega o franqueado e o crédito da antiga quando o corpo não os traz (a antiga, cancelada, deixa de contar).
+      ...(input.franchisee_id === undefined && input.franchisee_credit === undefined
+        ? { franchisee_id: antiga.franchisee_id, franchisee_credit: decToNum(antiga.franchisee_credit) ?? 0 }
+        : {}),
     },
     { substituindo: id },
   );
@@ -2233,7 +2316,7 @@ export async function editarVendaAction(
         target_id: nova,
         summary: `Substituiu a venda nº ${formatarNumero(await numeroDaVenda(tx, id))} pela nº ${rotulo} na ${prep.data.loja.name} (${frasItens(
           prep.data.itens.length,
-        )}, total ${dinheiro(prep.data.net + prep.data.frete)})${motivo ? `: ${motivo}` : ""}`,
+        )}, total ${dinheiro(prep.data.net + prep.data.frete + prep.data.franchisee_credit)}${fraseDoCredito(prep.data.franchisee_credit)})${motivo ? `: ${motivo}` : ""}`,
       });
       return nova;
     });

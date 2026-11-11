@@ -12,6 +12,12 @@ import { chaveDeOperacao, corpoDaVendaSchema } from "@/lib/emporio/venda-schema"
  */
 
 const schema = corpoDaVendaSchema.extend({
+  /** Q301, Q305: o franqueado e o crédito dele; ausentes, a venda nova herda os da antiga. */
+  franchisee_id: z.string().nullish(),
+  franchisee_credit: z
+    .number({ error: "O crédito do franqueado deve ser um número." })
+    .min(0, { error: "O crédito do franqueado não pode ser negativo." })
+    .nullish(),
   operation_key: chaveDeOperacao,
   reason: z.string().trim().nullish(),
 });

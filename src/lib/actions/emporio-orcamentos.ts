@@ -26,6 +26,7 @@ import {
 } from "@/lib/emporio/pedido-para-entrega";
 import { lojaVisivel, lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
 import { acharLojaParaEscrita, lerMovimentos } from "@/lib/actions/emporio-estoque";
+import { resolverFranqueadoDoCredito } from "@/lib/actions/emporio-vendas";
 import { normalizarTermo } from "@/lib/actions/whatsapp-handlers/shared";
 import { pesoDoItemKg } from "@/lib/emporio/peso";
 
@@ -128,6 +129,12 @@ export type OrcamentoView = {
   /** Todas as vendas que saíram dele, canceladas inclusive. */
   vendas: { id: string; numero: string; status: string }[];
   net_amount: number;
+  /** Q309: o franqueado e o crédito dele, cobrado a mais do cliente. Interno: o impresso rateia o crédito nos itens. */
+  franchisee_id: string | null;
+  franchisee_name: string | null;
+  franchisee_credit: number;
+  /** `net_amount + franchisee_credit`: o que o cliente paga pelo orçado (o frete não entra no orçamento). */
+  total_amount: number;
   discount_amount: number;
   notes: string | null;
   /** O pedido para entrega: a marca, a escolha e a cópia do endereço (nulos na retirada). */
@@ -140,6 +147,7 @@ export type OrcamentoView = {
 const INCLUDE_ORCAMENTO = {
   establishment: { select: { name: true } },
   customer: true,
+  franchisee: { select: { name: true } },
   sale: { select: { id: true, number: true } },
   sales: { select: { id: true, number: true, status: true }, orderBy: { created_at: "asc" } },
   based_on: { select: { id: true, number: true } },
@@ -275,6 +283,10 @@ async function montarOrcamentos(db: TenantPrismaClient, linhas: OrcamentoRow[]):
       sale: q.sale ? { id: q.sale.id, numero: formatarNumero(q.sale.number) } : null,
       vendas: q.sales.map((s) => ({ id: s.id, numero: formatarNumero(s.number), status: s.status })),
       net_amount: decToNum(q.net_amount) ?? 0,
+      franchisee_id: q.franchisee_id,
+      franchisee_name: q.franchisee?.name ?? null,
+      franchisee_credit: decToNum(q.franchisee_credit) ?? 0,
+      total_amount: Math.round(((decToNum(q.net_amount) ?? 0) + (decToNum(q.franchisee_credit) ?? 0)) * 100) / 100,
       discount_amount: decToNum(q.discount_amount) ?? 0,
       notes: q.notes,
       for_delivery: q.for_delivery,
@@ -473,10 +485,16 @@ export type OrcamentoInput = PedidoParaEntregaInput & {
   notes?: string | null;
   /** Q286: o orçamento de origem ("novo orçamento a partir deste"); precisa ser visível ao ator. */
   based_on_quote_id?: string | null;
+  /** Q309: o franqueado e o crédito dele, digitados (ausentes valem sem crédito; ver `resolverFranqueadoDoCredito`). */
+  franchisee_id?: string | null;
+  franchisee_credit?: number | null;
 };
 
 /** O corpo do orçamento, o mesmo na criação e na edição (Q285): sem chave de operação nem loja. */
-export type OrcamentoCorpo = Pick<OrcamentoInput, "customer_id" | "items" | "seller_user_id" | "notes"> &
+export type OrcamentoCorpo = Pick<
+  OrcamentoInput,
+  "customer_id" | "items" | "seller_user_id" | "notes" | "franchisee_id" | "franchisee_credit"
+> &
   PedidoParaEntregaInput;
 
 /**
@@ -502,6 +520,9 @@ async function prepararCorpo(db: TenantPrismaClient, ator: Ator, loja: { id: str
   const entrega = resolverPedidoParaEntrega(cliente, input);
   if (!entrega.ok) return entrega;
 
+  const franquia = await resolverFranqueadoDoCredito(db, input.franchisee_id, input.franchisee_credit);
+  if (!franquia.ok) return franquia;
+
   if (!Array.isArray(input.items) || input.items.length === 0) {
     return fail("VALIDATION_ERROR", "Inclua ao menos um item no orçamento.", 422, "items");
   }
@@ -514,8 +535,18 @@ async function prepararCorpo(db: TenantPrismaClient, ator: Ator, loja: { id: str
   if (!precificados.ok) return precificados;
 
   const notes = typeof input.notes === "string" && input.notes.trim() ? input.notes.trim() : null;
-  return ok({ vendedor: vendedor.data, cliente, entrega: entrega.data, p: precificados.data, notes });
+  return ok({
+    vendedor: vendedor.data,
+    cliente,
+    entrega: entrega.data,
+    p: precificados.data,
+    notes,
+    franquia: { franchisee_id: franquia.data.franchisee_id, franchisee_credit: franquia.data.credit_cent / 100 },
+  });
 }
+
+/** A frase do Histórico: vazia sem crédito. */
+const fraseDoCredito = (credito: number): string => (credito > 0 ? `, crédito do franqueado ${dinheiro(credito)}` : "");
 
 export async function salvarOrcamentoAction(
   db: TenantPrismaClient,
@@ -546,21 +577,26 @@ export async function salvarOrcamentoAction(
 
   // Q286: a origem precisa ser um orçamento que o ator enxerga.
   let origem: { id: string; number: number } | null = null;
+  let corpo: OrcamentoCorpo = input;
   const origemId = typeof input.based_on_quote_id === "string" ? input.based_on_quote_id.trim() : "";
   if (origemId) {
     const o = await db.emporioQuote.findFirst({
       where: { id: origemId },
-      select: { id: true, number: true, establishment_id: true },
+      select: { id: true, number: true, establishment_id: true, franchisee_id: true, franchisee_credit: true },
     });
     if (!o || !(await lojaVisivel(db, ator, o.establishment_id))) {
       return fail("NOT_FOUND", "Orçamento de origem não encontrado.", 404, "based_on_quote_id");
     }
     origem = { id: o.id, number: o.number };
+    // Q286, Q309: o novo orçamento copia o franqueado e o crédito da origem, salvo se o corpo os traz.
+    if (input.franchisee_id === undefined && input.franchisee_credit === undefined) {
+      corpo = { ...input, franchisee_id: o.franchisee_id, franchisee_credit: decToNum(o.franchisee_credit) ?? 0 };
+    }
   }
 
-  const prep = await prepararCorpo(db, ator, loja.data, input);
+  const prep = await prepararCorpo(db, ator, loja.data, corpo);
   if (!prep.ok) return prep;
-  const { vendedor, cliente, entrega, p, notes } = prep.data;
+  const { vendedor, cliente, entrega, p, notes, franquia } = prep.data;
 
   const config = await db.emporioSettings.findFirst({ select: { quote_validity_days: true } });
   const agora = opts.agora ?? new Date();
@@ -582,6 +618,7 @@ export async function salvarOrcamentoAction(
           discount_amount: p.desconto_cent / 100,
           discount_authorized_by_user_id: p.autorizou,
           notes,
+          ...franquia,
           ...entrega,
           based_on_quote_id: origem?.id ?? null,
           created_at: agora,
@@ -605,7 +642,7 @@ export async function salvarOrcamentoAction(
         establishment_id: loja.data.id,
         target_type: "orcamento",
         target_id: orcamento.id,
-        summary: `Salvou o orçamento nº ${formatarNumero(numero)} de ${dinheiro(p.total_cent / 100)} para ${cliente.name} na ${loja.data.name} (${frasItens(p.itens.length)})${entrega.for_delivery ? ", para entrega" : ""}${origem ? `, a partir do orçamento nº ${formatarNumero(origem.number)}` : ""}`,
+        summary: `Salvou o orçamento nº ${formatarNumero(numero)} de ${dinheiro(p.total_cent / 100)} para ${cliente.name} na ${loja.data.name} (${frasItens(p.itens.length)})${entrega.for_delivery ? ", para entrega" : ""}${origem ? `, a partir do orçamento nº ${formatarNumero(origem.number)}` : ""}${fraseDoCredito(franquia.franchisee_credit)}`,
       });
       return orcamento.id;
     });
@@ -671,7 +708,7 @@ export async function editarOrcamentoAction(
   if (!loja.ok) return loja;
   const prep = await prepararCorpo(db, ator, loja.data, input);
   if (!prep.ok) return prep;
-  const { vendedor, cliente, entrega, p, notes } = prep.data;
+  const { vendedor, cliente, entrega, p, notes, franquia } = prep.data;
 
   const config = await db.emporioSettings.findFirst({ select: { quote_validity_days: true } });
   const agora = opts.agora ?? new Date();
@@ -689,6 +726,7 @@ export async function editarOrcamentoAction(
         discount_amount: p.desconto_cent / 100,
         discount_authorized_by_user_id: p.autorizou,
         notes,
+        ...franquia,
         ...entrega,
       },
     });
@@ -712,7 +750,7 @@ export async function editarOrcamentoAction(
       establishment_id: antes.establishment_id,
       target_type: "orcamento",
       target_id: limpo,
-      summary: `Editou o orçamento nº ${antes.numero}: ${frasItens(antes.items.length)} para ${frasItens(p.itens.length)}, total de ${dinheiro(antes.net_amount)} para ${dinheiro(p.total_cent / 100)}, validade de ${dataBr(antes.valid_until)} para ${dataBr(validadeDepois)}`,
+      summary: `Editou o orçamento nº ${antes.numero}: ${frasItens(antes.items.length)} para ${frasItens(p.itens.length)}, total de ${dinheiro(antes.net_amount)} para ${dinheiro(p.total_cent / 100)}, validade de ${dataBr(antes.valid_until)} para ${dataBr(validadeDepois)}${fraseDoCredito(franquia.franchisee_credit)}`,
     });
     return null;
   });
