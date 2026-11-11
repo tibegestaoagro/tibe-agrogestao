@@ -25,8 +25,9 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-11. Custo único em produção (merge `4245e48` e push
-  autorizados na conversa). Nenhuma branch aberta. Os agentes `explorador`,
+- Atualizado em: 2026-11-11. Custo único em produção. Branch
+  `emporio-franqueado-e-repasse` pronta, **sem migração no Neon, sem merge,
+  sem push na `main`** (abaixo). Os agentes `explorador`,
   `prova-juiz`, `prova-viva` e `servidor-dados` carregam (descrição entre
   aspas). Outros agentes: leia `AGENTS.md`.
 - `main` igual a `origin/main`, Neon em dia. Em produção também: conta avulsa e
@@ -38,33 +39,33 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   Q292), orçamento (Q285 a Q290), boleto e cheque (Q278 a Q284; aberta 2.69),
   acordo, aviso e recálculo (Q275 a Q277; aberta 2.66).
 
+### Crédito do franqueado (Q300 a Q309): pronto na branch
+
+Branch `emporio-franqueado-e-repasse`, `34241bf` a `8ed794d`. Spec
+[../superpowers/specs/2026-11-11-emporio-franqueado-e-repasse-design.md](../superpowers/specs/2026-11-11-emporio-franqueado-e-repasse-design.md).
+Cadastro curto (nome e telefone), crédito digitado na venda e no orçamento,
+cobrado a mais e fora do faturamento, conta corrente com saldo calculado e
+"Pagar crédito" (saída de caixa, sem lançamento financeiro), impresso para o
+cliente sem o crédito e rateado nos itens, repasse discriminado no Resultado e
+no relatório. A Q306 do plano estava errada: o Financeiro geral já não lê o
+Empório (Q222). Migração aditiva `20261111200000_emporio_franqueado` só no
+Docker; **falta no Neon, antes do push**. m113 (escrita da spec, verde),
+roteiro `emporio-franqueado` 188 ok e reprova com o rateio sabotado, juiz 8/10
+com os achados corrigidos, `test:all` 116/116 depois de atualizar o test:nav.
+Decisões abertas para o usuário: o Caixa escolhe franqueado?; devolução de
+venda com crédito (hoje o crédito fica); taxa do cartão incide sobre o crédito.
+
 ### Um custo só, que zera com o estoque (Q298 e Q299): em produção
 
-Branch `emporio-custo-um-so` (`922fabb` a `e608d91`), na `main` por `4245e48`;
-deploy confirmado no `/docs/api`. Spec
+Merges `4245e48` e `2910302` (a coluna da base do preço saiu no segundo, Neon
+antes do push). Spec
 [../superpowers/specs/2026-11-11-emporio-custo-um-so-design.md](../superpowers/specs/2026-11-11-emporio-custo-um-so-design.md).
-Reunião com a Agromax em 11/11 (gravação em `docs/preco-custo-produto/`,
-ignorada pelo git). Causa real: a compra gravava o dia ao meio-dia e a contagem
-a hora exata, então a compra caía antes da contagem (o diagnóstico de 10/11
-estava errado; cofre corrigido). Compra e recebimento de hoje entram na hora do
-lançamento (Q298). Saíram, autorizado pelo usuário, a base por loja, a última
-compra ao lado e o aviso de 10% (Q293 a Q295); fica um custo (Q299).
-A coluna `Establishment.price_cost_basis` e o enum ficaram sem uso nesse deploy
-e saíram no seguinte (`20261111180000_emporio_derruba_base_do_preco`, Neon antes
-do push, merge `2910302`, autorizado em 11/11). m112 reescrita e roteiro
-`emporio-custo`, os dois sabotados (7 e 3 falhas) e verdes. `test:all` 113/115:
-m4 travou e deixou fixture, m92 falhou na sequência; as duas passam sozinhas.
-
-**Histórico corrigido em produção** (autorizado em 11/11): 13 entradas `compra`
-da Da Mata com `occurred_at` = `created_at` (mesmo dia). Depois, também
-autorizado, as 6 compras de teste de 10/11 (TALCO 27,99; ARUANA 47; 34,66; 15;
-74,90; 10) canceladas pela `cancelarCompraAction` (estoque, R$ 26.706,00 de
-contas a pagar e Histórico), e o saldo anterior da contagem do ARUANA de 19:05
-acertado de 627,41 para 164,41, para ela seguir dizendo "físico 0". Os dois
-produtos ficaram com saldo 0; o TALCO com custo 2,35. Cópias dos valores
-originais só na máquina (scratchpad da sessão), não no repositório.
-⚠️ Cancelar compra anterior a uma contagem faz a contagem tirar a mais (ela
-guarda a diferença): o app não trata isso; candidato a dívida.
+Causa real: a compra gravava o dia ao meio-dia e a contagem a hora exata
+(cofre corrigido). Em produção, autorizado em 11/11: 13 compras da Da Mata com
+`occurred_at` = `created_at` e as 6 compras de teste do TALCO e do ARUANA
+canceladas (R$ 26.706,00 de contas a pagar), com a contagem do ARUANA de 19:05
+acertada para seguir dizendo "físico 0". ⚠️ Cancelar compra anterior a uma
+contagem faz a contagem tirar a mais: o app não trata; candidato a dívida.
 
 ### Cartão (Q250 a Q267): entregas 1 a 3 em produção
 
@@ -75,9 +76,9 @@ Agromax, a entrega 4 (extrato da Stone) depende de um arquivo real.
 
 ### ⏭️ Próximo passo
 
-0. Trazer ao usuário os outros assuntos da reunião de 11/11 (franqueado como
-   crédito, frete e desconto fora do faturamento), como ele pediu. A Agromax
-   testa o custo único (contar, depois lançar a compra).
+0. Franqueado: o usuário autoriza a migração no Neon (antes do push), o merge e
+   o push, e responde as três decisões abertas. A Agromax testa o custo único
+   (contar, depois lançar a compra).
 1. Na Agromax: criar a regra por apresentação (FRANQUIA) e editar e cancelar um orçamento real; conferir o boleto e o "Em nome de" numa venda real.
 2. Na Agromax (usuário, pelas telas): Stone, taxas do mês, regra de dia útil
    e, se usar, a antecipação automática; confirmar as decisões do agente do
@@ -189,6 +190,7 @@ relatórios em [agente-whatsapp/](agente-whatsapp/), detalhe em
 
 ## Últimas rodadas
 
+- 11/11: crédito do franqueado (Q300 a Q309) pronto na branch, sem publicar.
 - 11/11: reunião com a Agromax; custo único (Q298, Q299) em produção, compras
   com a ordem corrigida e as de teste canceladas; tudo autorizado na conversa.
 - 10/11: dívidas 2.64 e 2.65 e conta avulsa na branch do Codex; banco local,

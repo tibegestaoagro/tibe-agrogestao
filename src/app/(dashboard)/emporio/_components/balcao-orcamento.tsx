@@ -12,7 +12,7 @@ import { consumidorFinalEscolhido, type ClienteEscolhido } from "@/lib/emporio/c
 import { linhaDoEndereco } from "@/lib/emporio/pedido-para-entrega";
 import { numeroBr, paraCampo, UNIDADE_BASE_SUFIXO } from "./formato";
 import { valorDoPedido, type PedidoParaEntregaValor } from "./pedido-para-entrega-campos";
-import type { CargaDoOrcamento, PrecosVenda, ProdutoVenda } from "./venda-estado";
+import { cent, centavosParaCampo, type CargaDoOrcamento, type PrecosVenda, type ProdutoVenda } from "./venda-estado";
 
 /**
  * As peças do orçamento no balcão (entrega 4): o seletor Venda | Orçamento, o
@@ -27,6 +27,13 @@ export type ModoDoBalcao = "venda" | "orcamento";
 export function dataBr(iso: string): string {
   const [a, m, d] = iso.slice(0, 10).split("-");
   return `${d}/${m}/${a}`;
+}
+
+/** O franqueado e o crédito do orçamento como o balcão os guarda: o id e o texto do campo de dinheiro. */
+function franquiaDoOrcamento(q: OrcamentoView): { franqueadoId: string; credito: string } {
+  return q.franchisee_credit > 0
+    ? { franqueadoId: q.franchisee_id ?? "", credito: centavosParaCampo(cent(q.franchisee_credit)) }
+    : { franqueadoId: "", credito: "" };
 }
 
 /** A carga do carrinho e o pedido para entrega do orçamento, que o balcão guarda fora do carrinho. */
@@ -59,6 +66,7 @@ export function cargaDoOrcamento(q: OrcamentoView, consumidorFinal: { id: string
       qtd: paraCampo(i.quantity),
     })),
     cliente: q.customer.id ? clienteDoOrcamento(q.customer, consumidorFinal) : null,
+    ...franquiaDoOrcamento(q),
     // Ao faturar, a tela manda o pedido explícito (D3), já preenchido com o do orçamento.
     pedido: valorDoPedido(q),
   };
@@ -97,6 +105,7 @@ export function cargaParaRefazer(
         qtd: paraCampo(i.quantity),
       })),
       cliente: q.customer.id ? clienteDoOrcamento(q.customer, consumidorFinal) : null,
+      ...franquiaDoOrcamento(q),
       pedido: valorDoPedido(q),
     },
   };
@@ -356,7 +365,8 @@ export function ResumoDoOrcamento({
         Orçamento nº {orcamento.numero} salvo, válido até {dataBr(orcamento.valid_until)}
       </p>
       <p>
-        {reaisBr(orcamento.net_amount)}, cliente {orcamento.customer.name}
+        {reaisBr(orcamento.net_amount)}
+        {orcamento.franchisee_credit > 0 ? ` + crédito do franqueado ${reaisBr(orcamento.franchisee_credit)}` : ""}, cliente {orcamento.customer.name}
         {orcamento.seller_name ? `, vendedor ${orcamento.seller_name}` : ""}
       </p>
       {orcamento.for_delivery && (

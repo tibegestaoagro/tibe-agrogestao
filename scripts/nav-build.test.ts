@@ -104,7 +104,7 @@ function main() {
   const ordemEsperada = [
     "/emporio", "/emporio/vender", "/emporio/vendas", "/emporio/orcamentos", "/emporio/fiado", "/emporio/clientes",
     "/emporio/caixa", "/emporio/financeiro", "/emporio/produtos", "/emporio/estoque", "/emporio/compras", "/emporio/fornecedores",
-    "/emporio/transferencias",
+    "/emporio/franqueados", "/emporio/transferencias",
     "/emporio/despesas", "/emporio/resultado", "/emporio/relatorios", "/emporio/equipe",
     "/emporio/estabelecimentos", "/emporio/historico", "/emporio/configuracoes",
   ];
@@ -112,7 +112,7 @@ function main() {
   const gDono = grupo(doDono);
   assert(
     !!gDono && JSON.stringify(gDono.children.map((c) => c.href)) === JSON.stringify(ordemEsperada),
-    "dono: o grupo Meu Empório tem os 20 filhos, na ordem (Financeiro depois de Caixa, entrega 1 do financeiro)",
+    "dono: o grupo Meu Empório tem os 21 filhos, na ordem (Financeiro depois de Caixa; Franqueados depois de Fornecedores, Q300)",
   );
   const financeiro: PapelContexto = { papel: "financeiro", lojas: null, chaves: new Set(), soDaLoja: true };
   const hrefsFin = paginasVisiveis(financeiro).map((p) => p.href);

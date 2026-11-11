@@ -161,6 +161,19 @@ export function ResultadoMes({ r }: { r: ResultadoDaLojaView }) {
               </>
             }
           />
+          {(r.franchisee_credit.received > 0 || r.franchisee_credit.paid > 0) && (
+            <Linha
+              rotulo="Créditos de franqueado (repasse)"
+              valor={reaisBr(r.franchisee_credit.received - r.franchisee_credit.paid)}
+              nota="O que o cliente pagou a mais por conta do franqueado, menos o que foi repassado a ele: não entra no resultado"
+              detalhe={
+                <>
+                  <Item rotulo="Recebido nas vendas" valor={reaisBr(r.franchisee_credit.received)} />
+                  <Item rotulo="Pago aos franqueados" valor={reaisBr(r.franchisee_credit.paid)} />
+                </>
+              }
+            />
+          )}
           <Linha
             rotulo="(-) Antecipação de recebíveis"
             valor={reaisBr(r.anticipation_costs)}

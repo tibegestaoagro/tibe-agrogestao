@@ -28,6 +28,7 @@ function TabelaPorOrigem({ origens }: { origens: VendasPorOrigem }) {
           <TableHead className="text-right">Vendas</TableHead>
           <TableHead className="text-right">Faturamento</TableHead>
           <TableHead className="text-right">Frete</TableHead>
+          <TableHead className="text-right">Crédito de franqueado</TableHead>
           <TableHead className="text-right">% do faturamento</TableHead>
         </TableRow>
       </TableHeader>
@@ -38,6 +39,7 @@ function TabelaPorOrigem({ origens }: { origens: VendasPorOrigem }) {
             <TableCell className="text-right">{o.count}</TableCell>
             <TableCell className={classeTotal(o.net)}>{reaisBr(o.net)}</TableCell>
             <TableCell className="text-right">{reaisBr(o.freight)}</TableCell>
+            <TableCell className="text-right">{reaisBr(o.franchisee_credit)}</TableCell>
             <TableCell className="text-right">{pctBr(o.share_pct)}</TableCell>
           </TableRow>
         ))}
@@ -52,7 +54,9 @@ export function RelatoriosBlocos({ r }: { r: RelatorioDeVendas }) {
   return (
     <div className="space-y-4">
       <Bloco titulo="Por origem">
-        <p className="text-sm text-texto-secundario">Balcão e e-commerce, já sem o que foi devolvido.</p>
+        <p className="text-sm text-texto-secundario">
+          Balcão e e-commerce, já sem o que foi devolvido. Frete e crédito de franqueado ficam fora do faturamento.
+        </p>
         <TabelaPorOrigem origens={r.by_origin} />
         {varias && r.por_loja.length > 0 && (
           <div className="space-y-4">

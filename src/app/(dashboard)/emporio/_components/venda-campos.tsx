@@ -33,6 +33,7 @@ import {
   ehCartao,
   normalizar,
   produtoCasaBusca,
+  type CampoDaFranquia,
   type CampoDaVenda,
   type EstadoDaVenda,
   type FormaDePagamento,
@@ -52,7 +53,9 @@ const FORMAS_DO_BALCAO: FormaDePagamento[] = [
   "boleto",
   "fiado",
 ];
-const PARCELAS = Array.from({ length: 11 }, (_, i) => i + 2);
+/** O item "Nenhum" do franqueado: o Radix não aceita valor vazio num item. */
+const SEM_FRANQUEADO = "nenhum";
+const PARCELAS =Array.from({ length: 11 }, (_, i) => i + 2);
 
 /**
  * Os campos da venda: loja, itens, cliente e pagamento. Não escreve nada e não
@@ -255,6 +258,79 @@ function AvisoDoFiado({ credito }: { credito: CreditoView }) {
   );
 }
 
+/**
+ * O franqueado e o crédito dele (Q301), no balcão, na venda e no orçamento. Os ids são os nomes da API
+ * (`franchisee_id`, `franchisee_credit`). Fica fora de `VendaCampos` porque a troca usa os mesmos campos
+ * e não tem franqueado. Sem franqueado na lista e nenhum escolhido (perfil que não os vê), não aparece.
+ */
+export function FranquiaCampos({
+  v,
+  franqueados,
+  erros,
+  idDe,
+  limpar,
+}: {
+  v: EstadoDaVenda;
+  franqueados: { id: string; name: string }[];
+  erros: Partial<Record<CampoDaFranquia, string>>;
+  idDe: (campo: CampoDaFranquia) => string;
+  limpar: (campo: CampoDaFranquia | "payments") => void;
+}) {
+  if (franqueados.length === 0 && v.franqueadoId === "") return null;
+  return (
+    <>
+      <Field label="Franqueado (opcional)" id={idDe("franchisee_id")} error={erros.franchisee_id}>
+        {({ id, ...aria }) => (
+          <Select
+            value={v.franqueadoId === "" ? SEM_FRANQUEADO : v.franqueadoId}
+            onValueChange={(valor) => {
+              // O Radix dispara "" quando o valor some da lista: nunca é escolha de ninguém.
+              if (valor === "") return;
+              v.definirFranqueado(valor === SEM_FRANQUEADO ? "" : valor);
+              limpar("franchisee_id");
+              limpar("franchisee_credit");
+              limpar("payments");
+            }}
+          >
+            <SelectTrigger id={id} {...aria}>
+              <SelectValue placeholder="Nenhum" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={SEM_FRANQUEADO}>Nenhum</SelectItem>
+              {franqueados.map((f) => (
+                <SelectItem key={f.id} value={f.id}>
+                  {f.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </Field>
+      <Field
+        label="Crédito do franqueado (R$)"
+        id={idDe("franchisee_credit")}
+        error={erros.franchisee_credit}
+        hint="Cobrado do cliente a mais e repassado ao franqueado: não entra no faturamento da loja."
+      >
+        {({ id, ...aria }) => (
+          <MoneyInput
+            id={id}
+            {...aria}
+            placeholder="0,00"
+            value={v.credito}
+            onValueChange={(valor) => {
+              v.definirCredito(valor);
+              limpar("franchisee_credit");
+              limpar("franchisee_id");
+              limpar("payments");
+            }}
+          />
+        )}
+      </Field>
+    </>
+  );
+}
+
 export function VendaCampos({
   v,
   produtos,
@@ -274,7 +350,10 @@ export function VendaCampos({
   creditoDoFiado,
   depoisDoPagamento,
   comFrete,
+  depoisDoFrete,
 }: {
+  /** O que o balcão põe logo abaixo do frete e da origem (o franqueado e o crédito), na ordem visual do `ORDEM`. */
+  depoisDoFrete?: ReactNode;
   /** Frete cobrado e origem da venda (Q244, Q248): só o balcão, e só na venda (orçamento e troca não têm). */
   comFrete?: boolean;
   /** O crédito do cliente, lido pelo balcão quando há fiado: só informa, a recusa de verdade é do servidor. */
@@ -539,6 +618,8 @@ export function VendaCampos({
         </>
       )}
 
+      {depoisDoFrete}
+
       {!semPagamento && (
         <Field label="Pagamento" required={v.aPagarCent > 0} id={idDe("payments")} error={erros.payments}>
           {({ id, ...aria }) => (
@@ -771,9 +852,17 @@ export function VendaCampos({
                     <strong className="text-texto">{reaisBr((v.totalCent + v.freteCent) / 100)}</strong>
                   </p>
                 )}
-                {v.totalCent > 0 && v.aPagarCent !== v.totalCent + v.freteCent && (
+                {v.creditoCent > 0 && (
                   <p className="text-texto-secundario">
-                    Valor da troca abatido: {reaisBr((v.totalCent + v.freteCent - v.aPagarCent) / 100)}. A pagar:{" "}
+                    Crédito do franqueado {reaisBr(v.creditoCent / 100)} (fora do faturamento). Total a pagar:{" "}
+                    <strong className="text-texto">
+                      {reaisBr((v.totalCent + v.freteCent + v.creditoCent) / 100)}
+                    </strong>
+                  </p>
+                )}
+                {v.totalCent > 0 && v.aPagarCent !== v.totalCent + v.freteCent + v.creditoCent && (
+                  <p className="text-texto-secundario">
+                    Valor da troca abatido: {reaisBr((v.totalCent + v.freteCent + v.creditoCent - v.aPagarCent) / 100)}. A pagar:{" "}
                     <strong className="text-texto">{reaisBr(v.aPagarCent / 100)}</strong>
                   </p>
                 )}
