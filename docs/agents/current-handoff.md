@@ -49,9 +49,9 @@ a hora exata, então a compra caía antes da contagem (o diagnóstico de 10/11
 estava errado; cofre corrigido). Compra e recebimento de hoje entram na hora do
 lançamento (Q298). Saíram, autorizado pelo usuário, a base por loja, a última
 compra ao lado e o aviso de 10% (Q293 a Q295); fica um custo (Q299).
-Sem migração: `Establishment.price_cost_basis` e o enum ficam no banco, sem
-uso (derrubar antes do push quebraria as telas no ar). **Pendente: derrubar
-num deploy fora do horário da loja.** m112 reescrita e roteiro
+A coluna `Establishment.price_cost_basis` e o enum ficaram sem uso nesse deploy
+e saíram no seguinte (`20261111180000_emporio_derruba_base_do_preco`, Neon antes
+do push, merge `2910302`, autorizado em 11/11). m112 reescrita e roteiro
 `emporio-custo`, os dois sabotados (7 e 3 falhas) e verdes. `test:all` 113/115:
 m4 travou e deixou fixture, m92 falhou na sequência; as duas passam sozinhas.
 
@@ -76,8 +76,8 @@ Agromax, a entrega 4 (extrato da Stone) depende de um arquivo real.
 ### ⏭️ Próximo passo
 
 0. Trazer ao usuário os outros assuntos da reunião de 11/11 (franqueado como
-   crédito, frete e desconto fora do faturamento), como ele pediu. Derrubar a
-   coluna da base do preço fora do horário da loja (migração antes do push).
+   crédito, frete e desconto fora do faturamento), como ele pediu. A Agromax
+   testa o custo único (contar, depois lançar a compra).
 1. Na Agromax: criar a regra por apresentação (FRANQUIA) e editar e cancelar um orçamento real; conferir o boleto e o "Em nome de" numa venda real.
 2. Na Agromax (usuário, pelas telas): Stone, taxas do mês, regra de dia útil
    e, se usar, a antecipação automática; confirmar as decisões do agente do
