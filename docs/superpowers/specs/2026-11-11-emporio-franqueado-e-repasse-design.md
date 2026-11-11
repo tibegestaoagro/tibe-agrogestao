@@ -21,8 +21,11 @@ público). Decisões do usuário em 11/11/2026, depois do plano.
 
 - Frete (Q244 a Q247): fora da venda líquida e do Resultado da Loja; vira conta
   a pagar "Frete de entrega". Mas o recebimento da venda é um lançamento só
-  (itens mais frete, Q245), e o Financeiro geral soma esse lançamento como
-  receita (`financial-reports.ts`); a conta do frete entra como despesa.
+  (itens mais frete, Q245). ⚠️ O plano de 11/11 dizia que o Financeiro geral
+  somava esse lançamento como receita: estava errado. Desde a Q222,
+  `filtroDeArea` (`src/lib/financial-area.ts`) faz o Financeiro geral ler só
+  lançamentos sem loja, e todo lançamento do Empório tem loja. O frete já fica
+  fora da receita e da despesa de lá.
 - Franquia: só pela regra do "Vendeu, Pagou" por apresentação (Q292), que gera
   despesa na margem, como comissão. A Agromax ainda não criou a regra.
 - Desconto: a venda líquida já é itens menos desconto (Q27).
@@ -39,7 +42,7 @@ público). Decisões do usuário em 11/11/2026, depois do plano.
 | Q309 | **O orçamento também leva franqueado e crédito** (opcionais, digitados), o impresso do orçamento já sai rateado, e ao faturar a venda nasce com os dois; editar o orçamento edita os dois | decisão do usuário: o cliente paga o que foi orçado |
 | Q304 | **Conta corrente do franqueado:** extrato com os créditos (venda, data, valor) e os pagamentos; saldo = créditos menos pagamentos, **calculado, nunca gravado**. "Pagar crédito" registra valor (até o saldo), data, forma e de onde sai (gaveta do turno ou conta bancária, como o pagamento de compra) e entra no Histórico | invariante 2; o "eu não recebi" se responde pelo extrato |
 | Q305 | **Cancelar ou editar a venda** cancela o crédito dela. Crédito já incluído num pagamento não volta sozinho: o saldo do franqueado fica negativo e a tela mostra | o mesmo princípio do frete pago (Q99) |
-| Q306 | **Frete mantém a conta a pagar por venda** (o fluxo da Laíza), mas **sai da receita e da despesa no Financeiro geral**. O mesmo vale para o crédito do franqueado: entra e sai do caixa, fora de receita e despesa | decisão do usuário |
+| Q306 | **Frete mantém a conta a pagar por venda** (o fluxo da Laíza) e fica fora de receita e despesa. O mesmo vale para o crédito do franqueado: entra e sai do caixa, fora de receita e despesa; o pagamento ao franqueado não gera lançamento financeiro. No Financeiro geral isso já valia (Q222); no Empório, o Resultado e o relatório de vendas mostram os dois como repasse, discriminados | decisão do usuário |
 | Q307 | **Desconto:** nenhuma regra nova. Conferir tela por tela (Resultado, relatórios, Financeiro geral) que o faturamento é o líquido; se a Agromax mostrar um lugar onde o desconto entra, corrigir ali | já é a regra desde a Q27 |
 
 ## Pontos técnicos a resolver na implementação

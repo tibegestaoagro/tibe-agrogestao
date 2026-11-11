@@ -30,6 +30,8 @@ export type VendasPorOrigem = {
   count: number;
   net: number;
   freight: number;
+  /** Q303: crédito de franqueado cobrado a mais (interno), fora do líquido. */
+  franchisee_credit: number;
   /** Participação no líquido do relatório (ou da loja), em % com 2 casas; 0 quando o total é zero. */
   share_pct: number;
 }[];
@@ -60,10 +62,10 @@ export type RelatorioDeVendas = {
 
 type Origem = "balcao" | "ecommerce";
 const ORIGENS: Origem[] = ["balcao", "ecommerce"];
-type SomaOrigem = { count: number; cent: number; freightCent: number };
+type SomaOrigem = { count: number; cent: number; freightCent: number; creditCent: number };
 const somaVazia = (): Record<Origem, SomaOrigem> => ({
-  balcao: { count: 0, cent: 0, freightCent: 0 },
-  ecommerce: { count: 0, cent: 0, freightCent: 0 },
+  balcao: { count: 0, cent: 0, freightCent: 0, creditCent: 0 },
+  ecommerce: { count: 0, cent: 0, freightCent: 0, creditCent: 0 },
 });
 function viewDeOrigens(m: Record<Origem, SomaOrigem>): VendasPorOrigem {
   const total = ORIGENS.reduce((s, o) => s + m[o].cent, 0);
@@ -72,6 +74,7 @@ function viewDeOrigens(m: Record<Origem, SomaOrigem>): VendasPorOrigem {
     count: m[o].count,
     net: reais(m[o].cent),
     freight: reais(m[o].freightCent),
+    franchisee_credit: reais(m[o].creditCent),
     share_pct: total > 0 ? Math.round((m[o].cent * 10000) / total) / 100 : 0,
   }));
 }
@@ -140,6 +143,7 @@ export async function relatorioDeVendasAction(
       seller_user_id: true,
       origin: true,
       freight_amount: true,
+      franchisee_credit: true,
       net_amount: true,
       exchange_return_id: true,
       items: { select: { emporio_product_id: true, base_qty: true, total: true } },
@@ -187,6 +191,7 @@ export async function relatorioDeVendasAction(
       o.count += conta;
       o.cent += cent;
       o.freightCent += centavos(decToNum(v.freight_amount) ?? 0);
+      o.creditCent += centavos(decToNum(v.franchisee_credit) ?? 0);
     }
     for (const i of v.items) {
       const p = produto(i.emporio_product_id);

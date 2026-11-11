@@ -66,6 +66,8 @@ export type LojaDoResultadoView = {
   fixed_expenses: number;
   /** Frete de entrega (repasse): já dentro de `result`. */
   freight: { received: number; paid: number; difference: number };
+  /** Q303: crédito de franqueado (repasse): informativo, fora de `result`. */
+  franchisee_credit: { received: number; paid: number };
   /** Despesa financeira "Antecipação de recebíveis" do mês: fora da margem, já dentro de `result`. */
   anticipation_costs: number;
   result: number;
@@ -105,6 +107,12 @@ export type ResultadoDaLojaView = {
   fixed_expenses_items: { name: string; establishment_id: string; amount: number; due_date: string; status: string }[];
   /** Frete cobrado do cliente (repasse): fora da margem, a diferença entra no resultado. */
   freight: { received: number; paid: number; difference: number };
+  /**
+   * Q303: crédito de franqueado cobrado nas vendas do mês e pago aos franqueados no mês (pagamentos
+   * não cancelados da loja). Só informativo: o saldo é do franqueado, nada disso entra em vendas, custo,
+   * margem nem `result`.
+   */
+  franchisee_credit: { received: number; paid: number };
   /** Antecipação de recebíveis (despesa financeira): subtraída de `result`, fora da margem e de `variable_expenses`. */
   anticipation_costs: number;
   result: number;
@@ -135,6 +143,7 @@ async function margemDaJanela(db: TenantPrismaClient, lojaId: string, j: Janela)
       sold_at: true,
       net_amount: true,
       freight_amount: true,
+      franchisee_credit: true,
       items: { select: { unit_cost: true, base_qty: true, cost_estimated: true, cost_provisional: true } },
     },
   });
@@ -183,6 +192,13 @@ async function margemDaJanela(db: TenantPrismaClient, lojaId: string, j: Janela)
         });
   const freteRecebidoCent = vendas.reduce((s, v) => s + centavos(decToNum(v.freight_amount) ?? 0), 0);
   const fretePagoCent = fretes.reduce((s, f) => s + centavos(decToNum(f.amount) ?? 0), 0);
+  // Q303: o crédito do franqueado só é informado (recebido nas vendas, pago no período); não toca o resultado.
+  const creditoRecebidoCent = vendas.reduce((s, v) => s + centavos(decToNum(v.franchisee_credit) ?? 0), 0);
+  const pagamentosDeCredito = await db.emporioFranchiseePayment.findMany({
+    where: { establishment_id: lojaId, canceled_at: null, paid_at: { gte: j.de, lt: j.ate } },
+    select: { amount: true },
+  });
+  const creditoPagoCent = pagamentosDeCredito.reduce((s, p) => s + centavos(decToNum(p.amount) ?? 0), 0);
 
   const devolvidoCent = devolucoes.reduce((s, d) => s + centavos(decToNum(d.amount) ?? 0), 0);
   const vendasCent = faturamentoLiquidoCent(vendas, devolucoes);
@@ -224,6 +240,8 @@ async function margemDaJanela(db: TenantPrismaClient, lojaId: string, j: Janela)
     margemCent: vendasCent - custoCent - vendeuPagouCent,
     freteRecebidoCent,
     fretePagoCent,
+    creditoRecebidoCent,
+    creditoPagoCent,
     itensEstimados,
     embalagensProvisorias,
   };
@@ -246,6 +264,8 @@ function somarMargens(ms: Margem[]): Margem {
     margemCent: soma((m) => m.margemCent),
     freteRecebidoCent: soma((m) => m.freteRecebidoCent),
     fretePagoCent: soma((m) => m.fretePagoCent),
+    creditoRecebidoCent: soma((m) => m.creditoRecebidoCent),
+    creditoPagoCent: soma((m) => m.creditoPagoCent),
     itensEstimados: soma((m) => m.itensEstimados),
     embalagensProvisorias: soma((m) => m.embalagensProvisorias),
   };
@@ -563,6 +583,7 @@ export async function resultadoDaLojaAction(
       paid: reais(m.fretePagoCent),
       difference: reais(freteDifCent),
     },
+    franchisee_credit: { received: reais(m.creditoRecebidoCent), paid: reais(m.creditoPagoCent) },
     anticipation_costs: reais(antecipacaoCent),
     result: reais(resultadoCent),
     card_cost: custoDoCartao(soma((a) => a.cartaoCent), m.taxasCent, antecipacaoCent),
@@ -587,6 +608,7 @@ export async function resultadoDaLojaAction(
           paid: reais(a.m.fretePagoCent),
           difference: reais(a.m.freteRecebidoCent - a.m.fretePagoCent),
         },
+        franchisee_credit: { received: reais(a.m.creditoRecebidoCent), paid: reais(a.m.creditoPagoCent) },
         anticipation_costs: reais(a.antecipacaoCent),
         result: reais(
           a.m.margemCent - a.perdasCent - a.fixasCent + a.m.freteRecebidoCent - a.m.fretePagoCent - a.antecipacaoCent,

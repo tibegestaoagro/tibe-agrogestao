@@ -1,4 +1,5 @@
 import type { TenantPrismaClient } from "@/lib/prisma";
+import { decToNum } from "@/lib/serialize";
 import { ok, type ActionResult } from "@/lib/actions/types";
 import type { Ator } from "@/lib/actions/emporio-catalogo";
 import { lerVendaAction } from "@/lib/actions/emporio-vendas";
@@ -10,6 +11,7 @@ import { CONSUMIDOR_FINAL, formatarCep, formatarDocumento } from "@/lib/contatos
 import { ehConsumidorFinal } from "@/lib/emporio/cliente-cadastro";
 import { formatarNumero } from "@/lib/emporio/numeracao";
 import { pesoTotal } from "@/lib/emporio/peso";
+import { precoUnitarioDoRateio, ratearCreditoNosItens } from "@/lib/emporio/rateio-impresso";
 import { ROTULO_DA_BANDEIRA, type Bandeira } from "@/lib/emporio/cartao";
 import { FORMA_ROTULO } from "@/app/(dashboard)/emporio/_components/venda-rotulos";
 import { numeroBr } from "@/app/(dashboard)/emporio/_components/formato";
@@ -197,6 +199,30 @@ function itensNoPrecoSugerido(
   return { itens, subtotal };
 }
 
+const emCentavos = (n: number) => Math.round(Number((n * 100).toPrecision(12)));
+
+/**
+ * Q308: o crédito do franqueado é interno, então some do papel e entra nos itens, rateado pelo
+ * valor (o que sobrar de centavo fica no último). Preço unitário recalculado do total rateado.
+ * Crédito zero devolve tudo como veio.
+ */
+function comCreditoRateado(
+  itens: ImpressoVenda["itens"],
+  quantidades: number[],
+  subtotal: number,
+  creditoCent: number,
+): { itens: ImpressoVenda["itens"]; subtotal: number } {
+  if (creditoCent <= 0) return { itens, subtotal };
+  const totais = ratearCreditoNosItens(
+    itens.map((i) => emCentavos(i.total)),
+    creditoCent,
+  );
+  return {
+    itens: itens.map((i, k) => ({ ...i, total: totais[k] / 100, preco: precoUnitarioDoRateio(totais[k], quantidades[k]) })),
+    subtotal: totais.reduce((s, t) => s + t, 0) / 100,
+  };
+}
+
 export async function lerImpressoDaVendaAction(
   db: TenantPrismaClient,
   ator: Ator,
@@ -217,7 +243,10 @@ export async function lerImpressoDaVendaAction(
     : null;
   const caixa = turno ? `Caixa ${turno.cash_register.number} (${v.sold_by_name ?? "sem nome"})` : null;
 
-  const { itens, subtotal } = itensNoPrecoSugerido(
+  // Lido direto da venda (nao da visao): o crédito é interno e só entra aqui para ser rateado nos itens.
+  const credito = await db.emporioSale.findFirst({ where: { id: saleId }, select: { franchisee_credit: true } });
+  const creditoCent = emCentavos(decToNum(credito?.franchisee_credit) ?? 0);
+  const cru = itensNoPrecoSugerido(
     v.items.map((i) => ({
       produto: `${i.product_name} (${i.presentation_name})`,
       quantity: i.quantity,
@@ -227,10 +256,16 @@ export async function lerImpressoDaVendaAction(
       peso_kg: i.weight_kg,
     })),
   );
+  const { itens, subtotal } = comCreditoRateado(cru.itens, v.items.map((i) => i.quantity), cru.subtotal, creditoCent);
+  // O papel fecha: itens rateados menos desconto mais frete. Sem crédito vale o total gravado, como sempre valeu.
+  const total =
+    creditoCent > 0
+      ? (emCentavos(subtotal) - emCentavos(v.discount_amount) + emCentavos(v.freight_amount)) / 100
+      : v.total_amount;
   const pesos = pesoTotal(itens.map((i) => i.peso_kg));
   const pago = v.payments.reduce((t, p) => t + p.amount, 0);
   // So e nao nulo se a soma dos pagamentos passar do total; hoje o dinheiro e gravado sem o valor entregue, entao fica null.
-  const troco = Math.round((pago - v.total_amount) * 100) / 100;
+  const troco = Math.round((pago - total) * 100) / 100;
 
   return ok({
     tipo: "venda",
@@ -247,7 +282,7 @@ export async function lerImpressoDaVendaAction(
     subtotal,
     desconto: v.discount_amount,
     frete: v.freight_amount,
-    total: v.total_amount,
+    total,
     origem: v.origin,
     pagamentos: v.payments.map((p) => ({
       forma: formaNoPapel(p),
@@ -379,7 +414,9 @@ export async function lerImpressoDoOrcamentoAction(
   if (!base.ok) return base;
   const { loja, cfg, cliente } = base.data;
 
-  const { itens, subtotal } = itensNoPrecoSugerido(
+  const credito = await db.emporioQuote.findFirst({ where: { id: quoteId }, select: { franchisee_credit: true } });
+  const creditoCent = emCentavos(decToNum(credito?.franchisee_credit) ?? 0);
+  const cru = itensNoPrecoSugerido(
     q.items.map((i) => ({
       produto: `${i.produto} (${i.apresentacao})`,
       quantity: i.quantity,
@@ -389,6 +426,8 @@ export async function lerImpressoDoOrcamentoAction(
       peso_kg: i.peso_kg,
     })),
   );
+  const { itens, subtotal } = comCreditoRateado(cru.itens, q.items.map((i) => i.quantity), cru.subtotal, creditoCent);
+  const total = creditoCent > 0 ? (emCentavos(subtotal) - emCentavos(q.discount_amount)) / 100 : q.net_amount;
   const pesos = pesoTotal(itens.map((i) => i.peso_kg));
   const [ano, mes, dia] = q.valid_until.split("-");
 
@@ -407,7 +446,7 @@ export async function lerImpressoDoOrcamentoAction(
     subtotal,
     desconto: q.discount_amount,
     frete: 0,
-    total: q.net_amount,
+    total,
     origem: "balcao",
     pagamentos: [],
     troco: null,
