@@ -25,20 +25,23 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-11. Branch `emporio-custo-um-so` aberta, **sem merge,
-  sem push na `main`, sem migração no Neon** (abaixo). Os agentes `explorador`,
+- Atualizado em: 2026-11-11. Custo único em produção (merge `4245e48` e push
+  autorizados na conversa). Nenhuma branch aberta. Os agentes `explorador`,
   `prova-juiz`, `prova-viva` e `servidor-dados` carregam (descrição entre
   aspas). Outros agentes: leia `AGENTS.md`.
-- `main` igual a `origin/main`. Em produção também: conta avulsa e
+- `main` igual a `origin/main`, Neon em dia. Em produção também: conta avulsa e
   2.64/2.65, Apresentação sempre visível, observação no impresso, cliente no
   extrato, relatórios e exportação (Q268 a Q274), cartão (Q250 a Q267), frete
   e editar venda (Q244 a Q249), o financeiro (Q214 a Q243); evidências em
-  [financeiro-emporio-relatorio.md](financeiro-emporio-relatorio.md).
+  [financeiro-emporio-relatorio.md](financeiro-emporio-relatorio.md). De 09
+  e 10/11 (specs dessas datas): peso total e regra por apresentação (Q291,
+  Q292), orçamento (Q285 a Q290), boleto e cheque (Q278 a Q284; aberta 2.69),
+  acordo, aviso e recálculo (Q275 a Q277; aberta 2.66).
 
-### Um custo só, que zera com o estoque (Q298 e Q299): pronto na branch
+### Um custo só, que zera com o estoque (Q298 e Q299): em produção
 
-Branch `emporio-custo-um-so`, commits `922fabb` (ignora a pasta da gravação) e
-`e507107`. Spec
+Branch `emporio-custo-um-so` (`922fabb` a `e608d91`), na `main` por `4245e48`;
+deploy confirmado no `/docs/api`. Spec
 [../superpowers/specs/2026-11-11-emporio-custo-um-so-design.md](../superpowers/specs/2026-11-11-emporio-custo-um-so-design.md).
 Reunião com a Agromax em 11/11 (gravação em `docs/preco-custo-produto/`,
 ignorada pelo git). Causa real: a compra gravava o dia ao meio-dia e a contagem
@@ -46,23 +49,22 @@ a hora exata, então a compra caía antes da contagem (o diagnóstico de 10/11
 estava errado; cofre corrigido). Compra e recebimento de hoje entram na hora do
 lançamento (Q298). Saíram, autorizado pelo usuário, a base por loja, a última
 compra ao lado e o aviso de 10% (Q293 a Q295); fica um custo (Q299).
-Migração `20261111150000_emporio_custo_um_so` (derruba a coluna e o enum) no
-Docker; **falta no Neon, antes do push**. m112 reescrita e roteiro
+Sem migração: `Establishment.price_cost_basis` e o enum ficam no banco, sem
+uso (derrubar antes do push quebraria as telas no ar). **Pendente: derrubar
+num deploy fora do horário da loja.** m112 reescrita e roteiro
 `emporio-custo`, os dois sabotados (7 e 3 falhas) e verdes. `test:all` 113/115:
 m4 travou e deixou fixture, m92 falhou na sequência; as duas passam sozinhas.
 
 **Histórico corrigido em produção** (autorizado em 11/11): 13 entradas `compra`
-da Da Mata com `occurred_at` = `created_at` (mesmo dia). TALCO/ GEL foi a 27,99
-e ARUANA-PONTOS a 10,00: são compras de 10/11, sem fornecedor, a prazo, que
-parecem simulação do Marcos. Cópia dos horários originais só na máquina
-(scratchpad da sessão), não no repositório.
-
-### Em produção em 09 e 10/11 (detalhe nas specs e no git log)
-
-- Peso total (Q291) e regra por nome de apresentação (Q292): m110, m111.
-- Editar e cancelar orçamento (Q285 a Q290): m109. Boleto e titular do cheque
-  (Q278 a Q284): m108; aberta 2.69. Desfazer acordo, aviso, recalcular o mês
-  (Q275 a Q277): m106; aberta 2.66. Specs de 09 e 10/11.
+da Da Mata com `occurred_at` = `created_at` (mesmo dia). Depois, também
+autorizado, as 6 compras de teste de 10/11 (TALCO 27,99; ARUANA 47; 34,66; 15;
+74,90; 10) canceladas pela `cancelarCompraAction` (estoque, R$ 26.706,00 de
+contas a pagar e Histórico), e o saldo anterior da contagem do ARUANA de 19:05
+acertado de 627,41 para 164,41, para ela seguir dizendo "físico 0". Os dois
+produtos ficaram com saldo 0; o TALCO com custo 2,35. Cópias dos valores
+originais só na máquina (scratchpad da sessão), não no repositório.
+⚠️ Cancelar compra anterior a uma contagem faz a contagem tirar a mais (ela
+guarda a diferença): o app não trata isso; candidato a dívida.
 
 ### Cartão (Q250 a Q267): entregas 1 a 3 em produção
 
@@ -73,11 +75,9 @@ Agromax, a entrega 4 (extrato da Stone) depende de um arquivo real.
 
 ### ⏭️ Próximo passo
 
-0. Custo único: o usuário decide merge, push e migração no Neon (a migração
-   ANTES do push), e o que fazer com as compras de teste do TALCO/ GEL (27,99)
-   e do ARUANA-PONTOS (47; 34,66; 15; 74,90; 10), que geraram contas a pagar.
-   Depois: trazer os outros assuntos da reunião (franqueado como crédito,
-   frete e desconto fora do faturamento), como o usuário pediu.
+0. Trazer ao usuário os outros assuntos da reunião de 11/11 (franqueado como
+   crédito, frete e desconto fora do faturamento), como ele pediu. Derrubar a
+   coluna da base do preço fora do horário da loja (migração antes do push).
 1. Na Agromax: criar a regra por apresentação (FRANQUIA) e editar e cancelar um orçamento real; conferir o boleto e o "Em nome de" numa venda real.
 2. Na Agromax (usuário, pelas telas): Stone, taxas do mês, regra de dia útil
    e, se usar, a antecipação automática; confirmar as decisões do agente do
@@ -189,9 +189,8 @@ relatórios em [agente-whatsapp/](agente-whatsapp/), detalhe em
 
 ## Últimas rodadas
 
-- 11/11: reunião com a Agromax; custo único (Q298, Q299) na branch
-  `emporio-custo-um-so`, sem publicar; histórico das compras corrigido em
-  produção, autorizado na conversa.
+- 11/11: reunião com a Agromax; custo único (Q298, Q299) em produção, compras
+  com a ordem corrigida e as de teste canceladas; tudo autorizado na conversa.
 - 10/11: dívidas 2.64 e 2.65 e conta avulsa na branch do Codex; banco local,
   sem integração à `main` nem deploy.
 - 10/11: desfazer acordo, aviso por email e recalcular o mês (Q275 a Q277)
