@@ -41,7 +41,7 @@ import {
   type PedidoParaEntregaValor,
 } from "./pedido-para-entrega-campos";
 import { abertosDaLoja, caixaInicial, fechadosDaLoja, paraCaixasDaLoja, type CaixaDaLoja } from "./caixas-da-loja";
-import { VendaCampos } from "./venda-campos";
+import { FranquiaCampos, VendaCampos } from "./venda-campos";
 import { numeroBr, numeroDaVenda } from "./formato";
 import { FORMA_ROTULO } from "./venda-rotulos";
 import { inicialDaVenda, useVenda, type PrecosVenda, type ProdutoVenda } from "./venda-estado";
@@ -88,6 +88,8 @@ const ORDEM = [
   "delivery_state",
   "freight_amount",
   "origin",
+  "franchisee_id",
+  "franchisee_credit",
   "acquirer_id",
   "payments",
   "notes",
@@ -108,6 +110,7 @@ type VendaGravada = {
   number: number;
   net_amount: number;
   freight_amount: number;
+  franchisee_credit: number;
   customer_name: string | null;
   seller_name: string | null;
   quote: { id: string; numero: string } | null;
@@ -129,7 +132,10 @@ export function Balcao({
   orcamentoInicial = null,
   edicao = null,
   refazer = null,
+  franqueados,
 }: {
+  /** Os franqueados ativos (lidos no servidor): vazio quando o perfil não os enxerga, e os campos somem. */
+  franqueados: { id: string; name: string }[];
   /**
    * `?editar_orcamento=<id>` (Q285) ou `?orcamento_base=<id>` (Q286): o balcão abre no modo Orçamento,
    * preenchido com o orçamento e com o preço de hoje. Editar regrava o mesmo número (PATCH); a partir
@@ -173,11 +179,26 @@ export function Balcao({
       (lojas.length === 1 ? lojas[0].id : ""),
     cargaInicial,
     inicial: daEdicao?.inicial ?? null,
+    comFranquia: true,
     // Na edição a taxa vale no dia da venda antiga, em Brasília (é o que o servidor resolve).
     diaDaVenda: edicao
       ? new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date(edicao.venda.sold_at))
       : undefined,
   });
+  // Um franqueado arquivado depois da venda ou do orçamento continua na lista enquanto estiver escolhido,
+  // para o campo mostrar o nome dele: o servidor é que recusa gravar com ele (`FRANCHISEE_ARCHIVED`).
+  const franqueadosDaTela =
+    v.franqueadoId === "" || franqueados.some((f) => f.id === v.franqueadoId)
+      ? franqueados
+      : [
+          ...franqueados,
+          {
+            id: v.franqueadoId,
+            name:
+              [edicao?.venda, refazer?.orcamento, orcamentoInicial].find((o) => o?.franchisee_id === v.franqueadoId)
+                ?.franchisee_name ?? "Franqueado",
+          },
+        ];
   const [enviando, setEnviando] = useState(false);
   const [resumo, setResumo] = useState<Resumo | null>(null);
   const [modo, setModo] = useState<ModoDoBalcao>(refazer ? "orcamento" : "venda");
@@ -347,7 +368,11 @@ export function Balcao({
 
   async function salvarOrcamento() {
     const m = v.montar(true, { orcamento: true });
-    const novos: typeof m.novos & { seller_user_id?: string; delivery_address_kind?: string } = { ...m.novos };
+    const novos: typeof m.novos &
+      typeof m.novosDaFranquia & { seller_user_id?: string; delivery_address_kind?: string } = {
+      ...m.novos,
+      ...m.novosDaFranquia,
+    };
     if (ehCaixa && !vendedor) novos.seller_user_id = AVISO_SEM_VENDEDOR;
     if (pedido.for_delivery && !pedido.delivery_address_kind) novos.delivery_address_kind = AVISO_SEM_ESCOLHA;
     if (!m.corpo || novos.seller_user_id || novos.delivery_address_kind) {
@@ -367,6 +392,9 @@ export function Balcao({
     const corpoComum = {
       customer_id: m.corpo.customer_id,
       items: m.corpo.items,
+      // O PATCH regrava o corpo inteiro: ausente seria sem crédito, então vai sempre o que está na tela.
+      franchisee_id: m.corpo.franchisee_id ?? null,
+      franchisee_credit: m.corpo.franchisee_credit ?? 0,
       ...corpoDoPedido,
       ...(vendedor ? { seller_user_id: vendedor } : {}),
       notes: observacao || null,
@@ -407,8 +435,10 @@ export function Balcao({
       return;
     }
     const m = v.montar(true);
-    const novos: typeof m.novos & { seller_user_id?: string; quote_id?: string; delivery_address_kind?: string } = {
+    const novos: typeof m.novos &
+      typeof m.novosDaFranquia & { seller_user_id?: string; quote_id?: string; delivery_address_kind?: string } = {
       ...m.novos,
+      ...m.novosDaFranquia,
     };
     if (ehCaixa && !vendedor && !orcamento) novos.seller_user_id = AVISO_SEM_VENDEDOR;
     if (pedido.for_delivery && !pedido.delivery_address_kind) novos.delivery_address_kind = AVISO_SEM_ESCOLHA;
@@ -566,6 +596,9 @@ export function Balcao({
           <p className="font-semibold">
             Venda registrada: {reaisBr(resumo.venda.net_amount)}
             {resumo.venda.freight_amount > 0 ? ` + frete ${reaisBr(resumo.venda.freight_amount)}` : ""}
+            {resumo.venda.franchisee_credit > 0
+              ? ` + crédito do franqueado ${reaisBr(resumo.venda.franchisee_credit)}`
+              : ""}
             <span className="ml-2 font-normal">
               Venda nº {numeroDaVenda(resumo.venda.number)}
               {resumo.venda.for_delivery ? ", para entrega" : ""}
@@ -650,6 +683,15 @@ export function Balcao({
             aoEscolherLoja={lembrarLoja}
             semPagamento={modo === "orcamento"}
             comFrete={modo === "venda"}
+            depoisDoFrete={
+              <FranquiaCampos
+                v={v}
+                franqueados={franqueadosDaTela}
+                erros={err.erros}
+                idDe={err.idDe}
+                limpar={err.limparCampo}
+              />
+            }
             creditoDoFiado={creditoDoFiado}
             depoisDoPagamento={
               recusaDeCredito && err.erros.payments && v.cliente ? (
@@ -865,14 +907,23 @@ export function Balcao({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-xs text-texto-secundario">
-                {modo === "orcamento" ? "Total do orçamento" : v.freteCent > 0 ? "Total com frete" : "Total da venda"}
+                {modo === "orcamento"
+                  ? "Total do orçamento"
+                  : v.freteCent > 0 || v.creditoCent > 0
+                    ? "Total a pagar"
+                    : "Total da venda"}
               </p>
               <p className="text-xl font-semibold text-texto">
-                {reaisBr((v.totalCent + (modo === "venda" ? v.freteCent : 0)) / 100)}
+                {reaisBr((v.totalCent + (modo === "venda" ? v.freteCent : 0) + v.creditoCent) / 100)}
               </p>
               {modo === "venda" && v.freteCent > 0 && (
                 <p className="text-xs text-texto-secundario">
                   Itens {reaisBr(v.totalCent / 100)} + frete {reaisBr(v.freteCent / 100)}
+                </p>
+              )}
+              {v.creditoCent > 0 && (
+                <p className="text-xs text-texto-secundario">
+                  Crédito do franqueado {reaisBr(v.creditoCent / 100)} (fora do faturamento)
                 </p>
               )}
             </div>

@@ -282,7 +282,7 @@ export default async function VendaPage({ params }: { params: Promise<{ id: stri
           </TableBody>
         </Table>
         <p className="text-sm text-texto">
-          {venda.freight_amount > 0 ? "Itens: " : "Total: "}
+          {venda.freight_amount > 0 || venda.franchisee_credit > 0 ? "Itens: " : "Total: "}
           <strong>{reaisBr(venda.net_amount)}</strong>
           {venda.discount_amount > 0 && (
             <span className="text-texto-secundario">
@@ -292,14 +292,25 @@ export default async function VendaPage({ params }: { params: Promise<{ id: stri
           )}
         </p>
         {venda.freight_amount > 0 && (
+          <p className="text-sm text-texto">
+            Frete: <strong>{reaisBr(venda.freight_amount)}</strong>
+          </p>
+        )}
+        {venda.franchisee_credit > 0 && (
           <>
             <p className="text-sm text-texto">
-              Frete: <strong>{reaisBr(venda.freight_amount)}</strong>
+              Franqueado: <strong>{venda.franchisee_name ?? "Franqueado"}</strong>
             </p>
             <p className="text-sm text-texto">
-              Total com frete: <strong>{reaisBr(venda.total_amount)}</strong>
+              Crédito do franqueado: <strong>{reaisBr(venda.franchisee_credit)}</strong>{" "}
+              <span className="text-texto-secundario">(fora do faturamento)</span>
             </p>
           </>
+        )}
+        {(venda.freight_amount > 0 || venda.franchisee_credit > 0) && (
+          <p className="text-sm text-texto">
+            Total a pagar: <strong>{reaisBr(venda.total_amount)}</strong>
+          </p>
         )}
         {textoDoPesoTotal(venda.total_weight_kg, venda.items_without_weight) && (
           <p className="text-sm font-medium text-texto">{textoDoPesoTotal(venda.total_weight_kg, venda.items_without_weight)}</p>

@@ -167,6 +167,12 @@ export type CorpoDaVenda = {
   freight_amount?: number;
   /** De onde veio a venda (Q248). */
   origin?: OrigemDaVenda;
+  /**
+   * O franqueado e o crédito cobrado a mais por conta dele (Q301). Vão SEMPRE explícitos no balcão
+   * (nulo e zero quando não há): sem eles o servidor herda os do orçamento ou da venda antiga.
+   */
+  franchisee_id?: string | null;
+  franchisee_credit?: number;
 };
 
 /**
@@ -182,6 +188,9 @@ export type CargaDoOrcamento = {
   itens: { produtoId: string; apresentacaoId: string; qtd: string }[];
   /** O cliente do orçamento (só `id`, `name`, `phone` e `document`; o resto nulo), ou nulo sem cliente. */
   cliente: ClienteEscolhido | null;
+  /** O franqueado do orçamento ("" sem ele) e o crédito, como texto do campo de dinheiro. */
+  franqueadoId: string;
+  credito: string;
 };
 
 const paraCampoDePreco = (s: number | null) => (s === null ? "" : centavosParaCampo(cent(s)));
@@ -205,6 +214,8 @@ export type InicialDaVenda = {
   frete: string;
   origem: OrigemDaVenda;
   cliente: ClienteEscolhido | null;
+  franqueadoId: string;
+  credito: string;
 };
 
 /**
@@ -250,12 +261,22 @@ export function inicialDaVenda(
       frete: venda.freight_amount > 0 ? centavosParaCampo(cent(venda.freight_amount)) : "",
       origem: venda.origin,
       cliente,
+      franqueadoId: venda.franchisee_credit > 0 ? (venda.franchisee_id ?? "") : "",
+      credito: venda.franchisee_credit > 0 ? centavosParaCampo(cent(venda.franchisee_credit)) : "",
     },
   };
 }
 
+/**
+ * Os campos do franqueado ficam fora de `CampoDaVenda`: a troca usa o mesmo estado e não os tem, e o
+ * `ORDEM` dela não os aceitaria. Só o balcão os lê (`novosDaFranquia`) e os junta aos demais.
+ */
+export type CampoDaFranquia = "franchisee_id" | "franchisee_credit";
+
 export type Montagem = {
   novos: Partial<Record<CampoDaVenda, string>>;
+  /** As recusas locais do franqueado e do crédito, vazias fora do balcão. */
+  novosDaFranquia: Partial<Record<CampoDaFranquia, string>>;
   corpo: CorpoDaVenda | null;
   /** Muda quando qualquer coisa da venda muda: é o que decide se a chave de operação é reaproveitada. */
   assinatura: string;
@@ -270,7 +291,10 @@ export function useVenda({
   cargaInicial = null,
   inicial = null,
   diaDaVenda,
+  comFranquia = false,
 }: {
+  /** O balcão tem os campos do franqueado: o corpo leva os dois explícitos (ver `CorpoDaVenda`). */
+  comFranquia?: boolean;
   /** A venda que o balcão abre para editar (`/emporio/vender?editar=<id>`). */
   inicial?: InicialDaVenda | null;
   /** O orçamento que o balcão abre carregado (`/emporio/vender?orcamento=<id>`). */
@@ -308,6 +332,14 @@ export function useVenda({
   // O frete é o texto digitado no campo de dinheiro; vazio vale zero.
   const [frete, setFrete] = useState(inicial?.frete ?? "");
   const [origem, setOrigem] = useState<OrigemDaVenda>(inicial?.origem ?? "balcao");
+  // O franqueado e o crédito dele (Q301): o crédito é o texto digitado, e vazio vale zero.
+  const [franqueadoId, setFranqueadoEstado] = useState(cargaInicial?.franqueadoId ?? inicial?.franqueadoId ?? "");
+  const [credito, setCredito] = useState(cargaInicial?.credito ?? inicial?.credito ?? "");
+  /** Escolher "Nenhum" zera o crédito: crédito sem franqueado não existe. */
+  function setFranqueado(id: string) {
+    setFranqueadoEstado(id);
+    if (id === "") setCredito("");
+  }
   // O Consumidor final é `cliente.fixed`: não serve para fiado nem cheque.
   const [cliente, setClienteEstado] = useState<ClienteEscolhido | null>(
     cargaInicial ? cargaInicial.cliente : (inicial?.cliente ?? clienteInicial),
@@ -349,6 +381,8 @@ export function useVenda({
     setItens(linhasDaCarga(carga, proximo));
     setPagamentos([]);
     setCliente(carga.cliente);
+    setFranqueadoEstado(carga.franqueadoId);
+    setCredito(carga.credito);
   }
 
   /** Tira o orçamento: o carrinho fica, e o que não foi digitado volta ao preço da loja. */
@@ -435,8 +469,12 @@ export function useVenda({
   const descontoPct = baseCent > 0 ? (descontoCent / baseCent) * 100 : 0;
   const freteLido = lerNumeroBr(frete);
   const freteCent = freteLido === null || freteLido <= 0 ? 0 : cent(freteLido);
-  // O frete é cobrado além dos itens: o cliente paga itens mais frete.
-  const aPagarCent = Math.max(0, totalCent + freteCent - abatimentoCent);
+  const creditoLido = lerNumeroBr(credito);
+  const creditoDigitadoCent = creditoLido === null || creditoLido <= 0 ? 0 : cent(creditoLido);
+  // Sem franqueado escolhido o crédito não vale (o servidor também o ignora): a tela não o soma.
+  const creditoCent = franqueadoId === "" ? 0 : creditoDigitadoCent;
+  // O frete e o crédito do franqueado são cobrados além dos itens: o cliente paga itens mais frete mais crédito.
+  const aPagarCent = Math.max(0, totalCent + freteCent + creditoCent - abatimentoCent);
 
   // As linhas de taxa vigentes da loja escolhida (hoje, em Brasília): recarregam ao trocar de loja.
   const [taxas, setTaxas] = useState<{ lojaId: string; linhas: TaxaDaVenda[] } | null>(null);
@@ -558,6 +596,8 @@ export function useVenda({
     setOrc(null);
     setFrete("");
     setOrigem("balcao");
+    setFranqueadoEstado("");
+    setCredito("");
   }
 
   function itensDaApi(): CorpoDaVenda["items"] {
@@ -575,6 +615,7 @@ export function useVenda({
    */
   function montar(exigeLoja: boolean, { orcamento = false }: { orcamento?: boolean } = {}): Montagem {
     const novos: Partial<Record<CampoDaVenda, string>> = {};
+    const novosFranquia: Partial<Record<CampoDaFranquia, string>> = {};
     if (exigeLoja && !loja) novos.establishment_id = "Escolha a loja que está vendendo.";
 
     if (linhas.length === 0) {
@@ -587,6 +628,20 @@ export function useVenda({
     const temCheque = pagamentos.some((p) => p.kind === "cheque");
     const temBoleto = pagamentos.some((p) => p.kind === "boleto");
     const ehConsumidorFinal = cliente?.fixed === true;
+    // O crédito do franqueado: texto ilegível ou negativo, ou crédito sem franqueado, fica embaixo do campo certo.
+    if (comFranquia) {
+      if (credito.trim() !== "" && (creditoLido === null || creditoLido < 0)) {
+        novosFranquia.franchisee_credit = "Informe o crédito do franqueado em reais, zero ou mais.";
+      } else if (creditoDigitadoCent > 0 && franqueadoId === "") {
+        novosFranquia.franchisee_id = "Escolha o franqueado do crédito.";
+      }
+    }
+    const franquiaDaApi: Pick<CorpoDaVenda, "franchisee_id" | "franchisee_credit"> = comFranquia
+      ? {
+          franchisee_id: creditoCent > 0 ? franqueadoId : null,
+          franchisee_credit: creditoCent / 100,
+        }
+      : {};
     if (orcamento) {
       // A mesma frase do servidor (`QUOTE_CUSTOMER_REQUIRED`). O Consumidor final serve;
       // o cadastro incompleto é o servidor que recusa (`QUOTE_CUSTOMER_INCOMPLETE`).
@@ -595,11 +650,12 @@ export function useVenda({
       }
       return {
         novos,
+        novosDaFranquia: novosFranquia,
         corpo:
-          Object.keys(novos).length > 0 || !cliente
+          Object.keys(novos).length > 0 || Object.keys(novosFranquia).length > 0 || !cliente
             ? null
-            : { establishment_id: loja, customer_id: cliente.id, items: itensDaApi(), payments: [] },
-        assinatura: JSON.stringify(["orcamento", loja, cliente?.id ?? null, itensDaApi()]),
+            : { establishment_id: loja, customer_id: cliente.id, items: itensDaApi(), payments: [], ...franquiaDaApi },
+        assinatura: JSON.stringify(["orcamento", loja, cliente?.id ?? null, itensDaApi(), franquiaDaApi]),
       };
     }
     // Texto preenchido e ilegível ou negativo: a recusa fica embaixo do campo do frete.
@@ -700,10 +756,12 @@ export function useVenda({
       payments: pagamentosApi,
       ...(freteCent > 0 ? { freight_amount: freteCent / 100 } : {}),
       origin: origem,
+      ...franquiaDaApi,
     };
     return {
       novos,
-      corpo: Object.keys(novos).length > 0 ? null : corpo,
+      novosDaFranquia: novosFranquia,
+      corpo: Object.keys(novos).length > 0 || Object.keys(novosFranquia).length > 0 ? null : corpo,
       assinatura: JSON.stringify(corpo),
     };
   }
@@ -734,6 +792,11 @@ export function useVenda({
     frete,
     freteCent,
     definirFrete: setFrete,
+    franqueadoId,
+    definirFranqueado: setFranqueado,
+    credito,
+    creditoCent,
+    definirCredito: setCredito,
     origem,
     definirOrigem: setOrigem,
     somaPagamentos,

@@ -6,6 +6,7 @@ import { vendedoresDaLoja } from "@/lib/emporio/vendedores";
 import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
 import { lerOrcamentoAction, type OrcamentoView } from "@/lib/actions/emporio-orcamentos";
 import { lerVendaAction, type VendaView } from "@/lib/actions/emporio-vendas";
+import { listarFranqueadosAction } from "@/lib/actions/emporio-franqueados";
 import { buscarClientesAction } from "@/lib/actions/emporio-clientes";
 import { consumidorFinalEscolhido, type ClienteEscolhido } from "@/lib/emporio/cliente-escolhido";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -63,6 +64,10 @@ export default async function VenderPage({
     for (const l of lojas) vendedoresPorLoja[l.id] = await vendedoresDaLoja(db, l.id);
   }
   const ehCaixa = (await papelDoEmporio(db, user)).papel === "caixa";
+
+  // Os franqueados ativos para o crédito da venda. O perfil que não os enxerga recebe a lista vazia: os campos somem.
+  const franqueadosRes = podeVender ? await listarFranqueadosAction(db, user) : null;
+  const franqueados = franqueadosRes?.ok ? franqueadosRes.data.map((f) => ({ id: f.id, name: f.name })) : [];
 
   const lido = podeVender && orcamentoId ? await lerOrcamentoAction(db, user, orcamentoId) : null;
   const orcamentoCancelado = lido?.ok && lido.data.situacao === "cancelado";
@@ -175,6 +180,7 @@ export default async function VenderPage({
           usuarioId={user.id}
           vendedoresPorLoja={vendedoresPorLoja}
           ehCaixa={ehCaixa}
+          franqueados={franqueados}
           orcamentoInicial={orcamentoInicial}
           edicao={edicao}
         />

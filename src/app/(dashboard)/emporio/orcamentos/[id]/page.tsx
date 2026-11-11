@@ -183,6 +183,20 @@ export default async function OrcamentoPage({ params }: { params: Promise<{ id: 
           <p>
             Total: <strong>{reaisBr(o.net_amount)}</strong>
           </p>
+          {o.franchisee_credit > 0 && (
+            <>
+              <p>
+                Franqueado: <strong>{o.franchisee_name ?? "Franqueado"}</strong>
+              </p>
+              <p>
+                Crédito do franqueado: <strong>{reaisBr(o.franchisee_credit)}</strong>{" "}
+                <span className="text-texto-secundario">(fora do faturamento)</span>
+              </p>
+              <p>
+                Total a pagar: <strong>{reaisBr(o.total_amount)}</strong>
+              </p>
+            </>
+          )}
         </div>
         {o.notes && <p className="text-sm text-texto-secundario">Observação: {o.notes}</p>}
       </section>
