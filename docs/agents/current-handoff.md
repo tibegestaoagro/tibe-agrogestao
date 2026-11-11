@@ -25,9 +25,9 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-11. Custo único em produção. Branch
-  `emporio-franqueado-e-repasse` pronta, **sem migração no Neon, sem merge,
-  sem push na `main`** (abaixo). Os agentes `explorador`,
+- Atualizado em: 2026-11-11. Custo único e crédito do franqueado em produção
+  (merge `9eac1fe`, migração no Neon antes do push, autorizados na conversa).
+  Nenhuma branch aberta. Os agentes `explorador`,
   `prova-juiz`, `prova-viva` e `servidor-dados` carregam (descrição entre
   aspas). Outros agentes: leia `AGENTS.md`.
 - `main` igual a `origin/main`, Neon em dia. Em produção também: conta avulsa e
@@ -39,7 +39,7 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   Q292), orçamento (Q285 a Q290), boleto e cheque (Q278 a Q284; aberta 2.69),
   acordo, aviso e recálculo (Q275 a Q277; aberta 2.66).
 
-### Crédito do franqueado (Q300 a Q309): pronto na branch
+### Crédito do franqueado (Q300 a Q309): em produção
 
 Branch `emporio-franqueado-e-repasse`, `34241bf` a `8ed794d`. Spec
 [../superpowers/specs/2026-11-11-emporio-franqueado-e-repasse-design.md](../superpowers/specs/2026-11-11-emporio-franqueado-e-repasse-design.md).
@@ -48,8 +48,8 @@ cobrado a mais e fora do faturamento, conta corrente com saldo calculado e
 "Pagar crédito" (saída de caixa, sem lançamento financeiro), impresso para o
 cliente sem o crédito e rateado nos itens, repasse discriminado no Resultado e
 no relatório. A Q306 do plano estava errada: o Financeiro geral já não lê o
-Empório (Q222). Migração aditiva `20261111200000_emporio_franqueado` só no
-Docker; **falta no Neon, antes do push**. m113 (escrita da spec, verde),
+Empório (Q222). Migração aditiva `20261111200000_emporio_franqueado` no
+Docker e no Neon (antes do push). m113 (escrita da spec, verde),
 roteiro `emporio-franqueado` 188 ok e reprova com o rateio sabotado, juiz 8/10
 com os achados corrigidos, `test:all` 116/116 depois de atualizar o test:nav.
 Decisões abertas para o usuário: o Caixa escolhe franqueado?; devolução de
@@ -76,9 +76,9 @@ Agromax, a entrega 4 (extrato da Stone) depende de um arquivo real.
 
 ### ⏭️ Próximo passo
 
-0. Franqueado: o usuário autoriza a migração no Neon (antes do push), o merge e
-   o push, e responde as três decisões abertas. A Agromax testa o custo único
-   (contar, depois lançar a compra).
+0. Franqueado: o usuário responde as três decisões abertas (Caixa, devolução,
+   taxa do cartão) e a Agromax testa. A Agromax testa o custo único (contar,
+   depois lançar a compra).
 1. Na Agromax: criar a regra por apresentação (FRANQUIA) e editar e cancelar um orçamento real; conferir o boleto e o "Em nome de" numa venda real.
 2. Na Agromax (usuário, pelas telas): Stone, taxas do mês, regra de dia útil
    e, se usar, a antecipação automática; confirmar as decisões do agente do
@@ -190,7 +190,7 @@ relatórios em [agente-whatsapp/](agente-whatsapp/), detalhe em
 
 ## Últimas rodadas
 
-- 11/11: crédito do franqueado (Q300 a Q309) pronto na branch, sem publicar.
+- 11/11: crédito do franqueado (Q300 a Q309) em produção, autorizado na conversa.
 - 11/11: reunião com a Agromax; custo único (Q298, Q299) em produção, compras
   com a ordem corrigida e as de teste canceladas; tudo autorizado na conversa.
 - 10/11: dívidas 2.64 e 2.65 e conta avulsa na branch do Codex; banco local,
