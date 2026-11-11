@@ -1,4 +1,4 @@
-# Empório: crédito do franqueado e valores de terceiros na venda (Q300 a Q307)
+# Empório: crédito do franqueado e valores de terceiros na venda (Q300 a Q309)
 
 Reunião com a Agromax em 11/11/2026 (gravação fora do repositório, que é
 público). Decisões do usuário em 11/11/2026, depois do plano.
@@ -31,10 +31,12 @@ público). Decisões do usuário em 11/11/2026, depois do plano.
 
 | # | decisão | por quê |
 |---|---|---|
-| Q300 | **Cadastro de franqueado** numa aba própria do Empório, ao lado de Fornecedores: nome, documento, telefone, ativo. Da conta (todas as lojas). Quem edita é quem edita fornecedor | decisão do usuário: não misturar com quem vende para a Agromax |
+| Q300 | **Cadastro de franqueado** numa aba própria do Empório, ao lado de Fornecedores, simples: **obrigatórios só nome e telefone**; documento e observação opcionais; ativo. Da conta (todas as lojas). Quem edita é quem edita fornecedor | decisão do usuário: não misturar com quem vende para a Agromax, e formulário curto |
 | Q301 | **Na venda:** "Franqueado" e "Crédito do franqueado (R$)", opcionais, **digitados** pelo vendedor. Um franqueado por venda | decisão do usuário |
 | Q302 | **O crédito é cobrado A MAIS do cliente, como o frete:** o total pago é itens menos desconto, mais frete, mais crédito do franqueado. A venda líquida (o faturamento) não muda | decisão do usuário |
-| Q303 | **Fora de tudo o que é resultado:** o crédito não entra no faturamento, no custo, na margem, no "Vendeu, Pagou" nem no rateio. Aparece na venda, no recibo e no impresso em linha própria | pedido do cliente |
+| Q303 | **Fora de tudo o que é resultado:** o crédito não entra no faturamento, no custo, na margem, no "Vendeu, Pagou" nem no rateio. **É interno:** aparece nas telas da venda e do orçamento e nos relatórios, discriminado, mas nunca no que vai para o cliente | pedido do cliente |
+| Q308 | **Impresso para o cliente** (orçamento A4, venda A4, cupom e o que mais sair para ele com preço): o crédito some e é **rateado nos itens pelo valor**, para o papel somar o que o cliente paga (produtos de 60 e 40 com crédito de 10 saem a 66 e 44). Os centavos que sobrarem do rateio vão para o último item, para a soma fechar exata | decisão do usuário: "só sairia como valor de produto" |
+| Q309 | **O orçamento também leva franqueado e crédito** (opcionais, digitados), o impresso do orçamento já sai rateado, e ao faturar a venda nasce com os dois; editar o orçamento edita os dois | decisão do usuário: o cliente paga o que foi orçado |
 | Q304 | **Conta corrente do franqueado:** extrato com os créditos (venda, data, valor) e os pagamentos; saldo = créditos menos pagamentos, **calculado, nunca gravado**. "Pagar crédito" registra valor (até o saldo), data, forma e de onde sai (gaveta do turno ou conta bancária, como o pagamento de compra) e entra no Histórico | invariante 2; o "eu não recebi" se responde pelo extrato |
 | Q305 | **Cancelar ou editar a venda** cancela o crédito dela. Crédito já incluído num pagamento não volta sozinho: o saldo do franqueado fica negativo e a tela mostra | o mesmo princípio do frete pago (Q99) |
 | Q306 | **Frete mantém a conta a pagar por venda** (o fluxo da Laíza), mas **sai da receita e da despesa no Financeiro geral**. O mesmo vale para o crédito do franqueado: entra e sai do caixa, fora de receita e despesa | decisão do usuário |
