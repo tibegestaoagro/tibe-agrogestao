@@ -96,7 +96,7 @@ grep -rl "^tipo: armadilha" docs/conhecimento/
 | [a ausência só prova com o contexto presente](a-ausencia-so-prova-com-o-contexto-presente.md) | licao | "fora da lista, sem o botão" passava porque o botão não aparecia para ninguém |
 | [o formulário que carrega o cadastro salvo apaga o que se digitou antes da carga](formulario-que-carrega-o-salvo-apaga-o-que-se-digitou-antes.md) | licao | o CPF digitado no "Completar cadastro" sumia quando a busca respondia |
 | [o mês que já tem conta paga não se recalcula: o juiz achou o mesmo buraco três vezes](o-mes-que-ja-tem-conta-paga-nao-se-recalcula.md) | licao | corrigir o caminho apontado e não o estado "já pagou" custou três rodadas do juiz na entrega 4 |
-| [o custo médio que parecia errado era estoque fantasma](o-custo-medio-que-parecia-errado-era-estoque-fantasma.md) | licao | a compra entrou antes da contagem e misturou 100 kg reais com 3.892 kg que não existiam |
+| [o custo médio que parecia errado era a compra carimbada ao meio-dia](o-custo-medio-que-parecia-errado-era-estoque-fantasma.md) | licao | a contagem grava a hora e a compra só o dia: compare `created_at` com `occurred_at` antes de culpar o processo |
 | [na Agromax a apresentação é faixa de preço](na-agromax-a-apresentacao-e-faixa-de-preco.md) | decisao | CONSUMIDOR, FRANQUIA e ATACADO no mesmo produto; a regra casa pelo nome |
 | [a suíte que importa a rota de token não encerra sozinha](suite-que-importa-a-rota-de-token-nao-encerra-sozinha.md) | armadilha | o Redis do limitador segura o processo; termine com process.exit |
 
