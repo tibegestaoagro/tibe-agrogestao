@@ -19,7 +19,7 @@ exigirBancoLocal();
  * Seção 7: isolamento entre tenants.
  *
  * Suposições (ver o relato): o faturamento do orçamento NÃO reenvia franchisee_* na venda; o pagamento
- * sai do caixa por `paid_from.cash_register_id`; o 409 sem saldo é provado com uma conta bancária
+ * sai da gaveta por `paid_from.establishment_id` (mais o `cash_register_id`, como a compra); o 409 sem saldo é provado com uma conta bancária
  * sem saldo; o impresso da rota é `{ data: { itens: [{ total }], total } }` (formato da m91).
  */
 
@@ -277,7 +277,7 @@ async function main() {
       const creditos = (f.statement ?? []).filter((x: Dado) => x.kind === "credito");
       check("extrato: dois créditos (10 e 5) com sale_id", creditos.length === 2 && creditos.some((x: Dado) => perto(n(x.amount), 10)) && creditos.some((x: Dado) => perto(n(x.amount), 5) && x.sale_id === vendaCredito5), j(f.statement));
 
-      const pg = await pagar(A, F1, 4, { cash_register_id: A.reg });
+      const pg = await pagar(A, F1, 4, { establishment_id: A.L1, cash_register_id: A.reg });
       check("pagamento parcial de 4 pelo caixa: 201", pg.status === 201, `${pg.status} ${j(pg.corpo)}`);
       check("saldo = 15 menos 4 = 11", perto(await saldoDe(A, F1), 11), `${await saldoDe(A, F1)}`);
       f = (await ficha(A, F1)).corpo?.data ?? {};
@@ -285,7 +285,7 @@ async function main() {
       check("extrato: um pagamento de 4 com payment_id", pagos.length === 1 && perto(n(pagos[0].amount), 4) && !!pagos[0].payment_id, j(f.statement));
       check("saldo = créditos menos pagamentos no extrato", perto(n(f.balance), (f.statement ?? []).reduce((t: number, x: Dado) => t + (x.kind === "credito" ? n(x.amount) : -n(x.amount)), 0)), j(f));
 
-      const acima = await pagar(A, F1, 12, { cash_register_id: A.reg });
+      const acima = await pagar(A, F1, 12, { establishment_id: A.L1, cash_register_id: A.reg });
       check("pagar 12 com saldo 11: 422 AMOUNT_ABOVE_BALANCE no campo amount", erro(acima, 422, "amount", "AMOUNT_ABOVE_BALANCE"), `${acima.status} ${j(acima.corpo)}`);
       check("a recusa não mexeu no saldo", perto(await saldoDe(A, F1), 11), `${await saldoDe(A, F1)}`);
 
@@ -389,7 +389,7 @@ async function main() {
       check("B lê o franqueado do A: 404", g.status === 404, `${g.status} ${j(g.corpo)}`);
       const lb = await chamar(B.tok, R.franchisees, "GET", "emporio/franchisees");
       check("a lista do B (200) não traz o do A", lb.status === 200 && !(lb.corpo?.data ?? []).some((x: Dado) => x.id === F1), j(lb.corpo?.data));
-      const pg = await pagar(B, F1, 1, { cash_register_id: B.reg });
+      const pg = await pagar(B, F1, 1, { establishment_id: B.L1, cash_register_id: B.reg });
       check("B paga o franqueado do A: 404", pg.status === 404, `${pg.status} ${j(pg.corpo)}`);
       const ed = await chamar(B.tok, R.franchisee, "PATCH", `emporio/franchisees/${F1}`, { name: "invasão" }, F1);
       check("B edita o franqueado do A: 404", ed.status === 404, `${ed.status} ${j(ed.corpo)}`);
