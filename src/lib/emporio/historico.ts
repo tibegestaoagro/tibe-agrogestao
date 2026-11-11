@@ -103,6 +103,11 @@ export const ACOES_DO_HISTORICO = {
   "fornecedor.editar": "Editou um fornecedor",
   "fornecedor.arquivar": "Arquivou um fornecedor",
   "fornecedor.desarquivar": "Desarquivou um fornecedor",
+  "franqueado.cadastrar": "Cadastrou um franqueado",
+  "franqueado.editar": "Editou um franqueado",
+  "franqueado.arquivar": "Arquivou um franqueado",
+  "franqueado.desarquivar": "Desarquivou um franqueado",
+  "franqueado.pagar": "Pagou o crédito de um franqueado",
   "equipe.cadastrar": "Cadastrou alguém na equipe",
   "equipe.alterar": "Alterou alguém da equipe",
   // Antes da Q190 (06/11/2026), tirar zerava a função; as linhas antigas ficam com este rótulo.
