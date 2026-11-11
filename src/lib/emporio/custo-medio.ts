@@ -35,16 +35,11 @@ export type ResultadoCusto = {
   saldo: number;
   custo_medio: number | null;
   estimado: boolean;
-  /** Custo da entrada `compra` mais recente com custo (Q293). */
+  /** Custo da entrada `compra` mais recente com custo: o custo do produto sem estoque (Q297). */
   ultima_compra_custo: number | null;
-  ultima_compra_em: Date | null;
 };
 
-export type BaseCustoPreco = "medio" | "ultima_compra" | "maior";
 export type OrigemCustoSugerido = "medio" | "ultima_compra" | "referencia";
-
-/** Diferença entre última compra e médio acima disso (em módulo) vira aviso (Q295). */
-export const LIMITE_AVISO_CUSTO_PCT = 10;
 
 const SAIDAS_DA_LOJA: ReadonlySet<string> = new Set([
   "venda",
@@ -87,13 +82,9 @@ export function custoMedio(movimentos: MovimentoDeCusto[]): ResultadoCusto {
   let medio: number | null = null;
   let estimado = false;
   let ultimaCusto: number | null = null;
-  let ultimaEm: Date | null = null;
 
   for (const m of ordenados) {
-    if (m.movement_type === "compra" && m.unit_cost != null) {
-      ultimaCusto = m.unit_cost;
-      ultimaEm = new Date(m.occurred_at);
-    }
+    if (m.movement_type === "compra" && m.unit_cost != null) ultimaCusto = m.unit_cost;
     const d = deltaDaLoja(m);
     if (d === 0) continue;
     if (d > 0) {
@@ -110,35 +101,23 @@ export function custoMedio(movimentos: MovimentoDeCusto[]): ResultadoCusto {
   }
 
   if (saldo > 0 && medio === null) estimado = true;
-  return { saldo, custo_medio: medio, estimado, ultima_compra_custo: ultimaCusto, ultima_compra_em: ultimaEm };
+  return { saldo, custo_medio: medio, estimado, ultima_compra_custo: ultimaCusto };
 }
 
 /**
- * Custo que alimenta o preço SUGERIDO (Q294, Q297). Não mexe no custo da venda
- * nem no Resultado, que seguem pelo médio.
+ * O custo do produto na loja, um só (Q299): o médio enquanto há estoque. Sem
+ * estoque, o médio velho não representa nada (Q297), então vale a última
+ * compra e, sem compra nenhuma, o custo de referência (Q52). É o custo que a
+ * tela mostra e o que o preço sugerido usa.
  */
-export function custoDoSugerido(
-  dados: {
-    saldo: number;
-    custo_medio: number | null;
-    ultima_compra_custo: number | null;
-    referencia: number | null;
-  },
-  base: BaseCustoPreco,
-): { custo: number | null; origem: OrigemCustoSugerido | null } {
+export function custoDoSugerido(dados: {
+  saldo: number;
+  custo_medio: number | null;
+  ultima_compra_custo: number | null;
+  referencia: number | null;
+}): { custo: number | null; origem: OrigemCustoSugerido | null } {
   const { saldo, custo_medio: medio, ultima_compra_custo: ultima, referencia } = dados;
-  if (saldo <= 0 || medio === null) {
-    if (ultima !== null) return { custo: ultima, origem: "ultima_compra" };
-    return referencia !== null ? { custo: referencia, origem: "referencia" } : { custo: null, origem: null };
-  }
-  if (base === "medio" || (base === "ultima_compra" && ultima === null)) return { custo: medio, origem: "medio" };
-  if (base === "ultima_compra") return { custo: ultima, origem: "ultima_compra" };
-  if (ultima !== null && ultima > medio) return { custo: ultima, origem: "ultima_compra" };
-  return { custo: medio, origem: "medio" };
-}
-
-/** (ultima - medio) / medio * 100, ou null sem os dois ou com médio zero. */
-export function diferencaPct(medio: number | null, ultima: number | null): number | null {
-  if (medio === null || ultima === null || medio === 0) return null;
-  return ((ultima - medio) / medio) * 100;
+  if (saldo > 0 && medio !== null) return { custo: medio, origem: "medio" };
+  if (ultima !== null) return { custo: ultima, origem: "ultima_compra" };
+  return referencia !== null ? { custo: referencia, origem: "referencia" } : { custo: null, origem: null };
 }

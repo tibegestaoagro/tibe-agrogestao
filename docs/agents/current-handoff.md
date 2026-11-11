@@ -25,42 +25,44 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-10, fim do dia. Tudo do dia em produção; nenhuma branch
-  aberta. Lições no cofre (`_indice.md`). Os agentes `explorador`, `prova-juiz`,
-  `prova-viva` e `servidor-dados` voltaram a carregar (descrição entre aspas).
-  Outros agentes: leia `AGENTS.md`.
-- `main` igual a `origin/main`, Neon em dia. Em produção também: conta avulsa e
+- Atualizado em: 2026-11-11. Branch `emporio-custo-um-so` aberta, **sem merge,
+  sem push na `main`, sem migração no Neon** (abaixo). Os agentes `explorador`,
+  `prova-juiz`, `prova-viva` e `servidor-dados` carregam (descrição entre
+  aspas). Outros agentes: leia `AGENTS.md`.
+- `main` igual a `origin/main`. Em produção também: conta avulsa e
   2.64/2.65, Apresentação sempre visível, observação no impresso, cliente no
   extrato, relatórios e exportação (Q268 a Q274), cartão (Q250 a Q267), frete
   e editar venda (Q244 a Q249), o financeiro (Q214 a Q243); evidências em
   [financeiro-emporio-relatorio.md](financeiro-emporio-relatorio.md).
 
-### Dois custos e base do preço sugerido (Q293 a Q297): em produção
+### Um custo só, que zera com o estoque (Q298 e Q299): pronto na branch
 
-Branch `emporio-dois-custos`, commits `610b425` a `30b5e8b`. Spec
-[../superpowers/specs/2026-11-10-emporio-dois-custos-design.md](../superpowers/specs/2026-11-10-emporio-dois-custos-design.md).
-Diagnóstico (produção, leitura): o TALCO/ GEL virou 1,31 por estoque fantasma
-(compra lançada antes da contagem). Custo médio e última compra lado a lado,
-base do sugerido por loja (padrão o maior), aviso de 10%, saldo antes da
-compra, sem estoque o sugerido pela última compra. Migração
-`20261111090000_emporio_base_do_preco_sugerido` no Docker e no Neon. `test:all` 112/112,
-m112 sabotada, roteiro `emporio-dois-custos` nos dois sentidos. Aberta 2.71.
-Falta a Agromax conferir a formação de preço e contar antes de repor.
+Branch `emporio-custo-um-so`, commits `922fabb` (ignora a pasta da gravação) e
+`e507107`. Spec
+[../superpowers/specs/2026-11-11-emporio-custo-um-so-design.md](../superpowers/specs/2026-11-11-emporio-custo-um-so-design.md).
+Reunião com a Agromax em 11/11 (gravação em `docs/preco-custo-produto/`,
+ignorada pelo git). Causa real: a compra gravava o dia ao meio-dia e a contagem
+a hora exata, então a compra caía antes da contagem (o diagnóstico de 10/11
+estava errado; cofre corrigido). Compra e recebimento de hoje entram na hora do
+lançamento (Q298). Saíram, autorizado pelo usuário, a base por loja, a última
+compra ao lado e o aviso de 10% (Q293 a Q295); fica um custo (Q299).
+Migração `20261111150000_emporio_custo_um_so` (derruba a coluna e o enum) no
+Docker; **falta no Neon, antes do push**. m112 reescrita e roteiro
+`emporio-custo`, os dois sabotados (7 e 3 falhas) e verdes. `test:all` 113/115:
+m4 travou e deixou fixture, m92 falhou na sequência; as duas passam sozinhas.
+
+**Histórico corrigido em produção** (autorizado em 11/11): 13 entradas `compra`
+da Da Mata com `occurred_at` = `created_at` (mesmo dia). TALCO/ GEL foi a 27,99
+e ARUANA-PONTOS a 10,00: são compras de 10/11, sem fornecedor, a prazo, que
+parecem simulação do Marcos. Cópia dos horários originais só na máquina
+(scratchpad da sessão), não no repositório.
 
 ### Em produção em 09 e 10/11 (detalhe nas specs e no git log)
 
-- Peso total (Q291) e regra do Vendeu, Pagou por nome de apresentação (Q292):
-  m110, m111, roteiros `emporio-regra-apresentacao` e `emporio-impressao`.
-  Falta a Agromax criar a regra de FRANQUIA.
-- Editar, cancelar e refazer orçamento (Q285 a Q290,
-  [spec](../superpowers/specs/2026-11-10-emporio-editar-e-cancelar-orcamento-design.md)):
-  m109 e roteiro `emporio-orcamento-editar`.
-- Boleto e titular do cheque (Q278 a Q284,
-  [spec](../superpowers/specs/2026-11-10-emporio-boleto-e-titular-do-cheque-design.md)):
-  m108 e roteiro `emporio-boleto`. Fechadas 2.67, 2.68, 2.70; aberta 2.69.
-- Desfazer acordo, aviso por email, recalcular o mês (Q275 a Q277,
-  [spec](../superpowers/specs/2026-11-09-emporio-acordo-aviso-rateio-design.md)):
-  m106. Fechadas 2.39, 2.40, 2.53; aberta 2.66.
+- Peso total (Q291) e regra por nome de apresentação (Q292): m110, m111.
+- Editar e cancelar orçamento (Q285 a Q290): m109. Boleto e titular do cheque
+  (Q278 a Q284): m108; aberta 2.69. Desfazer acordo, aviso, recalcular o mês
+  (Q275 a Q277): m106; aberta 2.66. Specs de 09 e 10/11.
 
 ### Cartão (Q250 a Q267): entregas 1 a 3 em produção
 
@@ -71,7 +73,12 @@ Agromax, a entrega 4 (extrato da Stone) depende de um arquivo real.
 
 ### ⏭️ Próximo passo
 
-1. Na Agromax: contar o estoque antes de lançar compra de produto que acabou; criar a regra por apresentação (FRANQUIA) e editar e cancelar um orçamento real; conferir o boleto e o "Em nome de" numa venda real.
+0. Custo único: o usuário decide merge, push e migração no Neon (a migração
+   ANTES do push), e o que fazer com as compras de teste do TALCO/ GEL (27,99)
+   e do ARUANA-PONTOS (47; 34,66; 15; 74,90; 10), que geraram contas a pagar.
+   Depois: trazer os outros assuntos da reunião (franqueado como crédito,
+   frete e desconto fora do faturamento), como o usuário pediu.
+1. Na Agromax: criar a regra por apresentação (FRANQUIA) e editar e cancelar um orçamento real; conferir o boleto e o "Em nome de" numa venda real.
 2. Na Agromax (usuário, pelas telas): Stone, taxas do mês, regra de dia útil
    e, se usar, a antecipação automática; confirmar as decisões do agente do
    cartão e do frete; responder o setor; decidir se o vendedor vê o líquido
@@ -182,10 +189,11 @@ relatórios em [agente-whatsapp/](agente-whatsapp/), detalhe em
 
 ## Últimas rodadas
 
+- 11/11: reunião com a Agromax; custo único (Q298, Q299) na branch
+  `emporio-custo-um-so`, sem publicar; histórico das compras corrigido em
+  produção, autorizado na conversa.
 - 10/11: dívidas 2.64 e 2.65 e conta avulsa na branch do Codex; banco local,
   sem integração à `main` nem deploy.
 - 10/11: desfazer acordo, aviso por email e recalcular o mês (Q275 a Q277)
   e, por baixo, relatórios e limpeza (Q268 a Q274) em produção, autorizados
   na conversa.
-- 09/11: frete e editar venda (Q244 a Q249) e o cartão inteiro (Q250 a
-  Q267) em produção, autorizados na conversa.

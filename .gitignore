@@ -71,3 +71,6 @@ next-env.d.ts
 # Pesquisa da skill deep-research (fora do repositório público)
 /research_notes/
 /reports/
+
+# Gravações de reunião com cliente (repositório público)
+/docs/preco-custo-produto/

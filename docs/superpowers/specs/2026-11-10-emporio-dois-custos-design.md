@@ -1,5 +1,11 @@
 # Empório: custo médio, última compra e base do preço sugerido (Q293 a Q297)
 
+> ⚠️ **Q293, Q294 e Q295 desfeitas em 11/11/2026** pela
+> [spec do custo único](2026-11-11-emporio-custo-um-so-design.md): o cliente
+> quer um custo só, sem opção. O diagnóstico abaixo também estava errado: a
+> compra não foi lançada antes da contagem, ela foi carimbada ao meio-dia e
+> caiu antes dela no histórico (Q298). Seguem valendo a Q296 e a Q297.
+
 Pedido do usuário em 10/11/2026: o produto custava 20,00, acabou, foi reposto a
 30,00, e o sistema mostrou algo perto da média dos dois. Pesquisa e
 recomendação aceitas pelo usuário ("vamos seguir suas recomendações").

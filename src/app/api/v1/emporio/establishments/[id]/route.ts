@@ -26,7 +26,6 @@ const editarSchema = z.object({
   max_discount_pct: z.number().min(0, "Use um valor entre 0 e 100.").max(100, "Use um valor entre 0 e 100.").nullish(),
   default_expense_pct: pct.nullish(),
   default_profit_pct: pct.nullish(),
-  price_cost_basis: z.string().optional(),
   area_m2: z.number().min(0, "Informe a área em m², de 0 a 999.999,99.").max(999999.99, "Informe a área em m², de 0 a 999.999,99.").nullish(),
   employees_count: z.number().int("Informe o número de funcionários, inteiro, de 0 a 100.000.").min(0, "Informe o número de funcionários, inteiro, de 0 a 100.000.").max(100000, "Informe o número de funcionários, inteiro, de 0 a 100.000.").nullish(),
 });

@@ -8,6 +8,7 @@ import { lacradoEfetivo, lojasDoAtor, type Ator } from "@/lib/actions/emporio-ca
 import { saldoDoCaixa, saldosDasContas } from "@/lib/actions/emporio-caixa";
 import { camposDeCusto, chaveLojaProduto, lerCustosDasLojas } from "@/lib/emporio/custos-da-loja";
 import { resolverTurno } from "@/lib/emporio/turno";
+import { momentoDaEntrada } from "@/lib/emporio/datas";
 import { contaEmAprovacao, EM_APROVACAO } from "@/lib/emporio/pedido-pagamento";
 
 /**
@@ -258,7 +259,7 @@ export async function lerSaldosParaCompraAction(
     for (const p of produtos) {
       const r = custos.get(chaveLojaProduto(l.id, p.product_id));
       if (!r) continue;
-      const c = camposDeCusto(r, "medio", null);
+      const c = camposDeCusto(r, null);
       saida.push({
         establishment_id: l.id,
         emporio_product_id: p.id,
@@ -523,7 +524,8 @@ export async function criarCompraAction(
     }
   }
 
-  const recebidaEm = input.received ? input.purchased_at : null;
+  // Q298: compra de hoje entra no estoque na hora do lançamento, depois de uma contagem feita antes.
+  const recebidaEm = input.received ? momentoDaEntrada(input.purchased_at) : null;
   const pagoCent = lancamentos.filter((l) => l.paid).reduce((s, l) => s + centavos(l.amount), 0);
 
   try {
@@ -712,7 +714,7 @@ export async function receberCompraAction(
   if (compra.canceled_at) return fail("PURCHASE_CANCELED", "Essa compra foi cancelada.", 409);
   if (compra.received_at) return fail("ALREADY_RECEIVED", "Essa compra já foi recebida.", 409);
 
-  const quando = input.received_at ?? new Date();
+  const quando = input.received_at ? momentoDaEntrada(input.received_at) : new Date();
   if (!dataValida(quando)) {
     return fail("VALIDATION_ERROR", "Informe uma data de recebimento válida.", 422, "received_at");
   }

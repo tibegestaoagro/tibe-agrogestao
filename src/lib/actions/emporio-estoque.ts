@@ -7,13 +7,7 @@ import { decToNum } from "@/lib/serialize";
 import { exigir, recusarCaixa } from "@/lib/emporio/papel";
 import { diferencas, registrarNoHistorico } from "@/lib/emporio/historico";
 import { descreverQuantidade } from "@/lib/stock/units";
-import {
-  custoMedio,
-  deltaDaLoja,
-  type BaseCustoPreco,
-  type MovimentoDeCusto,
-  type OrigemCustoSugerido,
-} from "@/lib/emporio/custo-medio";
+import { custoMedio, deltaDaLoja, type MovimentoDeCusto, type OrigemCustoSugerido } from "@/lib/emporio/custo-medio";
 import { camposDeCusto } from "@/lib/emporio/custos-da-loja";
 import {
   INCLUDE_PRODUTO,
@@ -86,15 +80,9 @@ export type StockLine = {
   loose_qty: number;
   sealed: SealedLine[];
   average_cost: number | null;
-  /** Custo da compra mais recente, por unidade-base, e quando (Q293). */
-  last_purchase_cost: number | null;
-  last_purchase_on: string | null;
-  price_cost_basis: BaseCustoPreco;
-  /** O custo que alimenta o preço sugerido nesta loja, e de onde veio (Q294, Q297). */
+  /** O custo único do produto nesta loja, e de onde veio (Q297, Q299). */
   suggested_cost: number | null;
   suggested_cost_source: OrigemCustoSugerido | null;
-  /** (última compra - médio) / médio, em %; nulo sem os dois ou sem saldo (Q295). */
-  cost_gap_pct: number | null;
   estimated: boolean;
   min_qty: number | null;
   max_qty: number | null;
@@ -240,11 +228,6 @@ async function montarLinhas(
     },
   });
 
-  const basesDasLojas = new Map(
-    (await c.establishment.findMany({ where: { id: { in: lojaIds } }, select: { id: true, price_cost_basis: true } })).map(
-      (l) => [l.id, l.price_cost_basis] as const,
-    ),
-  );
   const limitePorPar = new Map(limites.map((l) => [`${l.establishment_id}|${l.emporio_product_id}`, l]));
   const pendentePorPar = new Map<string, number>();
   for (const it of itensPendentes) {
@@ -298,16 +281,12 @@ async function montarLinhas(
       const min = decToNum(limite?.min_qty);
       const max = decToNum(limite?.max_qty);
       const pendente = pendentePorPar.get(k) ?? 0;
-      // Q297: com saldo zero ou negativo o médio sai nulo; os campos novos vêm do contrato dos dois custos.
-      const novos = camposDeCusto(custo, basesDasLojas.get(loja.id) ?? "maior", decToNum(p.reference_cost));
+      // Q297: com saldo zero ou negativo o médio sai nulo, e o custo do produto passa a ser a última compra.
+      const novos = camposDeCusto(custo, decToNum(p.reference_cost));
       linhas.push({
         stock_balance: custo.saldo,
-        last_purchase_cost: novos.last_purchase_cost,
-        last_purchase_on: novos.last_purchase_on,
-        price_cost_basis: novos.price_cost_basis,
         suggested_cost: novos.suggested_cost,
         suggested_cost_source: novos.suggested_cost_source,
-        cost_gap_pct: novos.cost_gap_pct,
         establishment_id: loja.id,
         establishment_name: loja.name,
         emporio_product_id: p.id,

@@ -262,14 +262,15 @@ enum EmporioSaleStatus {
   cancelada
 }
 
-/// Q248: de onde veio a venda. `ecommerce` é o pedido da loja online lançado à mão.
-/// Q294: a base de custo do preço sugerido da loja. `maior` é o maior entre o médio e a última compra.
+/// SEM USO desde a Q299 (11/11/2026): sai com `Establishment.price_cost_basis`
+/// num deploy fora do horário da loja (o código no ar ainda o lia).
 enum EmporioPriceCostBasis {
   medio
   ultima_compra
   maior
 }
 
+/// Q248: de onde veio a venda. `ecommerce` é o pedido da loja online lançado à mão.
 enum EmporioSaleOrigin {
   balcao
   ecommerce
@@ -800,7 +801,8 @@ model Establishment {
   max_discount_pct     Decimal?              @db.Decimal(5, 2)
   default_expense_pct  Decimal?              @db.Decimal(7, 2)
   default_profit_pct   Decimal?              @db.Decimal(7, 2)
-  /// Q294: o custo que o preço sugerido usa (só o sugerido; o preço de venda segue gravado à mão).
+  /// SEM USO desde a Q299 (11/11/2026): nada lê nem escreve. Fica até o deploy
+  /// que o derruba, fora do horário da loja (ver o handoff).
   price_cost_basis     EmporioPriceCostBasis @default(maior)
   archived_at          DateTime?
   /// F3a (Q83): para onde vai o PIX da loja quando a venda não diz.
