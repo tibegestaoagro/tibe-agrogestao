@@ -25,10 +25,9 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-13. Branch aberta `emporio-contas-pix` (contas PIX
-  escolhidas no lançamento), pronta e NÃO publicada: falta autorização para
-  migrar o Neon, fazer o merge e o push. Custo único e crédito do franqueado em
-  produção desde 11/11 (merge `9eac1fe`). Os agentes `explorador`,
+- Atualizado em: 2026-11-13. Contas PIX escolhidas no lançamento em produção
+  (migrações no Neon antes do push, merge `bd7fd3f`, autorizados na conversa).
+  Nenhuma branch aberta. Os agentes `explorador`,
   `prova-juiz`, `prova-viva` e `servidor-dados` carregam (descrição entre
   aspas). Outros agentes: leia `AGENTS.md`.
 - `main` igual a `origin/main`, Neon em dia. Em produção também: conta avulsa e
@@ -40,7 +39,7 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   Q292), orçamento (Q285 a Q290), boleto e cheque (Q278 a Q284; aberta 2.69),
   acordo, aviso e recálculo (Q275 a Q277; aberta 2.66).
 
-### Contas PIX escolhidas no lançamento (Q310 a Q318): na branch, sem publicar
+### Contas PIX escolhidas no lançamento (Q310 a Q318): em produção
 
 Branch `emporio-contas-pix`, `c009fe6` a `31495e2`. Spec
 [../superpowers/specs/2026-11-13-emporio-contas-pix-design.md](../superpowers/specs/2026-11-13-emporio-contas-pix-design.md).
@@ -48,11 +47,11 @@ A conta ganha CNPJ (aceita o alfanumérico), favorecido e "Disponível para PIX
 em" (todas as lojas, lojas escolhidas ou não recebe PIX). O caixa escolhe a
 conta ao lançar PIX no balcão, na edição e no fiado. O servidor confere por loja.
 Impressos sem mudança. "PIX por conta" no relatório de vendas. Duas migrações
-aditivas, aplicadas só no Docker: `20261113120000_emporio_contas_pix` e
+aditivas, no Docker e no Neon: `20261113120000_emporio_contas_pix` e
 `20261113150000_emporio_conta_sem_pix`. A segunda marca "não recebe PIX" toda
-conta que não é padrão de loja e nunca recebeu PIX. Na Da Mata (lido em
-13/11), só a `CAIXA DAMATTA - PIX - 1076-6` fica no PIX, e ela é a padrão das
-duas lojas. Validação: m114 e roteiro `emporio-contas-pix` (132 ok) verdes e
+conta que não é padrão de loja e nunca recebeu PIX. Na Da Mata (conferido
+depois da migração), só a `CAIXA DAMATTA - PIX - 1076-6` ficou no PIX, e ela é
+a padrão das duas lojas. Validação: m114 e roteiro `emporio-contas-pix` (132 ok) verdes e
 reprovando sabotados; juiz 7/10, os seis achados corrigidos; `test:all` 117/117.
 
 ### Em produção desde 11/11: franqueado (Q300 a Q309) e custo único (Q298, Q299)
@@ -73,8 +72,8 @@ Agromax, a entrega 4 (extrato da Stone) depende de um arquivo real.
 
 ### ⏭️ Próximo passo
 
-0. Contas PIX: o usuário autoriza a migração no Neon (as duas, antes do push),
-   o merge e o push; depois a Agromax cadastra as contas das lojas e do site.
+0. Contas PIX: a Agromax cadastra as contas PIX das lojas e do site (CNPJ,
+   favorecido, onde vale) e define a padrão de cada loja.
    Franqueado: o usuário responde as três decisões abertas (Caixa, devolução,
    taxa do cartão) e a Agromax testa. A Agromax testa o custo único (contar,
    depois lançar a compra).
