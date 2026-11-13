@@ -80,7 +80,7 @@ export default async function TransferenciasPage({
             presentations: {
               where: { archived_at: null },
               select: { id: true, name: true, base_qty: true, archived_at: true, is_sealed_package: true },
-              orderBy: { name: "asc" },
+              orderBy: [{ created_at: "asc" }, { id: "asc" }],
             },
           },
         })
@@ -91,13 +91,28 @@ export default async function TransferenciasPage({
   const origensDoEnvio = podeEnviar ? lojas.filter((l) => pode(papel, "gestor_da_loja", l.id)) : [];
   const transferencias = transfRes.ok ? transfRes.data : [];
 
+  // Q323: uma linha por TAMANHO (Saca 40 kg e ATACADO são a mesma saca). O id é o da mais antiga.
+  function tamanhosFechados(
+    apresentacoes: { id: string; name: string; base_qty: unknown; is_sealed_package: boolean }[],
+  ): { id: string; name: string }[] {
+    const porTamanho = new Map<number, { id: string; nomes: string[] }>();
+    for (const a of apresentacoes) {
+      if (!a.is_sealed_package) continue;
+      const tam = Number(a.base_qty);
+      const g = porTamanho.get(tam);
+      if (g) g.nomes.push(a.name);
+      else porTamanho.set(tam, { id: a.id, nomes: [a.name] });
+    }
+    return [...porTamanho.values()].map((g) => ({ id: g.id, name: g.nomes.join(" / ") }));
+  }
+
   const produtosForm = produtos
     .map((p) => ({
       id: p.id,
       name: p.product.name,
       base_unit: p.base_unit,
       separa: lacradoEfetivo(p),
-      fechadas: p.presentations.filter((a) => a.is_sealed_package).map((a) => ({ id: a.id, name: a.name })),
+      fechadas: tamanhosFechados(p.presentations),
     }))
     .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
 
