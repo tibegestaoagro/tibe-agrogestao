@@ -6,26 +6,65 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
 import { FormSheet } from "@/components/ui/form-sheet";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { useErrosDeFormulario } from "@/components/ui/use-erros-de-formulario";
 import { useAviso } from "@/components/ui/toast";
-import { apiPost } from "@/lib/client-api";
+import { apiPatch, apiPost } from "@/lib/client-api";
+import type { ContaView } from "@/lib/actions/emporio-caixa";
 
-const ORDEM = ["name", "bank"] as const;
+const ORDEM = ["name", "bank", "document", "beneficiary", "establishment_ids"] as const;
 type Campo = (typeof ORDEM)[number];
 
-/** Cadastro de conta bancária do Empório (OWNER e ADMIN): é onde o PIX cai. */
-export function ContaForm() {
+const TODAS = "todas";
+const ESCOLHIDAS = "escolhidas";
+const classeCaixa = "h-4 w-4 rounded border-borda text-primaria-tinta focus:ring-primaria";
+
+/** Máscara 00.000.000/0000-00 enquanto digita; o servidor limpa a pontuação. */
+function mascararCnpj(valor: string): string {
+  return valor
+    .replace(/\D/g, "")
+    .slice(0, 14)
+    .replace(/^(\d{2})(\d)/, "$1.$2")
+    .replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3")
+    .replace(/\.(\d{3})(\d)/, ".$1/$2")
+    .replace(/(\d{4})(\d)/, "$1-$2");
+}
+
+/**
+ * Conta bancária do Empório (OWNER, ADMIN e Financeiro): é onde o PIX cai.
+ * Sem `conta` cadastra; com `conta` edita (um painel por linha da tabela).
+ */
+export function ContaForm({ conta, lojas }: { conta?: ContaView; lojas: { id: string; name: string }[] }) {
   const router = useRouter();
   const aviso = useAviso();
-  const err = useErrosDeFormulario(ORDEM, "conta-nova");
+  const err = useErrosDeFormulario(ORDEM, conta ? `conta-${conta.id}` : "conta-nova");
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [nome, setNome] = useState("");
-  const [banco, setBanco] = useState("");
+  const [nome, setNome] = useState(conta?.name ?? "");
+  const [banco, setBanco] = useState(conta?.bank ?? "");
+  const [cnpj, setCnpj] = useState(mascararCnpj(conta?.document ?? ""));
+  const [favorecido, setFavorecido] = useState(conta?.beneficiary ?? "");
+  const [vale, setVale] = useState(conta && !conta.pix_all_establishments ? ESCOLHIDAS : TODAS);
+  const [lojasSel, setLojasSel] = useState<string[]>(conta?.pix_available_establishment_ids ?? []);
+
+  function carregar() {
+    setNome(conta?.name ?? "");
+    setBanco(conta?.bank ?? "");
+    setCnpj(mascararCnpj(conta?.document ?? ""));
+    setFavorecido(conta?.beneficiary ?? "");
+    setVale(conta && !conta.pix_all_establishments ? ESCOLHIDAS : TODAS);
+    setLojasSel(conta?.pix_available_establishment_ids ?? []);
+  }
+
+  function alternar(id: string, ligado: boolean) {
+    setLojasSel((a) => (ligado ? [...a, id] : a.filter((x) => x !== id)));
+  }
 
   async function submit() {
     const novos: Partial<Record<Campo, string>> = {};
-    if (!nome.trim()) novos.name = "Dê um nome à conta.";
+    if (!nome.trim()) novos.name = "Dê um identificador à conta.";
+    if (cnpj.trim() && cnpj.replace(/\D/g, "").length !== 14) novos.document = "O CNPJ tem 14 dígitos.";
+    if (vale === ESCOLHIDAS && lojasSel.length === 0) novos.establishment_ids = "Marque pelo menos uma loja.";
     if (Object.keys(novos).length > 0) {
       err.setGlobal(null);
       err.reprovar(novos);
@@ -34,40 +73,47 @@ export function ContaForm() {
 
     err.limparTudo();
     setLoading(true);
-    const res = await apiPost("/api/v1/emporio/bank-accounts", {
+    const corpo = {
       name: nome.trim(),
       bank: banco.trim() || null,
-    });
+      document: cnpj.trim() || null,
+      beneficiary: favorecido.trim() || null,
+      pix_all_establishments: vale === TODAS,
+      ...(vale === ESCOLHIDAS ? { establishment_ids: lojasSel } : {}),
+    };
+    const res = conta
+      ? await apiPatch(`/api/v1/emporio/bank-accounts/${conta.id}`, corpo)
+      : await apiPost("/api/v1/emporio/bank-accounts", corpo);
     setLoading(false);
     if (!res.ok) {
       err.doServidor(res);
       return;
     }
-    aviso.sucesso("Conta cadastrada.");
+    aviso.sucesso(conta ? "Conta atualizada." : "Conta cadastrada.");
     setOpen(false);
-    setNome("");
-    setBanco("");
+    if (!conta) carregar();
     router.refresh();
   }
 
   return (
     <FormSheet
-      trigger={<Button>Nova conta</Button>}
-      title="Nova conta bancária"
-      description="Só o nome é obrigatório. O saldo começa em zero: lance o saldo inicial depois."
+      trigger={conta ? <Button variant="outline" size="sm">Editar</Button> : <Button>Nova conta</Button>}
+      title={conta ? `Editar ${conta.name}` : "Nova conta bancária"}
+      description="Só o identificador é obrigatório. CNPJ e favorecido ajudam o caixa a conferir a conta no lançamento."
       open={open}
       onOpenChange={(o) => {
         setOpen(o);
+        if (o && conta) carregar();
         if (!o) err.limparTudo();
       }}
       onSubmit={submit}
-      submitLabel="Cadastrar conta"
+      submitLabel={conta ? "Salvar" : "Cadastrar conta"}
       pending={loading}
       error={err.global}
       focarCampoId={err.focarCampoId}
       tentativa={err.tentativa}
     >
-      <Field label="Nome da conta" required id={err.idDe("name")} error={err.erros.name}>
+      <Field label="Identificador" required id={err.idDe("name")} error={err.erros.name}>
         {({ id, ...aria }) => (
           <Input
             id={id}
@@ -77,7 +123,7 @@ export function ContaForm() {
               setNome(e.target.value);
               err.limparCampo("name");
             }}
-            placeholder="Ex: Conta do PIX da loja Centro"
+            placeholder="Ex: PIX AGROMAX MOC"
           />
         )}
       </Field>
@@ -94,6 +140,75 @@ export function ContaForm() {
           />
         )}
       </Field>
+      <Field label="CNPJ" id={err.idDe("document")} error={err.erros.document} hint="Opcional.">
+        {({ id, ...aria }) => (
+          <Input
+            id={id}
+            {...aria}
+            inputMode="numeric"
+            value={cnpj}
+            onChange={(e) => {
+              setCnpj(mascararCnpj(e.target.value));
+              err.limparCampo("document");
+            }}
+            placeholder="00.000.000/0000-00"
+          />
+        )}
+      </Field>
+      <Field label="Favorecido" id={err.idDe("beneficiary")} error={err.erros.beneficiary} hint="Opcional.">
+        {({ id, ...aria }) => (
+          <Input
+            id={id}
+            {...aria}
+            value={favorecido}
+            onChange={(e) => {
+              setFavorecido(e.target.value);
+              err.limparCampo("beneficiary");
+            }}
+          />
+        )}
+      </Field>
+      <Field label="Disponível para PIX em" id={`${conta ? `conta-${conta.id}` : "conta-nova"}-vale`}>
+        {({ id, ...aria }) => (
+          <Select
+            value={vale}
+            onValueChange={(v) => {
+              setVale(v);
+              err.limparCampo("establishment_ids");
+            }}
+          >
+            <SelectTrigger id={id} {...aria}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={TODAS}>Todas as lojas</SelectItem>
+              <SelectItem value={ESCOLHIDAS}>Lojas escolhidas</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
+      </Field>
+      {vale === ESCOLHIDAS && (
+        <Field label="Lojas" required id={err.idDe("establishment_ids")} error={err.erros.establishment_ids}>
+          {({ id, ...aria }) => (
+            <div id={id} {...aria} tabIndex={-1} className="space-y-2">
+              {lojas.map((l) => (
+                <label key={l.id} className="flex items-center gap-2 text-sm text-texto">
+                  <input
+                    type="checkbox"
+                    checked={lojasSel.includes(l.id)}
+                    onChange={(e) => {
+                      alternar(l.id, e.target.checked);
+                      err.limparCampo("establishment_ids");
+                    }}
+                    className={classeCaixa}
+                  />
+                  {l.name}
+                </label>
+              ))}
+            </div>
+          )}
+        </Field>
+      )}
     </FormSheet>
   );
 }
