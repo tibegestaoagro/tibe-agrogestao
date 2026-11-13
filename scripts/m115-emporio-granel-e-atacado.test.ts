@@ -297,8 +297,8 @@ async function main() {
       console.log("\n2. A prévia por loja e por apresentação (Q321)");
       const antes = await foto(P15);
       const movsAntes = await P.stockMovement.count({ where: { product_id: P15.product_id } });
-      const { previaConversaoAction } = await Conv();
-      const r = await previaConversaoAction(A.db, A.owner, P15.id);
+      const { lerPreviaConversaoAction } = await Conv();
+      const r = await lerPreviaConversaoAction(A.db, A.owner, P15.id);
       check("a prévia responde ok", r.ok === true, j(r));
       const d = r.data ?? {};
       check("from_unit saca, to_unit quilograma, content_qty 15", d.from_unit === "saca" && d.to_unit === "quilograma" && Number(d.content_qty) === 15, j({ f: d.from_unit, t: d.to_unit, c: d.content_qty }));
@@ -323,7 +323,7 @@ async function main() {
       check("fechada que vira 1,02 kg não recebe o confira (check só vale para não fechada)", !!sa && perto(sa.base_qty_after, 1.02, 0.0005) && sa.check === false, j(sa));
       check("cada apresentação da prévia traz id", (d.presentations ?? []).every((x: Dado) => typeof x.id === "string" && x.id.length > 0), j(d.presentations));
 
-      const r5 = await previaConversaoAction(A.db, A.owner, P5.id);
+      const r5 = await lerPreviaConversaoAction(A.db, A.owner, P5.id);
       const q = (r5.data?.presentations ?? []).find((x: Dado) => x.name === "Quilo");
       check("saca de 5 kg: 0,2 saca vira 1 kg exato e check false", r5.ok === true && !!q && perto(q.base_qty_after, 1) && q.check === false, j(r5));
       check("a prévia não mudou nada (produto, apresentações, movimentações)", (await foto(P15)) === antes && (await P.stockMovement.count({ where: { product_id: P15.product_id } })) === movsAntes);
@@ -351,7 +351,7 @@ async function main() {
       const kg = await mkProduto(A, "JaKg", { base_unit: "quilograma" });
       const rkg = await converterUnidadeAction(A.db, A.owner, kg.id, { content_qty: 15 });
       check("produto em quilo: VALIDATION_ERROR", rkg.ok === false && rkg.code === "VALIDATION_ERROR", j(rkg));
-      const pkg = await (await Conv()).previaConversaoAction(A.db, A.owner, kg.id);
+      const pkg = await (await Conv()).lerPreviaConversaoAction(A.db, A.owner, kg.id);
       check("a prévia de produto em quilo também recusa (VALIDATION_ERROR)", pkg.ok === false && pkg.code === "VALIDATION_ERROR", j(pkg));
 
       const papel = await converterUnidadeAction(A.db, A.vendedor, P15.id, { content_qty: 15 });
@@ -582,8 +582,8 @@ async function main() {
       check("e não vaza o nome nem os dados", !j(previa.corpo).includes("M115 Iso") && previa.corpo?.data === undefined, j(previa.corpo));
       const conv = await chamar(B.tok.owner, R.convert, "POST", `emporio/products/${PIso.id}/convert-unit`, { content_qty: 15 }, PIso.id);
       check("B converte o produto do A: 404", conv.status === 404, `${conv.status} ${j(conv.corpo)}`);
-      const { converterUnidadeAction, previaConversaoAction } = await Conv();
-      const aPrev = await previaConversaoAction(B.db, B.owner, PIso.id);
+      const { converterUnidadeAction, lerPreviaConversaoAction } = await Conv();
+      const aPrev = await lerPreviaConversaoAction(B.db, B.owner, PIso.id);
       const aConv = await converterUnidadeAction(B.db, B.owner, PIso.id, { content_qty: 15 });
       check("pelas actions do B: NOT_FOUND 404 nas duas", aPrev.ok === false && aPrev.status === 404 && aConv.ok === false && aConv.status === 404, j([aPrev, aConv]));
       check("o produto do A segue em saca, intacto", (await foto(PIso)) === antes && (await P.emporioProduct.findUnique({ where: { id: PIso.id } })).base_unit === "saca");

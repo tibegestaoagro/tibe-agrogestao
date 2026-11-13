@@ -178,7 +178,7 @@ async function montarPrevia(c: Tx, e: Elegivel): Promise<PreviaConversao> {
   };
 }
 
-export async function previaConversaoAction(
+export async function lerPreviaConversaoAction(
   db: TenantPrismaClient,
   ator: Ator,
   emporio_product_id: string,

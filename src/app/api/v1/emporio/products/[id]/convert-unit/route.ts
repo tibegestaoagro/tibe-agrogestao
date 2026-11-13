@@ -2,7 +2,7 @@ import { z } from "zod";
 import { apiErroDeZod } from "@/lib/api";
 import { readJson } from "@/lib/api-guard";
 import { withApi } from "@/lib/route";
-import { converterUnidadeAction, previaConversaoAction } from "@/lib/actions/emporio-conversao";
+import { converterUnidadeAction, lerPreviaConversaoAction } from "@/lib/actions/emporio-conversao";
 import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
 
 /**
@@ -20,7 +20,7 @@ async function GETHandler(_request: Request, props: Props) {
   const { id } = await props.params;
   const g = await guardEmporio("read");
   if ("error" in g) return g.error;
-  return respostaDaAction(await previaConversaoAction(g.db, g.user, id));
+  return respostaDaAction(await lerPreviaConversaoAction(g.db, g.user, id));
 }
 
 async function POSTHandler(request: Request, props: Props) {
