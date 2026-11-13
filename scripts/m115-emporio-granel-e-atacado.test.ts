@@ -176,6 +176,9 @@ async function main() {
       return { id: r.data.id as string, product_id: r.data.product_id as string };
     };
     const mkPres = async (w: Mundo, prodId: string, name: string, base_qty: number, sealed: boolean): Promise<string> => {
+      // O produto em saca já nasce com a apresentação da saca (Q123): reaproveita se for a mesma.
+      const existente = await w.db.productPresentation.findFirst({ where: { emporio_product_id: prodId, name } });
+      if (existente && Number(existente.base_qty) === base_qty && existente.is_sealed_package === sealed) return existente.id as string;
       const r = await Cat.criarApresentacaoAction(w.db, w.owner, prodId, { name, base_qty, is_sealed_package: sealed });
       if (!r.ok) throw new Error(`apresentação ${name}: ${j(r)}`);
       return r.data.id as string;
@@ -231,7 +234,7 @@ async function main() {
     await implantar(A, A.L2, P15.id, [{ presentation_id: pSaca, packages: 6 }], 0, 100);
     const compra = await Cp.criarCompraAction(A.db, A.owner, {
       operation_key: chave("cp"), establishment_id: A.L1, purchased_at: new Date(), received: true, freight: 0,
-      payment: { kind: "a_vista" }, items: [{ emporio_product_id: P15.id, presentation_id: pSaca, quantity: 4, item_total: 480 }],
+      payment: { kind: "a_prazo", due_date: new Date(Date.now() + 30 * DIA) }, items: [{ emporio_product_id: P15.id, presentation_id: pSaca, quantity: 4, item_total: 480 }],
     });
     if (!compra.ok) throw new Error(`compra: ${j(compra)}`);
     const venda = await vender(A, "L1", [item(P15.id, pSaca, 2)], 300);
