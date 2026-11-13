@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { RelatorioDeVendas, VendasPorOrigem } from "@/lib/actions/emporio-relatorios";
+import type { PixPorConta, RelatorioDeVendas, VendasPorOrigem } from "@/lib/actions/emporio-relatorios";
 import { reaisBr } from "@/lib/numero-br";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
@@ -48,6 +48,29 @@ function TabelaPorOrigem({ origens }: { origens: VendasPorOrigem }) {
   );
 }
 
+function TabelaDoPix({ contas }: { contas: PixPorConta }) {
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Conta</TableHead>
+          <TableHead className="text-right">Pagamentos</TableHead>
+          <TableHead className="text-right">Valor</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {contas.map((c) => (
+          <TableRow key={c.bank_account_id}>
+            <TableCell className="font-medium">{c.name}</TableCell>
+            <TableCell className="text-right">{c.count}</TableCell>
+            <TableCell className="text-right">{reaisBr(c.amount)}</TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+}
+
 /** Os blocos do relatório de vendas, cada um com o vazio próprio. */
 export function RelatoriosBlocos({ r }: { r: RelatorioDeVendas }) {
   const varias = r.lojas.length > 1;
@@ -65,6 +88,32 @@ export function RelatoriosBlocos({ r }: { r: RelatorioDeVendas }) {
               <div key={l.establishment_id} className="space-y-1">
                 <p className="text-sm font-medium text-texto">{l.name}</p>
                 <TabelaPorOrigem origens={l.by_origin} />
+              </div>
+            ))}
+          </div>
+        )}
+      </Bloco>
+
+      <Bloco titulo="PIX por conta">
+        <p className="text-sm text-texto-secundario">
+          O PIX recebido nas vendas do período, por conta. Não desconta o que foi devolvido.
+        </p>
+        {r.pix_by_account.length === 0 ? (
+          <p className="text-sm text-texto-secundario">Nenhum PIX no período.</p>
+        ) : (
+          <TabelaDoPix contas={r.pix_by_account} />
+        )}
+        {varias && r.por_loja.length > 0 && (
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-texto">Em cada loja</h3>
+            {r.por_loja.map((l) => (
+              <div key={l.establishment_id} className="space-y-1">
+                <p className="text-sm font-medium text-texto">{l.name}</p>
+                {l.pix_by_account.length === 0 ? (
+                  <p className="text-sm text-texto-secundario">Nenhum PIX no período.</p>
+                ) : (
+                  <TabelaDoPix contas={l.pix_by_account} />
+                )}
               </div>
             ))}
           </div>

@@ -76,6 +76,11 @@ export function PixLojaForm({
       focarCampoId={err.focarCampoId}
       tentativa={err.tentativa}
     >
+      {contas.length === 0 && (
+        <p className="text-sm text-texto-secundario">
+          Nenhuma conta está liberada para esta loja. Libere uma em Contas bancárias (Editar, Disponível para PIX em).
+        </p>
+      )}
       <Field label="Conta" id={err.idDe("bank_account_id")} error={err.erros.bank_account_id}>
         {({ id, ...aria }) => (
           <Select

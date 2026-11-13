@@ -621,6 +621,7 @@ model Tenant {
   composition_items           CompositionItem[]
   production_entries          ProductionEntry[]
   bank_accounts               BankAccount[]
+  bank_account_pix_establishments BankAccountPixEstablishment[]
   emporio_sales               EmporioSale[]
   emporio_settings            EmporioSettings?
   emporio_counters            EmporioCounter[]
@@ -815,8 +816,9 @@ model Establishment {
   tenant                    Tenant                     @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   responsible               User?                      @relation("EstablishmentResponsible", fields: [responsible_user_id], references: [id], onDelete: SetNull)
   pix_bank_account          BankAccount?               @relation("EstablishmentPixAccount", fields: [pix_bank_account_id], references: [id], onDelete: SetNull)
+  pix_bank_accounts         BankAccountPixEstablishment[]
   sales                     EmporioSale[]
-  credit_releases           EmporioCreditRelease[]
+  credit_releases          EmporioCreditRelease[]
   quotes                    EmporioQuote[]
   cash_movements            CashMovement[]
   card_fee_rates            CardFeeRate[]
@@ -1213,12 +1215,23 @@ model BankAccount {
   tenant_id          String
   name               String
   bank               String?
+  /// Q310: CNPJ da conta, sem pontuação (aceita o alfanumérico da Receita).
+  document           String?
+  /// Q310: favorecido do PIX.
+  beneficiary        String?
+  /// Q318: false = a conta não recebe PIX (cartão, caixa interno): fica fora da
+  /// lista do PIX e os dois campos abaixo não valem.
+  receives_pix       Boolean @default(true)
+  /// Q311: true = a conta vale para o PIX de todas as lojas; false = só das
+  /// listadas em `pix_establishments`.
+  pix_all_establishments Boolean @default(true)
   archived_at        DateTime?
   created_by_user_id String?
   created_at         DateTime  @default(now())
   updated_at         DateTime  @updatedAt
 
   tenant              Tenant                     @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  pix_establishments  BankAccountPixEstablishment[]
   pix_of              Establishment[]            @relation("EstablishmentPixAccount")
   card_fee_rates      CardFeeRate[]
   card_receivables    CardReceivable[]
@@ -1231,6 +1244,23 @@ model BankAccount {
 
   @@unique([tenant_id, name])
   @@index([tenant_id])
+}
+
+/// Disponibilidade da conta para o PIX quando `pix_all_establishments` é false (Q311).
+model BankAccountPixEstablishment {
+  id               String   @id @default(cuid())
+  tenant_id        String
+  bank_account_id  String
+  establishment_id String
+  created_at       DateTime @default(now())
+
+  tenant        Tenant        @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  bank_account  BankAccount   @relation(fields: [bank_account_id], references: [id], onDelete: Cascade)
+  establishment Establishment @relation(fields: [establishment_id], references: [id], onDelete: Cascade)
+
+  @@unique([bank_account_id, establishment_id])
+  @@index([tenant_id])
+  @@index([establishment_id])
 }
 
 /// Módulo 39, F3a (Q82, Q84 a Q86). A receita é UM `FinancialEntry` da venda

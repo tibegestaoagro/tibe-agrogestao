@@ -43,6 +43,7 @@ export const TENANT_SCOPED_MODELS = new Set<string>([
   "CompositionItem",
   "ProductionEntry",
   "BankAccount",
+  "BankAccountPixEstablishment",
   "EmporioSale",
   "EmporioSettings",
   "EmporioCounter",

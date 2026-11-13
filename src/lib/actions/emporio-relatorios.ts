@@ -55,10 +55,16 @@ export type RelatorioDeVendas = {
     total: number;
     average_ticket: number | null;
     by_origin: VendasPorOrigem;
+    pix_by_account: PixPorConta;
   }[];
   /** Sempre as duas origens, com zero quando não houver venda; o líquido já desconta o devolvido, como o total. */
   by_origin: VendasPorOrigem;
+  /** O PIX recebido por conta nas vendas concluídas do período, bruto (não desconta devolução), do maior valor para o menor. */
+  pix_by_account: PixPorConta;
 };
+
+export type PixPorConta = { bank_account_id: string; name: string; count: number; amount: number }[];
+type PixMapa = Map<string, { count: number; cent: number }>;
 
 type Origem = "balcao" | "ecommerce";
 const ORIGENS: Origem[] = ["balcao", "ecommerce"];
@@ -133,7 +139,7 @@ export async function relatorioDeVendasAction(
   const lojaIds = lojas.map((l) => l.id);
   const periodo = { from: String(input.from).trim(), to: String(input.to).trim() };
   if (lojaIds.length === 0) {
-    return ok({ periodo, lojas, por_vendedor: [], por_produto: [], parados: [], por_loja: [], by_origin: viewDeOrigens(somaVazia()) });
+    return ok({ periodo, lojas, por_vendedor: [], por_produto: [], parados: [], por_loja: [], by_origin: viewDeOrigens(somaVazia()), pix_by_account: [] });
   }
 
   const vendas = await db.emporioSale.findMany({
@@ -147,6 +153,7 @@ export async function relatorioDeVendasAction(
       net_amount: true,
       exchange_return_id: true,
       items: { select: { emporio_product_id: true, base_qty: true, total: true } },
+      payments: { where: { kind: "pix" }, select: { bank_account_id: true, amount: true } },
     },
   });
   const devolucoes = await db.emporioSaleReturn.findMany({
@@ -169,6 +176,8 @@ export async function relatorioDeVendasAction(
   const vendidoNaLoja = new Set<string>();
   const origemTotal = somaVazia();
   const origemDaLoja = new Map<string, Record<Origem, SomaOrigem>>(lojaIds.map((id) => [id, somaVazia()]));
+  const pixTotal: PixMapa = new Map();
+  const pixDaLoja = new Map<string, PixMapa>(lojaIds.map((id) => [id, new Map()]));
   const soma = <K>(m: Map<K, Soma>, k: K) => {
     let s = m.get(k);
     if (!s) m.set(k, (s = { count: 0, cent: 0 }));
@@ -192,6 +201,15 @@ export async function relatorioDeVendasAction(
       o.cent += cent;
       o.freightCent += centavos(decToNum(v.freight_amount) ?? 0);
       o.creditCent += centavos(decToNum(v.franchisee_credit) ?? 0);
+    }
+    for (const pg of v.payments) {
+      if (!pg.bank_account_id) continue;
+      for (const mapa of [pixTotal, pixDaLoja.get(v.establishment_id) as PixMapa]) {
+        const a = mapa.get(pg.bank_account_id) ?? { count: 0, cent: 0 };
+        a.count += 1;
+        a.cent += centavos(decToNum(pg.amount) ?? 0);
+        mapa.set(pg.bank_account_id, a);
+      }
     }
     for (const i of v.items) {
       const p = produto(i.emporio_product_id);
@@ -235,10 +253,23 @@ export async function relatorioDeVendasAction(
     }))
     .sort(porNome);
 
+  const contaIds = [...pixTotal.keys()];
+  const nomesDasContas = new Map(
+    (contaIds.length === 0
+      ? []
+      : await db.bankAccount.findMany({ where: { id: { in: contaIds } }, select: { id: true, name: true } })
+    ).map((c) => [c.id, c.name]),
+  );
+  const viewDoPix = (m: PixMapa): RelatorioDeVendas["pix_by_account"] =>
+    [...m.entries()]
+      .map(([id, a]) => ({ bank_account_id: id, name: nomesDasContas.get(id) ?? "Conta removida", count: a.count, amount: reais(a.cent) }))
+      .sort((a, b) => b.amount - a.amount || a.name.localeCompare(b.name, "pt-BR"));
+
   const por_loja = lojas
     .map((l) => {
       const s = porLoja.get(l.id) as Soma;
       return {
+        pix_by_account: viewDoPix(pixDaLoja.get(l.id) as PixMapa),
         establishment_id: l.id,
         name: l.name,
         sales_count: s.count,
@@ -306,5 +337,6 @@ export async function relatorioDeVendasAction(
     ),
     por_loja,
     by_origin: viewDeOrigens(origemTotal),
+    pix_by_account: viewDoPix(pixTotal),
   });
 }

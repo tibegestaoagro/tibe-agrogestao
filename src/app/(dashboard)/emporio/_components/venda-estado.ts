@@ -83,6 +83,20 @@ export type LinhaPagamento = {
   adquirenteId: string;
   /** Cartão: a bandeira, sempre escolhida (nenhuma vem marcada). */
   bandeira: Bandeira | "";
+  /** PIX: a conta escolhida. Vazio vale a padrão da loja (`contaPixDe`); na edição, a que a venda já tinha. */
+  contaPixId: string;
+  /** O nome da conta que a venda já tinha, para mostrá-la mesmo fora da lista da loja. */
+  contaPixNome: string;
+};
+
+/** Uma conta que a loja pode escolher no PIX (`GET /emporio/establishments/[id]/pix-accounts`). */
+export type ContaPixDaLoja = {
+  id: string;
+  name: string;
+  bank: string | null;
+  beneficiary: string | null;
+  document: string | null;
+  is_store_default: boolean;
 };
 
 /** O que a prévia do balcão usa da configuração da adquirente (Q260, Q263). */
@@ -160,6 +174,8 @@ export type CorpoDaVenda = {
     installments?: number;
     acquirer_id?: string;
     brand?: Bandeira;
+    /** PIX: a conta que recebe. Omitida sem conta liberada: o servidor recusa. */
+    bank_account_id?: string;
     check?: { number: string; bank: string; good_for: string; holder_name: string };
     boleto?: { due_on: string; number?: string };
   }[];
@@ -257,6 +273,8 @@ export function inicialDaVenda(
         // O pagamento antigo sem adquirente e bandeira vem vazio: quem edita escolhe de novo.
         adquirenteId: p.acquirer_id ?? "",
         bandeira: (p.brand && p.brand !== "qualquer" ? p.brand : "") as Bandeira | "",
+        contaPixId: p.kind === "pix" ? (p.bank_account_id ?? "") : "",
+        contaPixNome: p.kind === "pix" ? (p.bank_account_name ?? "") : "",
       })),
       frete: venda.freight_amount > 0 ? centavosParaCampo(cent(venda.freight_amount)) : "",
       origem: venda.origin,
@@ -370,6 +388,11 @@ export function useVenda({
   function setLoja(nova: string) {
     setLojaEstado(nova);
     setOrc(null);
+    // A conta do PIX é da loja: trocar de loja volta à padrão da nova. A que veio da venda em edição
+    // (tem nome) fica: o servidor mantém a loja da venda e aceita essa conta (Q315).
+    setPagamentos((lista) =>
+      lista.map((p) => (p.contaPixId && !p.contaPixNome ? { ...p, contaPixId: "", contaPixNome: "" } : p)),
+    );
     setItens((lista) =>
       lista.map((i) => (i.manual ? i : { ...i, preco: paraCampoDePreco(precoDaLoja(i.apresentacaoId, nova)) })),
     );
@@ -501,6 +524,43 @@ export function useVenda({
       vivo = false;
     };
   }, []);
+  // As contas do PIX que a loja escolhida aceita (a padrão primeiro): recarregam ao trocar de loja.
+  const [contas, setContas] = useState<{ lojaId: string; lista: ContaPixDaLoja[] } | null>(null);
+  useEffect(() => {
+    if (!loja) return;
+    let vivo = true;
+    void apiGet<ContaPixDaLoja[]>(`/api/v1/emporio/establishments/${encodeURIComponent(loja)}/pix-accounts`).then((res) => {
+      if (vivo && res.ok) setContas({ lojaId: loja, lista: res.data });
+    });
+    return () => {
+      vivo = false;
+    };
+  }, [loja]);
+  const contasPix = contas && contas.lojaId === loja ? contas.lista : null;
+  const contasPixCarregadas = contasPix !== null;
+
+  /** A conta do PIX que vale: a escolhida, senão a padrão da loja, senão a primeira. Vazio sem conta liberada. */
+  function contaPixDe(p: LinhaPagamento): string {
+    if (p.contaPixId) return p.contaPixId;
+    if (!contasPix) return "";
+    // Q314: só vem marcada a padrão da loja, ou a única liberada. Com várias e sem padrão, o caixa escolhe:
+    // marcar a primeira poria o PIX num CNPJ que ninguém escolheu.
+    const padrao = contasPix.find((c) => c.is_store_default) ?? (contasPix.length === 1 ? contasPix[0] : undefined);
+    return padrao?.id ?? "";
+  }
+
+  /** As opções do select: a lista da loja, mais a conta que a venda editada já tinha, se estiver fora dela. */
+  function opcoesDeContaPix(p: LinhaPagamento): ContaPixDaLoja[] {
+    const lista = contasPix ?? [];
+    if (p.contaPixId && !lista.some((c) => c.id === p.contaPixId)) {
+      return [
+        ...lista,
+        { id: p.contaPixId, name: p.contaPixNome || "Conta da venda", bank: null, beneficiary: null, document: null, is_store_default: false },
+      ];
+    }
+    return lista;
+  }
+
   const linhasDaLoja = taxas && taxas.lojaId === loja ? taxas.linhas : null;
   const taxasCarregadas = linhasDaLoja !== null;
   const adquirentes = linhasDaLoja
@@ -536,6 +596,8 @@ export function useVenda({
           chequeTitularEditado: false,
           adquirenteId: "",
           bandeira: "",
+          contaPixId: "",
+          contaPixNome: "",
         },
       ];
     });
@@ -684,6 +746,8 @@ export function useVenda({
     const chequeSemTitular = pagamentos.some((p) => p.kind === "cheque" && !p.chequeTitular.trim());
     const boletoSemVencimento = pagamentos.some((p) => p.kind === "boleto" && !p.vencimento);
     const boletoAntesDoDia = pagamentos.some((p) => p.kind === "boleto" && p.vencimento && p.vencimento < diaDeHoje());
+    // Com a lista da loja carregada, a falta de conta do PIX é recusada aqui; sem ela, fica com o servidor.
+    const pixSemConta = contasPixCarregadas && pagamentos.some((p) => p.kind === "pix" && !contaPixDe(p));
     if (ilegivel) {
       novos.payments = "Cada pagamento precisa de um valor maior que zero.";
     } else if (semAdquirente) {
@@ -702,6 +766,9 @@ export function useVenda({
       novos.payments = "Informe o vencimento do boleto.";
     } else if (boletoAntesDoDia) {
       novos.payments = "O vencimento do boleto não pode ser antes de hoje.";
+    } else if (pixSemConta) {
+      novos.payments =
+        (contasPix?.length ?? 0) === 0 ? "Nenhuma conta PIX liberada para esta loja." : "Escolha a conta do PIX.";
     } else if (aPagarCent > 0 && pagamentos.length === 0) {
       novos.payments = "Escolha como o cliente vai pagar.";
     } else if (faltaCent > 0) {
@@ -730,6 +797,7 @@ export function useVenda({
               ...(ehCartao(p.kind) && p.bandeira !== ""
                 ? { brand: p.bandeira, ...(adquirenteDe(p) ? { acquirer_id: adquirenteDe(p) } : {}) }
                 : {}),
+              ...(p.kind === "pix" && contaPixDe(p) ? { bank_account_id: contaPixDe(p) } : {}),
               ...(p.kind === "cheque"
                 ? {
                     check: {
@@ -780,6 +848,10 @@ export function useVenda({
     adquirenteDe,
     taxaDe,
     taxasCarregadas,
+    contasPix,
+    contasPixCarregadas,
+    contaPixDe,
+    opcoesDeContaPix,
     cartaoIncompleto,
     atualizarPagamento,
     removerPagamento,

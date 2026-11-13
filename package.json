@@ -94,6 +94,7 @@
     "test:m111": "tsx scripts/m111-emporio-regra-por-apresentacao.test.ts",
     "test:m112": "tsx scripts/m112-emporio-custo.test.ts",
     "test:m113": "tsx scripts/m113-emporio-franqueado.test.ts",
+    "test:m114": "tsx scripts/m114-emporio-contas-pix.test.ts",
     "test:isolation": "tsx scripts/tenant-isolation.test.ts",
     "test:docs-api": "tsx scripts/docs-api-completeness.test.ts",
     "test:nav": "tsx scripts/nav-build.test.ts",

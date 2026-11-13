@@ -5,6 +5,7 @@ import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { listarContasAction, lerCaixaAction, listarBoletosAction } from "@/lib/actions/emporio-caixa";
 import { listarEntregasAction } from "@/lib/actions/emporio-turno";
 import { reaisBr } from "@/lib/numero-br";
+import { formatarDocumento } from "@/lib/contatos/cadastro";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -110,6 +111,7 @@ export default async function CaixaPage() {
   const nomeDaLoja = new Map(caixa.drawers.map((d) => [d.establishment_id, d.name]));
   const nomeDoCaixa = new Map(caixa.drawers.flatMap((d) => d.registers.map((r) => [r.id, `${r.nome}, ${d.name}`] as const)));
   const nomeDaConta = new Map(contas.map((c) => [c.id, c.name]));
+  const lojasDaConta = caixa.drawers.map((d) => ({ id: d.establishment_id, name: d.name }));
   const contaPixDaLoja = (lojaId: string) => contas.find((c) => c.pix_establishment_ids.includes(lojaId)) ?? null;
 
   return (
@@ -222,7 +224,13 @@ export default async function CaixaPage() {
                       <PixLojaForm
                         lojaId={d.establishment_id}
                         lojaNome={d.name}
-                        contas={contasAtivas.map((c) => ({ id: c.id, name: c.name }))}
+                        contas={contasAtivas
+                          .filter(
+                            (c) =>
+                              c.receives_pix &&
+                              (c.pix_all_establishments || c.pix_available_establishment_ids.includes(d.establishment_id)),
+                          )
+                          .map((c) => ({ id: c.id, name: c.name }))}
                         atual={pix && !pix.archived_at ? pix.id : null}
                       />
                     )}
@@ -238,7 +246,7 @@ export default async function CaixaPage() {
         <section className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-semibold text-texto">Contas bancárias</h2>
-            {mexeNaConta && <ContaForm />}
+            {mexeNaConta && <ContaForm lojas={lojasDaConta} />}
           </div>
           {contas.length === 0 ? (
             <EmptyState titulo="Nenhuma conta cadastrada">
@@ -251,6 +259,9 @@ export default async function CaixaPage() {
                   <TableHead>Conta</TableHead>
                   <TableHead>Saldo</TableHead>
                   <TableHead>A receber do cartão</TableHead>
+                  <TableHead>CNPJ</TableHead>
+                  <TableHead>Favorecido</TableHead>
+                  <TableHead>Vale para PIX em</TableHead>
                   <TableHead>PIX de</TableHead>
                   <TableHead>Ações</TableHead>
                 </TableRow>
@@ -269,6 +280,15 @@ export default async function CaixaPage() {
                     </TableCell>
                     <TableCell>{reaisBr(c.balance)}</TableCell>
                     <TableCell>{reaisBr(aReceberDaConta.get(c.id) ?? 0)}</TableCell>
+                    <TableCell className="text-sm">{c.document ? formatarDocumento(c.document) : "-"}</TableCell>
+                    <TableCell className="text-sm">{c.beneficiary ?? "-"}</TableCell>
+                    <TableCell className="text-sm">
+                      {!c.receives_pix
+                        ? "Não recebe PIX"
+                        : c.pix_all_establishments
+                          ? "Todas as lojas"
+                          : c.pix_available_establishment_ids.map((id) => nomeDaLoja.get(id) ?? "Loja").join(", ") || "-"}
+                    </TableCell>
                     <TableCell className="text-sm">
                       {c.pix_establishment_ids.length === 0
                         ? "-"
@@ -279,6 +299,7 @@ export default async function CaixaPage() {
                         {mexeNaConta && !c.archived_at && !contaComSaldoInicial.has(c.id) && (
                           <SaldoInicialForm tipo="conta" destinoId={c.id} destinoNome={c.name} />
                         )}
+                        {mexeNaConta && !c.archived_at && <ContaForm conta={c} lojas={lojasDaConta} />}
                         {mexeNaConta && <ContaArquivarBotao contaId={c.id} arquivada={!!c.archived_at} />}
                       </div>
                     </TableCell>

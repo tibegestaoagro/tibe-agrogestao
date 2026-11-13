@@ -3,6 +3,7 @@ import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { dinheiro, itens as frasItens, registrarNoHistorico } from "@/lib/emporio/historico";
 import { CATEGORIA_ACORDO } from "@/lib/emporio/acordo";
+import { contaPixDisponivelParaLoja } from "@/lib/emporio/conta-pix";
 import { pesoDoItemKg, pesoTotal } from "@/lib/emporio/peso";
 import { CATEGORIA_FRETE, ORIGENS_DA_VENDA, type OrigemDaVenda } from "@/lib/emporio/frete";
 import { contaEmAprovacao, EM_APROVACAO } from "@/lib/emporio/pedido-pagamento";
@@ -191,6 +192,7 @@ export type VendaPagamentoView = {
   kind: string;
   amount: number;
   bank_account_id: string | null;
+  bank_account_name: string | null;
   due_date: string | null;
   financial_payment_id: string | null;
   /** F3b: parcelas do crédito parcelado e a taxa que valia na hora da venda. */
@@ -316,6 +318,7 @@ const INCLUDE_VENDA = {
       check: true,
       boleto: true,
       acquirer: { select: { name: true } },
+      bank_account: { select: { name: true } },
       card_receivables: { where: { canceled_at: null }, orderBy: { installment: "asc" } },
     },
     orderBy: { created_at: "asc" },
@@ -465,6 +468,7 @@ async function montarVendas(db: TenantPrismaClient, linhas: VendaRow[]): Promise
         kind: p.kind,
         amount: decToNum(p.amount) ?? 0,
         bank_account_id: p.bank_account_id,
+        bank_account_name: p.bank_account?.name ?? null,
         due_date: isoOrNull(p.due_date),
         financial_payment_id: p.financial_payment_id,
         installments: p.installments,
@@ -992,6 +996,8 @@ async function prepararVenda(
     substituindo?: string | null;
     /** O franqueado da venda que está sendo substituída: aceito mesmo arquivado. */
     franqueadoAtual?: string | null;
+    /** Q315: as contas dos PIX da venda substituída, aceitas mesmo indisponíveis para a loja. */
+    contasPixAtuais?: string[];
   } = {},
 ): Promise<ActionResult<Preparada>> {
   const neg = await exigir(db, ator, "vendedor_da_loja", "vender");
@@ -1275,13 +1281,19 @@ async function prepararVenda(
     if (kind === "pix") {
       const escolhida = p.bank_account_id || lojaExtra?.pix_bank_account_id || null;
       const conta = escolhida ? await db.bankAccount.findFirst({ where: { id: escolhida }, select: { id: true, archived_at: true } }) : null;
-      if (!conta || conta.archived_at) {
+      const jaDaVenda = !!conta && (opts.contasPixAtuais ?? []).includes(conta.id);
+      if (!conta || (conta.archived_at && !jaDaVenda)) {
         return fail(
           "VALIDATION_ERROR",
-          "Para receber PIX, cadastre uma conta bancária e defina a conta PIX da loja.",
+          p.bank_account_id
+            ? "Essa conta de PIX não está mais ativa. Escolha outra conta."
+            : "Para receber PIX, cadastre uma conta bancária e defina a conta PIX da loja.",
           422,
           "payments",
         );
+      }
+      if (!jaDaVenda && !(await contaPixDisponivelParaLoja(db, conta.id, loja.data.id))) {
+        return fail("VALIDATION_ERROR", "Essa conta de PIX não vale para esta loja. Escolha outra conta.", 422, "payments");
       }
       contaId = conta.id;
     }
@@ -2280,7 +2292,16 @@ export async function editarVendaAction(
         ? { franchisee_id: antiga.franchisee_id, franchisee_credit: decToNum(antiga.franchisee_credit) ?? 0 }
         : {}),
     },
-    { substituindo: id, franqueadoAtual: antiga.franchisee_id },
+    {
+      substituindo: id,
+      franqueadoAtual: antiga.franchisee_id,
+      contasPixAtuais: (
+        await db.emporioSalePayment.findMany({
+          where: { sale_id: id, kind: "pix", bank_account_id: { not: null } },
+          select: { bank_account_id: true },
+        })
+      ).map((p) => p.bank_account_id as string),
+    },
   );
   if (!prep.ok) return prep;
   const motivo = String(input.reason ?? "").trim();
