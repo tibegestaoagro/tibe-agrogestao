@@ -52,8 +52,7 @@ kg está em 0,068 saca (1,02 kg); a prévia marca "confira".
 ### Contas PIX (Q310 a Q318): em produção desde 13/11 (merge `bd7fd3f`)
 
 Spec `docs/superpowers/specs/2026-11-13-emporio-contas-pix-design.md`. Na Da
-Mata só a `CAIXA DAMATTA - PIX - 1076-6` ficou no PIX (padrão das duas lojas);
-as outras 10 contas viraram "não recebe PIX" na migração.
+Mata só a `CAIXA DAMATTA - PIX - 1076-6` ficou no PIX; as outras 10, não.
 
 ### Em produção desde 11/11: franqueado (Q300 a Q309) e custo único (Q298, Q299)
 
