@@ -1418,7 +1418,7 @@ export const GROUPS: Group[] = [
         method: "GET",
         path: "/api/v1/emporio/reports/sales",
         auth: "Sessão · emporio:read · Gestor da loja, Gerente geral e Dono (o Vendedor e o Caixa recebem 403); o Gestor só as lojas dele (404 `establishment_id` nas outras)",
-        description: "Relatório de vendas (entrega 3), calculado na leitura. Query: `from` e `to` (AAAA-MM-DD, os dois inclusivos, dia de Brasília, até 366 dias; 422 em `from` ou `to`), `establishment_id` opcional (ausente: todas as lojas não arquivadas que o ator vê). `por_vendedor` e `por_loja` por total decrescente: `sales_count` conta as vendas concluídas, sem a venda nova da troca; `total` soma o líquido delas (a da troca inclusa) menos o devolvido no período, que vai ao vendedor e à loja da venda original e pode deixar o total negativo; `average_ticket` é o total dividido pela quantidade (nulo sem vendas). Venda sem vendedor sai em `seller_user_id: null`, \"Sem vendedor\". `por_produto`: quantidade na unidade-base e total, líquidos de devolução, por total. `parados`: produto não arquivado com preço na loja e sem venda nela no período, uma linha por produto e loja. `by_origin` (desde 09/11/2026, no topo e dentro de cada item de `por_loja`): sempre as duas origens, `balcao` e `ecommerce`, com `count` (sem a venda nova da troca), `net` (o líquido, já com o devolvido descontado como no total), `freight` (frete cobrado, fora do líquido) e `share_pct` (participação no líquido, 2 casas; 0 quando o total é zero).",
+        description: "Relatório de vendas (entrega 3), calculado na leitura. Query: `from` e `to` (AAAA-MM-DD, os dois inclusivos, dia de Brasília, até 366 dias; 422 em `from` ou `to`), `establishment_id` opcional (ausente: todas as lojas não arquivadas que o ator vê). `por_vendedor` e `por_loja` por total decrescente: `sales_count` conta as vendas concluídas, sem a venda nova da troca; `total` soma o líquido delas (a da troca inclusa) menos o devolvido no período, que vai ao vendedor e à loja da venda original e pode deixar o total negativo; `average_ticket` é o total dividido pela quantidade (nulo sem vendas). Venda sem vendedor sai em `seller_user_id: null`, \"Sem vendedor\". `por_produto`: quantidade na unidade-base e total, líquidos de devolução, por total. `parados`: produto não arquivado com preço na loja e sem venda nela no período, uma linha por produto e loja. `by_origin` (desde 09/11/2026, no topo e dentro de cada item de `por_loja`): sempre as duas origens, `balcao` e `ecommerce`, com `count` (sem a venda nova da troca), `net` (o líquido, já com o devolvido descontado como no total), `freight` (frete cobrado, fora do líquido) e `share_pct` (participação no líquido, 2 casas; 0 quando o total é zero). `pix_by_account` (desde 13/11/2026, no topo e dentro de cada item de `por_loja`): o PIX recebido por conta nas mesmas vendas concluídas, `bank_account_id`, `name`, `count` (pagamentos) e `amount`, do maior valor para o menor, sem descontar devolução.",
         response: `200
 { "data": { "periodo": { "from": "2026-11-01", "to": "2026-11-05" }, "lojas": [{ "id": "cl...", "name": "Loja Centro" }], "por_vendedor": [{ "seller_user_id": "cl...", "name": "Ana", "sales_count": 3, "total": 60, "average_ticket": 20 }], "por_produto": [{ "emporio_product_id": "cl...", "name": "Milho", "base_unit": "quilograma", "quantity": 8, "total": 80 }], "parados": [{ "emporio_product_id": "cl...", "name": "Sal mineral", "establishment_id": "cl...", "establishment_name": "Loja Centro" }], "por_loja": [{ "establishment_id": "cl...", "name": "Loja Centro", "sales_count": 3, "total": 60, "average_ticket": 20, "by_origin": [{ "origin": "balcao", "count": 3, "net": 60, "freight": 0, "share_pct": 100 }, { "origin": "ecommerce", "count": 0, "net": 0, "freight": 0, "share_pct": 0 }] }], "by_origin": [{ "origin": "balcao", "count": 3, "net": 60, "freight": 0, "share_pct": 100 }, { "origin": "ecommerce", "count": 0, "net": 0, "freight": 0, "share_pct": 0 }] }, "meta": {} }`,
       },
@@ -1426,16 +1426,16 @@ export const GROUPS: Group[] = [
         method: "GET",
         path: "/api/v1/emporio/bank-accounts",
         auth: "Sessão · emporio:read · só OWNER e ADMIN",
-        description: "Contas bancárias do Empório com o saldo (soma dos movimentos) e as lojas que a usam como conta PIX. `incluir_arquivados=1` traz as arquivadas.",
+        description: "Contas bancárias do Empório com o saldo (soma dos movimentos) e as lojas que a usam como conta PIX (`pix_establishment_ids`). Desde 13/11/2026: `document` (CNPJ, só os 14 dígitos, ou nulo), `beneficiary` (favorecido), `pix_all_establishments` (true = vale para o PIX de todas as lojas) e `pix_available_establishment_ids` (as lojas onde vale; vazio quando vale em todas). `incluir_arquivados=1` traz as arquivadas.",
         response: `200
-{ "data": [{ "id": "cl...", "name": "Conta PIX", "bank": "Sicredi", "balance": 320.5, "archived_at": null, "pix_establishment_ids": ["cl..."] }], "meta": {} }`,
+{ "data": [{ "id": "cl...", "name": "Conta PIX", "bank": "Sicredi", "balance": 320.5, "archived_at": null, "pix_establishment_ids": ["cl..."], "document": "12345678000195", "beneficiary": "Agromax Ltda", "pix_all_establishments": false, "pix_available_establishment_ids": ["cl..."] }], "meta": {} }`,
       },
       {
         method: "POST",
         path: "/api/v1/emporio/bank-accounts",
         auth: "Sessão · emporio:write · só OWNER e ADMIN",
-        description: "Cadastra a conta. `name` obrigatório (422 `name`) e único na conta do cliente (409 `DUPLICATE_NAME`); `bank` opcional.",
-        request: `{ "name": "Conta PIX", "bank": "Sicredi" }`,
+        description: "Cadastra a conta. `name` obrigatório (422 `name`) e único na conta do cliente (409 `DUPLICATE_NAME`); `bank` opcional. `document`: CNPJ com ou sem máscara, gravado só com os 14 dígitos; dígito verificador errado ou 14 dígitos iguais: 422 `document`; vazio grava nulo. `beneficiary`: até 120 letras (422 `beneficiary`). `pix_all_establishments` (padrão true); com `false`, `establishment_ids` precisa de pelo menos uma loja existente (422 `establishment_ids`). A disponibilidade vale só para escolher conta de PIX na venda e no fiado.",
+        request: `{ "name": "Conta PIX", "bank": "Sicredi", "document": "12.345.678/0001-95", "beneficiary": "Agromax Ltda", "pix_all_establishments": false, "establishment_ids": ["cl..."] }`,
         response: `201
 { "data": { "id": "cl...", "name": "Conta PIX", "balance": 0 }, "meta": {} }`,
       },
@@ -1443,7 +1443,7 @@ export const GROUPS: Group[] = [
         method: "PATCH",
         path: "/api/v1/emporio/bank-accounts/:id",
         auth: "Sessão · emporio:write · só OWNER e ADMIN",
-        description: "Edita nome e banco, ou arquiva (`archived: true`) e desarquiva. Nome repetido: 409 `DUPLICATE_NAME`.",
+        description: "Edita nome, banco, `document`, `beneficiary` e a disponibilidade para o PIX (`pix_all_establishments`, `establishment_ids`, que substitui o conjunto), ou arquiva (`archived: true`) e desarquiva. Nome repetido: 409 `DUPLICATE_NAME`. Tirar da lista uma loja que usa a conta como conta PIX: 422 `establishment_ids`, citando a loja.",
         request: `{ "archived": true }`,
         response: `200
 { "data": { "id": "cl...", "archived_at": "2026-10-28T12:00:00.000Z" }, "meta": {} }`,
@@ -1452,10 +1452,18 @@ export const GROUPS: Group[] = [
         method: "PUT",
         path: "/api/v1/emporio/establishments/:id/pix-account",
         auth: "Sessão · emporio:write · só OWNER e ADMIN",
-        description: "Define a conta que recebe o PIX da loja (`bank_account_id`, ou `null` para limpar). Conta inexistente ou arquivada: 422 `bank_account_id`.",
+        description: "Define a conta que recebe o PIX da loja (`bank_account_id`, ou `null` para limpar). Conta inexistente, arquivada ou indisponível para a loja: 422 `bank_account_id`.",
         request: `{ "bank_account_id": "cl..." }`,
         response: `200
 { "data": { "establishment_id": "cl...", "pix_bank_account_id": "cl..." }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/emporio/establishments/:id/pix-accounts",
+        auth: "Sessão · emporio:read · quem vende na loja (Vendedor, Caixa, Gestor) e o Financeiro; loja fora do vínculo: 404",
+        description: "As contas que a loja pode escolher ao lançar PIX na venda e no fiado: só ativas e disponíveis para a loja, a conta PIX padrão da loja primeiro (`is_store_default`), depois por nome. Sem saldo.",
+        response: `200
+{ "data": [{ "id": "cl...", "name": "Conta PIX", "bank": "Sicredi", "beneficiary": "Agromax Ltda", "document": "12345678000195", "is_store_default": true }], "meta": {} }`,
       },
       {
         method: "GET",

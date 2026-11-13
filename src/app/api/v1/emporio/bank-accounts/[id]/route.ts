@@ -10,6 +10,10 @@ import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
 const schema = z.object({
   name: z.string({ error: "Dê um nome à conta." }).trim().min(1, "Dê um nome à conta.").optional(),
   bank: z.string().nullish(),
+  document: z.string().nullish(),
+  beneficiary: z.string().nullish(),
+  pix_all_establishments: z.boolean().optional(),
+  establishment_ids: z.array(z.string()).optional(),
   archived: z.boolean({ error: "Informe se a conta fica arquivada." }).optional(),
 });
 
