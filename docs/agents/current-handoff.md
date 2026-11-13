@@ -25,9 +25,10 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-11. Custo único e crédito do franqueado em produção
-  (merge `9eac1fe`, migração no Neon antes do push, autorizados na conversa).
-  Nenhuma branch aberta. Os agentes `explorador`,
+- Atualizado em: 2026-11-13. Branch aberta `emporio-contas-pix` (contas PIX
+  escolhidas no lançamento), pronta e NÃO publicada: falta autorização para
+  migrar o Neon, fazer o merge e o push. Custo único e crédito do franqueado em
+  produção desde 11/11 (merge `9eac1fe`). Os agentes `explorador`,
   `prova-juiz`, `prova-viva` e `servidor-dados` carregam (descrição entre
   aspas). Outros agentes: leia `AGENTS.md`.
 - `main` igual a `origin/main`, Neon em dia. Em produção também: conta avulsa e
@@ -39,32 +40,28 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   Q292), orçamento (Q285 a Q290), boleto e cheque (Q278 a Q284; aberta 2.69),
   acordo, aviso e recálculo (Q275 a Q277; aberta 2.66).
 
-### Crédito do franqueado (Q300 a Q309): em produção
+### Contas PIX escolhidas no lançamento (Q310 a Q318): na branch, sem publicar
 
-Branch `emporio-franqueado-e-repasse`, `34241bf` a `8ed794d`. Spec
-[../superpowers/specs/2026-11-11-emporio-franqueado-e-repasse-design.md](../superpowers/specs/2026-11-11-emporio-franqueado-e-repasse-design.md).
-Cadastro curto (nome e telefone), crédito digitado na venda e no orçamento,
-cobrado a mais e fora do faturamento, conta corrente com saldo calculado e
-"Pagar crédito" (saída de caixa, sem lançamento financeiro), impresso para o
-cliente sem o crédito e rateado nos itens, repasse discriminado no Resultado e
-no relatório. A Q306 do plano estava errada: o Financeiro geral já não lê o
-Empório (Q222). Migração aditiva `20261111200000_emporio_franqueado` no
-Docker e no Neon (antes do push). m113 (escrita da spec, verde),
-roteiro `emporio-franqueado` 188 ok e reprova com o rateio sabotado, juiz 8/10
-com os achados corrigidos, `test:all` 116/116 depois de atualizar o test:nav.
-Decisões abertas para o usuário: o Caixa escolhe franqueado?; devolução de
-venda com crédito (hoje o crédito fica); taxa do cartão incide sobre o crédito.
+Branch `emporio-contas-pix`, `c009fe6` a `31495e2`. Spec
+[../superpowers/specs/2026-11-13-emporio-contas-pix-design.md](../superpowers/specs/2026-11-13-emporio-contas-pix-design.md).
+A conta ganha CNPJ (aceita o alfanumérico), favorecido e "Disponível para PIX
+em" (todas as lojas, lojas escolhidas ou não recebe PIX). O caixa escolhe a
+conta ao lançar PIX no balcão, na edição e no fiado. O servidor confere por loja.
+Impressos sem mudança. "PIX por conta" no relatório de vendas. Duas migrações
+aditivas, aplicadas só no Docker: `20261113120000_emporio_contas_pix` e
+`20261113150000_emporio_conta_sem_pix`. A segunda marca "não recebe PIX" toda
+conta que não é padrão de loja e nunca recebeu PIX. Na Da Mata (lido em
+13/11), só a `CAIXA DAMATTA - PIX - 1076-6` fica no PIX, e ela é a padrão das
+duas lojas. Validação: m114 e roteiro `emporio-contas-pix` (132 ok) verdes e
+reprovando sabotados; juiz 7/10, os seis achados corrigidos; `test:all` 117/117.
 
-### Um custo só, que zera com o estoque (Q298 e Q299): em produção
+### Em produção desde 11/11: franqueado (Q300 a Q309) e custo único (Q298, Q299)
 
-Merges `4245e48` e `2910302` (a coluna da base do preço saiu no segundo, Neon
-antes do push). Spec
-[../superpowers/specs/2026-11-11-emporio-custo-um-so-design.md](../superpowers/specs/2026-11-11-emporio-custo-um-so-design.md).
-Causa real: a compra gravava o dia ao meio-dia e a contagem a hora exata
-(cofre corrigido). Em produção, autorizado em 11/11: 13 compras da Da Mata com
-`occurred_at` = `created_at` e as 6 compras de teste do TALCO e do ARUANA
-canceladas (R$ 26.706,00 de contas a pagar), com a contagem do ARUANA de 19:05
-acertada para seguir dizendo "físico 0". ⚠️ Cancelar compra anterior a uma
+Specs de 11/11 em `docs/superpowers/specs/`. Franqueado: merge `9eac1fe`.
+Decisões abertas do usuário: o Caixa escolhe franqueado? Devolução de venda
+com crédito (hoje o crédito fica). A taxa do cartão incide sobre o crédito?
+Custo único: merges `4245e48` e `2910302`, com os dados da Da Mata corrigidos
+(detalhe em `historico/2026-11.md`). ⚠️ Cancelar compra anterior a uma
 contagem faz a contagem tirar a mais: o app não trata; candidato a dívida.
 
 ### Cartão (Q250 a Q267): entregas 1 a 3 em produção
@@ -76,7 +73,9 @@ Agromax, a entrega 4 (extrato da Stone) depende de um arquivo real.
 
 ### ⏭️ Próximo passo
 
-0. Franqueado: o usuário responde as três decisões abertas (Caixa, devolução,
+0. Contas PIX: o usuário autoriza a migração no Neon (as duas, antes do push),
+   o merge e o push; depois a Agromax cadastra as contas das lojas e do site.
+   Franqueado: o usuário responde as três decisões abertas (Caixa, devolução,
    taxa do cartão) e a Agromax testa. A Agromax testa o custo único (contar,
    depois lançar a compra).
 1. Na Agromax: criar a regra por apresentação (FRANQUIA) e editar e cancelar um orçamento real; conferir o boleto e o "Em nome de" numa venda real.
