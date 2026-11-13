@@ -71,6 +71,7 @@ import {
   acharLojaParaEscrita,
   chaveDoEstado,
   lerMovimentos,
+  recusaSeUnidadeMudou,
   saldosPorEstado,
   tamanhosDe,
   tamanhosFechados,
@@ -1380,6 +1381,13 @@ type CustoDoItem = { unit_cost: number | null; cost_estimated: boolean; cost_pro
  */
 async function planejarBaixa(tx: Tx, p: Preparada): Promise<{ movs: MovimentoPlanejado[]; custos: CustoDoItem[] }> {
   const lojaId = p.loja.id;
+  // A quantidade de cada item (`base_qty`) foi montada na unidade lida no preparo: se a conversão
+  // comitou no meio, ou o retry do serializável roda depois dela, aborta sem gravar nada.
+  const mudou = await recusaSeUnidadeMudou(
+    tx,
+    p.itens.map((i) => ({ id: i.produto.id, nome: i.produto.product.name, base_unit: i.produto.base_unit })),
+  );
+  if (mudou) throw new AbortarVenda(mudou);
   const porProduto = new Map<string, Movs>();
   for (const pid of new Set(p.itens.map((i) => i.produto.product_id))) {
     porProduto.set(pid, await lerMovimentos(tx, [lojaId], [pid]));

@@ -17,6 +17,7 @@ const schema = z.object({
     error: "Escolha o motivo: vencido, avaria, furto, consumo próprio ou outro.",
   }),
   notes: z.string().trim().max(500).nullish(),
+  base_unit: z.string().optional(),
 });
 
 async function POSTHandler(request: Request) {
