@@ -158,6 +158,7 @@ async function main() {
   const { prisma } = await import("@/lib/prisma");
   (globalThis as unknown as { AsyncLocalStorage: unknown }).AsyncLocalStorage = (await import("node:async_hooks")).AsyncLocalStorage;
   const P = prisma as Dado;
+  const { scoped } = await import("@/lib/prisma");
   try {
     const A = await montar("A");
     const B = await montar("B");
@@ -166,6 +167,7 @@ async function main() {
     const Cp = (await import("@/lib/actions/emporio-compras")) as Dado;
     const Tr = (await import("@/lib/actions/emporio-transferencias")) as Dado;
     const Pr = (await import("@/lib/actions/emporio-producao")) as Dado;
+    const Vd = (await import("@/lib/actions/emporio-vendas")) as Dado;
     // O módulo novo ainda pode não existir: o import quebra aqui, dentro de `rodar`, e não esconde as outras seções.
     const Conv = async (): Promise<Dado> => (await import("@/lib/actions/emporio-conversao")) as Dado;
 
@@ -255,6 +257,25 @@ async function main() {
       data: { tenant_id: A.tenantId, establishment_id: A.L1, name: `M115 embalagem ${stamp}`, kind: "embalagem", value: 0.1, packaging_emporio_product_id: P15.id },
     });
 
+    // Colunas extras do histórico (Q320): produção do próprio produto e de outro que o usa, devolução parcial,
+    // despesa da regra de embalagem e itens da Lista de compras. Tudo antes de converter.
+    await implantar(A, A.L1, Comp.id, [], 100, 1);
+    const prodP = await Pr.produzirAction(A.db, A.owner, { operation_key: chave("prod"), establishment_id: A.L1, emporio_product_id: P15.id, produced_qty: 6 });
+    if (!prodP.ok) throw new Error(`produzir P15: ${j(prodP)}`);
+    const prodF = await Pr.produzirAction(A.db, A.owner, { operation_key: chave("prod"), establishment_id: A.L1, emporio_product_id: Final.id, produced_qty: 200 });
+    if (!prodF.ok) throw new Error(`produzir Final: ${j(prodF)}`);
+    const vendaEmb = await vender(A, "L1", [item(P15.id, pSaca, 3)], 450);
+    if (vendaEmb.status !== 201) throw new Error(`venda com embalagem: ${vendaEmb.status} ${j(vendaEmb.corpo)}`);
+    const devol = await Vd.devolverAction(A.db, A.owner, vendaEmb.corpo.data.id, {
+      operation_key: chave("dev"), refund_kind: "dinheiro", cash_register_id: A.reg1, items: [{ sale_item_id: vendaEmb.corpo.data.items[0].id, quantity: 1 }],
+    });
+    if (!devol.ok) throw new Error(`devolução: ${j(devol)}`);
+    for (const [status, quantity, description] of [["pendente", 4, "pendente"], ["comprado", 2, "comprado"], ["removido", 3, "removido"]] as const) {
+      await A.db.shoppingItem.create({
+        data: scoped({ description: `M115 lista ${description}`, product_id: P15.product_id, establishment_id: A.L1, quantity, unit: "saca", status }),
+      });
+    }
+
     // Produto para o isolamento (sem histórico) e um de 5 kg para o 1 kg exato.
     const PIso = await mkProduto(A, "Iso", { base_unit: "saca", content_qty: 15, content_unit: "quilograma" });
     await mkPres(A, PIso.id, "Saca 15 kg", 1, true);
@@ -272,8 +293,8 @@ async function main() {
         ep,
         pres: Object.fromEntries(pres.map((x: Dado) => [x.name, x])),
         movs: Object.fromEntries(movs.map((x: Dado) => [x.id, x])),
-        compraItens: await P.emporioPurchaseItem.findMany({ where: { emporio_product_id: prod.id } }),
-        vendaItens: await P.emporioSaleItem.findMany({ where: { emporio_product_id: prod.id } }),
+        compraItens: await P.emporioPurchaseItem.findMany({ where: { emporio_product_id: prod.id }, orderBy: { id: "asc" } }),
+        vendaItens: await P.emporioSaleItem.findMany({ where: { emporio_product_id: prod.id }, orderBy: { id: "asc" } }),
         transfItens: await P.stockTransferItem.findMany({ where: { emporio_product_id: prod.id } }),
         limites: await P.stockLimit.findMany({ where: { emporio_product_id: prod.id } }),
         comp,
@@ -367,6 +388,17 @@ async function main() {
       console.log("\n4. A conversão com histórico em duas lojas (Q320)");
       const F = 15;
       const antes = await coletar(P15);
+      const colunas = async () => {
+        const porId = (xs: Dado[]) => Object.fromEntries(xs.map((x) => [x.id, x])) as Record<string, Dado>;
+        return {
+          prod: porId(await A.db.productionEntry.findMany({ where: { emporio_product_id: P15.id } })),
+          uso: porId(await A.db.productionEntry.findMany({ where: { emporio_product_id: Final.id } })),
+          ret: porId(await A.db.emporioSaleReturnItem.findMany({ where: { sale_item: { emporio_product_id: P15.id } } })),
+          desp: porId(await A.db.saleVariableExpense.findMany({ where: { rule: { packaging_emporio_product_id: P15.id } } })),
+          lista: porId(await A.db.shoppingItem.findMany({ where: { product_id: P15.product_id } })),
+        };
+      };
+      const colAntes = await colunas();
       const saldo = async (loja: string) => {
         const l = await linha(A, loja, P15.id);
         return { total: Number(l?.total_qty), solto: Number(l?.loose_qty), pacotes: pacotes(l), custo: num(l?.average_cost) };
@@ -457,6 +489,49 @@ async function main() {
       const de_novo = await chamar(A.tok.owner, R.convert, "POST", `emporio/products/${P15.id}/convert-unit`, { content_qty: 15 }, P15.id);
       check("converter de novo (já em quilo): recusa 4xx", recusada(de_novo), `${de_novo.status} ${j(de_novo.corpo)}`);
       check("e o saldo segue o mesmo", perto(Number((await linha(A, A.L1, P15.id))?.total_qty), s1.total * F, 0.01));
+
+      // Colunas que a conversão também precisa tocar (achado do juiz). Valores onde × 15, ÷ 15 e "sem mudança" diferem.
+      const colDepois = await colunas();
+      const idsDe = (m: Record<string, Dado>) => Object.keys(m);
+      const snap = (x: Dado): Dado => (x?.composition_snapshot ?? {}) as Dado;
+      const ehDoProduto = (it: Dado) => Object.values(it ?? {}).includes(P15.id);
+
+      const pIds = idsDe(colAntes.prod);
+      check("pré-condição: o produto tem produção própria no histórico", pIds.length >= 1 && num(colAntes.prod[pIds[0]].produced_qty) === 6 && (num(colAntes.prod[pIds[0]].unit_cost) ?? 0) > 0, j(colAntes.prod));
+      check("ProductionEntry.produced_qty × 15 (6 vira 90)", pIds.length >= 1 && pIds.every((id) => perto(num(colDepois.prod[id]?.produced_qty), num(colAntes.prod[id].produced_qty)! * F, 0.002)), j([colAntes.prod, colDepois.prod]));
+      check("ProductionEntry.unit_cost ÷ 15", pIds.length >= 1 && pIds.every((id) => perto(num(colDepois.prod[id]?.unit_cost), num(colAntes.prod[id].unit_cost)! / F, 0.001)), j([colAntes.prod, colDepois.prod]));
+      check("ProductionEntry.composition_snapshot.reference_qty × 15 (3 vira 45)", pIds.length >= 1 && pIds.every((id) => Number(snap(colAntes.prod[id]).reference_qty) === 3 && perto(Number(snap(colDepois.prod[id]).reference_qty), 45)), j([snap(colAntes.prod[pIds[0]]), snap(colDepois.prod[pIds[0]])]));
+
+      const uIds = idsDe(colAntes.uso);
+      const itemAntes = uIds.length ? (snap(colAntes.uso[uIds[0]]).items ?? []).find(ehDoProduto) : undefined;
+      const itemDepois = uIds.length ? (snap(colDepois.uso[uIds[0]]).items ?? []).find(ehDoProduto) : undefined;
+      check("pré-condição: a produção de OUTRO produto guarda o componente na saca", !!itemAntes && Number(itemAntes.quantity) === 0.5 && itemAntes.consumed_qty !== undefined && itemAntes.base_unit === "saca", j(itemAntes));
+      check("snapshot de outro produto: items[].quantity × 15 (0,5 vira 7,5)", !!itemAntes && !!itemDepois && perto(Number(itemDepois.quantity), Number(itemAntes.quantity) * F), j([itemAntes, itemDepois]));
+      check("snapshot de outro produto: items[].consumed_qty × 15", !!itemAntes && !!itemDepois && Number(itemAntes.consumed_qty) > 0 && perto(Number(itemDepois.consumed_qty), Number(itemAntes.consumed_qty) * F), j([itemAntes, itemDepois]));
+      check("snapshot de outro produto: base_unit do item vira quilograma", !!itemDepois && itemDepois.base_unit === "quilograma", j(itemDepois));
+      check("a produção de outro produto não muda de quantidade nem de custo", uIds.length >= 1 && uIds.every((id) => j(colDepois.uso[id]?.produced_qty) === j(colAntes.uso[id].produced_qty) && j(colDepois.uso[id]?.unit_cost) === j(colAntes.uso[id].unit_cost)));
+
+      const rIds = idsDe(colAntes.ret);
+      check("pré-condição: há devolução parcial de 1 saca (base_qty 1)", rIds.length === 1 && num(colAntes.ret[rIds[0]].base_qty) === 1, j(colAntes.ret));
+      check("EmporioSaleReturnItem.base_qty × 15 (1 vira 15)", rIds.length === 1 && perto(num(colDepois.ret[rIds[0]]?.base_qty), 15), j([colAntes.ret, colDepois.ret]));
+      check("EmporioSaleReturnItem.quantity (na apresentação) não muda", rIds.length === 1 && Number(colDepois.ret[rIds[0]]?.quantity) === Number(colAntes.ret[rIds[0]].quantity));
+
+      const dIds = idsDe(colAntes.desp);
+      const rs = (m: Record<string, Dado>, id: string): Dado => (m[id]?.rule_snapshot ?? {}) as Dado;
+      check("pré-condição: a venda gerou despesa da regra de embalagem, com value 0,1", dIds.length >= 1 && Number(rs(colAntes.desp, dIds[0]).value) === 0.1, j(colAntes.desp));
+      check("SaleVariableExpense.rule_snapshot.value × 15 (0,1 vira 1,5)", dIds.length >= 1 && dIds.every((id) => perto(Number(rs(colDepois.desp, id).value), 1.5, 0.001)), j(dIds.map((id) => rs(colDepois.desp, id))));
+      check("rule_snapshot.quantity × 15", dIds.length >= 1 && dIds.every((id) => rs(colAntes.desp, id).quantity !== undefined && rs(colAntes.desp, id).quantity !== null && Number(rs(colAntes.desp, id).quantity) > 0 && perto(Number(rs(colDepois.desp, id).quantity), Number(rs(colAntes.desp, id).quantity) * F)), j(dIds.map((id) => [rs(colAntes.desp, id), rs(colDepois.desp, id)])));
+      check("rule_snapshot.unit_cost ÷ 15", dIds.length >= 1 && dIds.every((id) => rs(colAntes.desp, id).unit_cost !== undefined && rs(colAntes.desp, id).unit_cost !== null && Number(rs(colAntes.desp, id).unit_cost) > 0 && perto(Number(rs(colDepois.desp, id).unit_cost), Number(rs(colAntes.desp, id).unit_cost) / F, 0.001)), j(dIds.map((id) => [rs(colAntes.desp, id), rs(colDepois.desp, id)])));
+      check("o valor da despesa (amount) não muda", dIds.length >= 1 && dIds.every((id) => Number(colDepois.desp[id]?.amount) === Number(colAntes.desp[id].amount)));
+
+      const itens = Object.values(colAntes.lista) as Dado[];
+      const lPend = itens.find((x) => x.status === "pendente");
+      const lComp = itens.find((x) => x.status === "comprado");
+      const lRem = itens.find((x) => x.status === "removido");
+      check("pré-condição: três itens da Lista (pendente 4, comprado 2, removido 3, em saca)", itens.length === 3 && !!lPend && !!lComp && !!lRem && itens.every((x) => x.unit === "saca"), j(itens));
+      check("ShoppingItem pendente de loja: quantity × 15 (4 vira 60) e unit quilograma", !!lPend && perto(num(colDepois.lista[lPend.id]?.quantity), 60) && colDepois.lista[lPend.id]?.unit === "quilograma", j(colDepois.lista[lPend?.id]));
+      check("ShoppingItem comprado NÃO muda (2 sacas)", !!lComp && num(colDepois.lista[lComp.id]?.quantity) === 2 && colDepois.lista[lComp.id]?.unit === "saca", j(colDepois.lista[lComp?.id]));
+      check("ShoppingItem removido NÃO muda (3 sacas)", !!lRem && num(colDepois.lista[lRem.id]?.quantity) === 3 && colDepois.lista[lRem.id]?.unit === "saca", j(colDepois.lista[lRem?.id]));
     });
 
     // ------------------------------------------------------------------ 5
@@ -587,6 +662,96 @@ async function main() {
       const aConv = await converterUnidadeAction(B.db, B.owner, PIso.id, { content_qty: 15 });
       check("pelas actions do B: NOT_FOUND 404 nas duas", aPrev.ok === false && aPrev.status === 404 && aConv.ok === false && aConv.status === 404, j([aPrev, aConv]));
       check("o produto do A segue em saca, intacto", (await foto(PIso)) === antes && (await P.emporioProduct.findUnique({ where: { id: PIso.id } })).base_unit === "saca");
+    });
+
+    // ------------------------------------------------------------------ 9
+    await rodar("tela aberta", async () => {
+      console.log("\n9. Tela aberta durante a conversão: base_unit velho é 409 UNIT_CHANGED, sem movimento novo");
+      const unidadeVelha = (r: Dado) => r?.ok === false && r.code === "UNIT_CHANGED" && r.status === 409;
+      const movs = (prodId: string) => P.stockMovement.count({ where: { product_id: prodId } });
+      const prodAtual = await P.emporioProduct.findUnique({ where: { id: P15.id } });
+      check("pré-condição: P15 já está em quilograma", prodAtual.base_unit === "quilograma", `${prodAtual.base_unit}`);
+
+      // contagem
+      const l0 = await linha(A, A.L1, P15.id);
+      const sealedAtual = [{ presentation_id: pSaca, packages: pacotes(l0) }];
+      const solto = Number(l0.loose_qty);
+      const m0 = await movs(P15.product_id);
+      const cVelha = await Est.registrarContagemAction(A.db, A.owner, { establishment_id: A.L1, emporio_product_id: P15.id, sealed: sealedAtual, loose_qty: solto + 1, reason: "conferência", base_unit: "saca" });
+      check("contagem com base_unit saca: 409 UNIT_CHANGED", unidadeVelha(cVelha), j(cVelha));
+      check("e não criou movimento nem mexeu no saldo", (await movs(P15.product_id)) === m0 && perto(Number((await linha(A, A.L1, P15.id)).loose_qty), solto, 0.001));
+      const cNova = await Est.registrarContagemAction(A.db, A.owner, { establishment_id: A.L1, emporio_product_id: P15.id, sealed: sealedAtual, loose_qty: solto + 1, reason: "conferência", base_unit: "quilograma" });
+      check("contagem com base_unit quilograma: passa e acerta o avulso", cNova.ok === true && perto(Number((await linha(A, A.L1, P15.id)).loose_qty), solto + 1, 0.001), j(cNova));
+      const cSem = await Est.registrarContagemAction(A.db, A.owner, { establishment_id: A.L1, emporio_product_id: P15.id, sealed: sealedAtual, loose_qty: solto + 2, reason: "conferência" });
+      check("contagem sem o campo: passa", cSem.ok === true && perto(Number((await linha(A, A.L1, P15.id)).loose_qty), solto + 2, 0.001), j(cSem));
+
+      // perda
+      const m1 = await movs(P15.product_id);
+      const pacAntes = pacotes(await linha(A, A.L1, P15.id));
+      const perdaV = await Est.registrarPerdaAction(A.db, A.owner, { establishment_id: A.L1, emporio_product_id: P15.id, package_state: "lacrado", presentation_id: pSaca, quantity: 1, reason: "avaria", base_unit: "saca" });
+      check("perda com base_unit saca: 409 UNIT_CHANGED", unidadeVelha(perdaV), j(perdaV));
+      check("e não criou movimento nem baixou a embalagem", (await movs(P15.product_id)) === m1 && pacotes(await linha(A, A.L1, P15.id)) === pacAntes);
+      const perdaN = await Est.registrarPerdaAction(A.db, A.owner, { establishment_id: A.L1, emporio_product_id: P15.id, package_state: "lacrado", presentation_id: pSaca, quantity: 1, reason: "avaria", base_unit: "quilograma" });
+      check("perda com base_unit quilograma: passa", perdaN.ok === true && pacotes(await linha(A, A.L1, P15.id)) === pacAntes - 1, j(perdaN));
+      const perdaS = await Est.registrarPerdaAction(A.db, A.owner, { establishment_id: A.L1, emporio_product_id: P15.id, package_state: "lacrado", presentation_id: pSaca, quantity: 1, reason: "avaria" });
+      check("perda sem o campo: passa", perdaS.ok === true && pacotes(await linha(A, A.L1, P15.id)) === pacAntes - 2, j(perdaS));
+
+      // implantação, em produtos novos convertidos na hora
+      const { converterUnidadeAction } = await Conv();
+      const novoConvertido = async (nome: string) => {
+        const p = await mkProduto(A, nome, { base_unit: "saca", content_qty: 15, content_unit: "quilograma" });
+        const pres = await mkPres(A, p.id, "Saca 15 kg", 1, true);
+        await mkPres(A, p.id, "Quilo", 0.2, false);
+        const c =await converterUnidadeAction(A.db, A.owner, p.id, { content_qty: 15 });
+        if (!c.ok) throw new Error(`converter ${nome}: ${j(c)}`);
+        const presKg = (await P.productPresentation.findUnique({ where: { id: pres } })).base_qty;
+        return { ...p, pres, presKg: Number(presKg) };
+      };
+      const I1 = await novoConvertido("ImplA");
+      check("pré-condição: a saca do produto novo agora vale 15 kg", I1.presKg === 15, `${I1.presKg}`);
+      const m2 = await movs(I1.product_id);
+      const iVelha = await Est.implantarEstoqueAction(A.db, A.owner, { establishment_id: A.L2, emporio_product_id: I1.id, sealed: [{ presentation_id: I1.pres, packages: 2 }], loose_qty: 0, unit_cost: 6, base_unit: "saca" });
+      check("implantação com base_unit saca: 409 UNIT_CHANGED", unidadeVelha(iVelha), j(iVelha));
+      check("e não criou movimento", (await movs(I1.product_id)) === m2);
+      const iNova = await Est.implantarEstoqueAction(A.db, A.owner, { establishment_id: A.L2, emporio_product_id: I1.id, sealed: [{ presentation_id: I1.pres, packages: 2 }], loose_qty: 0, unit_cost: 6, base_unit: "quilograma" });
+      check("implantação com base_unit quilograma: passa (2 embalagens, 30 kg)", iNova.ok === true && perto(Number((await linha(A, A.L2, I1.id))?.total_qty), 30), j(iNova));
+      const I2 = await novoConvertido("ImplB");
+      const iSem = await Est.implantarEstoqueAction(A.db, A.owner, { establishment_id: A.L2, emporio_product_id: I2.id, sealed: [{ presentation_id: I2.pres, packages: 2 }], loose_qty: 0, unit_cost: 6 });
+      check("implantação sem o campo: passa", iSem.ok === true && perto(Number((await linha(A, A.L2, I2.id))?.total_qty), 30), j(iSem));
+
+      // transferência
+      const tAntes = await P.stockTransferItem.count({ where: { emporio_product_id: P15.id } });
+      const m3 = await movs(P15.product_id);
+      const trV = await Tr.enviarTransferenciaAction(A.db, A.owner, {
+        operation_key: chave("tr"), origin_establishment_id: A.L1, destination_establishment_id: A.L2,
+        items: [{ emporio_product_id: P15.id, presentation_id: pSaca, packages: 1, base_unit: "saca" }],
+      });
+      check("transferência com item base_unit saca: 409 UNIT_CHANGED", unidadeVelha(trV), j(trV));
+      check("e não criou item de transferência nem movimento", (await P.stockTransferItem.count({ where: { emporio_product_id: P15.id } })) === tAntes && (await movs(P15.product_id)) === m3);
+      const trN = await Tr.enviarTransferenciaAction(A.db, A.owner, {
+        operation_key: chave("tr"), origin_establishment_id: A.L1, destination_establishment_id: A.L2,
+        items: [{ emporio_product_id: P15.id, presentation_id: pSaca, packages: 1, base_unit: "quilograma" }],
+      });
+      check("transferência com item base_unit quilograma: passa", trN.ok === true, j(trN));
+    });
+
+    // ------------------------------------------------------------------ 10
+    await rodar("lacrado órfão", async () => {
+      console.log("\n10. Apresentação fechada com saldo, depois editada para não fechada: o lacrado não some");
+      const O = await mkProduto(A, "Orfa", { base_unit: "quilograma" });
+      const saca25 = await mkPres(A, O.id, "Saca 25 kg", 25, true);
+      await mkPres(A, O.id, "Quilo", 1, false);
+      await implantar(A, A.L1, O.id, [{ presentation_id: saca25, packages: 4 }], 2, 3);
+      const antes = await linha(A, A.L1, O.id);
+      check("pré-condição: 4 fechadas de 25 kg, 2 kg avulsos, 102 no total", pacotes(antes) === 4 && perto(Number(antes?.loose_qty), 2) && perto(Number(antes?.total_qty), 102), j(antes));
+      const ed = await Cat.editarApresentacaoAction(A.db, A.owner, saca25, { is_sealed_package: false });
+      check("editar a apresentação para não fechada: passa", ed.ok === true, j(ed));
+      check("pré-condição: ela deixou de ser fechada", (await P.productPresentation.findUnique({ where: { id: saca25 } })).is_sealed_package === false);
+      const l = await linha(A, A.L1, O.id);
+      const sl = (l?.sealed ?? []).find((s: Dado) => String(s.name).includes("Saca 25 kg"));
+      check("a SealedLine continua aparecendo, com o nome da apresentação", !!sl, j(l?.sealed));
+      check("packages = saldo ÷ base_qty (100 ÷ 25 = 4)", !!sl && Number(sl.packages) === 4 && perto(Number(sl.base_qty), 100), j(sl));
+      check("o total da loja bate com lacrado + avulso (102)", perto(Number(l?.total_qty), 102) && perto(Number(l?.loose_qty), 2) && perto((l?.sealed ?? []).reduce((s: number, x: Dado) => s + Number(x.base_qty), 0) + Number(l?.loose_qty), Number(l?.total_qty)), j(l));
     });
   } finally {
     for (const id of tenantIds.reverse()) {
