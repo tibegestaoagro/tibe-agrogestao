@@ -949,14 +949,14 @@ function baseQtyPeloConteudo(
   const bruto = qty / conteudo;
   if (Math.abs(bruto * 1000 - Math.round(bruto * 1000)) > 1e-9) {
     const artigo = baseUnit === "fardo" ? "o" : "a";
-    const rotulo = findUnit(baseUnit)?.label.toLowerCase() ?? baseUnit;
+    const un = findUnit(baseUnit);
+    const rotulo = un?.label.toLowerCase() ?? baseUnit;
+    const plural = un?.plural ?? `${baseUnit}s`;
     const unid = abbrDe(conteudoUnit);
-    const metade = conteudo / 2;
-    const dica =
-      conteudoUnit === "unidade" && !Number.isInteger(metade) ? "" : ` (como ${numeroBR(metade)} ${unid})`;
+    const destino = conteudoUnit === "quilograma" ? "quilo" : conteudoUnit === "litro" ? "litro" : "unidade";
     return {
       field: "content_qty",
-      message: `${numeroBR(qty)} ${unid} não divide ${artigo} ${rotulo} de ${numeroBR(conteudo)} ${unid} em partes exatas. Use uma quantidade que divida ${artigo} ${rotulo}${dica}.`,
+      message: `Esse produto conta o estoque em ${plural}, e ${numeroBR(qty)} ${unid} não divide ${artigo} ${rotulo} de ${numeroBR(conteudo)} ${unid} em partes exatas. Para vender a granel, converta o produto para ${destino} (botão Converter na tela do produto).`,
     };
   }
   return { base: Math.round(bruto * 1000) / 1000 };

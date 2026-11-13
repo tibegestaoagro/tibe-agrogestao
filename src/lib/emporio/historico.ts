@@ -17,6 +17,7 @@ export const ACOES_DO_HISTORICO = {
   "produto.criar": "Cadastrou um produto",
   "produto.editar": "Editou um produto",
   "produto.arquivar": "Arquivou um produto",
+  "produto.converter_unidade": "Converteu a unidade de um produto",
   "apresentacao.criar": "Criou uma apresentação",
   "apresentacao.editar": "Editou uma apresentação",
   "apresentacao.arquivar": "Arquivou uma apresentação",

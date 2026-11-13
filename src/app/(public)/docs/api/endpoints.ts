@@ -451,6 +451,23 @@ export const GROUPS: Group[] = [
 { "data": { "id": "cl...", "archived_at": "2026-10-27T12:00:00.000Z" }, "meta": {} }`,
       },
       {
+        method: "GET",
+        path: "/api/v1/emporio/products/:id/convert-unit",
+        auth: "Sessão · emporio:read · OWNER, ADMIN e OPERADOR (a mesma permissão de cadastrar produto)",
+        description: "A prévia de \"Converter para quilo\" (Q320, Q321) de um produto que conta o estoque em saca ou fardo, com o conteúdo informado (`content_qty` e `content_unit`). Mostra, por loja com movimento, o saldo e o custo médio antes e depois (`balance_before`/`balance_after`, `average_cost_before`/`average_cost_after`), o `reference_cost` antes e depois e cada apresentação (`base_qty_before`/`base_qty_after`). `check: true` marca a apresentação avulsa cujo valor novo não é múltiplo de 50 g (50 ml; inteiro em unidade). Produto que não é saca nem fardo, ou sem conteúdo: 422.",
+        response: `200
+{ "data": { "product_id": "cl...", "name": "Milho 15 kg", "from_unit": "saca", "to_unit": "quilograma", "content_qty": 15, "stores": [{ "establishment_id": "cl...", "name": "Loja Centro", "balance_before": 12, "balance_after": 180, "average_cost_before": 90, "average_cost_after": 6 }], "reference_cost_before": 90, "reference_cost_after": 6, "presentations": [{ "id": "cl...", "name": "Saca 15 kg", "sealed": true, "archived": false, "base_qty_before": 1, "base_qty_after": 15, "check": false }] }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/products/:id/convert-unit",
+        auth: "Sessão · emporio:write · OWNER, ADMIN e OPERADOR",
+        description: "Converte o produto para a unidade do conteúdo (Q320), numa transação só e para todas as lojas: multiplica pelo conteúdo as quantidades na unidade-base (apresentações, movimentações, itens de compra, venda, devolução e transferência, limites, composição, produção) e divide os custos por unidade-base. O saldo continua sendo a soma das movimentações. `content_qty` é o conteúdo que a prévia mostrou; se mudou, 422 no campo `content_qty` e nada é gravado. Produto já convertido: 422 em `base_unit`. Devolve `content_qty`, `from_unit`, `to_unit` e o produto no formato de `GET /api/v1/emporio/products/:id`. Desde 13/11/2026.",
+        request: `{ "content_qty": 15 }`,
+        response: `200
+{ "data": { "content_qty": 15, "from_unit": "saca", "to_unit": "quilograma", "product": { "id": "cl...", "base_unit": "quilograma", "content_qty": null, "presentations": [] } }, "meta": {} }`,
+      },
+      {
         method: "POST",
         path: "/api/v1/emporio/products/:id/presentations",
         auth: "Sessão · emporio:write · OWNER, ADMIN e OPERADOR",
@@ -490,7 +507,7 @@ export const GROUPS: Group[] = [
         method: "GET",
         path: "/api/v1/emporio/stock",
         auth: "Sessão · emporio:read · perfil emporio · recurso `emporio` liberado",
-        description: "Saldo da loja por produto (`?establishment_id=` obrigatório; sem ele, 422 no campo). Cada linha: total, avulso, lacrado por apresentação em embalagens, custo médio ponderado móvel, `estimated` quando alguma entrada não teve custo, limites, `needs_restock` e `suggested_qty`. Por unidade-base: `stock_balance` (o mesmo `total_qty`), `average_cost` (nulo com saldo zero ou negativo) e `suggested_cost`, o custo único do produto na loja (Q297, Q299), com `suggested_cost_source` (`medio`, `ultima_compra` ou `referencia`). Saldo é sempre a soma das movimentações. Loja fora do vínculo do usuário: 404.",
+        description: "Saldo da loja por produto (`?establishment_id=` obrigatório; sem ele, 422 no campo). Cada linha: total, avulso, lacrado por apresentação em embalagens, custo médio ponderado móvel, `estimated` quando alguma entrada não teve custo, limites, `needs_restock` e `suggested_qty`. Por unidade-base: `stock_balance` (o mesmo `total_qty`), `average_cost` (nulo com saldo zero ou negativo) e `suggested_cost`, o custo único do produto na loja (Q297, Q299), com `suggested_cost_source` (`medio`, `ultima_compra` ou `referencia`). Saldo é sempre a soma das movimentações. Desde 13/11/2026, `sealed` traz uma linha por TAMANHO de embalagem fechada (Q323): `presentation_id` é o da fechada ativa mais antiga do tamanho, `name` junta os nomes com ' / ' (\"Saca 40 kg / ATACADO\") e `presentation_ids` lista todas. Loja fora do vínculo do usuário: 404.",
         response: `200
 { "data": [{ "establishment_id": "cl...", "emporio_product_id": "cl...", "product_name": "Ração Pet", "base_unit": "quilograma", "total_qty": 25, "loose_qty": 5, "sealed": [{ "presentation_id": "cl...", "name": "Saca 10 kg", "packages": 2, "base_qty": 10 }], "average_cost": 19.36, "suggested_cost": 19.36, "suggested_cost_source": "medio", "estimated": false, "min_qty": 10, "max_qty": 50, "needs_restock": false, "suggested_qty": 25 }], "meta": {} }`,
       },
