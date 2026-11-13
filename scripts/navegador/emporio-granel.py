@@ -13,6 +13,10 @@
 #   6. Cadastro de produto novo: escolher saca mostra a dica "Vai vender fracionado"
 #   7. Transferencia do B: um tamanho so (sem escolha de apresentacao), 1 saca sai da origem
 #
+#   8. Produto D (quilo novo, Saca 40 kg e Quilo, SEM movimento): "Estoque inicial" mostra o campo do lacrado
+#      (vem do cadastro), implanta 5 sacas e 10 kg (210 kg), vende 1 Saca 40 kg (4 fechadas), e a contagem
+#      abre pre-preenchida com 4
+#
 # cenario: scripts/_cenario-emporio-granel.ts
 # sessao: owner owner@example.com
 
@@ -21,6 +25,7 @@ LOJA2 = "Gr Loja 2"
 PROD_A = "Gr Ração 15kg"
 PROD_B = "Gr Farelo 40kg"
 PROD_C = "Gr Milho C 15kg"
+PROD_D = "Gr Farelo Novo 40kg"
 DOIS_NOMES = "Saca 40 kg / ATACADO"
 
 
@@ -317,5 +322,42 @@ lb = linha_do_estoque(ID_LOJA, PROD_B)
 print("   estoque B depois da transferência: " + lb)
 cel = lb.split(" | ")
 confere("a Gr Loja ficou com 4 sacas (5 contadas menos 1 enviada)", len(cel) > 3 and cel[2] == "4 × " + DOIS_NOMES, lb)
+
+# --- 8. Produto novo sem nenhum movimento (D) -----------------------------------------------------------------------------------
+passo("8. D (quilo novo, Saca 40 kg e Quilo, sem movimento): o campo do lacrado vem do cadastro")
+D = id_de(PROD_D)
+confere("o produto D existe", bool(D), D)
+ir("/emporio/produtos/" + D)
+confere("a tela do D abre", caminho() == "/emporio/produtos/" + D and tem(PROD_D), texto_principal(200))
+cartao = texto_do_cartao_da_loja()
+print("   cartão da Gr Loja (D): " + cartao[:300])
+confere("o cartão da Gr Loja do D existe e o estoque ainda é zero", bool(cartao), cartao[:300])
+confere("abre 'Estoque inicial' da Gr Loja", bool(esperar(lambda: clicar_no_cartao_da_loja("Estoque inicial"), 20)))
+time.sleep(1.5)
+confere("o painel abriu", painel_aberto())
+campos = campos_de_embalagem()
+print("   campos de embalagem do D: " + str(campos))
+confere("existe o campo do lacrado de 40 kg (vem do cadastro, sem saldo)", campos == ["Embalagens de Saca 40 kg"], campos)
+confere("implanta 5 sacas", preencher_aria("Embalagens de Saca 40 kg", "5") != "SEM CAMPO")
+confere("e 10 kg avulsos", preencher("Avulso (kg)", "10") not in ("SEM ROTULO", "SEM CAMPO"))
+enviar_painel()
+confere("a implantação fecha o painel (sem recusa)", esperar(lambda: not painel_aberto(), 60), texto_do_painel()[:300])
+ld = linha_do_estoque(ID_LOJA, PROD_D)
+print("   estoque D depois de implantar: " + ld)
+confere("o estoque mostra 210 kg | 5 × Saca 40 kg | 10 kg", ld.startswith("Gr Farelo Novo 40kg | 210 kg | 5 × Saca 40 kg | 10 kg"), ld)
+res_d = vender_no_balcao(PROD_D, "Gr Farelo N", "Saca 40 kg", "1", "120")
+confere("vender 1 Saca 40 kg do D passa", res_d, texto_principal(300))
+ld = linha_do_estoque(ID_LOJA, PROD_D)
+print("   estoque D depois da venda: " + ld)
+cel = ld.split(" | ")
+confere("o D fica com 4 sacas fechadas (170 kg)", len(cel) > 3 and cel[1] == "170 kg" and cel[2] == "4 × Saca 40 kg" and cel[3] == "10 kg", ld)
+ir("/emporio/produtos/" + D)
+confere("a tela do D reabre", caminho() == "/emporio/produtos/" + D and tem(PROD_D), texto_principal(200))
+confere("abre Contar estoque da Gr Loja (D)", bool(esperar(lambda: clicar_no_cartao_da_loja("Contar estoque"), 20)))
+time.sleep(1.5)
+confere("o painel de contagem abriu", painel_aberto())
+pre = js("(() => { const el = Array.from(document.querySelectorAll('[role=dialog] input')).find(x => x.getAttribute('aria-label') === 'Embalagens de Saca 40 kg'); return el ? el.value : 'SEM CAMPO'; })()")
+print("   campo do lacrado na contagem do D: " + str(pre))
+confere("a contagem do D vem pré-preenchida com 4 no lacrado", str(pre).strip() == "4", pre)
 
 fim()

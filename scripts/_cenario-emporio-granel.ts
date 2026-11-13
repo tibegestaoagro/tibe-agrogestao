@@ -16,7 +16,9 @@ import { setTenantFeatureAction } from "@/lib/actions/platform-features";
  *     e implantacao de 10 sacas na Gr Loja;
  *   - Produto B "Gr Farelo 40kg": em QUILO, com duas fechadas de 40 kg ("Saca 40 kg" e "ATACADO", precos
  *     diferentes) e a avulsa "Quilo" (1 kg), implantacao de 10 sacas na "Saca 40 kg" na Gr Loja;
- *   - Produto C "Gr Milho C 15kg": em SACA de 15 kg, sem estoque (a recusa da Q322 pela tela).
+ *   - Produto C "Gr Milho C 15kg": em SACA de 15 kg, sem estoque (a recusa da Q322 pela tela);
+ *   - Produto D "Gr Farelo Novo 40kg": em QUILO com "Saca 40 kg" (fechada) e "Quilo" (avulsa), com preco e SEM
+ *     nenhum movimento (o campo do lacrado vem do cadastro).
  * Apaga antes tudo o que rodadas anteriores criaram, inclusive movimentos de caixa por `sale_id` das vendas do
  * cenario (uma rodada sabotada pode deixar movimento fora das lojas). Idempotente.
  */
@@ -134,8 +136,16 @@ async function main() {
   const C = await produto(`${PREFIXO}Milho C 15kg`, { base_unit: "saca", content_qty: 15, content_unit: "quilograma" });
   await apresentacao(C, "Saca 15 kg", 1, true);
 
+  // D: quilo novo com "Saca 40 kg" (fechada) e "Quilo" (avulsa), com preco e SEM nenhum movimento: a tela do
+  // produto precisa montar o campo do lacrado a partir do cadastro, nao do saldo.
+  const D = await produto(`${PREFIXO}Farelo Novo 40kg`, { base_unit: "quilograma" });
+  const dSaca = await apresentacao(D, "Saca 40 kg", 40, true);
+  const dQuilo = await apresentacao(D, "Quilo", 1, false);
+  await preco(dSaca, 120);
+  await preco(dQuilo, 4);
+
   console.log("Conta do seed:", tenant_id, "| limpos:", limpos.lojas, "loja(s),", limpos.vendas, "venda(s),", limpos.produtos, "produto(s)");
-  console.log("Lojas:", loja.id, loja2.id, "| A:", A, "B:", B, "C:", C);
+  console.log("Lojas:", loja.id, loja2.id, "| A:", A, "B:", B, "C:", C, "D:", D);
   await prisma.$disconnect();
 }
 
