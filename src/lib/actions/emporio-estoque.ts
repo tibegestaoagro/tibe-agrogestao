@@ -60,9 +60,13 @@ function numero(v: unknown): v is number {
 // ---------------------------------------------------------------------------
 
 export type SealedLine = {
+  /** Q323: uma linha por TAMANHO. A apresentação fechada ativa mais antiga do tamanho. */
   presentation_id: string;
+  /** Os nomes das ativas do tamanho, juntos com " / " (ordem de criação). */
   name: string;
-  /** Embalagens fechadas (saldo na unidade-base dividido pela base_qty da apresentação). */
+  /** Todas as apresentações fechadas ativas do tamanho. */
+  presentation_ids: string[];
+  /** Embalagens fechadas (saldo na unidade-base dividido pelo tamanho). */
   packages: number;
   /** O mesmo saldo, na unidade-base. */
   base_qty: number;
@@ -170,19 +174,79 @@ export async function lerMovimentos(c: Tx, lojaIds: string[], productIds: string
   }));
 }
 
-/** Saldo por estado: chave `lacrado|<apresentação>` ou `-|-` (avulso e produto sem separação). */
-export function saldosPorEstado(movs: MovimentoLido[]): Map<string, number> {
+type ApresentacaoRow = ProdutoRow["presentations"][number] & { created_at?: Date };
+
+/**
+ * Q323: embalagens fechadas do mesmo produto com o mesmo `base_qty` são a mesma
+ * embalagem física. O saldo fechado é por TAMANHO: os movimentos seguem gravados
+ * com o `presentation_id` que vieram, e é a leitura que soma por tamanho.
+ * Mapa `presentation_id -> base_qty` do produto, com as arquivadas (movimento
+ * antigo pode apontar para elas).
+ */
+export type TamanhosDoProduto = Map<string, number>;
+
+export function tamanhosDe(p: Pick<ProdutoRow, "presentations">): TamanhosDoProduto {
+  const mapa: TamanhosDoProduto = new Map();
+  for (const ap of p.presentations) {
+    const base = arred3(decToNum(ap.base_qty) ?? 0);
+    if (ap.is_sealed_package && base > 0) mapa.set(ap.id, base);
+  }
+  return mapa;
+}
+
+const chaveDoTamanho = (base: number) => `lacrado|${arred3(base).toFixed(3)}`;
+
+/**
+ * Saldo por estado: chave `lacrado|<tamanho com 3 casas>` (Q323) ou `avulso|-`
+ * (avulso e produto sem separação). Movimento cuja apresentação não é do produto
+ * cai em `lacrado|?<id>`, para o saldo não sumir.
+ */
+export function saldosPorEstado(movs: MovimentoLido[], tamanhos: TamanhosDoProduto): Map<string, number> {
   const mapa = new Map<string, number>();
   for (const m of movs) {
-    const chave = chaveDoEstado(m.presentation_id);
+    const chave = chaveDoEstado(m.presentation_id, tamanhos);
     mapa.set(chave, (mapa.get(chave) ?? 0) + deltaDaLoja(m));
   }
   for (const [k, v] of mapa) mapa.set(k, arred3(v));
   return mapa;
 }
 
-/** A apresentação só existe no lacrado (Q65), então ela basta para dizer o estado. */
-export const chaveDoEstado = (presentationId: string | null) => (presentationId ? `lacrado|${presentationId}` : "avulso|-");
+/** A apresentação só existe no lacrado (Q65), então ela basta para dizer o estado; o tamanho dela diz a chave (Q323). */
+export function chaveDoEstado(presentationId: string | null, tamanhos: TamanhosDoProduto): string {
+  if (!presentationId) return "avulso|-";
+  const base = tamanhos.get(presentationId);
+  return base === undefined ? `lacrado|?${presentationId}` : chaveDoTamanho(base);
+}
+
+export type TamanhoFechado = {
+  base: number;
+  chave: string;
+  /** A apresentação fechada ATIVA mais antiga do tamanho (ou a arquivada mais antiga, se só houver arquivadas). */
+  apresentacao: ApresentacaoRow;
+  /** Todas as ativas do tamanho, da mais antiga para a mais nova. */
+  ativas: ApresentacaoRow[];
+};
+
+/** Os tamanhos de embalagem fechada do produto, do menor para o maior (Q323). */
+export function tamanhosFechados(p: Pick<ProdutoRow, "presentations">): TamanhoFechado[] {
+  const porTamanho = new Map<number, ApresentacaoRow[]>();
+  for (const ap of p.presentations as ApresentacaoRow[]) {
+    const base = arred3(decToNum(ap.base_qty) ?? 0);
+    if (!ap.is_sealed_package || base <= 0) continue;
+    const lista = porTamanho.get(base);
+    if (lista) lista.push(ap);
+    else porTamanho.set(base, [ap]);
+  }
+  const maisAntiga = (a: ApresentacaoRow, b: ApresentacaoRow) =>
+    (a.created_at?.getTime() ?? 0) - (b.created_at?.getTime() ?? 0);
+  return [...porTamanho.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([base, lista]) => {
+      const ordenadas = [...lista].sort(maisAntiga);
+      const ativas = ordenadas.filter((x) => !x.archived_at);
+      return { base, chave: chaveDoTamanho(base), apresentacao: ativas[0] ?? ordenadas[0], ativas };
+    });
+}
 
 /**
  * Monta as linhas de saldo de cada loja para os produtos pedidos (todos, se não
@@ -257,21 +321,27 @@ async function montarLinhas(
       const custo = custoMedio(dosMovs);
       if (p.archived_at && custo.saldo === 0 && !opts.emporio_product_id) continue;
 
-      const porEstado = saldosPorEstado(dosMovs);
+      const porEstado = saldosPorEstado(dosMovs, tamanhosDe(p));
+      const tamanhos = new Map(tamanhosFechados(p).map((t) => [t.chave, t]));
       let solto = 0;
       const lacrado: SealedLine[] = [];
       for (const [chave, base] of porEstado) {
-        const [estado, presId] = chave.split("|");
+        const [estado, resto] = chave.split("|");
         if (estado === "avulso") {
           solto += base;
           continue;
         }
-        const ap = p.presentations.find((x) => x.id === presId);
-        const baseQtd = ap ? (decToNum(ap.base_qty) ?? 0) : 0;
+        const t = tamanhos.get(chave);
+        if (!t) {
+          // Apresentação que não é do produto: mantém o saldo visível, como antes.
+          lacrado.push({ presentation_id: resto.slice(1), name: "", presentation_ids: [], packages: 0, base_qty: base });
+          continue;
+        }
         lacrado.push({
-          presentation_id: presId,
-          name: ap?.name ?? "",
-          packages: baseQtd > 0 ? arred3(base / baseQtd) : 0,
+          presentation_id: t.apresentacao.id,
+          name: (t.ativas.length > 0 ? t.ativas : [t.apresentacao]).map((x) => x.name).join(" / "),
+          presentation_ids: t.ativas.map((x) => x.id),
+          packages: arred3(base / t.base),
           base_qty: base,
         });
       }
@@ -530,17 +600,28 @@ export function validarSealed(
       "sealed",
     );
   }
-  const vistos = new Set<string>();
+  // Q324: o tamanho é a identidade da embalagem, então duas apresentações do mesmo tamanho são a mesma.
+  const tamanhos = tamanhosDe(produto);
+  const vistos = new Map<string, { id: string; name: string }>();
   const saida: SealedValido[] = [];
   for (const item of sealed as Partial<SealedInput>[]) {
     const ap = produto.presentations.find((x) => x.id === item?.presentation_id);
     if (!ap || ap.archived_at || !ap.is_sealed_package) {
       return fail("VALIDATION_ERROR", "Escolha uma apresentação fechada (embalagem lacrada) desse produto.", 422, "sealed");
     }
-    if (vistos.has(ap.id)) {
-      return fail("VALIDATION_ERROR", `A apresentação "${ap.name}" aparece mais de uma vez.`, 422, "sealed");
+    const chave = chaveDoEstado(ap.id, tamanhos);
+    const antes = vistos.get(chave);
+    if (antes) {
+      return fail(
+        "VALIDATION_ERROR",
+        antes.id === ap.id
+          ? `A apresentação "${ap.name}" aparece mais de uma vez.`
+          : `A mesma embalagem aparece duas vezes: ${antes.name} e ${ap.name} têm o mesmo tamanho.`,
+        422,
+        "sealed",
+      );
     }
-    vistos.add(ap.id);
+    vistos.set(chave, { id: ap.id, name: ap.name });
     const n = item?.packages;
     if (!numero(n) || !Number.isInteger(n) || n < minimo) {
       return fail(
@@ -718,13 +799,15 @@ export async function registrarContagemAction(
 
   await runSerializableTenantTransaction(db, async (tx) => {
     const movs = await lerMovimentos(tx, [loja.data.id], [p.product_id]);
-    const atuais = saldosPorEstado(movs);
+    const tamanhos = tamanhosDe(p);
+    const atuais = saldosPorEstado(movs, tamanhos);
     const dados: Prisma.StockMovementCreateManyInput[] = [];
 
+    // Q323: a contagem de um tamanho acerta o saldo do tamanho inteiro, qualquer que seja a apresentação citada.
     const alvo: { chave: string; fisico: number; estado: EstadoEmbalagem | null; presentation_id: string | null }[] = [
-      { chave: chaveDoEstado(null), fisico: solto.data, estado: tracked ? "avulso" : null, presentation_id: null },
+      { chave: chaveDoEstado(null, tamanhos), fisico: solto.data, estado: tracked ? "avulso" : null, presentation_id: null },
       ...sealed.data.map((s) => ({
-        chave: chaveDoEstado(s.presentation.id),
+        chave: chaveDoEstado(s.presentation.id, tamanhos),
         fisico: arred3(s.packages * (decToNum(s.presentation.base_qty) ?? 0)),
         estado: "lacrado" as const,
         presentation_id: s.presentation.id,
@@ -845,10 +928,12 @@ export async function registrarPerdaAction(
     return fail("VALIDATION_ERROR", "A quantidade deve ser maior que zero.", 422, "quantity");
   }
 
-  const chave = chaveDoEstado(apresentacao?.id ?? null);
+  // Q323: a perda de lacrado confere o saldo do TAMANHO da apresentação.
+  const tamanhos = tamanhosDe(p);
+  const chave = chaveDoEstado(apresentacao?.id ?? null, tamanhos);
   const recusa = await runSerializableTenantTransaction(db, async (tx) => {
     const movs = await lerMovimentos(tx, [loja.data.id], [p.product_id]);
-    const saldo = saldosPorEstado(movs).get(chave) ?? 0;
+    const saldo = saldosPorEstado(movs, tamanhos).get(chave) ?? 0;
     if (base > saldo && !loja.data.allow_negative_stock) {
       return { saldo };
     }

@@ -18,6 +18,7 @@ import {
   chaveDoEstado,
   lerMovimentos,
   saldosPorEstado,
+  tamanhosDe,
 } from "@/lib/actions/emporio-estoque";
 
 /**
@@ -388,8 +389,18 @@ export async function enviarTransferenciaAction(
     if (p.base_unit === "unidade" && !Number.isInteger(base)) {
       return fail("VALIDATION_ERROR", "Produto vendido por unidade só aceita quantidade inteira.", 422, "items");
     }
-    const k = `${p.id}|${chaveDoEstado(presentationId)}`;
+    const k = `${p.id}|${chaveDoEstado(presentationId, tamanhosDe(p))}`;
     const atual = planejados.get(k);
+    if (atual && atual.presentation_id !== presentationId) {
+      // Q324: duas apresentações do mesmo tamanho na mesma operação.
+      const nome = (id: string | null) => p.presentations.find((x) => x.id === id)?.name ?? "";
+      return fail(
+        "VALIDATION_ERROR",
+        `A mesma embalagem aparece duas vezes: ${nome(atual.presentation_id)} e ${nome(presentationId)} têm o mesmo tamanho.`,
+        422,
+        "items",
+      );
+    }
     if (atual) atual.base = arred3(atual.base + base);
     else planejados.set(k, { produto: p, estado, presentation_id: presentationId, base });
   }
@@ -414,7 +425,9 @@ export async function enviarTransferenciaAction(
           movs = await lerMovimentos(tx, [origem.id], [i.produto.product_id]);
           movsPorProduto.set(i.produto.product_id, movs);
         }
-        const saldo = saldosPorEstado(movs).get(chaveDoEstado(i.presentation_id)) ?? 0;
+        // Q323: o saldo conferido é o do tamanho da apresentação.
+        const tamanhos = tamanhosDe(i.produto);
+        const saldo = saldosPorEstado(movs, tamanhos).get(chaveDoEstado(i.presentation_id, tamanhos)) ?? 0;
         if (i.base > saldo && !origem.allow_negative_stock) {
           throw new Recusa(
             fail(

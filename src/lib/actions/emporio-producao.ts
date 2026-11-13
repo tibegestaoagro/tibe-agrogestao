@@ -12,6 +12,7 @@ import {
   acharLojaParaEscrita,
   lerMovimentos,
   saldosPorEstado,
+  tamanhosDe,
   validarSealed,
 } from "@/lib/actions/emporio-estoque";
 
@@ -566,7 +567,7 @@ export async function produzirAction(
         const movs = await lerMovimentos(tx, [loja.data.id], [comp1.product_id]);
         const resumo = custoMedio(movs);
         const separa = lacradoEfetivo(comp1);
-        const disponivel = separa ? (saldosPorEstado(movs).get("avulso|-") ?? 0) : resumo.saldo;
+        const disponivel = separa ? (saldosPorEstado(movs, tamanhosDe(comp1)).get("avulso|-") ?? 0) : resumo.saldo;
 
         if (b.consumo > disponivel && !loja.data.allow_negative_stock) {
           const falta = arred3(b.consumo - disponivel);
