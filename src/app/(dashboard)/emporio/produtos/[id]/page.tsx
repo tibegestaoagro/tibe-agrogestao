@@ -71,14 +71,21 @@ export default async function ProdutoEmporioPage({ params }: { params: Promise<{
   // Estoque por loja: as actions somam as movimentações (o saldo não é gravado).
   const estoqueRes = await saldoDoProdutoAction(db, user, id);
   const lojasEstoque = estoqueRes.ok ? estoqueRes.data.stores : [];
-  const tamanhosFechados: { id: string; name: string }[] = [];
-  for (const l of lojasEstoque) {
-    for (const s of l.sealed) {
-      if (s.presentation_ids.length > 0 && !tamanhosFechados.some((t) => t.id === s.presentation_id)) {
-        tamanhosFechados.push({ id: s.presentation_id, name: s.name });
-      }
-    }
+  // Q323: um campo por TAMANHO, montado das apresentações fechadas ATIVAS (não do saldo: tamanho
+  // sem movimento também precisa aparecer). O id é o da mais antiga do tamanho, a mesma regra do servidor.
+  const fechadasAtivas = await db.productPresentation.findMany({
+    where: { emporio_product_id: p.id, archived_at: null, is_sealed_package: true },
+    select: { id: true, name: true, base_qty: true },
+    orderBy: [{ created_at: "asc" }, { id: "asc" }],
+  });
+  const porTamanho = new Map<number, { id: string; nomes: string[] }>();
+  for (const a of fechadasAtivas) {
+    const tam = Number(a.base_qty);
+    const g = porTamanho.get(tam);
+    if (g) g.nomes.push(a.name);
+    else porTamanho.set(tam, { id: a.id, nomes: [a.name] });
   }
+  const tamanhosFechados = [...porTamanho.values()].map((g) => ({ id: g.id, name: g.nomes.join(" / ") }));
   const implantacoes = await db.stockMovement.findMany({
     where: { product_id: p.product_id, movement_type: "implantacao", canceled_at: null },
     select: { establishment_id: true },

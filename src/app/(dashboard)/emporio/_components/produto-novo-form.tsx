@@ -294,8 +294,9 @@ export function ProdutoNovoForm({
 
       {conteudoObrigatorio && (
         <p className="text-xs text-texto-secundario">
-          Vai vender fracionado (kg ou gramas)? Cadastre em quilo e crie a {base === "saca" ? "saca" : "fardo"} como
-          embalagem fechada.
+          {base === "saca"
+            ? "Vai vender fracionado (kg ou gramas)? Cadastre em quilo e crie a saca como embalagem fechada."
+            : "Vai vender fracionado? Cadastre na unidade do conteúdo e crie o fardo como embalagem fechada."}
         </p>
       )}
 

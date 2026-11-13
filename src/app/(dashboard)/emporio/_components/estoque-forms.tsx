@@ -172,6 +172,7 @@ export function ImplantarForm({ loja, produto }: { loja: LojaParaEstoque; produt
     const res = await apiPost("/api/v1/emporio/stock/implantation", {
       establishment_id: loja.id,
       emporio_product_id: produto.id,
+      base_unit: produto.base_unit,
       ...(produto.separa ? { sealed: lista } : {}),
       loose_qty: (q as number | null) ?? 0,
       unit_cost: c as number | null,
@@ -328,6 +329,7 @@ export function ContagemForm({ loja, produto }: { loja: LojaParaEstoque; produto
     const res = await apiPost("/api/v1/emporio/stock/count", {
       establishment_id: loja.id,
       emporio_product_id: produto.id,
+      base_unit: produto.base_unit,
       ...(produto.separa ? { sealed: lista } : {}),
       loose_qty: q as number,
       reason: motivo.trim(),
@@ -476,6 +478,7 @@ export function PerdaForm({ loja, produto }: { loja: LojaParaEstoque; produto: P
     const res = await apiPost("/api/v1/emporio/stock/loss", {
       establishment_id: loja.id,
       emporio_product_id: produto.id,
+      base_unit: produto.base_unit,
       package_state: produto.separa ? estado : null,
       presentation_id: lacrado ? apresentacao : null,
       quantity: q as number,

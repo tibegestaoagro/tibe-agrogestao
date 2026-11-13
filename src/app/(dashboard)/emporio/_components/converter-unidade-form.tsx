@@ -223,7 +223,12 @@ export function ConverterUnidadeForm({
             </Table>
             {confira.length > 0 && (
               <p className="text-xs text-texto-secundario">
-                O valor não fecha em múltiplo de 50 g: confira se a fração estava certa.
+                {previa.to_unit === "unidade"
+                  ? "O valor não dá um número inteiro de unidades"
+                  : previa.to_unit === "litro"
+                    ? "O valor não fecha em múltiplo de 50 ml"
+                    : "O valor não fecha em múltiplo de 50 g"}
+                : confira se a fração estava certa.
               </p>
             )}
           </div>
