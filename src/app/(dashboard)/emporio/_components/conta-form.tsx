@@ -12,11 +12,15 @@ import { useAviso } from "@/components/ui/toast";
 import { apiPatch, apiPost } from "@/lib/client-api";
 import type { ContaView } from "@/lib/actions/emporio-caixa";
 
-const ORDEM = ["name", "bank", "document", "beneficiary", "establishment_ids"] as const;
+const ORDEM = ["name", "bank", "document", "beneficiary", "receives_pix", "establishment_ids"] as const;
 type Campo = (typeof ORDEM)[number];
 
 const TODAS = "todas";
 const ESCOLHIDAS = "escolhidas";
+/** Q318: conta de cartão ou caixa interno, fora da lista do PIX. */
+const NENHUMA = "nenhuma";
+const valeDa = (conta?: ContaView) =>
+  !conta ? TODAS : !conta.receives_pix ? NENHUMA : conta.pix_all_establishments ? TODAS : ESCOLHIDAS;
 const classeCaixa = "h-4 w-4 rounded border-borda text-primaria-tinta focus:ring-primaria";
 
 /**
@@ -44,7 +48,7 @@ export function ContaForm({ conta, lojas }: { conta?: ContaView; lojas: { id: st
   const [banco, setBanco] = useState(conta?.bank ?? "");
   const [cnpj, setCnpj] = useState(mascararCnpj(conta?.document ?? ""));
   const [favorecido, setFavorecido] = useState(conta?.beneficiary ?? "");
-  const [vale, setVale] = useState(conta && !conta.pix_all_establishments ? ESCOLHIDAS : TODAS);
+  const [vale, setVale] = useState(valeDa(conta));
   const [lojasSel, setLojasSel] = useState<string[]>(conta?.pix_available_establishment_ids ?? []);
 
   function carregar() {
@@ -52,7 +56,7 @@ export function ContaForm({ conta, lojas }: { conta?: ContaView; lojas: { id: st
     setBanco(conta?.bank ?? "");
     setCnpj(mascararCnpj(conta?.document ?? ""));
     setFavorecido(conta?.beneficiary ?? "");
-    setVale(conta && !conta.pix_all_establishments ? ESCOLHIDAS : TODAS);
+    setVale(valeDa(conta));
     setLojasSel(conta?.pix_available_establishment_ids ?? []);
   }
 
@@ -78,7 +82,8 @@ export function ContaForm({ conta, lojas }: { conta?: ContaView; lojas: { id: st
       bank: banco.trim() || null,
       document: cnpj.trim() || null,
       beneficiary: favorecido.trim() || null,
-      pix_all_establishments: vale === TODAS,
+      receives_pix: vale !== NENHUMA,
+      ...(vale !== NENHUMA ? { pix_all_establishments: vale === TODAS } : {}),
       ...(vale === ESCOLHIDAS ? { establishment_ids: lojasSel } : {}),
     };
     const res = conta
@@ -168,12 +173,13 @@ export function ContaForm({ conta, lojas }: { conta?: ContaView; lojas: { id: st
           />
         )}
       </Field>
-      <Field label="Disponível para PIX em" id={`${conta ? `conta-${conta.id}` : "conta-nova"}-vale`}>
+      <Field label="Disponível para PIX em" id={err.idDe("receives_pix")} error={err.erros.receives_pix}>
         {({ id, ...aria }) => (
           <Select
             value={vale}
             onValueChange={(v) => {
               setVale(v);
+              err.limparCampo("receives_pix");
               err.limparCampo("establishment_ids");
             }}
           >
@@ -183,6 +189,7 @@ export function ContaForm({ conta, lojas }: { conta?: ContaView; lojas: { id: st
             <SelectContent>
               <SelectItem value={TODAS}>Todas as lojas</SelectItem>
               <SelectItem value={ESCOLHIDAS}>Lojas escolhidas</SelectItem>
+              <SelectItem value={NENHUMA}>Não recebe PIX</SelectItem>
             </SelectContent>
           </Select>
         )}

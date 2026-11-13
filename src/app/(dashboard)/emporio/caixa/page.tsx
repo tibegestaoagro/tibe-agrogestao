@@ -225,7 +225,11 @@ export default async function CaixaPage() {
                         lojaId={d.establishment_id}
                         lojaNome={d.name}
                         contas={contasAtivas
-                          .filter((c) => c.pix_all_establishments || c.pix_available_establishment_ids.includes(d.establishment_id))
+                          .filter(
+                            (c) =>
+                              c.receives_pix &&
+                              (c.pix_all_establishments || c.pix_available_establishment_ids.includes(d.establishment_id)),
+                          )
                           .map((c) => ({ id: c.id, name: c.name }))}
                         atual={pix && !pix.archived_at ? pix.id : null}
                       />
@@ -279,9 +283,11 @@ export default async function CaixaPage() {
                     <TableCell className="text-sm">{c.document ? formatarDocumento(c.document) : "-"}</TableCell>
                     <TableCell className="text-sm">{c.beneficiary ?? "-"}</TableCell>
                     <TableCell className="text-sm">
-                      {c.pix_all_establishments
-                        ? "Todas as lojas"
-                        : c.pix_available_establishment_ids.map((id) => nomeDaLoja.get(id) ?? "Loja").join(", ") || "-"}
+                      {!c.receives_pix
+                        ? "Não recebe PIX"
+                        : c.pix_all_establishments
+                          ? "Todas as lojas"
+                          : c.pix_available_establishment_ids.map((id) => nomeDaLoja.get(id) ?? "Loja").join(", ") || "-"}
                     </TableCell>
                     <TableCell className="text-sm">
                       {c.pix_establishment_ids.length === 0

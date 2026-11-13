@@ -510,6 +510,8 @@ export type ContaView = {
   /** Q310: só os 14 dígitos; nulo quando não informado. */
   document: string | null;
   beneficiary: string | null;
+  /** Q318: false = não recebe PIX (os dois campos abaixo não valem). */
+  receives_pix: boolean;
   /** Q311: true = vale para o PIX de todas as lojas. */
   pix_all_establishments: boolean;
   /** Lojas onde a conta vale para o PIX; vazio quando vale em todas. */
@@ -551,6 +553,17 @@ async function lojasDoPix(db: TenantPrismaClient, ids: unknown): Promise<ActionR
 }
 
 const textoDasLojas = (todas: boolean, nomes: string[]) => (todas ? "Todas as lojas" : [...nomes].sort((a, b) => a.localeCompare(b, "pt-BR")).join(", "));
+const NAO_RECEBE_PIX = "Não recebe PIX";
+
+/** Q313, Q318: a conta PIX padrão de uma loja ativa não pode sair do PIX dessa loja. */
+async function lojaPresaNaConta(db: TenantPrismaClient, contaId: string, ficam: string[]): Promise<string | null> {
+  const presa = await db.establishment.findFirst({
+    // Loja arquivada não vende nem pode trocar a conta PIX: não segura a conta.
+    where: { pix_bank_account_id: contaId, archived_at: null, id: { notIn: ficam } },
+    select: { name: true },
+  });
+  return presa?.name ?? null;
+}
 
 /**
  * Saldo das contas, em centavos (Q90): os `CashMovement` mais as parcelas do
@@ -629,6 +642,7 @@ async function viewsDasContas(db: TenantPrismaClient, where: Record<string, unkn
     pix_establishment_ids: c.pix_of.map((e) => e.id),
     document: c.document,
     beneficiary: c.beneficiary,
+    receives_pix: c.receives_pix,
     pix_all_establishments: c.pix_all_establishments,
     pix_available_establishment_ids: c.pix_all_establishments ? [] : c.pix_establishments.map((p) => p.establishment_id),
   }));
@@ -661,6 +675,7 @@ export async function criarContaAction(
     bank?: string | null;
     document?: string | null;
     beneficiary?: string | null;
+    receives_pix?: boolean;
     pix_all_establishments?: boolean;
     establishment_ids?: string[];
   },
@@ -674,10 +689,15 @@ export async function criarContaAction(
   if (!cnpj.ok) return cnpj;
   const favorecido = validarFavorecido(input.beneficiary);
   if (!favorecido.ok) return favorecido;
+  if (input.receives_pix !== undefined && typeof input.receives_pix !== "boolean") {
+    return fail("VALIDATION_ERROR", "Informe se a conta recebe PIX.", 422, "receives_pix");
+  }
+  const recebe = input.receives_pix ?? true;
   if (input.pix_all_establishments !== undefined && typeof input.pix_all_establishments !== "boolean") {
     return fail("VALIDATION_ERROR", "Informe se a conta vale para todas as lojas.", 422, "pix_all_establishments");
   }
-  const todas = input.pix_all_establishments ?? true;
+  // Q318: sem PIX, as lojas não valem e não são conferidas.
+  const todas = recebe ? (input.pix_all_establishments ?? true) : true;
   let lojas: { id: string; name: string }[] = [];
   if (!todas) {
     const r = await lojasDoPix(db, input.establishment_ids);
@@ -693,6 +713,7 @@ export async function criarContaAction(
           bank: banco,
           document: cnpj.data,
           beneficiary: favorecido.data,
+          receives_pix: recebe,
           pix_all_establishments: todas,
           created_by_user_id: ator.id,
         }),
@@ -709,7 +730,11 @@ export async function criarContaAction(
         summary: `Criou a conta bancária ${criada.name}`,
         changes: diferencas(
           { document: null, beneficiary: null, disponivel: null },
-          { document: cnpj.data, beneficiary: favorecido.data, disponivel: todas ? null : textoDasLojas(false, lojas.map((l) => l.name)) },
+          {
+            document: cnpj.data,
+            beneficiary: favorecido.data,
+            disponivel: !recebe ? NAO_RECEBE_PIX : todas ? null : textoDasLojas(false, lojas.map((l) => l.name)),
+          },
           { document: "CNPJ", beneficiary: "Favorecido", disponivel: "Disponível para PIX em" },
         ),
       });
@@ -733,6 +758,7 @@ export async function editarContaAction(
     archived?: boolean;
     document?: string | null;
     beneficiary?: string | null;
+    receives_pix?: boolean;
     pix_all_establishments?: boolean;
     establishment_ids?: string[];
   },
@@ -748,6 +774,7 @@ export async function editarContaAction(
     archived_at?: Date | null;
     document?: string | null;
     beneficiary?: string | null;
+    receives_pix?: boolean;
     pix_all_establishments?: boolean;
   } = {};
   if (input?.document !== undefined) {
@@ -760,9 +787,29 @@ export async function editarContaAction(
     if (!fav.ok) return fav;
     data.beneficiary = fav.data;
   }
-  // Q311, Q313: a disponibilidade só muda quando o corpo a menciona; trocar para "lojas marcadas" exige a lista.
-  const mexeNaDisponibilidade = input?.pix_all_establishments !== undefined || input?.establishment_ids !== undefined;
-  const todasDepois = input?.pix_all_establishments ?? atual.pix_all_establishments;
+  // Q318: tirar a conta do PIX. Ela não pode ser a conta PIX padrão de uma loja ativa.
+  if (input?.receives_pix !== undefined && typeof input.receives_pix !== "boolean") {
+    return fail("VALIDATION_ERROR", "Informe se a conta recebe PIX.", 422, "receives_pix");
+  }
+  const recebeDepois = input?.receives_pix ?? atual.receives_pix;
+  const saiDoPix = atual.receives_pix && !recebeDepois;
+  if (saiDoPix) {
+    const presa = await lojaPresaNaConta(db, id, []);
+    if (presa) {
+      return fail(
+        "VALIDATION_ERROR",
+        `Essa conta é a conta PIX da loja ${presa}. Troque a conta PIX da loja antes de tirá-la do PIX.`,
+        422,
+        "receives_pix",
+      );
+    }
+  }
+  if (input?.receives_pix !== undefined) data.receives_pix = recebeDepois;
+  // Q311, Q313: a disponibilidade só muda quando o corpo a menciona (e a conta recebe PIX);
+  // trocar para "lojas marcadas" exige a lista. Ao sair do PIX, a lista é apagada e volta a "todas".
+  const mexeNaDisponibilidade =
+    saiDoPix || (recebeDepois && (input?.pix_all_establishments !== undefined || input?.establishment_ids !== undefined));
+  const todasDepois = saiDoPix ? true : (input?.pix_all_establishments ?? atual.pix_all_establishments);
   let lojasDepois: { id: string; name: string }[] = [];
   if (mexeNaDisponibilidade) {
     if (input?.pix_all_establishments !== undefined && typeof input.pix_all_establishments !== "boolean") {
@@ -773,16 +820,11 @@ export async function editarContaAction(
       const r = await lojasDoPix(db, idsDepois);
       if (!r.ok) return r;
       lojasDepois = r.data;
-      const ficam = new Set(lojasDepois.map((l) => l.id));
-      const presa = await db.establishment.findFirst({
-        // Loja arquivada não vende nem pode trocar a conta PIX: não segura a lista.
-        where: { pix_bank_account_id: id, archived_at: null, id: { notIn: [...ficam] } },
-        select: { name: true },
-      });
+      const presa = await lojaPresaNaConta(db, id, lojasDepois.map((l) => l.id));
       if (presa) {
         return fail(
           "VALIDATION_ERROR",
-          `Essa conta é a conta PIX da loja ${presa.name}. Troque a conta PIX da loja antes de tirá-la da lista.`,
+          `Essa conta é a conta PIX da loja ${presa}. Troque a conta PIX da loja antes de tirá-la da lista.`,
           422,
           "establishment_ids",
         );
@@ -793,8 +835,12 @@ export async function editarContaAction(
   const nomesAntes = atual.pix_all_establishments
     ? []
     : (await db.establishment.findMany({ where: { id: { in: atual.pix_establishments.map((p) => p.establishment_id) } }, select: { name: true } })).map((l) => l.name);
-  const disponivelAntes = textoDasLojas(atual.pix_all_establishments, nomesAntes);
-  const disponivelDepois = mexeNaDisponibilidade ? textoDasLojas(todasDepois, lojasDepois.map((l) => l.name)) : disponivelAntes;
+  const disponivelAntes = atual.receives_pix ? textoDasLojas(atual.pix_all_establishments, nomesAntes) : NAO_RECEBE_PIX;
+  const disponivelDepois = !recebeDepois
+    ? NAO_RECEBE_PIX
+    : mexeNaDisponibilidade
+      ? textoDasLojas(todasDepois, lojasDepois.map((l) => l.name))
+      : textoDasLojas(atual.pix_all_establishments, nomesAntes);
   if (input?.name !== undefined) {
     const nome = validarNomeDaConta(input.name);
     if (!nome.ok) return nome;
@@ -943,6 +989,7 @@ export async function listarContasPixDaLojaAction(
   const contas = await db.bankAccount.findMany({
     where: {
       archived_at: null,
+      receives_pix: true,
       OR: [{ pix_all_establishments: true }, { pix_establishments: { some: { establishment_id: loja.data.id } } }],
     },
     select: { id: true, name: true, bank: true, beneficiary: true, document: true },

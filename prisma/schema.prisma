@@ -1215,10 +1215,13 @@ model BankAccount {
   tenant_id          String
   name               String
   bank               String?
-  /// Q310: CNPJ da conta, só dígitos.
+  /// Q310: CNPJ da conta, sem pontuação (aceita o alfanumérico da Receita).
   document           String?
   /// Q310: favorecido do PIX.
   beneficiary        String?
+  /// Q318: false = a conta não recebe PIX (cartão, caixa interno): fica fora da
+  /// lista do PIX e os dois campos abaixo não valem.
+  receives_pix       Boolean @default(true)
   /// Q311: true = a conta vale para o PIX de todas as lojas; false = só das
   /// listadas em `pix_establishments`.
   pix_all_establishments Boolean @default(true)

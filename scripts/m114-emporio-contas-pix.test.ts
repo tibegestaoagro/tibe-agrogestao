@@ -530,6 +530,36 @@ async function main() {
       check("venda com a conta escolhida arquivada: 422 em payments", erro(v, 422, "payments"), `${v.status} ${j(v.corpo)}`);
       check("e a mensagem fala da conta escolhida, não de cadastrar conta", String(v.corpo?.error?.message ?? "").includes("não está mais ativa"), j(v.corpo));
     });
+
+    // -------------------------------------------------------------------- 12
+    await rodar("não recebe PIX", async () => {
+      console.log("\n12. Conta que não recebe PIX (Q318)");
+      const cartao = await criar(A, { name: `M114 Cartão Stone ${stamp}`, bank: "Stone", receives_pix: false, pix_all_establishments: false, establishment_ids: [] });
+      check("criar com receives_pix false: ok, mesmo com lista vazia (as lojas não valem)", cartao.ok === true && cartao.data?.receives_pix === false, j(cartao));
+      const cId = cartao.data?.id ?? "";
+      const disp = (l: string): Promise<boolean> => Caixa.contaPixDisponivelParaLoja(A.db, cId, l);
+      check("não vale para o PIX de nenhuma loja", (await disp(A.L1)) === false && (await disp(A.L2)) === false);
+      const naLista = [(await lerPix(A.tok.owner, A.L1)).corpo?.data ?? [], (await lerPix(A.tok.owner, A.L2)).corpo?.data ?? []].flat().map((c: Dado) => c.id);
+      check("fica fora da lista do PIX das duas lojas", !naLista.includes(cId), j(naLista));
+      const def = await definir(A, A.L1, cId);
+      check("definir como conta PIX da loja: 422 em bank_account_id", erroA(def, 422, "bank_account_id"), j(def));
+      const v = await vender(A, "L1", CA, 1, [pix(10, cId)]);
+      check("venda no PIX com ela: 422 em payments", erro(v, 422, "payments"), `${v.status} ${j(v.corpo)}`);
+
+      const padrao = (await P.establishment.findUnique({ where: { id: A.L1 } }))?.pix_bank_account_id as string;
+      const tirar = await editar(A, padrao, { receives_pix: false });
+      check("tirar do PIX a conta PIX padrão de uma loja ativa: 422 em receives_pix", erroA(tirar, 422, "receives_pix"), j(tirar));
+      check("a mensagem cita a loja", typeof tirar.message === "string" && tirar.message.includes(A.nomeL1), j(tirar));
+
+      const volta = await editar(A, cId, { receives_pix: true, pix_all_establishments: true });
+      check("voltar a receber PIX em todas as lojas: ok", volta.ok === true && volta.data?.receives_pix === true && volta.data?.pix_all_establishments === true, j(volta));
+      check("e agora vale nas duas lojas", (await disp(A.L1)) === true && (await disp(A.L2)) === true);
+      const restrita = await editar(A, cId, { pix_all_establishments: false, establishment_ids: [A.L2] });
+      check("restringir à loja 2", restrita.ok === true && (await disp(A.L1)) === false, j(restrita));
+      const sai = await editar(A, cId, { receives_pix: false });
+      check("sair do PIX apaga a lista de lojas (volta a 'todas', sem valer)", sai.ok === true && sai.data?.receives_pix === false && j(sai.data?.pix_available_establishment_ids) === "[]", j(sai));
+      check("e a junção ficou vazia", (await P.bankAccountPixEstablishment.count({ where: { bank_account_id: cId } })) === 0);
+    });
   } finally {
     for (const id of tenantIds.reverse()) {
       await P_limpar(id);

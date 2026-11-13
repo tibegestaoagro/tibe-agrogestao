@@ -1426,15 +1426,15 @@ export const GROUPS: Group[] = [
         method: "GET",
         path: "/api/v1/emporio/bank-accounts",
         auth: "Sessão · emporio:read · só OWNER e ADMIN",
-        description: "Contas bancárias do Empório com o saldo (soma dos movimentos) e as lojas que a usam como conta PIX (`pix_establishment_ids`). Desde 13/11/2026: `document` (CNPJ, só os 14 dígitos, ou nulo), `beneficiary` (favorecido), `pix_all_establishments` (true = vale para o PIX de todas as lojas) e `pix_available_establishment_ids` (as lojas onde vale; vazio quando vale em todas). `incluir_arquivados=1` traz as arquivadas.",
+        description: "Contas bancárias do Empório com o saldo (soma dos movimentos) e as lojas que a usam como conta PIX (`pix_establishment_ids`). Desde 13/11/2026: `document` (CNPJ sem pontuação, aceita o alfanumérico, ou nulo), `beneficiary` (favorecido), `receives_pix` (false = a conta não recebe PIX e fica fora da lista do PIX), `pix_all_establishments` (true = vale para o PIX de todas as lojas) e `pix_available_establishment_ids` (as lojas onde vale; vazio quando vale em todas). `incluir_arquivados=1` traz as arquivadas.",
         response: `200
-{ "data": [{ "id": "cl...", "name": "Conta PIX", "bank": "Sicredi", "balance": 320.5, "archived_at": null, "pix_establishment_ids": ["cl..."], "document": "12345678000195", "beneficiary": "Agromax Ltda", "pix_all_establishments": false, "pix_available_establishment_ids": ["cl..."] }], "meta": {} }`,
+{ "data": [{ "id": "cl...", "name": "Conta PIX", "bank": "Sicredi", "balance": 320.5, "archived_at": null, "pix_establishment_ids": ["cl..."], "document": "12345678000195", "beneficiary": "Agromax Ltda", "receives_pix": true, "pix_all_establishments": false, "pix_available_establishment_ids": ["cl..."] }], "meta": {} }`,
       },
       {
         method: "POST",
         path: "/api/v1/emporio/bank-accounts",
         auth: "Sessão · emporio:write · só OWNER e ADMIN",
-        description: "Cadastra a conta. `name` obrigatório (422 `name`) e único na conta do cliente (409 `DUPLICATE_NAME`); `bank` opcional. `document`: CNPJ com ou sem máscara, gravado só com os 14 dígitos; dígito verificador errado ou 14 dígitos iguais: 422 `document`; vazio grava nulo. `beneficiary`: até 120 letras (422 `beneficiary`). `pix_all_establishments` (padrão true); com `false`, `establishment_ids` precisa de pelo menos uma loja existente (422 `establishment_ids`). A disponibilidade vale só para escolher conta de PIX na venda e no fiado.",
+        description: "Cadastra a conta. `name` obrigatório (422 `name`) e único na conta do cliente (409 `DUPLICATE_NAME`); `bank` opcional. `document`: CNPJ com ou sem máscara (aceita o alfanumérico), gravado sem pontuação; dígito verificador errado: 422 `document`; vazio grava nulo. `beneficiary`: até 120 letras (422 `beneficiary`). `receives_pix` (padrão true; com `false` as lojas não valem); `pix_all_establishments` (padrão true); com `false`, `establishment_ids` precisa de pelo menos uma loja existente (422 `establishment_ids`). A disponibilidade vale só para escolher conta de PIX na venda e no fiado.",
         request: `{ "name": "Conta PIX", "bank": "Sicredi", "document": "12.345.678/0001-95", "beneficiary": "Agromax Ltda", "pix_all_establishments": false, "establishment_ids": ["cl..."] }`,
         response: `201
 { "data": { "id": "cl...", "name": "Conta PIX", "balance": 0 }, "meta": {} }`,
@@ -1443,7 +1443,7 @@ export const GROUPS: Group[] = [
         method: "PATCH",
         path: "/api/v1/emporio/bank-accounts/:id",
         auth: "Sessão · emporio:write · só OWNER e ADMIN",
-        description: "Edita nome, banco, `document`, `beneficiary` e a disponibilidade para o PIX (`pix_all_establishments`, `establishment_ids`, que substitui o conjunto), ou arquiva (`archived: true`) e desarquiva. Nome repetido: 409 `DUPLICATE_NAME`. Tirar da lista uma loja que usa a conta como conta PIX: 422 `establishment_ids`, citando a loja.",
+        description: "Edita nome, banco, `document`, `beneficiary` e a disponibilidade para o PIX (`pix_all_establishments`, `establishment_ids`, que substitui o conjunto), ou arquiva (`archived: true`) e desarquiva. Nome repetido: 409 `DUPLICATE_NAME`. Tirar da lista uma loja que usa a conta como conta PIX: 422 `establishment_ids`, citando a loja. `receives_pix: false` tira a conta do PIX (apaga a lista); se ela é a conta PIX de uma loja ativa: 422 `receives_pix`, citando a loja.",
         request: `{ "archived": true }`,
         response: `200
 { "data": { "id": "cl...", "archived_at": "2026-10-28T12:00:00.000Z" }, "meta": {} }`,
