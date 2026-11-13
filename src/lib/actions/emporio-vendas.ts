@@ -1285,7 +1285,9 @@ async function prepararVenda(
       if (!conta || (conta.archived_at && !jaDaVenda)) {
         return fail(
           "VALIDATION_ERROR",
-          "Para receber PIX, cadastre uma conta bancária e defina a conta PIX da loja.",
+          p.bank_account_id
+            ? "Essa conta de PIX não está mais ativa. Escolha outra conta."
+            : "Para receber PIX, cadastre uma conta bancária e defina a conta PIX da loja.",
           422,
           "payments",
         );

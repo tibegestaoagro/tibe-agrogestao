@@ -60,7 +60,7 @@ export function ReceberFiadoForm({
   const [forma, setForma] = useState(soPix ? "pix" : "dinheiro");
   const [loja, setLoja] = useState(lojas.length === 1 ? lojas[0].id : "");
   const [caixa, setCaixa] = useState("");
-  // A conta do PIX (Q316): lida da loja escolhida quando a forma é PIX; vazio vale a padrão.
+  // A conta do PIX (Q314): lida da loja escolhida quando a forma é PIX; vem marcada só a padrão ou a única.
   const [contaEscolhida, setContaEscolhida] = useState("");
   const [lidas, setLidas] = useState<{ lojaId: string; lista: ContaPixDaLoja[] } | null>(null);
   useEffect(() => {
@@ -77,7 +77,7 @@ export function ReceberFiadoForm({
   const contaDoPix = contas
     ? contas.some((c) => c.id === contaEscolhida)
       ? contaEscolhida
-      : ((contas.find((c) => c.is_store_default) ?? contas[0])?.id ?? "")
+      : ((contas.find((c) => c.is_store_default) ?? (contas.length === 1 ? contas[0] : undefined))?.id ?? "")
     : "";
   // Só o dinheiro entra na gaveta; PIX nunca vê o campo do caixa.
   const abertos = abertosDaLoja(caixas, loja);
@@ -91,6 +91,9 @@ export function ReceberFiadoForm({
     if (n === null || n <= 0) novos.amount = "Informe o valor recebido, maior que zero.";
     if (!loja) novos.establishment_id = "Escolha a loja onde o dinheiro entra.";
     else if (forma === "dinheiro" && abertos.length > 1 && !caixaEscolhido) novos.cash_register_id = "Escolha o caixa que recebe.";
+    else if (forma === "pix" && contas && !contaDoPix) {
+      novos.bank_account_id = contas.length === 0 ? "Nenhuma conta PIX liberada para esta loja." : "Escolha a conta do PIX.";
+    }
     if (Object.keys(novos).length > 0 || n === null) {
       err.setGlobal(null);
       err.reprovar(novos);

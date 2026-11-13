@@ -52,7 +52,11 @@ async function limpar(tenant_id: string) {
   ).map((l) => l.id);
 
   await prisma.cashMovement.deleteMany({
-    where: { tenant_id, OR: [{ establishment_id: { in: lojas } }, { manager_establishment_id: { in: lojas } }, { bank_account_id: { in: contas } }] },
+    // sale_id: o PIX de uma rodada sabotada pode ter caído numa conta de outra fixture, fora de `contas`.
+    where: {
+      tenant_id,
+      OR: [{ establishment_id: { in: lojas } }, { manager_establishment_id: { in: lojas } }, { bank_account_id: { in: contas } }, { sale_id: { in: vendas } }],
+    },
   });
   await prisma.cashCount.deleteMany({ where: { tenant_id, establishment_id: { in: lojas } } });
   await prisma.stockMovement.deleteMany({ where: { tenant_id, OR: [{ establishment_id: { in: lojas } }, { product_id: { in: produtos } }] } });

@@ -21,6 +21,7 @@ import { acharLojaParaEscrita } from "@/lib/actions/emporio-estoque";
 import { CATEGORIA_VENDAS } from "@/lib/actions/emporio-vendas";
 import { CATEGORIA_ACORDO } from "@/lib/emporio/acordo";
 import { contaPixDisponivelParaLoja } from "@/lib/emporio/conta-pix";
+import { cnpjValido, normalizarCnpj } from "@/lib/contatos/cadastro";
 import { dataBr } from "@/lib/emporio/datas";
 
 /**
@@ -364,7 +365,9 @@ export async function receberFiadoAction(
     if (!conta || conta.archived_at) {
       return fail(
         "VALIDATION_ERROR",
-        "Para receber PIX, cadastre uma conta bancária e defina a conta PIX da loja.",
+        input.bank_account_id
+          ? "Essa conta de PIX não está mais ativa. Escolha outra conta."
+          : "Para receber PIX, cadastre uma conta bancária e defina a conta PIX da loja.",
         422,
         input.bank_account_id ? "bank_account_id" : "kind",
       );
@@ -513,31 +516,14 @@ export type ContaView = {
   pix_available_establishment_ids: string[];
 };
 
-/** Q310: confere os dois dígitos verificadores do CNPJ (14 dígitos, não todos iguais). */
-function cnpjValido(d: string): boolean {
-  if (!/^\d{14}$/.test(d) || /^(\d)\1{13}$/.test(d)) return false;
-  const digito = (base: string) => {
-    let peso = base.length - 7;
-    let soma = 0;
-    for (const c of base) {
-      soma += Number(c) * peso;
-      peso = peso === 2 ? 9 : peso - 1;
-    }
-    const r = soma % 11;
-    return r < 2 ? 0 : 11 - r;
-  };
-  const d1 = digito(d.slice(0, 12));
-  const d2 = digito(d.slice(0, 12) + d1);
-  return d.endsWith(`${d1}${d2}`);
-}
-
 function validarCnpjDaConta(v: unknown): ActionResult<string | null> {
   if (v == null) return ok(null);
   if (typeof v !== "string") return fail("VALIDATION_ERROR", "Informe um CNPJ válido.", 422, "document");
   if (!v.trim()) return ok(null);
-  const digitos = v.replace(/[.\-/\s]/g, "");
-  if (!cnpjValido(digitos)) return fail("VALIDATION_ERROR", "O CNPJ não é válido: confira os 14 números.", 422, "document");
-  return ok(digitos);
+  // O mesmo validador do fornecedor e do contato: aceita o CNPJ alfanumérico da Receita.
+  const cnpj = normalizarCnpj(v);
+  if (!cnpjValido(cnpj)) return fail("VALIDATION_ERROR", "O CNPJ não é válido: confira os 14 caracteres.", 422, "document");
+  return ok(cnpj);
 }
 
 function validarFavorecido(v: unknown): ActionResult<string | null> {
@@ -789,7 +775,8 @@ export async function editarContaAction(
       lojasDepois = r.data;
       const ficam = new Set(lojasDepois.map((l) => l.id));
       const presa = await db.establishment.findFirst({
-        where: { pix_bank_account_id: id, id: { notIn: [...ficam] } },
+        // Loja arquivada não vende nem pode trocar a conta PIX: não segura a lista.
+        where: { pix_bank_account_id: id, archived_at: null, id: { notIn: [...ficam] } },
         select: { name: true },
       });
       if (presa) {

@@ -388,8 +388,11 @@ export function useVenda({
   function setLoja(nova: string) {
     setLojaEstado(nova);
     setOrc(null);
-    // A conta do PIX é da loja: trocar de loja volta à padrão da nova.
-    setPagamentos((lista) => lista.map((p) => (p.contaPixId ? { ...p, contaPixId: "", contaPixNome: "" } : p)));
+    // A conta do PIX é da loja: trocar de loja volta à padrão da nova. A que veio da venda em edição
+    // (tem nome) fica: o servidor mantém a loja da venda e aceita essa conta (Q315).
+    setPagamentos((lista) =>
+      lista.map((p) => (p.contaPixId && !p.contaPixNome ? { ...p, contaPixId: "", contaPixNome: "" } : p)),
+    );
     setItens((lista) =>
       lista.map((i) => (i.manual ? i : { ...i, preco: paraCampoDePreco(precoDaLoja(i.apresentacaoId, nova)) })),
     );
@@ -540,7 +543,10 @@ export function useVenda({
   function contaPixDe(p: LinhaPagamento): string {
     if (p.contaPixId) return p.contaPixId;
     if (!contasPix) return "";
-    return (contasPix.find((c) => c.is_store_default) ?? contasPix[0])?.id ?? "";
+    // Q314: só vem marcada a padrão da loja, ou a única liberada. Com várias e sem padrão, o caixa escolhe:
+    // marcar a primeira poria o PIX num CNPJ que ninguém escolheu.
+    const padrao = contasPix.find((c) => c.is_store_default) ?? (contasPix.length === 1 ? contasPix[0] : undefined);
+    return padrao?.id ?? "";
   }
 
   /** As opções do select: a lista da loja, mais a conta que a venda editada já tinha, se estiver fora dela. */
@@ -740,6 +746,8 @@ export function useVenda({
     const chequeSemTitular = pagamentos.some((p) => p.kind === "cheque" && !p.chequeTitular.trim());
     const boletoSemVencimento = pagamentos.some((p) => p.kind === "boleto" && !p.vencimento);
     const boletoAntesDoDia = pagamentos.some((p) => p.kind === "boleto" && p.vencimento && p.vencimento < diaDeHoje());
+    // Com a lista da loja carregada, a falta de conta do PIX é recusada aqui; sem ela, fica com o servidor.
+    const pixSemConta = contasPixCarregadas && pagamentos.some((p) => p.kind === "pix" && !contaPixDe(p));
     if (ilegivel) {
       novos.payments = "Cada pagamento precisa de um valor maior que zero.";
     } else if (semAdquirente) {
@@ -758,6 +766,9 @@ export function useVenda({
       novos.payments = "Informe o vencimento do boleto.";
     } else if (boletoAntesDoDia) {
       novos.payments = "O vencimento do boleto não pode ser antes de hoje.";
+    } else if (pixSemConta) {
+      novos.payments =
+        (contasPix?.length ?? 0) === 0 ? "Nenhuma conta PIX liberada para esta loja." : "Escolha a conta do PIX.";
     } else if (aPagarCent > 0 && pagamentos.length === 0) {
       novos.payments = "Escolha como o cliente vai pagar.";
     } else if (faltaCent > 0) {

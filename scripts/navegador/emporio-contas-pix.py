@@ -386,4 +386,24 @@ res = api("POST", "/api/v1/emporio/sales", {
 })
 confere("já uma venda NOVA com " + CONTA_A + " na loja A é recusada (422 em payments)", res["status"] == 422 and "payments" in recusa_de(res), recusa_de(res))
 
+# --- 9. Loja sem conta padrao (achado do juiz) ------------------------------------------------------------------------------------
+passo("9. Loja sem conta padrão e várias contas liberadas: nada vem marcado, o caixa escolhe")
+res = api("PUT", "/api/v1/emporio/establishments/" + LOJAS[LOJA_B] + "/pix-account", {"bank_account_id": None})
+confere("tira a conta PIX padrão da loja B", res["status"] == 200, recusa_de(res))
+ir("/emporio/vender")
+confere("o balcão abre para o dono", caminho() == "/emporio/vender" and tem("Fechar a venda"), texto_principal(200))
+if LOJA_B not in texto_do_campo("Loja"):
+    confere("escolhe " + LOJA_B, escolher("Loja", LOJA_B) is True)
+adicionar_racao()
+confere("escolhe Consumidor final", escolher_cliente("Consumidor final") is True)
+confere("adiciona o pagamento PIX", clicar("+ PIX"))
+time.sleep(1)
+confere("o valor em PIX é 20", preencher_aria("Valor em PIX (R$)", "20") != "SEM CAMPO")
+time.sleep(3)
+conta_b = texto_do_campo("Conta do PIX")
+confere("a Conta do PIX vem sem conta marcada (nenhuma é a padrão): mostra Escolha a conta", conta_b == "Escolha a conta", conta_b)
+confere("tenta fechar a venda", enviar_botao("Fechar a venda"))
+recusou = esperar(lambda: "Escolha a conta do PIX" in texto_do_main(), 15)
+confere("a tela pede para escolher a conta do PIX, e a venda não sai", bool(recusou) and not tem("Venda registrada"), texto_do_main()[-500:])
+
 fim()

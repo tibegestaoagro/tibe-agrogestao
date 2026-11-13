@@ -507,6 +507,29 @@ async function main() {
       const dispB = await Caixa.contaPixDisponivelParaLoja(B.db, cTodas, B.L1);
       check("contaPixDisponivelParaLoja: a conta do A nunca vale para o B", dispB === false);
     });
+
+    // -------------------------------------------------------------------- 11
+    await rodar("achados do juiz", async () => {
+      console.log("\n11. Achados do juiz: CNPJ alfanumérico, loja arquivada, conta escolhida inativa");
+      const alfa = await criar(B, { name: `M114 CNPJ Alfa ${stamp}`, document: "12.ABC.345/01DE-35" });
+      check("CNPJ alfanumérico da Receita: ok, grava sem pontuação (como o fornecedor)", alfa.ok === true && alfa.data?.document === "12ABC34501DE35", j(alfa));
+
+      const x = await criar(B, { name: `M114 Conta X ${stamp}` });
+      const xId = x.data?.id ?? "";
+      const def = await definir(B, B.L2, xId);
+      check("a conta X vira a padrão da loja 2 do B", def.ok === true, j(def));
+      const antesDeArquivar = await editar(B, xId, { pix_all_establishments: false, establishment_ids: [B.L1] });
+      check("controle: com a loja 2 ativa, tirar a loja 2 da lista é recusado", erroA(antesDeArquivar, 422, "establishment_ids"), j(antesDeArquivar));
+      await P.establishment.update({ where: { id: B.L2 }, data: { archived_at: new Date() } });
+      const depois = await editar(B, xId, { pix_all_establishments: false, establishment_ids: [B.L1] });
+      check("com a loja 2 arquivada, a padrão dela não segura a lista", depois.ok === true, j(depois));
+
+      const y = await criar(B, { name: `M114 Conta Y ${stamp}` });
+      await editar(B, y.data?.id ?? "", { archived: true });
+      const v = await vender(B, "L1", CB, 1, [pix(10, y.data?.id)]);
+      check("venda com a conta escolhida arquivada: 422 em payments", erro(v, 422, "payments"), `${v.status} ${j(v.corpo)}`);
+      check("e a mensagem fala da conta escolhida, não de cadastrar conta", String(v.corpo?.error?.message ?? "").includes("não está mais ativa"), j(v.corpo));
+    });
   } finally {
     for (const id of tenantIds.reverse()) {
       await P_limpar(id);

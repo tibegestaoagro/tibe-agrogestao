@@ -19,15 +19,15 @@ const TODAS = "todas";
 const ESCOLHIDAS = "escolhidas";
 const classeCaixa = "h-4 w-4 rounded border-borda text-primaria-tinta focus:ring-primaria";
 
-/** Máscara 00.000.000/0000-00 enquanto digita; o servidor limpa a pontuação. */
+/**
+ * Máscara 00.000.000/0000-00 enquanto digita, aceitando letras nos 12 primeiros (CNPJ alfanumérico da
+ * Receita, como o fornecedor aceita); o servidor limpa a pontuação e confere.
+ */
 function mascararCnpj(valor: string): string {
-  return valor
-    .replace(/\D/g, "")
-    .slice(0, 14)
-    .replace(/^(\d{2})(\d)/, "$1.$2")
-    .replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3")
-    .replace(/\.(\d{3})(\d)/, ".$1/$2")
-    .replace(/(\d{4})(\d)/, "$1-$2");
+  const c = valor.toUpperCase().replace(/[^0-9A-Z]/g, "").slice(0, 14);
+  const partes = [c.slice(0, 2), c.slice(2, 5), c.slice(5, 8), c.slice(8, 12), c.slice(12, 14)];
+  const separadores = [".", ".", "/", "-"];
+  return partes.reduce((s, p, i) => (p ? s + (i > 0 ? separadores[i - 1] : "") + p : s), "");
 }
 
 /**
@@ -63,7 +63,7 @@ export function ContaForm({ conta, lojas }: { conta?: ContaView; lojas: { id: st
   async function submit() {
     const novos: Partial<Record<Campo, string>> = {};
     if (!nome.trim()) novos.name = "Dê um identificador à conta.";
-    if (cnpj.trim() && cnpj.replace(/\D/g, "").length !== 14) novos.document = "O CNPJ tem 14 dígitos.";
+    if (cnpj.trim() && cnpj.replace(/[^0-9A-Z]/g, "").length !== 14) novos.document = "O CNPJ tem 14 caracteres.";
     if (vale === ESCOLHIDAS && lojasSel.length === 0) novos.establishment_ids = "Marque pelo menos uma loja.";
     if (Object.keys(novos).length > 0) {
       err.setGlobal(null);
@@ -145,7 +145,7 @@ export function ContaForm({ conta, lojas }: { conta?: ContaView; lojas: { id: st
           <Input
             id={id}
             {...aria}
-            inputMode="numeric"
+            autoCapitalize="characters"
             value={cnpj}
             onChange={(e) => {
               setCnpj(mascararCnpj(e.target.value));
