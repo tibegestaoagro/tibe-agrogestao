@@ -334,6 +334,7 @@ export default async function VendaPage({ params }: { params: Promise<{ id: stri
               <TableRow key={p.id}>
                 <TableCell>
                   {FORMA_ROTULO[p.kind] ?? p.kind}
+                  {p.kind === "pix" && p.bank_account_name ? ` (${p.bank_account_name})` : ""}
                   {p.installments && p.installments > 1 && (
                     <span className="block text-xs text-texto-secundario">em {p.installments}x</span>
                   )}

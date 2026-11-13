@@ -26,6 +26,7 @@ import {
   taxaDoPagamentoCent,
 } from "@/lib/emporio/cartao";
 import { somarDiasUteis } from "@/lib/emporio/dia-util";
+import { formatarDocumento } from "@/lib/contatos/cadastro";
 import { pctBr } from "./formato";
 import { FORMA_ROTULO } from "./venda-rotulos";
 import {
@@ -35,6 +36,7 @@ import {
   produtoCasaBusca,
   type CampoDaFranquia,
   type CampoDaVenda,
+  type ContaPixDaLoja,
   type EstadoDaVenda,
   type FormaDePagamento,
   type ProdutoVenda,
@@ -233,6 +235,71 @@ function EscolhaDoCartao({
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * O seletor da conta do PIX (Q314) e, embaixo, o favorecido e o CNPJ da escolhida. Quem chama põe o
+ * rótulo e o `id`: no balcão é um rótulo pequeno, no fiado é o `Field` da `bank_account_id`. Com uma
+ * conta só o seletor fica travado mostrando o nome; sem nenhuma, avisa e o servidor recusa o envio.
+ */
+export function ContaPixSelect({
+  contas,
+  carregadas,
+  valor,
+  aoMudar,
+  id,
+  aria,
+}: {
+  contas: ContaPixDaLoja[];
+  carregadas: boolean;
+  valor: string;
+  aoMudar: (id: string) => void;
+  id?: string;
+  aria?: Record<string, unknown>;
+}) {
+  if (!carregadas) return null;
+  if (contas.length === 0) {
+    return (
+      <p
+        id={id}
+        tabIndex={-1}
+        {...aria}
+        className="rounded-md bg-atencao-suave px-3 py-2 text-xs text-atencao-tinta"
+      >
+        Nenhuma conta PIX liberada para esta loja.
+      </p>
+    );
+  }
+  const escolhida = contas.find((c) => c.id === valor) ?? null;
+  const doc = escolhida?.document ? formatarDocumento(escolhida.document) : "";
+  return (
+    <div className="space-y-1">
+      <Select
+        value={valor}
+        disabled={contas.length === 1}
+        onValueChange={(novo) => {
+          // O Radix dispara "" quando o valor some da lista: nunca é escolha de ninguém.
+          if (novo !== "") aoMudar(novo);
+        }}
+      >
+        <SelectTrigger id={id} {...aria}>
+          <SelectValue placeholder="Escolha a conta" />
+        </SelectTrigger>
+        <SelectContent>
+          {contas.map((c) => (
+            <SelectItem key={c.id} value={c.id}>
+              {c.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {escolhida && (escolhida.beneficiary || doc) && (
+        <p className="text-xs text-texto-secundario">
+          {[escolhida.beneficiary, doc ? `CNPJ ${doc}` : ""].filter(Boolean).join(", ")}
+        </p>
+      )}
     </div>
   );
 }
@@ -701,6 +768,23 @@ export function VendaCampos({
                           ))}
                         </SelectContent>
                       </Select>
+                    </div>
+                  )}
+                  {p.kind === "pix" && (
+                    <div className="space-y-1">
+                      <label htmlFor={`conta-pix-${p.key}`} className="text-xs text-texto-secundario">
+                        Conta do PIX
+                      </label>
+                      <ContaPixSelect
+                        id={`conta-pix-${p.key}`}
+                        contas={v.opcoesDeContaPix(p)}
+                        carregadas={v.contasPixCarregadas}
+                        valor={v.contaPixDe(p)}
+                        aoMudar={(conta) => {
+                          v.atualizarPagamento(p.key, { contaPixId: conta, contaPixNome: "" });
+                          limpar("payments");
+                        }}
+                      />
                     </div>
                   )}
                   {ehCartao(p.kind) && (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { MoneyInput } from "@/components/ui/money-input";
@@ -15,14 +15,15 @@ import {
 } from "@/components/ui/select";
 import { useErrosDeFormulario } from "@/components/ui/use-erros-de-formulario";
 import { useAviso } from "@/components/ui/toast";
-import { apiPost } from "@/lib/client-api";
+import { apiGet, apiPost } from "@/lib/client-api";
 import { lerNumeroBr, reaisBr } from "@/lib/numero-br";
-import { centavosParaCampo } from "./venda-estado";
+import { centavosParaCampo, type ContaPixDaLoja } from "./venda-estado";
+import { ContaPixSelect } from "./venda-campos";
 import { CaixaDaOperacao } from "./caixa-da-operacao";
 import { abertosDaLoja, caixaInicial, type CaixaDaLoja } from "./caixas-da-loja";
 
 // Ordem visual, de cima para baixo.
-const ORDEM = ["customer_id", "amount", "kind", "establishment_id", "cash_register_id"] as const;
+const ORDEM = ["customer_id", "amount", "kind", "establishment_id", "bank_account_id", "cash_register_id"] as const;
 type Campo = (typeof ORDEM)[number];
 
 /**
@@ -59,6 +60,25 @@ export function ReceberFiadoForm({
   const [forma, setForma] = useState(soPix ? "pix" : "dinheiro");
   const [loja, setLoja] = useState(lojas.length === 1 ? lojas[0].id : "");
   const [caixa, setCaixa] = useState("");
+  // A conta do PIX (Q316): lida da loja escolhida quando a forma é PIX; vazio vale a padrão.
+  const [contaEscolhida, setContaEscolhida] = useState("");
+  const [lidas, setLidas] = useState<{ lojaId: string; lista: ContaPixDaLoja[] } | null>(null);
+  useEffect(() => {
+    if (!open || forma !== "pix" || !loja) return;
+    let vivo = true;
+    void apiGet<ContaPixDaLoja[]>(`/api/v1/emporio/establishments/${encodeURIComponent(loja)}/pix-accounts`).then((res) => {
+      if (vivo && res.ok) setLidas({ lojaId: loja, lista: res.data });
+    });
+    return () => {
+      vivo = false;
+    };
+  }, [open, forma, loja]);
+  const contas = lidas && lidas.lojaId === loja ? lidas.lista : null;
+  const contaDoPix = contas
+    ? contas.some((c) => c.id === contaEscolhida)
+      ? contaEscolhida
+      : ((contas.find((c) => c.is_store_default) ?? contas[0])?.id ?? "")
+    : "";
   // Só o dinheiro entra na gaveta; PIX nunca vê o campo do caixa.
   const abertos = abertosDaLoja(caixas, loja);
   const caixaEscolhido = abertos.some((c) => c.id === caixa) ? caixa : caixaInicial(abertos, usuarioId);
@@ -78,7 +98,8 @@ export function ReceberFiadoForm({
     }
 
     err.limparTudo();
-    const assinatura = JSON.stringify([contatoId, n, forma, loja]);
+    const contaDaApi = forma === "pix" && contaDoPix ? contaDoPix : null;
+    const assinatura = JSON.stringify([contatoId, n, forma, loja, contaDaApi]);
     if (chave.current?.assinatura !== assinatura) chave.current = { assinatura, key: crypto.randomUUID() };
     setLoading(true);
     const res = await apiPost("/api/v1/emporio/receivables/receive", {
@@ -87,6 +108,7 @@ export function ReceberFiadoForm({
       establishment_id: loja,
       amount: n,
       kind: forma,
+      ...(contaDaApi ? { bank_account_id: contaDaApi } : {}),
       cash_register_id: forma === "dinheiro" && caixaEscolhido ? caixaEscolhido : null,
     });
     setLoading(false);
@@ -167,7 +189,9 @@ export function ReceberFiadoForm({
             value={loja}
             onValueChange={(v) => {
               setLoja(v);
+              setContaEscolhida("");
               err.limparCampo("establishment_id");
+              err.limparCampo("bank_account_id");
             }}
           >
             <SelectTrigger id={id} {...aria}>
@@ -183,6 +207,24 @@ export function ReceberFiadoForm({
           </Select>
         )}
       </Field>
+
+      {forma === "pix" && loja !== "" && contas !== null && (
+        <Field label="Conta do PIX" id={err.idDe("bank_account_id")} error={err.erros.bank_account_id}>
+          {({ id, ...aria }) => (
+            <ContaPixSelect
+              id={id}
+              aria={aria}
+              contas={contas}
+              carregadas
+              valor={contaDoPix}
+              aoMudar={(c) => {
+                setContaEscolhida(c);
+                err.limparCampo("bank_account_id");
+              }}
+            />
+          )}
+        </Field>
+      )}
 
       {mostrarCaixa && (
         <Field
