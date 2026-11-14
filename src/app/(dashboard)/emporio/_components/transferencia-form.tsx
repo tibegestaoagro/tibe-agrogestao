@@ -93,6 +93,7 @@ export function TransferenciaForm({
 
     const itensApi: {
       emporio_product_id: string;
+      base_unit: string;
       presentation_id?: string;
       packages?: number;
       quantity?: number;
@@ -111,13 +112,18 @@ export function TransferenciaForm({
           novos.items = "Embalagem lacrada se conta em número inteiro.";
           break;
         }
-        itensApi.push({ emporio_product_id: prod.id, presentation_id: apresentacao, packages: q });
+        itensApi.push({
+          emporio_product_id: prod.id,
+          base_unit: prod.base_unit,
+          presentation_id: apresentacao,
+          packages: q,
+        });
       } else {
         if (prod.base_unit === "unidade" && !Number.isInteger(q)) {
           novos.items = "Produto vendido por unidade só aceita quantidade inteira.";
           break;
         }
-        itensApi.push({ emporio_product_id: prod.id, quantity: q });
+        itensApi.push({ emporio_product_id: prod.id, base_unit: prod.base_unit, quantity: q });
       }
     }
 

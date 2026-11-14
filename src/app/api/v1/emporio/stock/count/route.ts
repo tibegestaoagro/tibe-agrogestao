@@ -21,6 +21,7 @@ const schema = z.object({
     .optional(),
   loose_qty: z.number({ error: "Informe a quantidade avulsa." }),
   reason: z.string({ error: "Informe o motivo da contagem." }).trim().min(1, "Informe o motivo da contagem."),
+  base_unit: z.string().optional(),
 });
 
 async function POSTHandler(request: Request) {

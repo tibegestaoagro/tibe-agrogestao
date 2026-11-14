@@ -27,6 +27,7 @@ import { DadosComerciaisForm } from "../../_components/dados-comerciais-form";
 import { ApresentacaoForm } from "../../_components/apresentacao-form";
 import { PrecoForm, AplicarSugeridoBotao } from "../../_components/preco-form";
 import { ImplantarForm, ContagemForm, PerdaForm, LimitesForm } from "../../_components/estoque-forms";
+import { ConverterUnidadeForm } from "../../_components/converter-unidade-form";
 import { ComposicaoForm } from "../../_components/composicao-form";
 import { ProduzirForm, CancelarProducaoForm } from "../../_components/producao-forms";
 import {
@@ -70,6 +71,21 @@ export default async function ProdutoEmporioPage({ params }: { params: Promise<{
   // Estoque por loja: as actions somam as movimentações (o saldo não é gravado).
   const estoqueRes = await saldoDoProdutoAction(db, user, id);
   const lojasEstoque = estoqueRes.ok ? estoqueRes.data.stores : [];
+  // Q323: um campo por TAMANHO, montado das apresentações fechadas ATIVAS (não do saldo: tamanho
+  // sem movimento também precisa aparecer). O id é o da mais antiga do tamanho, a mesma regra do servidor.
+  const fechadasAtivas = await db.productPresentation.findMany({
+    where: { emporio_product_id: p.id, archived_at: null, is_sealed_package: true },
+    select: { id: true, name: true, base_qty: true },
+    orderBy: [{ created_at: "asc" }, { id: "asc" }],
+  });
+  const porTamanho = new Map<number, { id: string; nomes: string[] }>();
+  for (const a of fechadasAtivas) {
+    const tam = Number(a.base_qty);
+    const g = porTamanho.get(tam);
+    if (g) g.nomes.push(a.name);
+    else porTamanho.set(tam, { id: a.id, nomes: [a.name] });
+  }
+  const tamanhosFechados = [...porTamanho.values()].map((g) => ({ id: g.id, name: g.nomes.join(" / ") }));
   const implantacoes = await db.stockMovement.findMany({
     where: { product_id: p.product_id, movement_type: "implantacao", canceled_at: null },
     select: { establishment_id: true },
@@ -80,8 +96,14 @@ export default async function ProdutoEmporioPage({ params }: { params: Promise<{
     id: p.id,
     base_unit: p.base_unit,
     separa: p.track_sealed_efetivo,
-    fechadas: ativas.filter((a) => a.is_sealed_package).map((a) => ({ id: a.id, name: a.name })),
+    // Q323: um campo por TAMANHO. O id é o da fechada ativa mais antiga do tamanho, o mesmo que o servidor devolve.
+    fechadas: tamanhosFechados,
   };
+  const podeConverter =
+    podeEscrever &&
+    !p.archived_at &&
+    (p.base_unit === "saca" || p.base_unit === "fardo") &&
+    conteudo !== null;
 
   // Composição (F2b): a receita, os candidatos a componente e as produções do produto.
   const composicaoRes = await lerComposicaoAction(db, user, id);
@@ -133,6 +155,9 @@ export default async function ProdutoEmporioPage({ params }: { params: Promise<{
         {podeEscrever && (
           <div className="flex flex-wrap gap-2">
             <NomeProdutoForm produtoId={p.id} nome={p.name} />
+            {podeConverter && conteudo && (
+              <ConverterUnidadeForm produtoId={p.id} baseUnit={p.base_unit} conteudoUnit={conteudo.unit} />
+            )}
             <ArquivarBotao
               url={`/api/v1/emporio/products/${p.id}/archive`}
               arquivado={!!p.archived_at}

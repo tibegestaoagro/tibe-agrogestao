@@ -25,9 +25,9 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-13. Contas PIX escolhidas no lançamento em produção
-  (migrações no Neon antes do push, merge `bd7fd3f`, autorizados na conversa).
-  Nenhuma branch aberta. Os agentes `explorador`,
+- Atualizado em: 2026-11-13. Branch aberta `emporio-granel-e-atacado`, pronta
+  e NÃO publicada (sem migração; falta autorizar merge e push). Contas PIX em
+  produção (merge `bd7fd3f`). Os agentes `explorador`,
   `prova-juiz`, `prova-viva` e `servidor-dados` carregam (descrição entre
   aspas). Outros agentes: leia `AGENTS.md`.
 - `main` igual a `origin/main`, Neon em dia. Em produção também: conta avulsa e
@@ -39,20 +39,20 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   Q292), orçamento (Q285 a Q290), boleto e cheque (Q278 a Q284; aberta 2.69),
   acordo, aviso e recálculo (Q275 a Q277; aberta 2.66).
 
-### Contas PIX escolhidas no lançamento (Q310 a Q318): em produção
+### Granel em qualquer peso e atacado na mesma saca (Q319 a Q324): na branch
 
-Branch `emporio-contas-pix`, `c009fe6` a `31495e2`. Spec
-[../superpowers/specs/2026-11-13-emporio-contas-pix-design.md](../superpowers/specs/2026-11-13-emporio-contas-pix-design.md).
-A conta ganha CNPJ (aceita o alfanumérico), favorecido e "Disponível para PIX
-em" (todas as lojas, lojas escolhidas ou não recebe PIX). O caixa escolhe a
-conta ao lançar PIX no balcão, na edição e no fiado. O servidor confere por loja.
-Impressos sem mudança. "PIX por conta" no relatório de vendas. Duas migrações
-aditivas, no Docker e no Neon: `20261113120000_emporio_contas_pix` e
-`20261113150000_emporio_conta_sem_pix`. A segunda marca "não recebe PIX" toda
-conta que não é padrão de loja e nunca recebeu PIX. Na Da Mata (conferido
-depois da migração), só a `CAIXA DAMATTA - PIX - 1076-6` ficou no PIX, e ela é
-a padrão das duas lojas. Validação: m114 e roteiro `emporio-contas-pix` (132 ok) verdes e
-reprovando sabotados; juiz 7/10, os seis achados corrigidos; `test:all` 117/117.
+Branch `emporio-granel-e-atacado`, `ef7f356` a `31ad5ed`. Spec
+[../superpowers/specs/2026-11-13-emporio-granel-e-atacado-design.md](../superpowers/specs/2026-11-13-emporio-granel-e-atacado-design.md).
+"Converter para quilo" por produto, com prévia; fechadas do mesmo tamanho
+dividem o estoque (ATACADO e Saca 40 kg); `UNIT_CHANGED` se a conversão cai no
+meio. Sem migração. m115, roteiro `emporio-granel` (125 ok), juiz 5/10 com os
+achados corrigidos, `test:all` 118/118. Central do Milho: GRANEL da Magnus 15
+kg está em 0,068 saca (1,02 kg); a prévia marca "confira".
+
+### Contas PIX (Q310 a Q318): em produção desde 13/11 (merge `bd7fd3f`)
+
+Spec `docs/superpowers/specs/2026-11-13-emporio-contas-pix-design.md`. Na Da
+Mata só a `CAIXA DAMATTA - PIX - 1076-6` ficou no PIX; as outras 10, não.
 
 ### Em produção desde 11/11: franqueado (Q300 a Q309) e custo único (Q298, Q299)
 
@@ -72,7 +72,9 @@ Agromax, a entrega 4 (extrato da Stone) depende de um arquivo real.
 
 ### ⏭️ Próximo passo
 
-0. Contas PIX: a Agromax cadastra as contas PIX das lojas e do site (CNPJ,
+0. Granel: o usuário autoriza merge e push; depois, manual com GIFs das
+   atualizações de 11/11 a 13/11 (pedido do usuário).
+   Contas PIX: a Agromax cadastra as contas PIX das lojas e do site (CNPJ,
    favorecido, onde vale) e define a padrão de cada loja.
    Franqueado: o usuário responde as três decisões abertas (Caixa, devolução,
    taxa do cartão) e a Agromax testa. A Agromax testa o custo único (contar,

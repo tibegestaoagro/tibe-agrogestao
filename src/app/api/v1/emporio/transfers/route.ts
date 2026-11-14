@@ -15,6 +15,7 @@ const itemSchema = z.object({
   presentation_id: z.string().nullish(),
   packages: z.number({ error: "Informe as embalagens." }).nullish(),
   quantity: z.number({ error: "Informe a quantidade." }).nullish(),
+  base_unit: z.string().optional(),
 });
 
 const criarSchema = z.object({

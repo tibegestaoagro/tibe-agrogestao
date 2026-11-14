@@ -451,6 +451,23 @@ export const GROUPS: Group[] = [
 { "data": { "id": "cl...", "archived_at": "2026-10-27T12:00:00.000Z" }, "meta": {} }`,
       },
       {
+        method: "GET",
+        path: "/api/v1/emporio/products/:id/convert-unit",
+        auth: "Sessão · emporio:read · OWNER, ADMIN e OPERADOR (a mesma permissão de cadastrar produto)",
+        description: "A prévia de \"Converter para quilo\" (Q320, Q321) de um produto que conta o estoque em saca ou fardo, com o conteúdo informado (`content_qty` e `content_unit`). Mostra, por loja com movimento, o saldo e o custo médio antes e depois (`balance_before`/`balance_after`, `average_cost_before`/`average_cost_after`), o `reference_cost` antes e depois e cada apresentação (`base_qty_before`/`base_qty_after`). `check: true` marca a apresentação avulsa cujo valor novo não é múltiplo de 50 g (50 ml; inteiro em unidade). Produto que não é saca nem fardo, ou sem conteúdo: 422.",
+        response: `200
+{ "data": { "product_id": "cl...", "name": "Milho 15 kg", "from_unit": "saca", "to_unit": "quilograma", "content_qty": 15, "stores": [{ "establishment_id": "cl...", "name": "Loja Centro", "balance_before": 12, "balance_after": 180, "average_cost_before": 90, "average_cost_after": 6 }], "reference_cost_before": 90, "reference_cost_after": 6, "presentations": [{ "id": "cl...", "name": "Saca 15 kg", "sealed": true, "archived": false, "base_qty_before": 1, "base_qty_after": 15, "check": false }] }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/products/:id/convert-unit",
+        auth: "Sessão · emporio:write · OWNER, ADMIN e OPERADOR",
+        description: "Converte o produto para a unidade do conteúdo (Q320), numa transação só e para todas as lojas: multiplica pelo conteúdo as quantidades na unidade-base (apresentações, movimentações, itens de compra, venda, devolução e transferência, limites, composição, produção) e divide os custos por unidade-base. O saldo continua sendo a soma das movimentações. `content_qty` é o conteúdo que a prévia mostrou; se mudou, 422 no campo `content_qty` e nada é gravado. Produto já convertido: 422 em `base_unit`. Devolve `content_qty`, `from_unit`, `to_unit` e o produto no formato de `GET /api/v1/emporio/products/:id`. Desde 13/11/2026.",
+        request: `{ "content_qty": 15 }`,
+        response: `200
+{ "data": { "content_qty": 15, "from_unit": "saca", "to_unit": "quilograma", "product": { "id": "cl...", "base_unit": "quilograma", "content_qty": null, "presentations": [] } }, "meta": {} }`,
+      },
+      {
         method: "POST",
         path: "/api/v1/emporio/products/:id/presentations",
         auth: "Sessão · emporio:write · OWNER, ADMIN e OPERADOR",
@@ -490,7 +507,7 @@ export const GROUPS: Group[] = [
         method: "GET",
         path: "/api/v1/emporio/stock",
         auth: "Sessão · emporio:read · perfil emporio · recurso `emporio` liberado",
-        description: "Saldo da loja por produto (`?establishment_id=` obrigatório; sem ele, 422 no campo). Cada linha: total, avulso, lacrado por apresentação em embalagens, custo médio ponderado móvel, `estimated` quando alguma entrada não teve custo, limites, `needs_restock` e `suggested_qty`. Por unidade-base: `stock_balance` (o mesmo `total_qty`), `average_cost` (nulo com saldo zero ou negativo) e `suggested_cost`, o custo único do produto na loja (Q297, Q299), com `suggested_cost_source` (`medio`, `ultima_compra` ou `referencia`). Saldo é sempre a soma das movimentações. Loja fora do vínculo do usuário: 404.",
+        description: "Saldo da loja por produto (`?establishment_id=` obrigatório; sem ele, 422 no campo). Cada linha: total, avulso, lacrado por apresentação em embalagens, custo médio ponderado móvel, `estimated` quando alguma entrada não teve custo, limites, `needs_restock` e `suggested_qty`. Por unidade-base: `stock_balance` (o mesmo `total_qty`), `average_cost` (nulo com saldo zero ou negativo) e `suggested_cost`, o custo único do produto na loja (Q297, Q299), com `suggested_cost_source` (`medio`, `ultima_compra` ou `referencia`). Saldo é sempre a soma das movimentações. Desde 13/11/2026, `sealed` traz uma linha por TAMANHO de embalagem fechada (Q323): `presentation_id` é o da fechada ativa mais antiga do tamanho, `name` junta os nomes com ' / ' (\"Saca 40 kg / ATACADO\") e `presentation_ids` lista todas. Loja fora do vínculo do usuário: 404.",
         response: `200
 { "data": [{ "establishment_id": "cl...", "emporio_product_id": "cl...", "product_name": "Ração Pet", "base_unit": "quilograma", "total_qty": 25, "loose_qty": 5, "sealed": [{ "presentation_id": "cl...", "name": "Saca 10 kg", "packages": 2, "base_qty": 10 }], "average_cost": 19.36, "suggested_cost": 19.36, "suggested_cost_source": "medio", "estimated": false, "min_qty": 10, "max_qty": 50, "needs_restock": false, "suggested_qty": 25 }], "meta": {} }`,
       },
@@ -514,8 +531,8 @@ export const GROUPS: Group[] = [
         method: "POST",
         path: "/api/v1/emporio/stock/implantation",
         auth: "Sessão · emporio:write · OWNER, ADMIN e OPERADOR",
-        description: "Estoque inicial, uma vez por produto e loja (segunda vez: 409 `ALREADY_IMPLANTED`; depois, só contagem). `sealed` em embalagens por apresentação fechada (produto sem separação lacrado/avulso: 422 `sealed`), `loose_qty` na unidade-base, `unit_cost` opcional (sem ele, o saldo fica `estimated`).",
-        request: `{ "establishment_id": "cl...", "emporio_product_id": "cl...", "sealed": [{ "presentation_id": "cl...", "packages": 3 }], "loose_qty": 2.5, "unit_cost": 9.5 }`,
+        description: "Estoque inicial, uma vez por produto e loja (segunda vez: 409 `ALREADY_IMPLANTED`; depois, só contagem). `sealed` em embalagens por apresentação fechada (produto sem separação lacrado/avulso: 422 `sealed`), `loose_qty` na unidade-base, `unit_cost` opcional (sem ele, o saldo fica `estimated`). Desde 13/11/2026, `base_unit` opcional: a unidade em que a tela montou as quantidades; se a unidade do produto mudou (conversão), 409 `UNIT_CHANGED` sem gravar nada.",
+        request: `{ "establishment_id": "cl...", "emporio_product_id": "cl...", "sealed": [{ "presentation_id": "cl...", "packages": 3 }], "loose_qty": 2.5, "unit_cost": 9.5, "base_unit": "quilograma" }`,
         response: `201
 { "data": { "total_qty": 32.5, "loose_qty": 2.5, "estimated": false }, "meta": {} }`,
       },
@@ -523,7 +540,7 @@ export const GROUPS: Group[] = [
         method: "POST",
         path: "/api/v1/emporio/stock/count",
         auth: "Sessão · emporio:write · OWNER, ADMIN e OPERADOR",
-        description: "Contagem física: informa o que existe (lacrado por apresentação e avulso) e o motivo (obrigatório, 422 `reason`). Grava um ajuste por estado que mudou, com o saldo anterior e o corrigido. Nunca é compra nem venda.",
+        description: "Contagem física: informa o que existe (lacrado por apresentação e avulso) e o motivo (obrigatório, 422 `reason`). Grava um ajuste por estado que mudou, com o saldo anterior e o corrigido. Nunca é compra nem venda. Desde 13/11/2026, `base_unit` opcional: se a unidade do produto mudou, 409 `UNIT_CHANGED`.",
         request: `{ "establishment_id": "cl...", "emporio_product_id": "cl...", "sealed": [{ "presentation_id": "cl...", "packages": 2 }], "loose_qty": 1, "reason": "Contagem de sexta" }`,
         response: `201
 { "data": { "total_qty": 21, "loose_qty": 1 }, "meta": {} }`,
@@ -532,7 +549,7 @@ export const GROUPS: Group[] = [
         method: "POST",
         path: "/api/v1/emporio/stock/loss",
         auth: "Sessão · emporio:write · OWNER, ADMIN e OPERADOR",
-        description: "Perda ou avaria. `reason`: `vencido`, `avaria`, `furto`, `consumo_proprio` ou `outro`. Lacrado: `presentation_id` e `quantity` em embalagens; avulso: `quantity` na unidade-base. Sai pelo custo médio do momento. Acima do saldo: 409 `INSUFFICIENT_STOCK` em `quantity`, salvo loja com estoque negativo liberado.",
+        description: "Perda ou avaria. `reason`: `vencido`, `avaria`, `furto`, `consumo_proprio` ou `outro`. Lacrado: `presentation_id` e `quantity` em embalagens; avulso: `quantity` na unidade-base. Sai pelo custo médio do momento. Acima do saldo: 409 `INSUFFICIENT_STOCK` em `quantity`, salvo loja com estoque negativo liberado. Desde 13/11/2026, `base_unit` opcional: se a unidade do produto mudou, 409 `UNIT_CHANGED`.",
         request: `{ "establishment_id": "cl...", "emporio_product_id": "cl...", "package_state": "avulso", "quantity": 2, "reason": "avaria", "notes": "Saco rasgado" }`,
         response: `201
 { "data": { "total_qty": 19 }, "meta": {} }`,
@@ -933,7 +950,7 @@ export const GROUPS: Group[] = [
         method: "POST",
         path: "/api/v1/emporio/production",
         auth: "Sessão · emporio:write · OWNER, ADMIN e OPERADOR",
-        description: "Registra o produto feito na loja. `operation_key` é obrigatória e única na conta: repetir a chave devolve a produção gravada com 200 (primeira vez: 201). Baixa cada componente: `quantity × produced_qty ÷ reference_qty ÷ (yield_pct/100)`, em 3 casas (composição 65/29/6 para 100 kg, produzir 400 kg: baixa 260, 116 e 24). Numa transação grava um `producao_consumo` por componente, pelo custo médio dele na loja, e um `producao_entrada` do produto, com `unit_cost` = custo consumido ÷ `produced_qty`. `sealed` (só em produto que separa lacrado de avulso) entra lacrado e o resto avulso; lacrado acima do produzido: 422 `sealed`. Sem composição: 422 `COMPOSITION_REQUIRED`. Fracionado em `unidade`: 422 `produced_qty`. Componente sem saldo na loja (o avulso, se ele separa lacrado): 409 `INSUFFICIENT_STOCK` em `components`, dizendo qual falta, salvo estoque negativo liberado. Loja fora do vínculo: 404.",
+        description: "Registra o produto feito na loja. `operation_key` é obrigatória e única na conta: repetir a chave devolve a produção gravada com 200 (primeira vez: 201). Baixa cada componente: `quantity × produced_qty ÷ reference_qty ÷ (yield_pct/100)`, em 3 casas (composição 65/29/6 para 100 kg, produzir 400 kg: baixa 260, 116 e 24). Numa transação grava um `producao_consumo` por componente, pelo custo médio dele na loja, e um `producao_entrada` do produto, com `unit_cost` = custo consumido ÷ `produced_qty`. `sealed` (só em produto que separa lacrado de avulso) entra lacrado e o resto avulso; lacrado acima do produzido: 422 `sealed`. Sem composição: 422 `COMPOSITION_REQUIRED`. Fracionado em `unidade`: 422 `produced_qty`. Componente sem saldo na loja (o avulso, se ele separa lacrado): 409 `INSUFFICIENT_STOCK` em `components`, dizendo qual falta, salvo estoque negativo liberado. Loja fora do vínculo: 404. Desde 13/11/2026, `base_unit` opcional (a unidade do produto produzido): se a unidade dele ou de um componente mudou, 409 `UNIT_CHANGED`.",
         request: `{ "operation_key": "k-123", "establishment_id": "cl...", "emporio_product_id": "cl...", "produced_qty": 400, "sealed": [{ "presentation_id": "cl...", "packages": 10 }] }`,
         response: `201
 { "data": { "id": "cl...", "produced_qty": 400, "unit_cost": 1.29, "estimated": false, "sealed": [{ "presentation_id": "cl...", "name": "Saco 25 kg", "packages": 10 }], "status": "ativa" }, "meta": {} }`,
@@ -959,7 +976,7 @@ export const GROUPS: Group[] = [
         method: "POST",
         path: "/api/v1/emporio/transfers",
         auth: "Sessão · emporio:write · Gestor da origem, Gerente geral ou Dono (senão 403 `FORBIDDEN`; origem fora do alcance: 404)",
-        description: "Envia a transferência. `operation_key` é obrigatória e única na conta: repetir a chave devolve a gravada com 200 (primeira vez: 201). Item lacrado leva `presentation_id` e `packages`; avulso leva `quantity` na unidade-base; produto sem separação leva só `quantity`. Grava uma saída por item na origem pelo custo médio dela, e o saldo da origem cai na hora. Origem igual ao destino: 422 `destination_establishment_id`. Saldo insuficiente na origem (por estado), salvo estoque negativo liberado: 409 `INSUFFICIENT_STOCK` em `items`. Nunca gera lançamento financeiro.",
+        description: "Envia a transferência. `operation_key` é obrigatória e única na conta: repetir a chave devolve a gravada com 200 (primeira vez: 201). Item lacrado leva `presentation_id` e `packages`; avulso leva `quantity` na unidade-base; produto sem separação leva só `quantity`. Grava uma saída por item na origem pelo custo médio dela, e o saldo da origem cai na hora. Origem igual ao destino: 422 `destination_establishment_id`. Saldo insuficiente na origem (por estado), salvo estoque negativo liberado: 409 `INSUFFICIENT_STOCK` em `items`. Nunca gera lançamento financeiro. Desde 13/11/2026, cada item aceita `base_unit` opcional (a unidade em que a tela montou aquele produto): se a unidade do produto mudou, 409 `UNIT_CHANGED` sem gravar nada.",
         request: `{ "operation_key": "k-123", "origin_establishment_id": "cl...", "destination_establishment_id": "cl...", "items": [{ "emporio_product_id": "cl...", "presentation_id": "cl...", "packages": 5 }, { "emporio_product_id": "cl...", "quantity": 3 }] }`,
         response: `201
 { "data": { "id": "cl...", "status": "em_transito", "items": [{ "sent_qty": 50, "unit_cost": 5.5 }] }, "meta": {} }`,

@@ -71,7 +71,10 @@ import {
   acharLojaParaEscrita,
   chaveDoEstado,
   lerMovimentos,
+  recusaSeUnidadeMudou,
   saldosPorEstado,
+  tamanhosDe,
+  tamanhosFechados,
 } from "@/lib/actions/emporio-estoque";
 
 /**
@@ -1378,6 +1381,13 @@ type CustoDoItem = { unit_cost: number | null; cost_estimated: boolean; cost_pro
  */
 async function planejarBaixa(tx: Tx, p: Preparada): Promise<{ movs: MovimentoPlanejado[]; custos: CustoDoItem[] }> {
   const lojaId = p.loja.id;
+  // A quantidade de cada item (`base_qty`) foi montada na unidade lida no preparo: se a conversão
+  // comitou no meio, ou o retry do serializável roda depois dela, aborta sem gravar nada.
+  const mudou = await recusaSeUnidadeMudou(
+    tx,
+    p.itens.map((i) => ({ id: i.produto.id, nome: i.produto.product.name, base_unit: i.produto.base_unit })),
+  );
+  if (mudou) throw new AbortarVenda(mudou);
   const porProduto = new Map<string, Movs>();
   for (const pid of new Set(p.itens.map((i) => i.produto.product_id))) {
     porProduto.set(pid, await lerMovimentos(tx, [lojaId], [pid]));
@@ -1395,6 +1405,7 @@ async function planejarBaixa(tx: Tx, p: Preparada): Promise<{ movs: MovimentoPla
     const resumo = custoMedio(movs);
     const custo = resumo.custo_medio === null ? null : arred4(resumo.custo_medio);
     const separa = lacradoEfetivo(produto);
+    const tamanhos = tamanhosDe(produto);
 
     const emitir = (
       tipo: MovimentoPlanejado["movement_type"],
@@ -1439,7 +1450,8 @@ async function planejarBaixa(tx: Tx, p: Preparada): Promise<{ movs: MovimentoPla
       }
       emitir("venda", it.base_qty, null, null);
     } else if (it.apresentacao.is_sealed_package) {
-      const lacrado = saldosPorEstado(movs).get(chaveDoEstado(it.apresentacao.id)) ?? 0;
+      // Q323: confere o saldo do TAMANHO da apresentação (Saca 40 kg e ATACADO dividem a mesma pilha).
+      const lacrado = saldosPorEstado(movs, tamanhos).get(chaveDoEstado(it.apresentacao.id, tamanhos)) ?? 0;
       if (it.base_qty > lacrado) {
         throw faltou(
           `Não há "${nome}" fechado suficiente em ${it.apresentacao.name}: há ${descreverQuantidade(lacrado, produto.base_unit)} lacrados e a venda pede ${descreverQuantidade(it.base_qty, produto.base_unit)}.`,
@@ -1447,18 +1459,14 @@ async function planejarBaixa(tx: Tx, p: Preparada): Promise<{ movs: MovimentoPla
       }
       emitir("venda", it.base_qty, "lacrado", it.apresentacao.id);
     } else {
-      let avulso = saldosPorEstado(movs).get("avulso|-") ?? 0;
+      let avulso = saldosPorEstado(movs, tamanhos).get("avulso|-") ?? 0;
       if (avulso < it.base_qty) {
         // Q84: abre a menor embalagem com saldo, uma a uma, passando à maior.
-        const fechadas = produto.presentations
-          .filter((x) => x.is_sealed_package)
-          .map((x) => ({ ap: x, base: decToNum(x.base_qty) ?? 0 }))
-          .filter((x) => x.base > 0)
-          .sort((a, b) => a.base - b.base);
-        for (const f of fechadas) {
-          let disponivel = Math.floor(arred3((saldosPorEstado(movs).get(chaveDoEstado(f.ap.id)) ?? 0) / f.base));
+        // Q323: um tamanho, uma vez só (duas apresentações do mesmo tamanho dividem o mesmo saldo).
+        for (const f of tamanhosFechados(produto)) {
+          let disponivel = Math.floor(arred3((saldosPorEstado(movs, tamanhos).get(f.chave) ?? 0) / f.base));
           while (avulso < it.base_qty && disponivel > 0) {
-            emitir("abertura_lacrado", f.base, "lacrado", f.ap.id);
+            emitir("abertura_lacrado", f.base, "lacrado", f.apresentacao.id);
             emitir("abertura_avulso", f.base, "avulso", null);
             avulso = arred3(avulso + f.base);
             disponivel -= 1;

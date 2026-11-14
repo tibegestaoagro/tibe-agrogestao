@@ -916,7 +916,9 @@ model EmporioProduct {
   profit_pct         Decimal?  @db.Decimal(7, 2)
   /// Q123: quanto cabe em uma unidade-base ("saca de 10 kg"). Obrigatório em
   /// saca e fardo, opcional em unidade, nulo em quilo e litro. Fixo depois de
-  /// criado, como a unidade-base: mudá-lo mudaria o sentido do estoque.
+  /// criado, como a unidade-base (mudá-lo mudaria o sentido do estoque), exceto
+  /// pela conversão para a unidade do conteúdo (Q320), que zera `content_qty` e
+  /// `content_unit` e troca a `base_unit`.
   content_qty        Decimal?  @db.Decimal(14, 3)
   /// `quilograma`, `litro` ou `unidade` (esta só no fardo).
   content_unit       String?

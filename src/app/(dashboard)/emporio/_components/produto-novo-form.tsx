@@ -292,6 +292,14 @@ export function ProdutoNovoForm({
         )}
       </Field>
 
+      {conteudoObrigatorio && (
+        <p className="text-xs text-texto-secundario">
+          {base === "saca"
+            ? "Vai vender fracionado (kg ou gramas)? Cadastre em quilo e crie a saca como embalagem fechada."
+            : "Vai vender fracionado? Cadastre na unidade do conteúdo e crie o fardo como embalagem fechada."}
+        </p>
+      )}
+
       {opcoesConteudo && (
         <>
           <div className="grid gap-3 sm:grid-cols-2">

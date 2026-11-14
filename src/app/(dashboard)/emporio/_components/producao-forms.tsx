@@ -110,6 +110,7 @@ export function ProduzirForm({
       operation_key: (chave.current ??= crypto.randomUUID()),
       establishment_id: loja.id,
       emporio_product_id: produto.id,
+      base_unit: produto.base_unit,
       produced_qty: produzido as number,
       ...(separa ? { sealed: lista } : {}),
     });

@@ -21,6 +21,7 @@ const schema = z.object({
     .optional(),
   loose_qty: z.number({ error: "Informe a quantidade avulsa." }).optional(),
   unit_cost: z.number({ error: "Informe o custo em número." }).nullish(),
+  base_unit: z.string().optional(),
 });
 
 async function POSTHandler(request: Request) {

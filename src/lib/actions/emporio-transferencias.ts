@@ -16,8 +16,11 @@ import {
 import {
   MOTIVOS_DE_PERDA,
   chaveDoEstado,
+  conferirUnidadeDaTela,
   lerMovimentos,
+  recusaSeUnidadeMudou,
   saldosPorEstado,
+  tamanhosDe,
 } from "@/lib/actions/emporio-estoque";
 
 /**
@@ -266,6 +269,8 @@ export type EnviarTransferenciaInput = {
     presentation_id?: string | null;
     packages?: number | null;
     quantity?: number | null;
+    /** A unidade em que a tela montou este item; se o produto já mudou, 409 UNIT_CHANGED. */
+    base_unit?: string;
   }[];
   notes?: string | null;
 };
@@ -341,6 +346,8 @@ export async function enviarTransferenciaAction(
     const p = porId.get(it?.emporio_product_id);
     if (!p) return NAO_ACHADO("Produto", "items");
     if (p.archived_at) return fail("VALIDATION_ERROR", "Um dos produtos está arquivado.", 422, "items");
+    const telaVelha = conferirUnidadeDaTela(p, it.base_unit);
+    if (telaVelha) return telaVelha;
 
     const temPacotes = it.packages !== undefined && it.packages !== null;
     const temQtd = it.quantity !== undefined && it.quantity !== null;
@@ -388,8 +395,18 @@ export async function enviarTransferenciaAction(
     if (p.base_unit === "unidade" && !Number.isInteger(base)) {
       return fail("VALIDATION_ERROR", "Produto vendido por unidade só aceita quantidade inteira.", 422, "items");
     }
-    const k = `${p.id}|${chaveDoEstado(presentationId)}`;
+    const k = `${p.id}|${chaveDoEstado(presentationId, tamanhosDe(p))}`;
     const atual = planejados.get(k);
+    if (atual && atual.presentation_id !== presentationId) {
+      // Q324: duas apresentações do mesmo tamanho na mesma operação.
+      const nome = (id: string | null) => p.presentations.find((x) => x.id === id)?.name ?? "";
+      return fail(
+        "VALIDATION_ERROR",
+        `A mesma embalagem aparece duas vezes: ${nome(atual.presentation_id)} e ${nome(presentationId)} têm o mesmo tamanho.`,
+        422,
+        "items",
+      );
+    }
     if (atual) atual.base = arred3(atual.base + base);
     else planejados.set(k, { produto: p, estado, presentation_id: presentationId, base });
   }
@@ -405,6 +422,12 @@ export async function enviarTransferenciaAction(
   const agora = new Date();
   try {
     const id = await runSerializableTenantTransaction(db, async (tx) => {
+      // A unidade lida na preparação precisa ser a de agora (conversão no meio, ou retry depois dela).
+      const mudou = await recusaSeUnidadeMudou(
+        tx,
+        itens.map((i) => ({ id: i.produto.id, nome: i.produto.product.name, base_unit: i.produto.base_unit })),
+      );
+      if (mudou) throw new Recusa(mudou);
       // Saldo e custo médio da origem, lidos dentro da transação (Q21, Q76).
       const custos: (number | null)[] = [];
       const movsPorProduto = new Map<string, Awaited<ReturnType<typeof lerMovimentos>>>();
@@ -414,7 +437,9 @@ export async function enviarTransferenciaAction(
           movs = await lerMovimentos(tx, [origem.id], [i.produto.product_id]);
           movsPorProduto.set(i.produto.product_id, movs);
         }
-        const saldo = saldosPorEstado(movs).get(chaveDoEstado(i.presentation_id)) ?? 0;
+        // Q323: o saldo conferido é o do tamanho da apresentação.
+        const tamanhos = tamanhosDe(i.produto);
+        const saldo = saldosPorEstado(movs, tamanhos).get(chaveDoEstado(i.presentation_id, tamanhos)) ?? 0;
         if (i.base > saldo && !origem.allow_negative_stock) {
           throw new Recusa(
             fail(

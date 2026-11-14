@@ -23,6 +23,7 @@ const schema = z.object({
       }),
     )
     .nullish(),
+  base_unit: z.string().optional(),
 });
 
 async function GETHandler(request: Request) {

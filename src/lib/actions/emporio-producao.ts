@@ -10,8 +10,11 @@ import { custoMedio } from "@/lib/emporio/custo-medio";
 import { INCLUDE_PRODUTO, lacradoEfetivo, lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
 import {
   acharLojaParaEscrita,
+  conferirUnidadeDaTela,
   lerMovimentos,
+  recusaSeUnidadeMudou,
   saldosPorEstado,
+  tamanhosDe,
   validarSealed,
 } from "@/lib/actions/emporio-estoque";
 
@@ -433,6 +436,8 @@ export type ProduzirInput = {
   emporio_product_id: string;
   produced_qty: number;
   sealed?: { presentation_id: string; packages: number }[] | null;
+  /** A unidade do produto em que a tela montou as quantidades; se já mudou, 409 UNIT_CHANGED. */
+  base_unit?: string;
 };
 
 export async function produzirAction(
@@ -469,6 +474,8 @@ export async function produzirAction(
   if (produto.archived_at) {
     return fail("VALIDATION_ERROR", "Esse produto está arquivado.", 422, "emporio_product_id");
   }
+  const telaVelha = conferirUnidadeDaTela(produto, input.base_unit);
+  if (telaVelha) return telaVelha;
 
   const produzido = numero(input.produced_qty) ? arred3(input.produced_qty) : 0;
   if (!(produzido > 0)) {
@@ -549,6 +556,16 @@ export async function produzirAction(
 
   try {
     const id = await runSerializableTenantTransaction(db, async (tx) => {
+      // As quantidades foram montadas com as unidades lidas lá em cima: se uma conversão comitou no meio, aborta.
+      const mudou = await recusaSeUnidadeMudou(tx, [
+        { id: produto.id, nome: produto.product.name, base_unit: produto.base_unit },
+        ...baixas.map((b) => ({
+          id: b.item.component.id,
+          nome: b.item.component.product.name,
+          base_unit: b.item.component.base_unit,
+        })),
+      ]);
+      if (mudou) throw new AbortarProducao(mudou);
       const faltas: string[] = [];
       let custoTotal = 0;
       let algumSemCusto = false;
@@ -566,7 +583,7 @@ export async function produzirAction(
         const movs = await lerMovimentos(tx, [loja.data.id], [comp1.product_id]);
         const resumo = custoMedio(movs);
         const separa = lacradoEfetivo(comp1);
-        const disponivel = separa ? (saldosPorEstado(movs).get("avulso|-") ?? 0) : resumo.saldo;
+        const disponivel = separa ? (saldosPorEstado(movs, tamanhosDe(comp1)).get("avulso|-") ?? 0) : resumo.saldo;
 
         if (b.consumo > disponivel && !loja.data.allow_negative_stock) {
           const falta = arred3(b.consumo - disponivel);
