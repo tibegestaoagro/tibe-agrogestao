@@ -25,10 +25,9 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-13. Branch `manual-atualizacoes-e-gifs` pronta e NÃO
-  publicada (manual de 11 a 13/11 com 8 GIFs; gerar de novo: roteiro
-  `manual-gifs` e `python scripts/manual-gifs-montar.py`; conferir:
-  `manual-animacoes`). Granel e PIX em produção. Os agentes `explorador`,
+- Atualizado em: 2026-11-13. Branch `manual-atualizacoes-e-gifs` (manual com 8
+  GIFs) NÃO publicada; regerar: roteiro `manual-gifs` e `python
+  scripts/manual-gifs-montar.py`. Granel e PIX em produção. Os agentes `explorador`,
   `prova-juiz`, `prova-viva` e `servidor-dados` carregam (descrição entre
   aspas). Outros agentes: leia `AGENTS.md`.
 - `main` igual a `origin/main`, Neon em dia. Em produção também: conta avulsa e
