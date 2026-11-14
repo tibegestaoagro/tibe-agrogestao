@@ -53,7 +53,7 @@ export const ANIMACOES: Animacao[] = [
       { numero: 2, texto: "Em Conta do PIX já vem a conta da loja." },
       { numero: 3, texto: "Para faturar em outra conta, abra a lista: só aparecem as liberadas para a loja." },
       { numero: 4, texto: "Embaixo aparecem o favorecido e o CNPJ, para conferir." },
-      { numero: 5, texto: "Feche a venda: o cupom mostra só PIX, e a conta fica na venda e no relatório." },
+      { numero: 5, texto: "Feche a venda: aparece Venda registrada. O cupom mostra só PIX, e a conta fica guardada na venda e no relatório de vendas." },
     ],
   },
   {
@@ -65,7 +65,7 @@ export const ANIMACOES: Animacao[] = [
     passos: [
       { numero: 1, texto: "Em Franqueados, toque em Novo franqueado." },
       { numero: 2, texto: "Só o nome e o telefone são obrigatórios." },
-      { numero: 3, texto: "Toque em Cadastrar: o franqueado aparece na lista com o saldo." },
+      { numero: 3, texto: "Toque em Cadastrar: o franqueado aparece na lista, com saldo de R$ 0,00 até a primeira venda com crédito." },
     ],
   },
   {
@@ -77,7 +77,7 @@ export const ANIMACOES: Animacao[] = [
     passos: [
       { numero: 1, texto: "Monte a venda e escolha o Franqueado." },
       { numero: 2, texto: "Digite o Crédito do franqueado: ele soma ao total que o cliente paga." },
-      { numero: 3, texto: "Feche a venda: o crédito fica fora do faturamento e entra no saldo do franqueado." },
+      { numero: 3, texto: "Feche a venda: a tela mostra o crédito separado do valor da venda. Ele fica fora do faturamento e entra no saldo do franqueado." },
     ],
   },
   {
@@ -113,7 +113,7 @@ export const ANIMACOES: Animacao[] = [
     alt: "Animação de um produto em quilo com a apresentação 300 g, o preço por loja, a venda no balcão e o estoque com sacas fechadas e o resto em quilo",
     passos: [
       { numero: 1, texto: "No produto em quilo, crie a apresentação 300 g (vale 0,3 kg)." },
-      { numero: 2, texto: "Dê o preço da fração em cada loja." },
+      { numero: 2, texto: "Dê o preço da fração em cada loja, uma loja por vez." },
       { numero: 3, texto: "No balcão, venda 1 × 300 g." },
       { numero: 4, texto: "Sem granel, a saca abre sozinha: o estoque mostra as sacas fechadas e o resto em kg." },
     ],
@@ -126,8 +126,8 @@ export const ANIMACOES: Animacao[] = [
     alt: "Animação do estoque com uma linha só para Saca 40 kg e ATACADO, e a contagem com um campo por tamanho",
     passos: [
       { numero: 1, texto: "Saca 40 kg e ATACADO têm o mesmo tamanho: o estoque mostra uma linha só." },
-      { numero: 2, texto: "Vender em qualquer uma tira da mesma conta." },
-      { numero: 3, texto: "Na contagem, um campo por tamanho." },
+      { numero: 2, texto: "Depois de vender 1 em ATACADO, a mesma linha mostra uma saca a menos: as duas tiram da mesma conta." },
+      { numero: 3, texto: "Em Contar estoque, na tela do produto, há um campo só para o tamanho." },
     ],
   },
 ];
