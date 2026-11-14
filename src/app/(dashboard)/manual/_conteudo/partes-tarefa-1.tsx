@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Chamada } from "../_components/chamada";
+import { Animacao } from "../_components/animacao";
 import { Figura } from "../_components/figura";
 import { Subtitulo, Tarefa } from "../_components/tarefa";
 import { BASE_DO_EMPORIO } from "./indice";
@@ -144,28 +145,67 @@ export function ParteDeProdutos() {
 
       <Subtitulo>Saca fechada e granel</Subtitulo>
       <Tarefa
-        paraQueServe="Vender a saca inteira e também uma parte dela, cada uma com o seu preço."
+        paraQueServe="Vender a saca inteira e também uma parte dela (um quilo, 300 g), cada uma com o seu preço."
         passos={[
+          "Para o produto que você vende fracionado, use o quilo (ou o litro) como Unidade-base. A saca vira uma embalagem fechada, com o seu tamanho: por exemplo, Saca 40 kg.",
           "Abra o produto e vá em Apresentações.",
-          "Crie a apresentação da saca fechada (a embalagem lacrada).",
-          "Crie a apresentação a granel, informando o conteúdo: por exemplo, 1 kg de uma saca de 10 kg.",
-          "Dê um preço a cada uma. O quilo costuma custar mais que a saca fechada, e isso é permitido.",
+          "Crie a apresentação da saca fechada (a embalagem lacrada), informando o conteúdo: 40 kg, por exemplo.",
+          "Crie as frações, informando quanto cada uma vale em quilo: Quilo vale 1 kg, 300 g vale 0,3 kg.",
+          "Dê um preço a cada uma, em cada loja. O quilo costuma custar mais que a saca fechada, e isso é permitido.",
         ]}
         problemas={[
           {
-            quando: "A apresentação a granel é recusada",
-            fazer: "A parte precisa dividir a saca em até três casas depois da vírgula. 1 kg de uma saca de 10 kg dá 0,1 saca e passa. 1 kg de uma saca de 30 kg não fecha em três casas e é recusado. Use outra medida, como 500 g ou 3 kg.",
+            quando: "A fração é recusada: “Esse produto conta o estoque em sacas, e 1 kg não divide a saca de 15 kg em partes exatas. Para vender a granel, converta o produto para quilo.”",
+            fazer: <>O produto ainda conta o estoque em sacas, e a fração não fecha em três casas depois da vírgula. Em vez de procurar outra medida, converta o produto para quilo, como mostra a próxima seção. Já em quilo, qualquer fração vale: 300 g, 500 g, 1 kg.</>,
           },
         ]}
       >
         <Figura id="produto-apresentacoes" />
+        <Animacao id="produto-fracao-gramas" />
         <Chamada tipo="saiba">
           <p>
-            Quando você vende no quilo e não sobrou saca aberta, a saca fechada menor é aberta sozinha. A sobra fica
-            como avulso, pronta para a próxima venda.
+            Quando você vende no quilo e não sobrou saca aberta, a saca fechada é aberta sozinha, de qualquer peso. A
+            sobra fica como avulso, pronta para a próxima venda. No estoque você vê as sacas fechadas e o resto em quilo.
           </p>
         </Chamada>
       </Tarefa>
+
+      <Subtitulo>Converter o produto de saca para quilo</Subtitulo>
+      <Tarefa
+        paraQueServe="Passar um produto que hoje conta o estoque em sacas para o quilo, sem perder o saldo, o custo nem o histórico. É do Dono."
+        passos={[
+          <>Abra o produto que está em saca ou fardo e clique em <strong>Converter para quilo</strong> (ou <strong>Converter para litro</strong>, conforme o produto).</>,
+          "A prévia mostra, em cada loja, o saldo e o custo antes e depois. O sistema multiplica o saldo pelo conteúdo da saca e divide o custo pelo mesmo número.",
+          <>Confira as <strong>formas de venda</strong>: a marca <strong>confira</strong> aponta a fração que não fecha e precisa de ajuste.</>,
+          <>Clique em <strong>Converter</strong>. O produto passa a ser contado em quilo, e o histórico continua inteiro.</>,
+        ]}
+        problemas={[
+          {
+            quando: "Quero voltar o produto para saca",
+            fazer: "Não tem volta. Por isso a prévia vem antes: leia com calma e converta um produto de cada vez.",
+          },
+          {
+            quando: "A tela diz que o produto mudou de unidade",
+            fazer: "Alguém converteu o produto enquanto a sua tela estava aberta. Abra o produto de novo e siga com a tela atualizada.",
+          },
+        ]}
+      >
+        <Animacao id="produto-converter-quilo" />
+        <Chamada tipo="atencao">
+          <p>
+            Quem só vende a saca fechada não precisa converter: o produto pode seguir em saca. Converta quando a loja vender
+            em quilo ou em fração.
+          </p>
+        </Chamada>
+      </Tarefa>
+
+      <Subtitulo>Saca com dois nomes: a mesma saca</Subtitulo>
+      <p className="text-texto">
+        Duas embalagens fechadas do mesmo tamanho, como <strong>Saca 40 kg</strong> e <strong>ATACADO</strong>, são a mesma
+        saca no estoque. Só o preço muda de uma para a outra. O estoque mostra uma linha só, vender em qualquer uma tira
+        da mesma conta, e a contagem pede um campo por tamanho. Veja em{" "}
+        <Link className="underline" href={`${B}/estoque`}>Estoque</Link>.
+      </p>
     </div>
   );
 }
@@ -177,10 +217,11 @@ export function ParteDePreco() {
       passos={[
         "Abra o produto e vá em Preço por loja. Cada linha é uma apresentação numa loja.",
         <>
-          A coluna <strong>Custo</strong> vem do custo do produto: em <strong>Dados comerciais</strong>, o campo{" "}
-          <strong>Custo por</strong> e a unidade-base (por exemplo, <strong>Custo por saca (R$)</strong>). A compra
-          não muda esse campo. Sem ele, a linha diz <strong>sem custo</strong> e o <strong>Sugerido</strong> fica
-          com &quot;-&quot;.
+          A coluna <strong>Custo</strong> mostra um custo só por produto e loja. Enquanto há estoque, é o custo médio
+          das compras. Sem estoque, é o da última compra, e a linha diz <strong>sem estoque: última compra</strong>.
+          Sem nenhuma compra, vale o custo de referência: em <strong>Dados comerciais</strong>, o campo{" "}
+          <strong>Custo por</strong> e a unidade-base (por exemplo, <strong>Custo por saca (R$)</strong>). Sem nada
+          disso, a linha diz <strong>sem custo</strong> e o <strong>Sugerido</strong> fica com &quot;-&quot;.
         </>,
         "O Sugerido parte do custo: soma as Despesas e, sobre esse valor, o Lucro da linha.",
         <>
@@ -200,7 +241,7 @@ export function ParteDePreco() {
         },
         {
           quando: "A coluna Custo diz sem custo",
-          fazer: "Falta o custo do produto. Em Dados comerciais, clique em Editar e preencha o campo Custo por, com a unidade-base do produto.",
+          fazer: "O produto nunca foi comprado e não tem custo de referência. Lance a compra ou, em Dados comerciais, clique em Editar e preencha o campo Custo por, com a unidade-base do produto.",
         },
       ]}
     >
@@ -253,6 +294,10 @@ export function ParteDeCompras() {
           vira o custo do produto. Se o produto acabou na prateleira mas o sistema ainda mostra saldo, faça a contagem
           antes de lançar a compra, senão o custo novo se mistura com o saldo que não existe.
         </p>
+        <p>
+          A compra feita hoje entra no estoque na hora em que você a lança. Por isso a ordem certa fica no histórico:
+          a contagem antes e a compra depois.
+        </p>
       </Chamada>
     </Tarefa>
   );
@@ -265,8 +310,8 @@ export function ParteDeEstoque() {
         paraQueServe="Saber o que tem na loja, corrigir quando a prateleira não bate e ser avisado do que precisa repor."
         passos={[
           <>Abra <strong>Meu Empório</strong> e depois <strong>Estoque</strong>. Escolha a loja.</>,
-          "Veja cada produto com o saldo lacrado (embalagens fechadas) e o avulso (solto).",
-          <>Para corrigir um saldo, abra o produto e, no cartão da loja, clique em <strong>Contar estoque</strong>. Digite o que você contou nas duas colunas.</>,
+          "Veja cada produto com o saldo lacrado (embalagens fechadas) e o avulso (solto). Embalagens fechadas do mesmo tamanho aparecem numa linha só, por exemplo “10 sacas de 40 kg (Saca 40 kg / ATACADO)”.",
+          <>Para corrigir um saldo, abra o produto e, no cartão da loja, clique em <strong>Contar estoque</strong>. Digite o que você contou nas duas colunas. Para o lacrado, há um campo por tamanho de embalagem, e não um por nome.</>,
           <>Para registrar o que estragou, venceu ou sumiu, clique em <strong>Registrar perda</strong> no mesmo cartão e escolha o motivo.</>,
           <>Defina o mínimo e o máximo de cada produto naquela loja, no botão <strong>Limites</strong> do mesmo cartão.</>,
         ]}
@@ -279,9 +324,14 @@ export function ParteDeEstoque() {
             quando: "A venda foi recusada por falta de saldo",
             fazer: "Confira a contagem. Se a mercadoria existe mas a compra ainda não foi lançada, lance a compra ou peça ao Dono para liberar o negativo.",
           },
+          {
+            quando: "“A mesma embalagem aparece duas vezes”",
+            fazer: "Você mandou duas apresentações do mesmo tamanho na mesma operação (contagem, perda ou outra). Elas são a mesma saca: digite a quantidade uma vez só, no campo do tamanho.",
+          },
         ]}
       >
         <Figura id="estoque-por-loja" />
+        <Animacao id="estoque-atacado-mesma-saca" />
       </Tarefa>
 
       <Subtitulo>Mínimo, máximo e Precisa repor</Subtitulo>

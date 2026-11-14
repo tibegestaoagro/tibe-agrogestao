@@ -47,6 +47,7 @@ export function ParteDono() {
           <>Acompanhar os <Link className="underline" href={`${B}/orcamento`}>Orçamentos</Link> que ainda não viraram venda e ligar para quem não voltou.</>,
           <>Montar e ajustar a <Link className="underline" href={`${B}/equipe`}>Equipe</Link>: quem é Gerente geral, Gestor, Vendedor ou Caixa.</>,
           <>Decidir preço, desconto e despesas fixas, ou deixar isso com o Gestor de cada loja.</>,
+          <>Cuidar dos <Link className="underline" href={`${B}/franqueados`}>Franqueados</Link>: cadastrar, ver o saldo e pagar o crédito que cada um acumulou.</>,
           <>Conferir o <Link className="underline" href={`${B}/historico`}>Histórico</Link> quando precisar saber quem fez o quê.</>,
         ]}
       />
@@ -54,7 +55,7 @@ export function ParteDono() {
       <Titulo>O que só você faz</Titulo>
       <Lista
         itens={[
-          "Criar e arquivar loja, e cadastrar as contas bancárias.",
+          "Criar e arquivar loja, e cadastrar as contas bancárias, com o CNPJ, o favorecido e as lojas onde cada uma recebe PIX.",
           "Definir a composição e os percentuais do produto.",
           "Ver Todas as lojas somadas no Resultado.",
           "Cadastrar a Equipe e ligar as permissões extras do Vendedor.",
@@ -366,7 +367,7 @@ export function ParteCaixa() {
       <Titulo>Receber fiado</Titulo>
       <p>
         Abra <strong>Fiado</strong>, ache o nome do cliente e clique em <strong>Receber</strong>. Em dinheiro, o valor entra
-        no seu caixa aberto; em PIX, entra na conta PIX da loja.
+        no seu caixa aberto; em PIX, entra na conta marcada em <strong>Conta do PIX</strong>, que vem com a conta PIX da loja.
       </p>
 
       <Titulo>Sangria: tirar o excesso de dinheiro</Titulo>

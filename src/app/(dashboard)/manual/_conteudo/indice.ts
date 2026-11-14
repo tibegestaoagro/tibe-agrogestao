@@ -23,6 +23,7 @@ export const PARTES_DO_EMPORIO: Parte[] = [
   { slug: "preco", titulo: "Preço por loja", grupo: "Por tarefa", resumo: "Cada loja com o seu preço, sem surpresa." },
   { slug: "compras", titulo: "Comprar e receber", grupo: "Por tarefa", resumo: "Lançar a compra e dar entrada no estoque." },
   { slug: "fornecedores", titulo: "Fornecedores", grupo: "Por tarefa", resumo: "De quem a loja compra, e as propriedades do dono que abastecem a loja." },
+  { slug: "franqueados", titulo: "Franqueados", grupo: "Por tarefa", resumo: "Cadastrar o franqueado, lançar o crédito na venda e pagar o que ele acumulou." },
   { slug: "estoque", titulo: "Estoque", grupo: "Por tarefa", resumo: "Contagem, perda, mínimo e máximo, precisa repor." },
   { slug: "transferencias", titulo: "Transferir entre lojas", grupo: "Por tarefa", resumo: "Enviar, receber e resolver diferença." },
   { slug: "vender", titulo: "Vender no balcão", grupo: "Por tarefa", resumo: "Cliente, vendedor, pagamento, desconto e o papel da venda." },
