@@ -25,9 +25,9 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-13. Branch aberta `emporio-granel-e-atacado`, pronta
-  e NÃO publicada (sem migração; falta autorizar merge e push). Contas PIX em
-  produção (merge `bd7fd3f`). Os agentes `explorador`,
+- Atualizado em: 2026-11-13. Granel e atacado em produção (merge `8727de8`,
+  sem migração, autorizados na conversa); contas PIX também (merge `bd7fd3f`).
+  Nenhuma branch aberta. Os agentes `explorador`,
   `prova-juiz`, `prova-viva` e `servidor-dados` carregam (descrição entre
   aspas). Outros agentes: leia `AGENTS.md`.
 - `main` igual a `origin/main`, Neon em dia. Em produção também: conta avulsa e
@@ -39,7 +39,7 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   Q292), orçamento (Q285 a Q290), boleto e cheque (Q278 a Q284; aberta 2.69),
   acordo, aviso e recálculo (Q275 a Q277; aberta 2.66).
 
-### Granel em qualquer peso e atacado na mesma saca (Q319 a Q324): na branch
+### Granel em qualquer peso e atacado na mesma saca (Q319 a Q324): em produção
 
 Branch `emporio-granel-e-atacado`, `ef7f356` a `31ad5ed`. Spec
 [../superpowers/specs/2026-11-13-emporio-granel-e-atacado-design.md](../superpowers/specs/2026-11-13-emporio-granel-e-atacado-design.md).
@@ -72,8 +72,8 @@ Agromax, a entrega 4 (extrato da Stone) depende de um arquivo real.
 
 ### ⏭️ Próximo passo
 
-0. Granel: o usuário autoriza merge e push; depois, manual com GIFs das
-   atualizações de 11/11 a 13/11 (pedido do usuário).
+0. Manual com GIFs das atualizações de 11/11 a 13/11 (pedido do usuário).
+   Central do Milho: converter os produtos que vendem a granel.
    Contas PIX: a Agromax cadastra as contas PIX das lojas e do site (CNPJ,
    favorecido, onde vale) e define a padrão de cada loja.
    Franqueado: o usuário responde as três decisões abertas (Caixa, devolução,
