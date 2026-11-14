@@ -75,3 +75,6 @@ next-env.d.ts
 # Gravações de reunião com cliente (repositório público)
 /docs/preco-custo-produto/
 /docs/financeiro-reuniao/
+
+# Quadros brutos dos GIFs do manual (scripts/navegador/manual-gifs.py): so os GIFs montados sao versionados
+/.cache/manual-gifs/

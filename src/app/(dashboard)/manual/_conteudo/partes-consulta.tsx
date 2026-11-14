@@ -5,7 +5,13 @@ const TERMOS: { termo: string; significa: React.ReactNode }[] = [
   { termo: "Lacrado e avulso", significa: "Lacrado é a embalagem fechada, como a saca inteira. Avulso é o que está solto, como o quilo que sobrou de uma saca aberta. O saldo do produto é a soma dos dois." },
   { termo: "Apresentação", significa: "Cada jeito de vender o mesmo produto: a saca fechada, o quilo a granel, o fardo. Cada apresentação tem o seu preço." },
   { termo: "Unidade-base e conteúdo", significa: "A unidade-base é como o estoque é contado: saca, fardo, quilo, litro, metro ou unidade. O conteúdo diz quanto cabe em uma saca ou fardo, por exemplo 30 kg." },
-  { termo: "Custo médio", significa: "O custo de cada produto na loja, calculado a cada compra, levando em conta o que você pagou antes e o que pagou agora. É com ele que o sistema calcula a margem de cada venda." },
+  { termo: "Custo médio", significa: "O custo de cada produto na loja, calculado a cada compra, levando em conta o que você pagou antes e o que pagou agora. É com ele que o sistema calcula a margem de cada venda. É o único custo do produto enquanto há estoque. Sem estoque, vale o da última compra (“sem estoque: última compra”); sem compra, o custo de referência." },
+  { termo: "Franqueado", significa: <>Quem leva clientes à loja e recebe um crédito pelas vendas. Tem cadastro próprio, separado do fornecedor, e uma conta com créditos, pagamentos e saldo. Veja <Link className="underline" href={`${BASE_DO_EMPORIO}/franqueados`}>Franqueados</Link>.</> },
+  { termo: "Crédito do franqueado", significa: "O valor que o vendedor digita na venda ou no orçamento. É cobrado a mais do cliente, fica fora do faturamento e entra no saldo do franqueado. O papel do cliente não mostra o crédito: ele vem repartido nos preços dos itens." },
+  { termo: "Conta PIX", significa: "Uma conta bancária liberada para receber PIX. Tem identificador, banco, CNPJ e favorecido, e vale em todas as lojas, só em lojas escolhidas ou em nenhuma. No balcão, vem marcada a conta PIX da loja, e o caixa confere o favorecido e o CNPJ." },
+  { termo: "Granel (fração)", significa: "Uma parte da saca vendida com preço próprio, como o quilo ou 300 g. Para vender fração, o produto deve ser estocado em quilo. A saca vira embalagem fechada e abre sozinha quando a fração é vendida." },
+  { termo: "Converter para quilo", significa: "O botão que passa um produto de saca para quilo (ou litro), produto por produto. A prévia mostra o saldo e o custo de cada loja, antes e depois. Não tem volta." },
+  { termo: "Embalagem fechada (tamanho)", significa: "A saca lacrada, contada pelo tamanho. Duas apresentações do mesmo tamanho, como Saca 40 kg e ATACADO, são a mesma saca: uma linha no estoque e um campo na contagem. Só o preço muda." },
   { termo: "Custo provisório", significa: "Aparece quando a venda foi feita sem a compra lançada (com o estoque negativo liberado). O sistema usa o último custo médio. Quando a compra entra, a venda antiga não muda." },
   { termo: "Resultado estimado", significa: "Um resultado que depende de custo provisório, custo que falta ou despesa fixa ainda não paga. Ele é uma aproximação, e o aviso “Este resultado é uma estimativa” diz o motivo." },
   { termo: "Vendeu, Pagou", significa: "Despesa que nasce junto com a venda, como comissão, entrega ou embalagem. Ela entra na margem na hora da venda, mas o dinheiro só sai quando você paga." },
@@ -49,8 +55,24 @@ const PERGUNTAS: { pergunta: string; resposta: React.ReactNode }[] = [
     resposta: "Porque não há saca lacrada no estoque. O sistema não deixa vender uma embalagem fechada que não existe. Faça a contagem do estoque, lance a compra que faltou, ou venda a granel.",
   },
   {
-    pergunta: "Por que 1 kg de uma saca de 30 kg não pode ser granel?",
-    resposta: "1 kg de 30 kg dá 0,0333 saca, e o sistema guarda só três casas depois da vírgula. Ficaria uma fração fantasma. Use uma medida que feche, como 3 kg (0,1 saca) ou 1,5 kg (0,05 saca). Em saca de 10 kg, 1 kg funciona.",
+    pergunta: "O sistema diz que 1 kg não divide a saca",
+    resposta: <>A frase é “Esse produto conta o estoque em sacas, e 1 kg não divide a saca de 15 kg em partes exatas. Para vender a granel, converta o produto para quilo.” Com o estoque em sacas, 1 kg de 30 kg dá 0,0333 saca, e o sistema guarda só três casas depois da vírgula. A saída é <strong>Converter para quilo</strong>, no produto: o saldo e o custo passam para o quilo, e qualquer fração (300 g, 1 kg) passa a valer. Veja <Link className="underline" href={`${BASE_DO_EMPORIO}/produtos`}>Cadastrar produto</Link>.</>,
+  },
+  {
+    pergunta: "O produto mudou de unidade agora",
+    resposta: "Alguém converteu o produto de saca para quilo enquanto a sua tela estava aberta. A tela velha ainda mostra a unidade antiga. Abra o produto de novo, confira o saldo no quilo e refaça a operação.",
+  },
+  {
+    pergunta: "O sistema pede para escolher a conta do PIX",
+    resposta: "A loja não tem conta de PIX padrão e há mais de uma conta liberada para ela, então o sistema não adivinha. No campo Conta do PIX, escolha a conta onde o cliente pagou. Se a lista vem vazia, nenhuma conta está liberada para a loja: o Dono libera em Caixa, na conta bancária, em Disponível para PIX em.",
+  },
+  {
+    pergunta: "Por que o crédito do franqueado não aparece no papel do cliente?",
+    resposta: "O crédito é interno. No papel, ele vem repartido nos preços dos itens, para a soma bater com o que o cliente paga. Ele aparece só nas telas da venda e nos relatórios.",
+  },
+  {
+    pergunta: "Por que o saldo do franqueado ficou negativo?",
+    resposta: "A venda que gerou o crédito foi cancelada ou editada depois de o crédito ser pago. O pagamento não volta sozinho, então o saldo mostra o que o franqueado recebeu a mais.",
   },
   {
     pergunta: "Por que o Vendedor não vê o Financeiro?",
@@ -74,7 +96,7 @@ const PERGUNTAS: { pergunta: string; resposta: React.ReactNode }[] = [
   },
   {
     pergunta: "Por que o PIX foi recusado?",
-    resposta: "A loja não tem uma conta bancária escolhida para receber PIX. O Dono ou o Gestor cadastram a conta e escolhem na loja.",
+    resposta: "Nenhuma conta bancária está liberada para receber PIX naquela loja. O Dono cadastra ou libera a conta em Caixa (Disponível para PIX em) e define a conta PIX da loja. Se a loja tem várias contas e nenhuma padrão, o caso é outro: veja “O sistema pede para escolher a conta do PIX”.",
   },
   {
     pergunta: "Por que o cartão foi recusado?",
@@ -146,7 +168,7 @@ const PERGUNTAS: { pergunta: string; resposta: React.ReactNode }[] = [
   },
   {
     pergunta: "O preço mudou sozinho depois que o custo subiu?",
-    resposta: "Nunca. O preço cadastrado só muda quando alguém o troca. A coluna Sugerido já faz a conta com o custo novo, e você decide se muda o preço.",
+    resposta: "Nunca. O preço cadastrado só muda quando alguém o troca. A coluna Sugerido já faz a conta com o custo novo (um custo só: o médio, ou a última compra quando não há estoque), e você decide se muda o preço.",
   },
   {
     pergunta: "Por que o resultado da loja está marcado como estimado?",

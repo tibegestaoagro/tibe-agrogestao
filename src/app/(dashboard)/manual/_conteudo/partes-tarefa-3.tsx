@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Chamada } from "../_components/chamada";
+import { Animacao } from "../_components/animacao";
 import { Figura } from "../_components/figura";
 import { Subtitulo, Tarefa } from "../_components/tarefa";
 import { BASE_DO_EMPORIO } from "./indice";
@@ -155,6 +156,7 @@ export function ParteDeOrcamento() {
           <>Abra <strong>Vender</strong> e toque em <strong>Orçamento</strong>, no alto da tela.</>,
           "Busque os produtos e ajuste a quantidade e o preço, como numa venda. O desconto segue o mesmo limite da loja.",
           <>No campo <strong>Cliente</strong>, clique em <strong>Escolher cliente</strong> e busque pelo nome, pelo CPF ou CNPJ, ou por um pedaço do telefone. Quem não quer se identificar entra como <strong>Consumidor final</strong>, que vale para o orçamento. O cliente precisa estar com o cadastro completo: na pessoa física, nome e telefone; na jurídica, também o CNPJ e o endereço principal. Para um cliente novo, clique em <strong>Cadastrar novo cliente</strong>.</>,
+          <>Se o orçamento é de um franqueado, escolha o <strong>Franqueado</strong> e digite o <strong>Crédito do franqueado (R$)</strong>. O papel do orçamento já sai com o crédito repartido nos itens, e a venda, ao faturar, nasce com os dois.</>,
           <>Se quiser, escreva uma <strong>Observação</strong>.</>,
           <>Confira o <strong>Vendedor</strong>. Ele já vem com o seu nome. Se você é Caixa, escolha quem atendeu.</>,
           <>Clique em <strong>Salvar orçamento</strong>. O quadro verde mostra o número e a data até quando ele vale (<strong>válido até</strong>); vale até o fim desse dia.</>,
@@ -401,7 +403,7 @@ export function ParteDeRelatorios() {
           "A tela abre no mês atual, do dia 1 até hoje.",
           <>Para outro período, mude <strong>De</strong> e <strong>Até</strong> e clique em <strong>Ver relatório</strong>. Os dois dias entram na conta. O botão <strong>Mês atual</strong> volta ao começo.</>,
           <>Se você cuida de mais de uma loja, escolha a <strong>Loja</strong> ou deixe <strong>Todas as minhas lojas</strong>. O Gestor vê só as lojas dele.</>,
-          "Leia os cinco blocos, de cima para baixo.",
+          "Leia os blocos, de cima para baixo.",
         ]}
         problemas={[
           {
@@ -417,12 +419,12 @@ export function ParteDeRelatorios() {
         <Figura id="relatorios-periodo" />
       </Tarefa>
 
-      <Subtitulo>Os cinco blocos</Subtitulo>
+      <Subtitulo>Os blocos do relatório</Subtitulo>
       <ul className="list-disc space-y-2 pl-5 text-texto marker:text-texto-discreto">
         <li>
           <strong>Por origem</strong>: quanto vendeu o balcão e quanto vendeu o e-commerce, com o número de vendas, o
-          faturamento, o frete cobrado e a parte de cada um no faturamento. O faturamento não inclui o frete, que
-          aparece em coluna própria. Com mais de uma loja, a mesma quebra vem para cada loja.
+          faturamento, o frete cobrado, o crédito de franqueado e a parte de cada um no faturamento. O faturamento não
+          inclui o frete nem o crédito de franqueado, que aparecem em colunas próprias. Com mais de uma loja, a mesma quebra vem para cada loja.
         </li>
         <li>
           <strong>Vendas por vendedor</strong>: quantas vendas, o total e o ticket médio de cada um. O vendedor é quem
@@ -439,6 +441,10 @@ export function ParteDeRelatorios() {
         </li>
         <li>
           <strong>Vendas por loja</strong>: quantas vendas, o total e o ticket médio de cada loja.
+        </li>
+        <li>
+          <strong>PIX por conta</strong>: para cada conta bancária, quantos pagamentos em PIX e quanto valeram, das vendas
+          que o relatório conta no período, no total e por loja. Serve para conferir o que entrou em cada conta.
         </li>
       </ul>
 
@@ -536,6 +542,94 @@ export function ParteDeFornecedores() {
   );
 }
 
+export function ParteDeFranqueados() {
+  return (
+    <div className="space-y-2">
+      <p>
+        O franqueado é quem leva clientes à loja e recebe um crédito por isso. O crédito é digitado na venda, cobrado a
+        mais do cliente e guardado numa conta do franqueado, até a loja pagar.
+      </p>
+
+      <Subtitulo>Cadastrar o franqueado</Subtitulo>
+      <Tarefa
+        paraQueServe="Guardar o franqueado, para escolhê-lo na venda e no orçamento."
+        passos={[
+          <>Abra <strong>Meu Empório</strong> e depois <strong>Franqueados</strong>. Clique em <strong>Novo franqueado</strong>.</>,
+          "Só o nome e o telefone são obrigatórios. O documento e a observação são opcionais.",
+          <>Clique em <strong>Cadastrar franqueado</strong>. Ele aparece na lista com o saldo.</>,
+        ]}
+        problemas={[
+          {
+            quando: "Não vejo o botão Novo franqueado",
+            fazer: "Cadastrar e editar franqueado é de quem lança compra, como no cadastro de fornecedor: o Gestor, o Gerente geral, o Dono e o Vendedor com a chave Lançar compra.",
+          },
+        ]}
+      >
+        <Animacao id="franqueado-cadastrar" />
+        <Chamada tipo="saiba">
+          <p>
+            O cadastro vale para todas as lojas da conta. Franqueado não se mistura com fornecedor: fornecedor vende para
+            a loja, franqueado recebe crédito de vendas.
+          </p>
+        </Chamada>
+      </Tarefa>
+
+      <Subtitulo>Lançar o crédito na venda</Subtitulo>
+      <Tarefa
+        paraQueServe="Registrar quanto o franqueado ganha numa venda, sem sujar o faturamento da loja."
+        passos={[
+          <>No balcão, monte a venda e escolha o <strong>Franqueado</strong>. Só um por venda.</>,
+          <>Digite o <strong>Crédito do franqueado (R$)</strong>. Ele soma ao total: o cliente paga os itens, mais o frete, se houver, mais o crédito.</>,
+          <>Feche a venda. O crédito fica fora do faturamento, do custo e da margem, e entra no saldo do franqueado.</>,
+          <>O <strong>Orçamento</strong> também aceita franqueado e crédito. Ao faturar, a venda já nasce com os dois.</>,
+        ]}
+        problemas={[
+          {
+            quando: "O cliente leu o papel e não achou o crédito",
+            fazer: "É de propósito. O impresso para o cliente não mostra o crédito: ele vem repartido nos preços dos itens, para o papel somar o que o cliente paga. Por exemplo, produtos de 60 e 40, com crédito de 10, saem a 66 e 44. O crédito aparece só nas telas internas e nos relatórios.",
+          },
+          {
+            quando: "Cancelei ou editei a venda, e o saldo do franqueado mudou",
+            fazer: "É assim mesmo: cancelar ou editar a venda cancela o crédito dela. Se o crédito já tinha sido pago, o saldo do franqueado fica negativo e a tela mostra.",
+          },
+        ]}
+      >
+        <Animacao id="balcao-credito-franqueado" />
+      </Tarefa>
+
+      <Subtitulo>Pagar o crédito</Subtitulo>
+      <Tarefa
+        paraQueServe="Acertar com o franqueado o que ele acumulou, e deixar o extrato dizendo quanto foi pago."
+        passos={[
+          "Abra o franqueado, tocando no nome dele na lista. O extrato mostra os créditos (com a venda, a data e o valor) e os pagamentos. O saldo é o que entrou de crédito menos o que já foi pago.",
+          <>Clique em <strong>Pagar crédito</strong>. Digite o <strong>Valor</strong> (até o saldo), a <strong>Data do pagamento</strong> e, em <strong>De onde sai o dinheiro</strong>, a gaveta (de um caixa com turno aberto) ou uma conta bancária.</>,
+          <>Confirme. O saldo cai e o pagamento entra no extrato e no Histórico.</>,
+        ]}
+        problemas={[
+          {
+            quando: "Não vejo o botão Pagar crédito",
+            fazer: "Só quem cuida do dinheiro da loja paga o franqueado.",
+          },
+          {
+            quando: "O valor é recusado",
+            fazer: "O pagamento não passa do saldo do franqueado. Confira o extrato.",
+          },
+        ]}
+      >
+        <Animacao id="franqueado-pagar" />
+        <Chamada tipo="saiba">
+          <p>
+            O pagamento ao franqueado não vira despesa da loja. No{" "}
+            <Link className="underline" href={`${B}/resultado`}>Resultado</Link> e em{" "}
+            <Link className="underline" href={`${B}/relatorios`}>Relatórios</Link>, o crédito aparece como repasse, separado, com o
+            que entrou nas vendas e o que foi pago.
+          </p>
+        </Chamada>
+      </Tarefa>
+    </div>
+  );
+}
+
 export function ParteDeFinanceiroDasLojas() {
   return (
     <div className="space-y-2">
@@ -600,7 +694,7 @@ export function ParteDeFinanceiroDasLojas() {
         passos={[
           <>Em <strong>A receber</strong>, na linha do cliente, clique em <strong>Receber</strong>.</>,
           <>Digite o valor (pode ser parcial) e escolha a loja que recebe. A forma de pagamento já vem em <strong>Pix</strong>.</>,
-          <>Clique em receber. A entrada aparece no extrato da conta do Pix da loja como <strong>Fiado recebido</strong>.</>,
+          <>Clique em receber. A entrada aparece no extrato da conta do Pix escolhida (a da loja já vem marcada) como <strong>Fiado recebido</strong>.</>,
         ]}
         problemas={[
           {

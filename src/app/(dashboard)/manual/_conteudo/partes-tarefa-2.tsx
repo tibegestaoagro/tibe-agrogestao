@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Chamada } from "../_components/chamada";
+import { Animacao } from "../_components/animacao";
 import { Figura } from "../_components/figura";
 import { Subtitulo, Tarefa } from "../_components/tarefa";
 import { BASE_DO_EMPORIO } from "./indice";
@@ -19,6 +20,8 @@ export function ParteDeVender() {
         <>Se aparecer <strong>Cadastro incompleto</strong>: se quiser, clique em <strong>Completar cadastro</strong>; a venda passa assim mesmo.</>,
         <>Em <strong>Pagamento</strong>, toque em <strong>+ Dinheiro</strong>, <strong>+ PIX</strong>, <strong>+ Débito</strong>, <strong>+ Crédito</strong>, <strong>+ Parcelado</strong>, <strong>+ Cheque</strong>, <strong>+ Boleto</strong> ou <strong>+ Fiado</strong> e digite o valor. Dá para dividir em mais de uma forma. A soma precisa fechar o total, e só o dinheiro dá troco. No cheque, o campo <strong>Em nome de</strong> já vem com o nome do cliente: mude se o cheque for de outra pessoa. No boleto, informe o <strong>Vencimento</strong> (hoje ou depois) e, se quiser, o número; o boleto é gerado no banco, o Tibé só o registra, e cada parcela é uma linha.</>,
         <>No cartão, escolha a <strong>bandeira</strong> (Visa/Master, Elo, Hipercard, Amex ou Outra): nenhuma vem marcada, e o botão <strong>Fechar a venda</strong> só libera depois. Se a loja tem mais de uma adquirente (Cielo, Stone, Rede), escolha também a <strong>adquirente</strong>. A tela mostra a taxa e o valor líquido antes de fechar, e a venda guarda a taxa que valia na hora. A taxa fixa em reais, quando existe, aparece separada da porcentagem. Se a adquirente conta o prazo em dias úteis, a data da parcela já vem ajustada para um dia útil (fim de semana e feriado nacional passam para o dia seguinte). Se a adquirente antecipa sozinha as vendas no crédito, a tela mostra também a linha <strong>Antecipado: cai em</strong> a data e o <strong>líquido estimado</strong> depois do custo da antecipação.</>,
+        <>No <strong>+ PIX</strong>, o campo <strong>Conta do PIX</strong> já vem com a conta da loja. Para faturar em outra, abra a lista: só aparecem as contas liberadas para a loja. Embaixo, o <strong>favorecido</strong> e o <strong>CNPJ</strong> da conta escolhida aparecem para você conferir com o cliente. Se a loja não tem conta padrão e há várias contas, escolha uma.</>,
+        <>Se a venda é de um franqueado, escolha o <strong>Franqueado</strong> e digite o <strong>Crédito do franqueado (R$)</strong>. O crédito é cobrado a mais do cliente, como o frete: a soma do pagamento precisa fechar o total com o crédito. Ele fica fora do faturamento e entra no saldo do franqueado. O papel do cliente não mostra o crédito: ele vem repartido nos preços dos itens, e o papel soma o que o cliente paga. Veja <Link className="underline" href={`${B}/franqueados`}>Franqueados</Link>.</>,
         <>Se a loja cobra a entrega do cliente, digite o valor em <strong>Frete cobrado do cliente (opcional)</strong>. O cliente paga os itens mais o frete, e a soma do pagamento precisa fechar o <strong>Total com frete</strong>. Em <strong>Origem da venda</strong>, escolha <strong>Balcão</strong> ou <strong>E-commerce</strong>.</>,
         <>Confira o <strong>Vendedor</strong>. Ele já vem com o seu nome: se outro colega atendeu, escolha o nome dele. O Caixa escolhe quem atendeu em toda venda.</>,
         <>Clique em <strong>Fechar a venda</strong>. A venda cai no caixa aberto da loja.</>,
@@ -50,8 +53,8 @@ export function ParteDeVender() {
           fazer: "Não há saca lacrada no estoque. Vender saca fechada exige saca fechada de verdade. Faça uma contagem, lance a compra, ou venda a granel.",
         },
         {
-          quando: "O PIX é recusado",
-          fazer: "A loja não tem conta bancária de PIX escolhida. Chame o Dono ou o Gestor para cadastrar.",
+          quando: "O PIX é recusado, ou pede “Escolha a conta do PIX”",
+          fazer: "A loja não tem conta de PIX padrão e há mais de uma conta liberada: escolha a conta no campo Conta do PIX. Se nenhuma conta aparece, ou a conta escolhida não está liberada para a loja, chame o Dono ou o Gestor para cadastrar ou liberar a conta em Caixa.",
         },
         {
           quando: "O cartão é recusado",
@@ -67,6 +70,8 @@ export function ParteDeVender() {
       <Figura id="balcao-cliente-vendedor" />
       <Figura id="balcao-escolher-cliente" />
       <Figura id="balcao-pagamento" />
+      <Animacao id="balcao-conta-pix" />
+      <Animacao id="balcao-credito-franqueado" />
       <Figura id="venda-impressa" />
       <Chamada tipo="atencao">
         <p>
@@ -166,7 +171,7 @@ export function ParteDeFiado() {
           <>Abra <strong>Fiado</strong> e ache o cliente.</>,
           <>Clique em <strong>Receber</strong>.</>,
           <>Digite o <strong>Valor recebido (R$)</strong>. Pode ser menos do que o cliente deve.</>,
-          <>Em <strong>Como o cliente pagou</strong>, escolha Dinheiro (entra na gaveta) ou PIX (entra na conta PIX da loja). Confira a <strong>Loja que recebe</strong>.</>,
+          <>Em <strong>Como o cliente pagou</strong>, escolha Dinheiro (entra na gaveta) ou PIX (entra na conta marcada em <strong>Conta do PIX</strong>, que vem com a conta PIX da loja: troque se o cliente pagou em outra conta liberada). Confira a <strong>Loja que recebe</strong>.</>,
           <>Em dinheiro, o valor entra num caixa aberto da loja. Com mais de um aberto, escolha em <strong>Caixa que recebe</strong>.</>,
           <>Clique em <strong>Registrar recebimento</strong>. O pagamento abate primeiro a dívida mais antiga.</>,
         ]}
@@ -427,6 +432,37 @@ export function ParteDeCaixa() {
         ]}
       />
 
+      <Subtitulo>Contas bancárias e PIX</Subtitulo>
+      <Tarefa
+        paraQueServe="Cadastrar as contas do banco e dizer em quais lojas cada uma recebe PIX. O cadastro é do Dono e do Financeiro."
+        passos={[
+          <>Em <strong>Caixa</strong>, na seção <strong>Contas bancárias</strong>, clique em <strong>Nova conta</strong>.</>,
+          <>Dê um <strong>identificador</strong> (o nome que você reconhece, como o nome do banco e da agência). Se quiser, preencha o <strong>banco</strong>, o <strong>CNPJ</strong> e o <strong>favorecido</strong> (quem aparece como dono da conta).</>,
+          <>Em <strong>Disponível para PIX em</strong>, escolha <strong>Todas as lojas</strong>, <strong>Lojas escolhidas</strong> ou <strong>Não recebe PIX</strong>.</>,
+          <>Com <strong>Lojas escolhidas</strong>, marque as lojas onde a conta vale.</>,
+          <>Clique em <strong>Cadastrar conta</strong>. A tabela mostra o CNPJ, o favorecido e onde a conta vale.</>,
+        ]}
+        problemas={[
+          {
+            quando: "O CNPJ é recusado: “CNPJ inválido. Confira os 14 caracteres.”",
+            fazer: "Confira cada posição. O sistema aceita o CNPJ só de números e também o CNPJ com letras da Receita.",
+          },
+          {
+            quando: "Não consigo tirar uma loja da conta que é a PIX dela",
+            fazer: "A conta PIX da loja precisa estar liberada para a loja, e o sistema diz qual é a loja. Troque a conta PIX daquela loja antes de tirá-la da lista.",
+          },
+        ]}
+      >
+        <Animacao id="conta-pix-cadastrar" />
+        <Chamada tipo="saiba">
+          <p>
+            A liberação vale só para escolher a conta do PIX, na venda e no fiado. Cartão, boleto, cheque, pagamentos e
+            saldo inicial seguem aceitando qualquer conta ativa. Para o cliente nada muda: o orçamento, a venda A4 e o
+            cupom mostram só “PIX”.
+          </p>
+        </Chamada>
+      </Tarefa>
+
       <Subtitulo>Mais de um caixa na loja</Subtitulo>
       <Tarefa
         paraQueServe="Trabalhar com duas gavetas ao mesmo tempo, cada uma com o seu troco."
@@ -542,6 +578,7 @@ export function ParteDeResultado() {
           "Depois descontam-se as despesas fixas e sobra o resultado.",
           <>O quadro <strong>Custo do cartão</strong> diz quantos por cento do que a loja vendeu no cartão no mês foi para a taxa da maquininha e para a antecipação. Abaixo dele estão o valor vendido no cartão, a taxa e a antecipação. Sem venda no cartão no mês, o quadro diz isso.</>,
           "O ponto de equilíbrio mostra quanto a loja precisa vender para cobrir as fixas, e quanto falta.",
+          <>Perto do fim ficam as linhas de repasse: <strong>Frete de entrega (repasse)</strong> e <strong>Créditos de franqueado (repasse)</strong>. O dinheiro do crédito entra e sai do caixa, mas não é venda, custo nem lucro. Ele aparece separado, discriminado em recebido nas vendas e pago aos franqueados, fora do faturamento e da margem. A linha dos créditos só aparece quando houve crédito no mês.</>,
         ]}
         problemas={[
           {

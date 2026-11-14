@@ -24,6 +24,7 @@ import {
   ParteDeEntrega,
   ParteDeFinanceiroDasLojas,
   ParteDeFornecedores,
+  ParteDeFranqueados,
   ParteDeOrcamento,
   ParteDeRelatorios,
 } from "./partes-tarefa-3";
@@ -42,6 +43,7 @@ export const CONTEUDOS: Record<string, () => ReactNode> = {
   preco: ParteDePreco,
   compras: ParteDeCompras,
   fornecedores: ParteDeFornecedores,
+  franqueados: ParteDeFranqueados,
   estoque: ParteDeEstoque,
   transferencias: ParteDeTransferencias,
   vender: ParteDeVender,
