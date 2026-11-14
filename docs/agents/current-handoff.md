@@ -25,8 +25,8 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-13. Branch `manual-atualizacoes-e-gifs` (manual com 8
-  GIFs) NÃO publicada; regerar: roteiro `manual-gifs` e `python
+- Atualizado em: 2026-11-13. Manual com 8 GIFs em produção (merge `a531ae4`,
+  autorizado); regerar: roteiro `manual-gifs` e `python
   scripts/manual-gifs-montar.py`. Granel e PIX em produção. Os agentes `explorador`,
   `prova-juiz`, `prova-viva` e `servidor-dados` carregam (descrição entre
   aspas). Outros agentes: leia `AGENTS.md`.
@@ -72,8 +72,8 @@ Agromax, a entrega 4 (extrato da Stone) depende de um arquivo real.
 
 ### ⏭️ Próximo passo
 
-0. Manual com GIFs: o usuário autoriza merge e push. Central do Milho:
-   converter os produtos que vendem a granel.
+0. Central do Milho: converter os produtos que vendem a granel. Próximos
+   ajustes: o usuário traz (vídeo em `docs/financeiro-reuniao/`, fora do git).
    Contas PIX: a Agromax cadastra as contas PIX das lojas e do site (CNPJ,
    favorecido, onde vale) e define a padrão de cada loja.
    Franqueado: o usuário responde as três decisões abertas (Caixa, devolução,
