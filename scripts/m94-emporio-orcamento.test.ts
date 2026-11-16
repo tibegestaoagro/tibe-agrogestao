@@ -257,7 +257,7 @@ async function secao1() {
     "VALIDATION_ERROR",
     422,
     "items",
-    `"${nomeSemPreco}" (Quilo) não tem preço cadastrado nesta loja. Informe o preço.`,
+    `Cadastre o preço de ${nomeSemPreco} (Quilo) nesta loja antes de vender.`,
   );
   await recusaSemGravar("sem itens", orcar(vend1, { items: [] }), "VALIDATION_ERROR", 422, "items", "Inclua ao menos um item no orçamento.");
   const comFalta = await orcar(vend1, { items: [item({ quantity: 150 })] });

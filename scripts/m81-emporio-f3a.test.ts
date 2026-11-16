@@ -273,7 +273,8 @@ async function comBanco() {
     check("PIX sem conta (nem na venda nem na loja): 422 payments", recusa(await vender(op, [item(Sal, "Quilo", 1)], [{ kind: "pix", amount: 20 }]), "VALIDATION_ERROR", 422, "payments"));
     check("débito é da F3b: 422 payments", recusa(await vender(op, [item(Sal, "Quilo", 1)], [{ kind: "debito", amount: 20 }]), "VALIDATION_ERROR", 422, "payments"));
     check("cheque é da F3b: 422 payments", recusa(await vender(op, [item(Sal, "Quilo", 1)], [{ kind: "cheque", amount: 20 }]), "VALIDATION_ERROR", 422, "payments"));
-    check("sem preço cadastrado e sem unit_price: 422 items", recusa(await vender(op, [item(SemP, "Quilo", 1)], [dinheiro(5)]), "VALIDATION_ERROR", 422, "items"));
+    const rSemP = await vender(op, [item(SemP, "Quilo", 1)], [dinheiro(5)]);
+    check("sem preço cadastrado e sem unit_price: 422 items, 'Cadastre o preço de' (Q328)", recusa(rSemP, "VALIDATION_ERROR", 422, "items") && !rSemP.ok && String(rSemP.message).startsWith("Cadastre o preço de"), j(rSemP));
     // Venda sem cliente agora é recusada de saída (design 2026-11-03-emporio-cliente-nome-menu).
     const rSemCli = await vender(op, [item(Sal, "Quilo", 1)], [dinheiro(20)], { customer_id: null });
     check("venda sem cliente: 422 customer_id com a frase fixa", recusa(rSemCli, "VALIDATION_ERROR", 422, "customer_id") && !rSemCli.ok && rSemCli.message === "Escolha o cliente da venda. Quem não quer se identificar entra como Consumidor final.", j(rSemCli));
@@ -283,7 +284,11 @@ async function comBanco() {
     check("granel sem saldo (2 kg, pede 5) sem negativo liberado: 409 INSUFFICIENT_STOCK em items", recusa(await vender(op, [item(Gr, "Quilo", 5)], [dinheiro(30)]), "INSUFFICIENT_STOCK", 409, "items"));
     check("saca fechada sem lacrado (nenhuma): 409 INSUFFICIENT_STOCK em items", recusa(await vender(op, [item(Gr, "Saca 10 kg", 1)], [dinheiro(55)]), "INSUFFICIENT_STOCK", 409, "items"));
     check("as recusas não gravaram venda, movimento de estoque nem de caixa, e o avulso segue 2", (await nVendas()) === v0 && (await nMov()) === m0 && (await db.cashMovement.count()) === c0 && (await total(L1.id, Gr)) === 2);
-    check("com unit_price informado, o item sem preço cadastrado vende", (await vender(op, [item(SemP, "Quilo", 1, 7)], [dinheiro(7)])).ok);
+    const rSemPU = await vender(op, [item(SemP, "Quilo", 1, 7)], [dinheiro(7)]);
+    check("com unit_price informado, o item sem preço cadastrado AINDA é recusado: 422 items, 'Cadastre o preço de' (Q328)", recusa(rSemPU, "VALIDATION_ERROR", 422, "items") && !rSemPU.ok && String(rSemPU.message).startsWith("Cadastre o preço de"), j(rSemPU));
+    check("a recusa não gravou venda nem movimento", (await nVendas()) === v0 && (await nMov()) === m0);
+    await preco(L1.id, SemP, "Quilo", 7);
+    check("depois de cadastrar o preço (7), o item vende", (await vender(op, [item(SemP, "Quilo", 1)], [dinheiro(7)])).ok);
 
     const Gn = await mkProduto("Granel negativável", SEP);
     await implantar(L3.id, Gn, 2, 3);
@@ -411,12 +416,16 @@ async function comBanco() {
     check("discount_amount 3 e discount_authorized_by_user_id = o OWNER", perto(n(sDo?.discount_amount), 3) && sDo?.discount_authorized_by_user_id === owner.id, j(sDo));
     const rDa = await vender(admin, [item(Sal, "Quilo", 1, 16)], [dinheiro(16)]);
     check("ADMIN com 20%: passa e se grava como autorizador", rDa.ok && (await db.emporioSale.findUnique({ where: { id: await saleId(rDa) } }))?.discount_authorized_by_user_id === admin.id, j(rDa));
+    const nV7 = await nVendas();
     const rAcimaP = await vender(op, [item(Fa, "Quilo", 1, 36)], [dinheiro(36)]);
-    check("preço acima do cadastrado é livre para OPERADOR, sem desconto", rAcimaP.ok && perto(n((await db.emporioSale.findUnique({ where: { id: await saleId(rAcimaP) } }))?.discount_amount), 0), j(rAcimaP));
-    check("preço acima de um item não compensa outro abaixo (sal 20 a 14 = 6 de desconto sobre 50 sugeridos = 12%; farinha 30 a 60): 403", recusa(await vender(op, [item(Sal, "Quilo", 1, 14), item(Fa, "Quilo", 1, 60)], [dinheiro(74)]), "DISCOUNT_ABOVE_LIMIT", 403, "items"));
+    check("preço ACIMA do cadastrado: 422 items, 'O preço vem do cadastro' (Q327)", recusa(rAcimaP, "VALIDATION_ERROR", 422, "items") && !rAcimaP.ok && String(rAcimaP.message).startsWith("O preço vem do cadastro"), j(rAcimaP));
+    check("a recusa do preço acima não gravou venda", (await nVendas()) === nV7);
+    check("preço acima num item, mesmo com outro abaixo (sal a 14, farinha a 60): 422 VALIDATION_ERROR (o acima é recusado antes do limite)", recusa(await vender(op, [item(Sal, "Quilo", 1, 14), item(Fa, "Quilo", 1, 60)], [dinheiro(74)]), "VALIDATION_ERROR", 422, "items"));
+    check("só abaixo, além do limite (sal a 14 = 30% de desconto, farinha a 30): 403 DISCOUNT_ABOVE_LIMIT", recusa(await vender(op, [item(Sal, "Quilo", 1, 14), item(Fa, "Quilo", 1)], [dinheiro(44)]), "DISCOUNT_ABOVE_LIMIT", 403, "items"));
     check("o preço cadastrado não mudou depois das vendas", perto(n((await db.presentationPrice.findFirst({ where: { establishment_id: L1.id, presentation_id: Sal.p["Quilo"] } }))?.price), 20));
-    const itPreco = await db.emporioSaleItem.findFirst({ where: { sale_id: await saleId(rAcimaP) } });
-    check("o item grava sugerido 30 e praticado 36", perto(n(itPreco?.suggested_price), 30) && perto(n(itPreco?.unit_price), 36) && perto(n(itPreco?.total), 36));
+    const rNoPreco = await vender(op, [item(Fa, "Quilo", 1)], [dinheiro(30)]);
+    const itPreco = await db.emporioSaleItem.findFirst({ where: { sale_id: await saleId(rNoPreco) } });
+    check("sem unit_price, a linha cobra o cadastro: sugerido 30, praticado 30, total 30", rNoPreco.ok && perto(n(itPreco?.suggested_price), 30) && perto(n(itPreco?.unit_price), 30) && perto(n(itPreco?.total), 30), j(rNoPreco));
     check("o custo do item é o custo médio da loja (8) e o médio não mudou", perto(n(itPreco?.unit_cost), 8) && perto(n((await linhaDaLoja(L1.id, Fa))?.average_cost), 8));
 
     // ---------------------------------------------------------------- 8
