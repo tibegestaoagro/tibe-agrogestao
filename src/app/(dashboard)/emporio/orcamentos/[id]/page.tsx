@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/table";
 import { numeroBr } from "../../_components/formato";
 import { CancelarOrcamentoForm } from "../../_components/cancelar-orcamento-form";
+import { PendenciasParaVenda } from "../../_components/pendencias-para-venda";
 
 const DATA_HORA = new Intl.DateTimeFormat("pt-BR", {
   timeZone: "America/Sao_Paulo",
@@ -149,6 +150,8 @@ export default async function OrcamentoPage({ params }: { params: Promise<{ id: 
           {editavel && podeVender && <CancelarOrcamentoForm orcamentoId={o.id} numero={o.numero} />}
         </div>
       </header>
+
+      {!faturado && !cancelado && <PendenciasParaVenda pendencias={o.pendencias_para_venda} />}
 
       <section className="space-y-2">
         <h2 className="text-lg font-semibold text-texto">Itens</h2>

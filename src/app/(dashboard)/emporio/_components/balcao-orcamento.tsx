@@ -11,6 +11,7 @@ import { CONSUMIDOR_FINAL } from "@/lib/contatos/cadastro";
 import { consumidorFinalEscolhido, type ClienteEscolhido } from "@/lib/emporio/cliente-escolhido";
 import { linhaDoEndereco } from "@/lib/emporio/pedido-para-entrega";
 import { numeroBr, paraCampo, UNIDADE_BASE_SUFIXO } from "./formato";
+import { PendenciasParaVenda } from "./pendencias-para-venda";
 import { valorDoPedido, type PedidoParaEntregaValor } from "./pedido-para-entrega-campos";
 import { cent, centavosParaCampo, type CargaDoOrcamento, type PrecosVenda, type ProdutoVenda } from "./venda-estado";
 
@@ -387,6 +388,7 @@ export function ResumoDoOrcamento({
           .map((i) => `${numeroBr(i.quantity)} × ${i.produto} (${i.apresentacao})`)
           .join("; ")}
       </p>
+      <PendenciasParaVenda pendencias={orcamento.pendencias_para_venda} />
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <a href={`/emporio/imprimir/orcamento/${orcamento.id}?formato=a4`} target="_blank" rel="noopener noreferrer" className={LINK}>
           Imprimir A4

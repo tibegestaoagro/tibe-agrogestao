@@ -166,6 +166,7 @@ export function PedidoParaEntregaCampos({
   aoMudarCadastro,
   limpar,
   aoVerFalta,
+  opcional = false,
 }: {
   valor: PedidoParaEntregaValor;
   aoMudar: (v: PedidoParaEntregaValor) => void;
@@ -181,6 +182,8 @@ export function PedidoParaEntregaCampos({
    * do balcão) recebe a falta por aqui, e este bloco não repete o botão.
    */
   aoVerFalta?: (f: Falta | null) => void;
+  /** Q336: no orçamento a escolha do endereço e os campos do "outro" são opcionais (a venda os exige). */
+  opcional?: boolean;
 }) {
   const ativo = valor.for_delivery && !!customerId;
   const [recarga, setRecarga] = useState(0);
@@ -309,7 +312,11 @@ export function PedidoParaEntregaCampos({
             </div>
           )}
 
-          <Field label="Endereço de entrega" required id={idDe("delivery_address_kind")} error={erros.delivery_address_kind}>
+          <Field
+            label="Endereço de entrega"
+            required={!opcional}
+            hint={opcional ? "Opcional no orçamento: pode ser definido ao fechar a venda." : undefined}
+            id={idDe("delivery_address_kind")} error={erros.delivery_address_kind}>
             {({ id, ...aria }) => (
               <div id={id} role="radiogroup" tabIndex={-1} {...aria} className="space-y-2">
                 {escolhas.map((o) => (
@@ -335,7 +342,7 @@ export function PedidoParaEntregaCampos({
                 <Field
                   key={c.campo}
                   label={c.rotulo}
-                  required={c.required}
+                  required={c.required && !opcional}
                   id={idDe(c.campo)}
                   error={erros[c.campo]}
                   hint={c.campo === "delivery_zip" ? avisoDoCep(cep) : undefined}
