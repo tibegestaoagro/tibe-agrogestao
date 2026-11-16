@@ -44,7 +44,13 @@ import { abertosDaLoja, caixaInicial, fechadosDaLoja, paraCaixasDaLoja, type Cai
 import { FranquiaCampos, VendaCampos } from "./venda-campos";
 import { numeroBr, numeroDaVenda } from "./formato";
 import { FORMA_ROTULO } from "./venda-rotulos";
-import { inicialDaVenda, useVenda, type PrecosVenda, type ProdutoVenda } from "./venda-estado";
+import {
+  inicialDaVenda,
+  useVenda,
+  type LimiteDaLoja,
+  type PrecosVenda,
+  type ProdutoVenda,
+} from "./venda-estado";
 
 /**
  * O balcão (Q87): a venda de dez segundos. Abre direto na venda, sem lista na
@@ -76,6 +82,8 @@ const ORDEM = [
   "number",
   "quote_id",
   "items",
+  "order_discount_amount",
+  "discount_authorization",
   "customer_id",
   "for_delivery",
   "delivery_address_kind",
@@ -133,7 +141,10 @@ export function Balcao({
   edicao = null,
   refazer = null,
   franqueados,
+  limitesPorLoja,
 }: {
+  /** O limite de desconto de cada loja e se quem vende é gestor dela (resolvido no servidor, desce por prop). */
+  limitesPorLoja: Record<string, LimiteDaLoja>;
   /** Os franqueados ativos (lidos no servidor): vazio quando o perfil não os enxerga, e os campos somem. */
   franqueados: { id: string; name: string }[];
   /**
@@ -180,6 +191,8 @@ export function Balcao({
     cargaInicial,
     inicial: daEdicao?.inicial ?? null,
     comFranquia: true,
+    comDescontoNoTotal: true,
+    limites: limitesPorLoja,
     // Na edição a taxa vale no dia da venda antiga, em Brasília (é o que o servidor resolve).
     diaDaVenda: edicao
       ? new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date(edicao.venda.sold_at))
@@ -366,6 +379,14 @@ export function Balcao({
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
+  /** O servidor recusou o desconto (acima do limite, ou autorização que não vale): abre o pedido ao gestor. */
+  function pedirAutorizacaoSeRecusou(codigo: string) {
+    if (codigo !== "DISCOUNT_ABOVE_LIMIT" && codigo !== "DISCOUNT_AUTHORIZATION_INVALID") return;
+    // A autorização recusada não serve mais: some, e o gestor digita o PIN de novo.
+    if (codigo === "DISCOUNT_AUTHORIZATION_INVALID") v.soltarAutorizacao();
+    v.definirPedidoAberto(true);
+  }
+
   async function salvarOrcamento() {
     const m = v.montar(true, { orcamento: true });
     const novos: typeof m.novos &
@@ -397,6 +418,9 @@ export function Balcao({
       franchisee_credit: m.corpo.franchisee_credit ?? 0,
       // Q326: o frete também vai sempre, para editar e zerar.
       freight_amount: m.corpo.freight_amount ?? 0,
+      // Q329: o desconto no total também vai sempre explícito (o PATCH regrava o corpo inteiro), e a autorização só se há uma.
+      order_discount_amount: m.corpo.order_discount_amount ?? 0,
+      ...(m.corpo.discount_authorization ? { discount_authorization: m.corpo.discount_authorization } : {}),
       ...corpoDoPedido,
       ...(vendedor ? { seller_user_id: vendedor } : {}),
       notes: observacao || null,
@@ -414,6 +438,7 @@ export function Balcao({
     setEnviando(false);
     if (!res.ok) {
       err.doServidor(res);
+      pedirAutorizacaoSeRecusou(res.code);
       return;
     }
     chave.current = null;
@@ -502,6 +527,7 @@ export function Balcao({
     setEnviando(false);
     if (!res.ok) {
       err.doServidor(res);
+      pedirAutorizacaoSeRecusou(res.code);
       setRecusaDeCredito(res.code === "FIADO_BLOQUEADO" || res.code === "LIMITE_EXCEDIDO");
       if (res.code === "CASH_CLOSED" || res.code === "CASH_REGISTER_REQUIRED") {
         // O servidor discorda da tela: lê de novo os caixas para a escolha refletir o que existe agora.
@@ -559,8 +585,8 @@ export function Balcao({
           {daRefeita && daRefeita.semPreco > 0 && (
             <p role="status" className="font-medium">
               {daRefeita.semPreco === 1
-                ? "Um item está sem preço hoje nesta loja: digite o preço dele."
-                : `${daRefeita.semPreco} itens estão sem preço hoje nesta loja: digite o preço deles.`}
+                ? "Um item está sem preço hoje nesta loja: cadastre o preço dele antes de salvar."
+                : `${daRefeita.semPreco} itens estão sem preço hoje nesta loja: cadastre o preço deles antes de salvar.`}
             </p>
           )}
         </section>
@@ -686,6 +712,10 @@ export function Balcao({
             semPagamento={modo === "orcamento"}
             comFrete={modo === "venda"}
             freteNoOrcamento={modo === "orcamento"}
+            descontoNoTotal
+            autorizacaoHerdada={
+              !!orcamento?.discount_authorized_by_user_id || !!edicao?.venda.discount_authorized_by_user_id
+            }
             depoisDoFrete={
               <FranquiaCampos
                 v={v}

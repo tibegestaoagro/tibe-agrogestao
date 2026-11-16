@@ -43,7 +43,10 @@ export type ImpressoVenda = {
   peso_total_kg: number | null;
   itens_sem_peso: number;
   subtotal: number;
+  /** Só o desconto das linhas; o do total vai em `desconto_no_total`. */
   desconto: number;
+  /** Q329: o desconto dado no total (0 sem ele). */
+  desconto_no_total: number;
   /** Frete cobrado do cliente (Q244 na venda, Q326 no orçamento); 0 sem frete. */
   frete: number;
   /** Itens mais frete: o que o cliente paga. */
@@ -182,7 +185,6 @@ function itensNoPrecoSugerido(
     quantity: number;
     unit_price: number;
     suggested_price: number | null;
-    total: number;
     peso_kg: number | null;
   }[],
 ): { itens: ImpressoVenda["itens"]; subtotal: number } {
@@ -190,9 +192,9 @@ function itensNoPrecoSugerido(
   const itens = linhas.map((i) => {
     const comDesconto = i.suggested_price != null && i.unit_price < i.suggested_price;
     const preco = comDesconto ? (i.suggested_price as number) : i.unit_price;
-    const total = comDesconto
-      ? (centavos(i.total) + centavos((preco - i.unit_price) * i.quantity)) / 100
-      : i.total;
+    // O `total` gravado já leva a parte do desconto no total rateada (Q329): a linha do papel
+    // sai de quantidade x preço, e os dois descontos descem juntos no rodapé.
+    const total = (centavos(i.quantity * i.unit_price) + centavos((preco - i.unit_price) * i.quantity)) / 100;
     return { produto: i.produto, quantidade: numeroBr(i.quantity), peso_kg: i.peso_kg, preco, total };
   });
   const subtotal = Math.round(itens.reduce((t, x) => t + Math.round(x.total * 100), 0)) / 100;
@@ -252,7 +254,6 @@ export async function lerImpressoDaVendaAction(
       quantity: i.quantity,
       unit_price: i.unit_price,
       suggested_price: i.suggested_price,
-      total: i.total,
       peso_kg: i.weight_kg,
     })),
   );
@@ -280,7 +281,8 @@ export async function lerImpressoDaVendaAction(
     peso_total_kg: pesos.total_kg,
     itens_sem_peso: pesos.sem_peso,
     subtotal,
-    desconto: v.discount_amount,
+    desconto: (emCentavos(v.discount_amount) - emCentavos(v.order_discount_amount)) / 100,
+    desconto_no_total: v.order_discount_amount,
     frete: v.freight_amount,
     total,
     origem: v.origin,
@@ -422,7 +424,6 @@ export async function lerImpressoDoOrcamentoAction(
       quantity: i.quantity,
       unit_price: i.preco_orcado,
       suggested_price: i.preco_sugerido,
-      total: i.total,
       peso_kg: i.peso_kg,
     })),
   );
@@ -446,7 +447,8 @@ export async function lerImpressoDoOrcamentoAction(
     peso_total_kg: pesos.total_kg,
     itens_sem_peso: pesos.sem_peso,
     subtotal,
-    desconto: q.discount_amount,
+    desconto: (emCentavos(q.discount_amount) - emCentavos(q.order_discount_amount)) / 100,
+    desconto_no_total: q.order_discount_amount,
     frete: q.freight_amount,
     total,
     origem: "balcao",

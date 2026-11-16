@@ -14,13 +14,25 @@ import { DevolucaoItens, montarDevolvidos, type EscolhaDevolucao, type ItemDevol
 import { VendaCampos } from "./venda-campos";
 import { CaixaDaOperacao } from "./caixa-da-operacao";
 import { abertosDaLoja, caixaInicial, type CaixaDaLoja } from "./caixas-da-loja";
-import { useVenda, type CampoDaVenda, type PrecosVenda, type ProdutoVenda } from "./venda-estado";
+import { useVenda, type CampoDaVenda, type LimiteDaLoja, type PrecosVenda, type ProdutoVenda } from "./venda-estado";
 import type { ClienteEscolhido } from "@/lib/emporio/cliente-escolhido";
 
 // Ordem visual, de cima para baixo. Na troca o servidor recusa os itens
 // devolvidos em `items_devolvidos` e os da venda nova em `items`.
-const ORDEM = ["items_devolvidos", "amount", "items", "customer_id", "acquirer_id", "payments", "cash_register_id", "reason"] as const;
+const ORDEM = [
+  "items_devolvidos",
+  "amount",
+  "items",
+  "discount_authorization",
+  "customer_id",
+  "acquirer_id",
+  "payments",
+  "cash_register_id",
+  "reason",
+] as const;
 type Campo = (typeof ORDEM)[number];
+
+const SO_DO_BALCAO: CampoDaVenda[] = ["establishment_id", "freight_amount", "origin", "order_discount_amount"];
 
 const VAZIA: EscolhaDevolucao = { qtds: {}, avarias: {} };
 
@@ -41,7 +53,10 @@ export function TrocarForm({
   permitirCadastro = true,
   caixas,
   usuarioId,
+  limite,
 }: {
+  /** O limite de desconto da loja da venda e se quem troca é gestor dela (resolvido no servidor). */
+  limite: LimiteDaLoja;
   caixas: CaixaDaLoja[];
   usuarioId: string;
   vendaId: string;
@@ -77,6 +92,7 @@ export function TrocarForm({
     lojaInicial: lojaId,
     clienteInicial,
     abatimentoCent: devolvidoCent,
+    limites: { [lojaId]: limite },
   });
 
   async function submit() {
@@ -84,6 +100,7 @@ export function TrocarForm({
     const novos: Partial<Record<Campo, string>> = {};
     if (!devolvidos.ok) novos.items_devolvidos = devolvidos.erro;
     if (m.novos.items) novos.items = m.novos.items;
+    if (m.novos.discount_authorization) novos.discount_authorization = m.novos.discount_authorization;
     if (m.novos.customer_id) novos.customer_id = m.novos.customer_id;
     if (m.novos.acquirer_id) novos.acquirer_id = m.novos.acquirer_id;
     if (m.novos.payments) novos.payments = m.novos.payments;
@@ -108,6 +125,11 @@ export function TrocarForm({
     setLoading(false);
     if (!res.ok) {
       err.doServidor(res);
+      // O desconto da venda nova passou do limite, ou a autorização não vale: abre o pedido ao gestor.
+      if (res.code === "DISCOUNT_ABOVE_LIMIT" || res.code === "DISCOUNT_AUTHORIZATION_INVALID") {
+        if (res.code === "DISCOUNT_AUTHORIZATION_INVALID") v.soltarAutorizacao();
+        v.definirPedidoAberto(true);
+      }
       return;
     }
     chave.current = null;
@@ -167,10 +189,10 @@ export function TrocarForm({
         consumidorFinal={consumidorFinal}
         permitirCadastro={permitirCadastro}
         erros={err.erros}
-        idDe={(c: CampoDaVenda) => (c === "establishment_id" || c === "freight_amount" || c === "origin" ? c : err.idDe(c))}
+        idDe={(c: CampoDaVenda) => (SO_DO_BALCAO.includes(c) ? c : err.idDe(c as Campo))}
         limpar={(c: CampoDaVenda) => {
-          // Frete e origem só existem no balcão (`comFrete`); a troca não os renderiza.
-          if (c !== "establishment_id" && c !== "freight_amount" && c !== "origin") err.limparCampo(c);
+          // Frete, origem e desconto no total só existem no balcão; a troca não os renderiza.
+          if (!SO_DO_BALCAO.includes(c)) err.limparCampo(c as Campo);
         }}
         lojaFixa
       />

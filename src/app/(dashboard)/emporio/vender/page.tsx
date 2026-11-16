@@ -51,9 +51,17 @@ export default async function VenderPage({
   const orcamentoId = typeof orcamentoParam === "string" ? orcamentoParam : "";
 
   const db = await getTenantDb();
-  const podeVender = pode(await papelDoEmporio(db, user), "vendedor_da_loja");
+  const papel = await papelDoEmporio(db, user);
+  const podeVender = pode(papel, "vendedor_da_loja");
   const lojasRes = await listarEstabelecimentosAction(db, user);
   const lojas = lojasRes.ok ? lojasRes.data.map((l) => ({ id: l.id, name: l.name })) : [];
+  // O limite de desconto de cada loja e se quem vende é gestor dela: resolvido aqui (o client não importa permissões).
+  const limitesPorLoja: Record<string, { max: number | null; gestor: boolean }> = {};
+  if (lojasRes.ok) {
+    for (const l of lojasRes.data) {
+      limitesPorLoja[l.id] = { max: l.max_discount_pct, gestor: pode(papel, "gestor_da_loja", l.id) };
+    }
+  }
 
   const catalogo =
     podeVender && lojas.length > 0 ? await carregarCatalogoDeVenda(db, lojas.map((l) => l.id)) : null;
@@ -181,6 +189,7 @@ export default async function VenderPage({
           vendedoresPorLoja={vendedoresPorLoja}
           ehCaixa={ehCaixa}
           franqueados={franqueados}
+          limitesPorLoja={limitesPorLoja}
           orcamentoInicial={orcamentoInicial}
           edicao={edicao}
         />

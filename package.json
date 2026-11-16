@@ -98,6 +98,7 @@
     "test:m115": "tsx scripts/m115-emporio-granel-e-atacado.test.ts",
     "test:m116": "tsx scripts/m116-emporio-caixa-vendas-do-turno.test.ts",
     "test:m117": "tsx scripts/m117-emporio-frete-no-orcamento.test.ts",
+    "test:m118": "tsx scripts/m118-emporio-preco-desconto-pin-brinde.test.ts",
     "test:isolation": "tsx scripts/tenant-isolation.test.ts",
     "test:docs-api": "tsx scripts/docs-api-completeness.test.ts",
     "test:nav": "tsx scripts/nav-build.test.ts",

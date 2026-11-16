@@ -37,6 +37,23 @@ export function ParteDeConfiguracoes() {
         <Figura id="configuracoes-loja" />
       </Tarefa>
 
+      <Subtitulo>O limite de desconto e o PIN do gestor</Subtitulo>
+      <Tarefa
+        paraQueServe="Dizer até quanto de desconto o vendedor dá sozinho, e deixar o gestor liberar o que passa disso."
+        passos={[
+          <>O limite é o <strong>Desconto máximo (%)</strong> dos dados da loja, em <strong>Lojas</strong> &gt; <strong>Editar</strong>. Até ele, o vendedor dá o desconto sozinho, na linha do item ou no total da venda.</>,
+          <>Acima do limite, o balcão pede <strong>Pedir autorização do gestor</strong>: o vendedor escolhe o gestor e o gestor digita o PIN dele. A autorização vale 15 minutos, naquela loja, até aquele percentual de desconto.</>,
+          "Quem é gestor da loja não precisa de PIN para o próprio desconto. A loja que quer autorização em todo desconto configura o limite em 0%.",
+          <>Cada gestor (Gestor, Gerente geral e Dono) cadastra o PIN dele em <strong>Configurações</strong> &gt; <strong>Minha senha</strong>, com 4 a 6 números e a senha de entrada. Cinco PINs errados travam as tentativas daquele gestor por 15 minutos. O Dono e o Gerente geral apagam o PIN de alguém na Equipe, em <strong>Apagar PIN</strong>.</>,
+        ]}
+        problemas={[
+          {
+            quando: "“Nenhum gestor desta loja tem PIN cadastrado.”",
+            fazer: "Nenhum gestor da loja cadastrou o PIN ainda. Cada um cadastra o seu em Configurações > Minha senha.",
+          },
+        ]}
+      />
+
       <Subtitulo>Mais de um caixa na loja</Subtitulo>
       <Tarefa
         paraQueServe="Ter duas gavetas trabalhando ao mesmo tempo, cada uma com o seu troco e o seu turno."
@@ -154,7 +171,7 @@ export function ParteDeOrcamento() {
         paraQueServe="Dar ao cliente um preço por escrito, para ele decidir depois. O orçamento não tira do estoque, não reserva mercadoria e não mexe no caixa."
         passos={[
           <>Abra <strong>Vender</strong> e toque em <strong>Orçamento</strong>, no alto da tela.</>,
-          "Busque os produtos e ajuste a quantidade e o preço, como numa venda. O desconto segue o mesmo limite da loja.",
+          <>Busque os produtos e ajuste a quantidade, como numa venda. O preço vem do cadastro da loja e não se digita; produto sem preço na loja não entra. O desconto é o mesmo da venda: <strong>Desconto (%)</strong> em cada linha e <strong>Desconto no total (R$)</strong> para o orçamento inteiro, até o limite da loja. Acima dele, <strong>Pedir autorização do gestor</strong>: o gestor digita o PIN, e a autorização vale 15 minutos, naquela loja, até aquele percentual. Um item cadastrado com preço R$ 0,00 sai como <strong>Brinde</strong>.</>,
           <>No campo <strong>Cliente</strong>, clique em <strong>Escolher cliente</strong> e busque pelo nome, pelo CPF ou CNPJ, ou por um pedaço do telefone. Quem não quer se identificar entra como <strong>Consumidor final</strong>, que vale para o orçamento. O cliente precisa estar com o cadastro completo: na pessoa física, nome e telefone; na jurídica, também o CNPJ e o endereço principal. Para um cliente novo, clique em <strong>Cadastrar novo cliente</strong>.</>,
           <>Se o orçamento é de um franqueado, escolha o <strong>Franqueado</strong> e digite o <strong>Crédito do franqueado (R$)</strong>. O papel do orçamento já sai com o crédito repartido nos itens, e a venda, ao faturar, nasce com os dois.</>,
           <>Se vai ter entrega cobrada, digite o <strong>Frete cobrado do cliente</strong>. O papel do orçamento mostra o frete numa linha própria e o total com ele, e a venda, ao faturar, já nasce com o frete. O frete não entra no faturamento da loja.</>,
@@ -173,8 +190,12 @@ export function ParteDeOrcamento() {
             fazer: <>O cliente aparece com <strong>Cadastro incompleto</strong>. Clique em <strong>Completar cadastro</strong>, preencha o que a frase pediu e salve. Depois salve o orçamento.</>,
           },
           {
-            quando: "O desconto é recusado: “O desconto de X% passa do limite de Y% desta loja. Peça ao gestor da loja.”",
-            fazer: "O desconto passou do limite da loja. Chame o Gestor. O desconto que ele autoriza no orçamento continua valendo no faturamento, dentro da validade.",
+            quando: "“O desconto de X% passa do limite de Y% desta loja. O gestor da loja precisa autorizar com o PIN dele.”",
+            fazer: <>O desconto passou do limite da loja. Clique em <strong>Pedir autorização do gestor</strong> e peça que ele digite o PIN. O desconto que ele autoriza no orçamento continua valendo no faturamento, dentro da validade. Se a tela disser “PIN incorreto.”, confira o PIN com o gestor; após cinco erros seguidos, “Muitas tentativas”, as tentativas dele travam por 15 minutos e outro gestor pode autorizar.</>,
+          },
+          {
+            quando: "“Cadastre o preço de ... nesta loja antes de vender.”",
+            fazer: "O produto não tem preço nesta loja. Chame o Gestor ou o Dono para cadastrar em Preço por loja, no produto.",
           },
         ]}
       >
@@ -183,7 +204,7 @@ export function ParteDeOrcamento() {
         <Chamada tipo="saiba">
           <p>
             Para mudar um orçamento em aberto ou vencido, abra-o em <strong>Orçamentos</strong> e clique em{" "}
-            <strong>Editar</strong>: ele mantém o número, ganha nova validade e os itens passam para o preço de hoje.
+            <strong>Editar</strong>: ele mantém o número, ganha nova validade e os itens passam para o preço de hoje do cadastro.
             Para desistir dele, clique em <strong>Cancelar orçamento</strong> e diga o motivo; o cancelamento não tem
             volta, e o orçamento fica no filtro <strong>Cancelados</strong>. O orçamento já faturado não se edita:
             clique em <strong>Novo orçamento a partir deste</strong> (vale para qualquer orçamento) para ajustar itens e
@@ -226,13 +247,14 @@ export function ParteDeOrcamento() {
         <Figura id="orcamento-faturar" />
         <Chamada tipo="saiba">
           <p>
-            Dentro da validade, o cliente paga o menor entre o preço orçado e o preço de hoje. Vencido, ele paga o preço de
-            hoje: a faixa diz “Orçamento vencido em ...: vale o preço de hoje.” O orçamento vencido ainda pode ser faturado.
+            Dentro da validade, a venda mantém o preço e o desconto orçados, mesmo que o cadastro tenha mudado. Vencido, ele
+            paga o preço de hoje do cadastro: a faixa diz “Orçamento vencido em ...: vale o preço de hoje.” O orçamento
+            vencido ainda pode ser faturado.
           </p>
           <p>
             O desconto do orçamento passa para a venda. Um desconto a mais no faturamento se soma a ele, e o total não pode
-            passar do limite da loja. Se o Gestor autorizou um desconto acima do limite no orçamento, ele vale; um desconto
-            a mais, só com o Gestor. Um orçamento fatura uma vez só. Se a venda dele for cancelada, ele volta a aberto e pode
+            passar do limite da loja. Se o gestor autorizou um desconto acima do limite no orçamento, ele vale; um desconto
+            a mais pede nova autorização, com o PIN de um gestor. Um orçamento fatura uma vez só. Se a venda dele for cancelada, ele volta a aberto e pode
             ser faturado de novo.
           </p>
         </Chamada>

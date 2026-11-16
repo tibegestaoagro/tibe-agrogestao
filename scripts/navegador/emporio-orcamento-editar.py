@@ -44,6 +44,11 @@ def texto_da_pagina():
     return js("(document.body.innerText || '').replace(/\\u00a0/g, ' ')") or ""
 
 
+def preco_do_item(n):
+    """O preco do item `n` agora e TEXTO ("Preço R$ 18,00"), nao campo (Q327): le o cartao do item."""
+    return js("(() => { const el = document.querySelector('input[aria-label=' + " + repr("'Quantidade do item " + str(n) + "'") + " + ']'); const c = el && el.closest('div.space-y-2'); return c ? c.innerText.replace(/\\u00a0/g, ' ').replace(/\\n+/g, ' | ') : 'SEM LINHA'; })()") or ""
+
+
 def valor_aria(aria):
     return js("(() => { const el = document.querySelector('input[aria-label=' + " + repr("'" + aria + "'") + " + ']'); return el ? el.value : 'SEM CAMPO'; })()") or ""
 
@@ -167,8 +172,9 @@ confere("o balcão abre", caminho() == "/emporio/vender", caminho())
 confere("o balcão avisa: Editando o orçamento nº " + numero_vencido, esperar(lambda: ("Editando o orçamento nº " + numero_vencido) in texto_do_main(), 20), texto_principal(300))
 confere("o aviso diz que validade e preços serão renovados", "a validade e os preços serão renovados" in texto_do_main(), texto_principal(300))
 confere("o botão é Salvar alterações", esperar(lambda: "Salvar alterações" in texto_do_main(), 10), texto_principal(300))
-preco = valor_aria("Preço do item 1 (R$)")
-confere("o item abre com o preço de hoje (18,00), não o orçado (15,00)", preco.startswith("18"), preco)
+preco = preco_do_item(1)
+confere("o item abre com o preço de hoje (R$ 18,00, em texto), não o orçado (R$ 15,00)", bool(re.search(r"Preço( do orçamento)? R\$\s*18,00", preco)) and "15,00" not in preco, preco)
+confere("o preço do item não é campo editável", not js("!!document.querySelector('input[aria-label^=\"Preço do item\"]')"))
 confere("a quantidade do item é 1", valor_aria("Quantidade do item 1").startswith("1"), valor_aria("Quantidade do item 1"))
 confere("muda a quantidade para 3", preencher_aria("Quantidade do item 1", "3") != "SEM CAMPO")
 confere("clica em Salvar alterações", enviar_botao("Salvar alterações"))
@@ -236,7 +242,7 @@ confere("o link leva ao balcão com orcamento_base", href_base.startswith("/empo
 ir(href_base)
 confere("o balcão avisa: Novo orçamento a partir do nº " + numero_faturado, esperar(lambda: ("Novo orçamento a partir do nº " + numero_faturado) in texto_do_main(), 20), texto_principal(300))
 confere("o item do original veio, com 2 kg", esperar(lambda: valor_aria("Quantidade do item 1").startswith("2"), 15), valor_aria("Quantidade do item 1"))
-confere("o item vem a R$ 20,00 (preço de hoje)", valor_aria("Preço do item 1 (R$)").startswith("20"), valor_aria("Preço do item 1 (R$)"))
+confere("o item vem a R$ 20,00 (preço de hoje, em texto)", bool(re.search(r"Preço( do orçamento)? R\$\s*20,00", preco_do_item(1))), preco_do_item(1))
 confere("clica em Salvar orçamento", enviar_botao("Salvar orçamento"))
 confere("vai ao detalhe de outro orçamento", esperar(lambda: caminho().startswith("/emporio/orcamentos/") and caminho() != href_faturado, 60), caminho())
 esperar(lambda: tem("Itens"), 30)

@@ -14,8 +14,10 @@ export function ParteDeVender() {
       passos={[
         <>Abra <strong>Vender</strong>. A tela já abre em <strong>Venda</strong>. Se você trabalha em mais de uma loja, confira a <strong>Loja</strong>.</>,
         "Busque o produto pelo nome, pela marca ou pelo código e toque nele. Repita para cada item.",
-        "Ajuste a quantidade. Se o preço cadastrado estiver vazio, digite o valor.",
-        "Se precisar dar desconto, digite um preço menor que o sugerido no item. A tela mostra o desconto. Até o limite da loja você mesmo dá.",
+        "Ajuste a quantidade. O preço vem do cadastro da loja e você não o digita: a linha mostra o preço e o total do item. Produto sem preço na loja não vende.",
+        <>Se precisar dar desconto, preencha <strong>Desconto (%)</strong> na linha do item, ou <strong>Desconto no total (R$)</strong> para a venda inteira. A tela mostra o total já com o desconto. Até o limite de desconto da loja você mesmo dá.</>,
+        <>Se o desconto passar do limite da loja, a tela avisa e aparece <strong>Pedir autorização do gestor</strong>. Escolha o gestor, e ele digita o PIN dele. A autorização vale 15 minutos, naquela loja, até aquele percentual de desconto. Se você é o gestor da loja, não precisa de PIN.</>,
+        <>Para dar um brinde, adicione o item cadastrado com preço R$ 0,00 (por exemplo, BONUS). Ele aparece como <strong>Brinde</strong>, sem preço, e acompanha a venda dos outros itens.</>,
         <>No campo <strong>Cliente</strong>, clique em <strong>Escolher cliente</strong> e busque pelo nome, pelo CPF ou CNPJ, ou por um pedaço do telefone. Quem não quer se identificar entra como <strong>Consumidor final</strong>, que fica sempre no alto da janela. Para cadastrar na hora, clique em <strong>Cadastrar novo cliente</strong>: na pessoa física, nome e telefone; na jurídica, também o CNPJ e o endereço principal.</>,
         <>Se aparecer <strong>Cadastro incompleto</strong>: se quiser, clique em <strong>Completar cadastro</strong>; a venda passa assim mesmo.</>,
         <>Em <strong>Pagamento</strong>, toque em <strong>+ Dinheiro</strong>, <strong>+ PIX</strong>, <strong>+ Débito</strong>, <strong>+ Crédito</strong>, <strong>+ Parcelado</strong>, <strong>+ Cheque</strong>, <strong>+ Boleto</strong> ou <strong>+ Fiado</strong> e digite o valor. Dá para dividir em mais de uma forma. A soma precisa fechar o total, e só o dinheiro dá troco. No cheque, o campo <strong>Em nome de</strong> já vem com o nome do cliente: mude se o cheque for de outra pessoa. No boleto, informe o <strong>Vencimento</strong> (hoje ou depois) e, se quiser, o número; o boleto é gerado no banco, o Tibé só o registra, e cada parcela é uma linha.</>,
@@ -61,8 +63,24 @@ export function ParteDeVender() {
           fazer: <>A loja não tem taxa para essa combinação de adquirente, bandeira e forma de cartão (débito, crédito ou parcelado, com o número de parcelas). O Gestor cadastra em <Link className="underline" href={`${B}/configuracoes#cartoes`}>Configurações</Link>, em Cartões.</>,
         },
         {
-          quando: "O desconto é recusado: “O desconto de X% passa do limite de Y% desta loja. Peça ao gestor da loja.”",
-          fazer: "Passou do limite da loja. Chame o Gestor ou o Dono para dar o desconto.",
+          quando: "“O desconto de X% passa do limite de Y% desta loja. O gestor da loja precisa autorizar com o PIN dele.”",
+          fazer: <>O desconto passou do limite da loja. Clique em <strong>Pedir autorização do gestor</strong>, escolha o gestor e peça que ele digite o PIN. Ou reduza o desconto até o limite. Se a loja quer autorização em todo desconto, o Dono configura o limite em 0%.</>,
+        },
+        {
+          quando: "“PIN incorreto.”",
+          fazer: "O gestor digitou um PIN que não é o dele. Confira com ele e tente de novo. Se ele esqueceu, o Dono ou o Gerente geral apagam o PIN na Equipe, e ele cadastra outro em Minha senha.",
+        },
+        {
+          quando: "“Muitas tentativas. Tente de novo em 15 minutos.”",
+          fazer: "Foram cinco PINs errados seguidos. As tentativas desse gestor ficam travadas por 15 minutos. Peça a autorização a outro gestor da loja, ou espere.",
+        },
+        {
+          quando: "“Cadastre o preço de ... nesta loja antes de vender.”",
+          fazer: "O produto não tem preço nesta loja, e o balcão não deixa digitar. Chame o Gestor ou o Dono para cadastrar em Preço por loja, no produto.",
+        },
+        {
+          quando: "A venda só com brinde é recusada: um brinde acompanha uma venda",
+          fazer: "Brinde é o item de preço R$ 0,00 que sai junto com outra compra. Junte ao menos um item com preço. Para dar um item com preço de graça, use desconto de 100%, que pede o PIN do gestor.",
         },
       ]}
     >
@@ -98,9 +116,9 @@ export function ParteDeDevolver() {
         paraQueServe="Desfazer uma venda, ou parte dela, sem apagar nada: tudo fica gravado."
         passos={[
           <>Abra <strong>Vendas</strong> e clique na venda.</>,
-          <><strong>Devolver</strong>: escolha os itens e as quantidades. A mercadoria volta para o estoque (ou vira perda, se estiver estragada). Em <strong>Como devolver o valor</strong>, escolha <strong>Devolver em dinheiro (sai da gaveta)</strong> ou <strong>Abater do fiado do cliente</strong>.</>,
-          <><strong>Trocar</strong>: devolve os itens e já abre uma venda nova, ligada à primeira.</>,
-          <><strong>Editar</strong>: para corrigir itens, frete ou pagamento de uma venda concluída. Ele cancela a venda e registra outra no lugar, com outro número, e as duas ficam ligadas (<strong>Substituída pela venda nº</strong> e <strong>Substitui a venda nº</strong>). É do Gestor e do Dono, e não vale para venda com devolução.</>,
+          <><strong>Devolver</strong>: escolha os itens e as quantidades. A mercadoria volta para o estoque (ou vira perda, se estiver estragada). Em <strong>Como devolver o valor</strong>, escolha <strong>Devolver em dinheiro (sai da gaveta)</strong> ou <strong>Abater do fiado do cliente</strong>. O valor devolvido é o que o item pagou de fato: se a venda teve desconto, inclusive o desconto no total, a devolução leva a parte proporcional.</>,
+          <><strong>Trocar</strong>: devolve os itens e já abre uma venda nova, ligada à primeira. A venda nova segue o mesmo desconto e o mesmo pedido de autorização do balcão: desconto acima do limite da loja pede o PIN do gestor.</>,
+          <><strong>Editar</strong>: para corrigir itens, frete ou pagamento de uma venda concluída. Ele cancela a venda e registra outra no lugar, com outro número, e as duas ficam ligadas (<strong>Substituída pela venda nº</strong> e <strong>Substitui a venda nº</strong>). As linhas que já estavam na venda original mantêm o preço dela, mesmo que o cadastro tenha mudado; só item novo sai pelo preço de hoje. É do Gestor e do Dono, e não vale para venda com devolução.</>,
           <><strong>Cancelar venda</strong>: desfaz a venda inteira, com o <strong>Motivo</strong>. O estoque volta e o dinheiro sai de onde entrou. É do Gestor e do Dono.</>,
           <>Quando o dinheiro sai do caixa, a loja precisa de um caixa aberto. Com mais de um aberto, escolha em <strong>Caixa de onde sai o dinheiro</strong>.</>,
         ]}

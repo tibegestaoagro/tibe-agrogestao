@@ -25,11 +25,15 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-16. Frete no orçamento (Q326) em produção (migração
-  no Neon antes do push, merge `066e371`, autorizados). Vendas do turno (Q325)
-  também. Nenhuma branch aberta. Manual com GIFs em
-  produção (regerar: roteiro `manual-gifs` e `python
-  scripts/manual-gifs-montar.py`). Os agentes `explorador`,
+- Atualizado em: 2026-11-16. **Em andamento:** branch `emporio-preco-travado-e-pin`
+  (preço do cadastro, desconto por PIN do gestor, brinde; spec aprovada pelo
+  usuário, Q327 a Q334, e plano de 16/11) PRONTA, NÃO publicada (até `7ee8bd9`).
+  m118 verde e reprovando sabotada; roteiro `emporio-desconto-pin` 93 ok; juiz
+  5/10 com os 9 achados corrigidos; `test:all` 121/121. Migração
+  `20261116180000_emporio_desconto_pin_brinde` vai ao Neon antes do push.
+  Pendente: regerar as figuras do balcão no manual. Frete no orçamento (Q326) e vendas do
+  turno (Q325) em produção. GIFs do manual: roteiro `manual-gifs` e
+  `python scripts/manual-gifs-montar.py`. Os agentes `explorador`,
   `prova-juiz`, `prova-viva` e `servidor-dados` carregam (descrição entre
   aspas). Outros agentes: leia `AGENTS.md`.
 - `main` igual a `origin/main`, Neon em dia. Em produção também: conta avulsa e
@@ -43,14 +47,11 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ### Granel em qualquer peso e atacado na mesma saca (Q319 a Q324): em produção
 
-Merge `8727de8`; spec de 13/11. "Converter para quilo" com prévia; fechadas do
-mesmo tamanho dividem o estoque; `UNIT_CHANGED` se a conversão cai no meio.
-Central do Milho: GRANEL da Magnus 15 kg está em 1,02 kg (a prévia marca).
+Merge `8727de8`, spec de 13/11. Central do Milho: GRANEL da Magnus 15 kg em 1,02 kg.
 
 ### Contas PIX (Q310 a Q318): em produção desde 13/11 (merge `bd7fd3f`)
 
-Spec `docs/superpowers/specs/2026-11-13-emporio-contas-pix-design.md`. Na Da
-Mata só a `CAIXA DAMATTA - PIX - 1076-6` ficou no PIX; as outras 10, não.
+Spec de 13/11. Na Da Mata só a `CAIXA DAMATTA - PIX - 1076-6` ficou no PIX.
 
 ### Em produção desde 11/11: franqueado (Q300 a Q309) e custo único (Q298, Q299)
 

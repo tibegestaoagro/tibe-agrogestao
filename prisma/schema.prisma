@@ -705,6 +705,9 @@ model User {
   emporio_only         Boolean      @default(false)
   /// Q129: as chaves de confiança do Vendedor (lista fixa no código).
   emporio_keys         String[]     @default([])
+  /// Q331/Q332: o hash bcrypt do PIN de autorização de desconto do Empório.
+  /// Nunca sai em resposta.
+  emporio_auth_pin_hash String?
 
   tenant                     Tenant                   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   whatsapp_contacts          WhatsAppContact[]
@@ -1287,6 +1290,9 @@ model EmporioSale {
   net_amount                     Decimal                     @db.Decimal(14, 2)
   /// Q85: soma de (sugerido − praticado) × quantidade dos itens abaixo do preço.
   discount_amount                Decimal                     @default(0) @db.Decimal(14, 2)
+  /// Q329: o desconto dado no total da venda, já incluído em `discount_amount`
+  /// e rateado nas linhas.
+  order_discount_amount          Decimal                     @default(0) @db.Decimal(14, 2)
   discount_authorized_by_user_id String?
   status                         EmporioSaleStatus           @default(concluida)
   canceled_at                    DateTime?
@@ -1379,6 +1385,9 @@ model EmporioQuote {
   valid_until                    DateTime                    @db.Date
   net_amount                     Decimal                     @db.Decimal(14, 2)
   discount_amount                Decimal                     @default(0) @db.Decimal(14, 2)
+  /// Q329: o desconto dado no total do orçamento, já incluído em
+  /// `discount_amount` e rateado nas linhas.
+  order_discount_amount          Decimal                     @default(0) @db.Decimal(14, 2)
   discount_authorized_by_user_id String?
   /// A venda ATIVA que faturou este orçamento; volta a nulo se ela for cancelada.
   sale_id                        String?                     @unique

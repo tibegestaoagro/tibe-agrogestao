@@ -58,6 +58,7 @@ export async function gravarVendeuPagou(tx: Tx, ator: { id: string }, v: VendaPa
   });
   if (regras.length === 0) return;
 
+  const itensPagos = v.itens.filter((i) => centavos(i.total) > 0);
   const netCent = centavos(v.net);
   const totalPagoCent = netCent + centavos(v.frete ?? 0);
   const vencimento = ultimoDia(mesDoInstante(v.sold_at));
@@ -68,7 +69,9 @@ export async function gravarVendeuPagou(tx: Tx, ator: { id: string }, v: VendaPa
     // Condições de produto e apresentação filtram os itens.
     const nomeDaRegra = normalizar(regra.presentation_name);
     const temCondicaoDeItem = !!regra.emporio_product_id || !!regra.presentation_id || !!nomeDaRegra;
-    const casam = v.itens.filter(
+    // Escolha 6: linha de total zero (brinde de cadastro ou 100% de desconto) fica fora das regras por
+    // unidade, de embalagem e das com condição de produto ou apresentação.
+    const casam = itensPagos.filter(
       (i) =>
         (!regra.emporio_product_id || i.emporio_product_id === regra.emporio_product_id) &&
         (!regra.presentation_id || i.presentation_id === regra.presentation_id) &&

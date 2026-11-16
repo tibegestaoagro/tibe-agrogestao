@@ -96,8 +96,8 @@ export function PapelA4({ d }: { d: ImpressoVenda }) {
               <td>{i.produto}</td>
               <td className="n">{i.quantidade}</td>
               <td className="n">{i.peso_kg === null ? "Sem peso" : pesoBr(i.peso_kg)}</td>
-              <td className="n">{reaisBr(i.preco)}</td>
-              <td className="n">{reaisBr(i.total)}</td>
+              <td className="n">{i.preco === 0 && i.total === 0 ? "Brinde" : reaisBr(i.preco)}</td>
+              <td className="n">{i.preco === 0 && i.total === 0 ? "Brinde" : reaisBr(i.total)}</td>
             </tr>
           ))}
         </tbody>
@@ -112,6 +112,12 @@ export function PapelA4({ d }: { d: ImpressoVenda }) {
           <div>
             <span>Desconto</span>
             <span>- {reaisBr(d.desconto)}</span>
+          </div>
+        )}
+        {d.desconto_no_total > 0 && (
+          <div>
+            <span>Desconto no total</span>
+            <span>- {reaisBr(d.desconto_no_total)}</span>
           </div>
         )}
         {d.frete > 0 && (

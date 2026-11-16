@@ -28,6 +28,7 @@ import {
 import { somarDiasUteis } from "@/lib/emporio/dia-util";
 import { formatarDocumento } from "@/lib/contatos/cadastro";
 import { pctBr } from "./formato";
+import { FraseDaAutorizacao, PedidoDeAutorizacao } from "./autorizacao-gestor";
 import { FORMA_ROTULO } from "./venda-rotulos";
 import {
   diaDeHoje,
@@ -419,7 +420,13 @@ export function VendaCampos({
   comFrete,
   freteNoOrcamento,
   depoisDoFrete,
+  descontoNoTotal,
+  autorizacaoHerdada,
 }: {
+  /** Q329: o campo "Desconto no total (R$)": só o balcão e o orçamento (a troca não tem). */
+  descontoNoTotal?: boolean;
+  /** O desconto já vem autorizado (orçamento autorizado, venda editada): a tela não pede de novo antes de o servidor recusar. */
+  autorizacaoHerdada?: boolean;
   /** O que o balcão põe logo abaixo do frete e da origem (o franqueado e o crédito), na ordem visual do `ORDEM`. */
   depoisDoFrete?: ReactNode;
   /** Frete cobrado e origem da venda (Q244, Q248): só o balcão, e só na venda (a troca não tem). */
@@ -456,6 +463,8 @@ export function VendaCampos({
 }) {
   const [busca, setBusca] = useState("");
   const [semTaxaDeCartao, setSemTaxaDeCartao] = useState(false);
+  // O produto que não entrou no carrinho por falta de preço na loja (Q328).
+  const [semPrecoDe, setSemPrecoDe] = useState<string | null>(null);
   const termo = normalizar(busca);
   const hoje = diaDeHoje();
   const resultados =
@@ -464,10 +473,18 @@ export function VendaCampos({
       : produtos.filter((p) => p.apresentacoes.length > 0 && produtoCasaBusca(p, termo)).slice(0, MAX_RESULTADOS);
 
   function escolher(p: ProdutoVenda) {
-    v.adicionarProduto(p);
+    const entrou = v.adicionarProduto(p);
+    setSemPrecoDe(entrou ? null : p.name);
     limpar("items");
     setBusca("");
   }
+
+  // O bloco da autorização: aparece quando o desconto pede uma, quando há uma valendo ou quando o servidor recusou.
+  const mostrarAutorizacao =
+    v.autorizacaoValida !== null ||
+    (v.precisaDeAutorizacao && !autorizacaoHerdada) ||
+    !!erros.discount_authorization ||
+    v.pedidoAberto;
 
   return (
     <div className="space-y-5">
@@ -537,6 +554,12 @@ export function VendaCampos({
               </div>
             )}
 
+            {semPrecoDe && (
+              <p role="status" className="rounded-md bg-atencao-suave px-3 py-2 text-sm text-atencao-tinta">
+                {semPrecoDe}: sem preço nesta loja. Cadastre o preço antes de vender.
+              </p>
+            )}
+
             {v.linhas.length === 0 && termo === "" && (
               <p className="text-sm text-texto-secundario">Busque o produto e toque nele para adicionar.</p>
             )}
@@ -572,8 +595,9 @@ export function VendaCampos({
                     </SelectTrigger>
                     <SelectContent>
                       {l.produto.apresentacoes.map((a) => (
-                        <SelectItem key={a.id} value={a.id}>
+                        <SelectItem key={a.id} value={a.id} disabled={!v.temPreco(a.id)}>
                           {a.name}
+                          {v.temPreco(a.id) ? "" : " (sem preço nesta loja)"}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -595,27 +619,38 @@ export function VendaCampos({
                       limpar("items");
                     }}
                   />
-                  <MoneyInput
-                    hideEcho
-                    aria-label={`Preço do item ${n + 1} (R$)`}
-                    placeholder="Preço (R$)"
-                    value={l.linha.preco}
-                    onValueChange={(valor) => {
-                      v.atualizarItem(l.linha.key, { preco: valor, manual: true });
-                      limpar("items");
-                    }}
-                  />
+                  {l.linha.daOriginal ? (
+                    // A linha da venda editada mantém o preço da original: o desconto novo entra por um item novo.
+                    <p className="self-center text-sm text-texto-secundario">Preço da venda original</p>
+                  ) : (
+                    <MoneyInput
+                      kind="quantidade"
+                      unit="%"
+                      hideEcho
+                      aria-label={`Desconto do item ${n + 1} (%)`}
+                      placeholder="Desconto (%)"
+                      value={l.linha.desconto}
+                      onValueChange={(valor) => {
+                        v.atualizarItem(l.linha.key, { desconto: valor });
+                        limpar("items");
+                        limpar("discount_authorization");
+                      }}
+                    />
+                  )}
                 </div>
 
                 <div className="flex flex-wrap items-baseline justify-between gap-x-3 text-sm">
                   <span className="text-texto-secundario">
-                    {l.sugerido === null
-                      ? "Sem preço cadastrado nesta loja"
-                      : l.doOrcamento !== null
-                        ? `Preço do orçamento ${reaisBr(l.doOrcamento)} (sugerido ${reaisBr(l.sugerido)})`
-                        : `Preço sugerido ${reaisBr(l.sugerido)}`}
+                    {l.semPreco
+                      ? "Sem preço nesta loja"
+                      : l.unitCent === 0
+                        ? "Brinde"
+                        : l.doOrcamento !== null && !l.linha.daOriginal
+                          ? `Preço do orçamento ${reaisBr(l.doOrcamento)}`
+                          : `Preço ${reaisBr((l.preco ?? 0))}`}
+                    {l.pct > 0 && l.unitCent !== null && l.unitCent > 0 ? `, com ${pctBr(l.pct)} de desconto: ${reaisBr(l.unitCent / 100)}` : ""}
                   </span>
-                  <strong className="text-texto">{reaisBr(l.totalCent / 100)}</strong>
+                  <strong className="text-texto">{l.totalCent === 0 && l.valida ? "Brinde" : reaisBr(l.totalCent / 100)}</strong>
                 </div>
                 {l.descontoCent > 0 && (
                   <p className="text-sm text-atencao-tinta">
@@ -627,6 +662,70 @@ export function VendaCampos({
           </div>
         )}
       </Field>
+
+      {descontoNoTotal && (
+        <>
+          <Field
+            label="Desconto no total (R$, opcional)"
+            id={idDe("order_discount_amount")}
+            error={erros.order_discount_amount}
+            hint="Reparte nos itens pelo valor de cada um."
+          >
+            {({ id, ...aria }) => (
+              <MoneyInput
+                id={id}
+                {...aria}
+                placeholder="0,00"
+                value={v.descontoTotal}
+                onValueChange={(valor) => {
+                  v.definirDescontoTotal(valor);
+                  limpar("order_discount_amount");
+                  limpar("items");
+                  limpar("discount_authorization");
+                  limpar("payments");
+                }}
+              />
+            )}
+          </Field>
+          {v.linhas.length > 0 && (
+            <p className="rounded-lg bg-superficie-afundada px-3 py-2 text-sm text-texto-secundario" aria-live="polite">
+              Itens {reaisBr(v.somaItensCent / 100)}, desconto {reaisBr(v.descontoNoTotalCent / 100)}, total{" "}
+              <strong className="text-texto">{reaisBr(v.totalCent / 100)}</strong>
+            </p>
+          )}
+        </>
+      )}
+
+      {mostrarAutorizacao && (
+        <Field label="Autorização do desconto" id={idDe("discount_authorization")} error={erros.discount_authorization}>
+          {({ id, ...aria }) => (
+            <div id={id} tabIndex={-1} {...aria} className="space-y-2">
+              {v.autorizacaoValida ? (
+                <FraseDaAutorizacao autorizacao={v.autorizacaoValida} />
+              ) : v.descontoCent > 0 && (v.precisaDeAutorizacao || !!erros.discount_authorization || v.pedidoAberto) ? (
+                <p className="text-sm text-atencao-tinta">
+                  O desconto de {pctBr(v.pctParaAutorizar)} passa do limite desta loja ({pctBr(v.limitePct)}). O gestor da loja
+                  precisa autorizar com o PIN dele.
+                </p>
+              ) : null}
+              {v.loja !== "" && (
+                <PedidoDeAutorizacao
+                  lojaId={v.loja}
+                  pct={v.pctParaAutorizar}
+                  aberto={v.pedidoAberto}
+                  aoMudarAberto={v.definirPedidoAberto}
+                  rotulo={v.autorizacaoValida ? "Pedir de novo" : "Pedir autorização do gestor"}
+                  aoAutorizar={(a) => {
+                    v.guardarAutorizacao(a);
+                    limpar("items");
+                    limpar("discount_authorization");
+                  }}
+                />
+              )}
+            </div>
+          )}
+        </Field>
+      )}
 
       <Field label="Cliente" required id={idDe("customer_id")} error={erros.customer_id}>
         {(campo) => (

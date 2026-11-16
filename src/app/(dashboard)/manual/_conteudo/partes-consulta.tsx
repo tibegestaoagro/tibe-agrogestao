@@ -4,6 +4,9 @@ import { BASE_DO_EMPORIO } from "./indice";
 const TERMOS: { termo: string; significa: React.ReactNode }[] = [
   { termo: "Lacrado e avulso", significa: "Lacrado é a embalagem fechada, como a saca inteira. Avulso é o que está solto, como o quilo que sobrou de uma saca aberta. O saldo do produto é a soma dos dois." },
   { termo: "Apresentação", significa: "Cada jeito de vender o mesmo produto: a saca fechada, o quilo a granel, o fardo. Cada apresentação tem o seu preço." },
+  { termo: "Desconto no total", significa: "O desconto em reais dado na venda ou no orçamento inteiro, e não numa linha só (a linha tem o seu Desconto em %). Segue o limite de desconto da loja e, no papel do cliente, sai numa linha própria, separada do Desconto dos itens." },
+  { termo: "PIN de autorização", significa: "Um número de 4 a 6 dígitos que cada gestor (Gestor, Gerente geral e Dono) cadastra em Configurações > Minha senha. Ele o digita no balcão para liberar um desconto acima do limite da loja: a autorização vale 15 minutos, naquela loja, até aquele percentual. Não é a senha de entrada." },
+  { termo: "Brinde", significa: "Um item de preço R$ 0,00 que sai junto com uma venda, como uma apresentação BONUS. Aparece como Brinde na venda e no papel. O estoque baixa e o custo entra no custo da venda. Não se vende só brinde, e dar de graça um item que tem preço é desconto de 100%, que pede o PIN." },
   { termo: "Unidade-base e conteúdo", significa: "A unidade-base é como o estoque é contado: saca, fardo, quilo, litro, metro ou unidade. O conteúdo diz quanto cabe em uma saca ou fardo, por exemplo 30 kg." },
   { termo: "Custo médio", significa: "O custo de cada produto na loja, calculado a cada compra, levando em conta o que você pagou antes e o que pagou agora. É com ele que o sistema calcula a margem de cada venda. É o único custo do produto enquanto há estoque. Sem estoque, vale o da última compra (“sem estoque: última compra”); sem compra, o custo de referência." },
   { termo: "Franqueado", significa: <>Quem leva clientes à loja e recebe um crédito pelas vendas. Tem cadastro próprio, separado do fornecedor, e uma conta com créditos, pagamentos e saldo. Veja <Link className="underline" href={`${BASE_DO_EMPORIO}/franqueados`}>Franqueados</Link>.</> },
@@ -92,7 +95,7 @@ const PERGUNTAS: { pergunta: string; resposta: React.ReactNode }[] = [
   },
   {
     pergunta: "Como dar mais permissão ao Vendedor?",
-    resposta: <>Na <Link className="underline" href={`${BASE_DO_EMPORIO}/equipe`}>Equipe</Link>, o Dono ou o Gerente geral ligam as chaves dele: devolver e trocar, lançar compra, contagem, perda, estoque inicial, produção, depositar cheque e cadastrar produto. Cancelar venda, mudar preço e dar desconto acima do limite não têm chave: se precisa disso, promova a Gestor.</>,
+    resposta: <>Na <Link className="underline" href={`${BASE_DO_EMPORIO}/equipe`}>Equipe</Link>, o Dono ou o Gerente geral ligam as chaves dele: devolver e trocar, lançar compra, contagem, perda, estoque inicial, produção, depositar cheque e cadastrar produto. Cancelar venda e dar desconto acima do limite não têm chave: o desconto acima do limite o Vendedor pede a um gestor, que digita o PIN dele; para cancelar, promova a Gestor.</>,
   },
   {
     pergunta: "Por que o PIX foi recusado?",
@@ -148,7 +151,7 @@ const PERGUNTAS: { pergunta: string; resposta: React.ReactNode }[] = [
   },
   {
     pergunta: "O orçamento venceu. Ainda dá para faturar?",
-    resposta: <>Dá. Ao carregar o orçamento, a tela avisa com a data dele, por exemplo “Orçamento vencido em 28/10/2026: vale o preço de hoje.” Dentro da validade, cada item sai pelo preço orçado ou pelo de hoje, o que for menor. Quando o preço mudou, a tela mostra os dois, por exemplo “O preço mudou: orçado R$ 120,00, hoje vale R$ 110,00.”</>,
+    resposta: <>Dá. Ao carregar o orçamento, a tela avisa com a data dele, por exemplo “Orçamento vencido em 28/10/2026: vale o preço de hoje.” Dentro da validade, a venda mantém o preço e o desconto orçados. Vencido, vale o preço de hoje do cadastro.</>,
   },
   {
     pergunta: "Por que diz que o orçamento já foi faturado?",
@@ -156,11 +159,23 @@ const PERGUNTAS: { pergunta: string; resposta: React.ReactNode }[] = [
   },
   {
     pergunta: "Por que o desconto foi recusado ao faturar um orçamento?",
-    resposta: "O desconto que o orçamento já deu conta na venda. O limite da loja vale sobre o desconto total da venda, somando todos os itens. Por isso o desconto novo, somado ao do orçamento, não pode passar do limite. A frase é “O desconto de 12% passa do limite de 10% desta loja. Peça ao gestor da loja.”, com os números da venda. Se o Gestor autorizou um desconto maior no orçamento, ele continua valendo, desde que nenhum item do orçamento saia abaixo do preço que ele garantiu e nenhum item novo saia abaixo do preço da loja. Fora disso, só o Gestor, o Gerente geral ou o Dono passam do limite.",
+    resposta: "O desconto que o orçamento já deu conta na venda. O limite da loja vale sobre o desconto total da venda, somando todos os itens. Por isso o desconto novo, somado ao do orçamento, não pode passar do limite. A frase é “O desconto de 12% passa do limite de 10% desta loja. Peça ao gestor da loja.”, com os números da venda. Se um gestor autorizou um desconto maior no orçamento, ele continua valendo, desde que nenhum item do orçamento saia abaixo do preço que ele garantiu e nenhum item novo saia abaixo do preço da loja. Fora disso, o desconto acima do limite pede a autorização de um gestor, com o PIN dele (Pedir autorização do gestor).",
   },
   {
     pergunta: "Por que o desconto foi recusado?",
-    resposta: "Passou do limite de desconto da loja. Acima dele, só o Gestor, o Gerente geral ou o Dono podem dar, e o sistema grava quem deu.",
+    resposta: "Passou do limite de desconto da loja. Acima dele, o desconto precisa de um gestor: clique em Pedir autorização do gestor, escolha o gestor, e ele digita o PIN dele. A autorização vale 15 minutos, naquela loja, até aquele percentual, e o sistema grava quem autorizou. Quem é gestor da loja não precisa de PIN.",
+  },
+  {
+    pergunta: "Por que diz “PIN incorreto” ou “Muitas tentativas”?",
+    resposta: "“PIN incorreto.” quer dizer que o PIN digitado não é o do gestor escolhido: confira com ele. Depois de cinco PINs errados, vem “Muitas tentativas. Tente de novo em 15 minutos.”: as tentativas daquele gestor ficam travadas por esse tempo, e outro gestor da loja pode autorizar. Se o gestor esqueceu o PIN, o Dono ou o Gerente geral usam Apagar PIN na Equipe, e ele cadastra outro em Configurações > Minha senha.",
+  },
+  {
+    pergunta: "Por que diz “Cadastre o preço ... nesta loja antes de vender”?",
+    resposta: "O vendedor não digita o preço: ele vem do cadastro da loja. Esse produto não tem preço nesta loja, então não vende. O Gestor ou o Dono cadastra em Preço por loja, no produto.",
+  },
+  {
+    pergunta: "Por que a venda só de brinde não passa?",
+    resposta: "Um brinde acompanha uma venda: é o item de preço R$ 0,00 que sai junto com a compra de outro. Junte ao menos um item com preço. Dar de graça um item que tem preço não é brinde, é desconto de 100%, e pede o PIN do gestor.",
   },
   {
     pergunta: "Por que não consigo cancelar uma venda?",
