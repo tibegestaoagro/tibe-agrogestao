@@ -58,7 +58,7 @@ export function PapelCupom({ d }: { d: ImpressoVenda }) {
               {i.quantidade} x {reaisBr(i.preco)}
               {i.peso_kg !== null ? ` (${pesoBr(i.peso_kg)})` : ""}
             </span>
-            <span>{reaisBr(i.total)}</span>
+            <span>{i.preco === 0 && i.total === 0 ? "Brinde" : reaisBr(i.total)}</span>
           </div>
         </div>
       ))}
@@ -71,6 +71,12 @@ export function PapelCupom({ d }: { d: ImpressoVenda }) {
         <div className="l">
           <span>Desconto</span>
           <span>-{reaisBr(d.desconto)}</span>
+        </div>
+      )}
+      {d.desconto_no_total > 0 && (
+        <div className="l">
+          <span>Desconto no total</span>
+          <span>-{reaisBr(d.desconto_no_total)}</span>
         </div>
       )}
       {d.frete > 0 && (

@@ -41,6 +41,11 @@ export default async function OrcamentoPage({ params }: { params: Promise<{ id: 
   // Editar e cancelar: só o orçamento vivo (aberto ou vencido), como o servidor.
   const editavel = o.situacao === "aberto" || o.situacao === "vencido";
   const subtotal = Math.round((o.net_amount + o.discount_amount) * 100) / 100;
+  // `discount_amount` inclui o desconto no total: aqui ele aparece em linha própria.
+  const descontoDasLinhas = Math.round((o.discount_amount - o.order_discount_amount) * 100) / 100;
+  const autorizador = o.discount_authorized_by_user_id
+    ? await db.user.findFirst({ where: { id: o.discount_authorized_by_user_id }, select: { name: true } })
+    : null;
 
   return (
     <div className="space-y-6">
@@ -165,12 +170,12 @@ export default async function OrcamentoPage({ params }: { params: Promise<{ id: 
                 </TableCell>
                 <TableCell>{numeroBr(i.quantity)}</TableCell>
                 <TableCell>
-                  {reaisBr(i.preco_orcado)}
+                  {i.preco_orcado === 0 && i.total === 0 ? "Brinde" : reaisBr(i.preco_orcado)}
                   {i.preco_sugerido !== null && i.preco_orcado < i.preco_sugerido && (
                     <span className="block text-xs text-atencao-tinta">sugerido {reaisBr(i.preco_sugerido)}</span>
                   )}
                 </TableCell>
-                <TableCell>{reaisBr(i.total)}</TableCell>
+                <TableCell>{i.preco_orcado === 0 && i.total === 0 ? "Brinde" : reaisBr(i.total)}</TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -179,7 +184,17 @@ export default async function OrcamentoPage({ params }: { params: Promise<{ id: 
           <p>
             Subtotal: <strong>{reaisBr(subtotal)}</strong>
           </p>
-          {o.discount_amount > 0 && <p>Desconto: <strong>{reaisBr(o.discount_amount)}</strong></p>}
+          {descontoDasLinhas > 0 && <p>Desconto: <strong>{reaisBr(descontoDasLinhas)}</strong></p>}
+          {o.order_discount_amount > 0 && (
+            <p>
+              Desconto no total: <strong>{reaisBr(o.order_discount_amount)}</strong>
+            </p>
+          )}
+          {autorizador && (
+            <p className="text-texto-secundario">
+              Desconto autorizado por <span className="font-medium text-texto">{autorizador.name}</span>
+            </p>
+          )}
           <p>
             Total: <strong>{reaisBr(o.net_amount)}</strong>
           </p>
