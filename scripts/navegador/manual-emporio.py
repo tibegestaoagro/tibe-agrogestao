@@ -772,7 +772,7 @@ figura("balcao-pagamento", "vendedor_centro", "/emporio/vender", [
     (2, "M.todos('button').filter(b => /^\\+ /.test(b.innerText.trim()))", "os botoes de forma de pagamento"),
     (3, "[M.todos('[aria-label^=\"Valor em\"]'), M.C('Falta') || M.C('Troco') || M.C('Pagamento fechado')]", "o valor em cada forma e a linha Falta, Troco ou Pagamento fechado"),
     (4, "M.B('Fechar a venda')", "o botao Fechar a venda"),
-], estado=estado_pagamento, hd=1250, hc=1700)
+], estado=estado_pagamento, hd=2000, hc=2350)
 
 
 def estado_balcao_caixa():
@@ -785,7 +785,7 @@ figura("balcao-cliente-vendedor", "caixa", "/emporio/vender", [
     (2, "M.B('Cadastrar novo cliente')", "o botao Cadastrar novo cliente"),
     (3, "M.L('Vendedor')", "o campo Vendedor"),
     (4, "M.B('Fechar a venda')", "o botao Fechar a venda"),
-], estado=estado_balcao_caixa, hd=1100, hc=1500)
+], estado=estado_balcao_caixa, hd=1550, hc=1800)
 
 
 def estado_escolher_cliente():
@@ -805,12 +805,12 @@ figura("balcao-escolher-cliente", "vendedor_centro", "/emporio/vender", [
 ], estado=estado_escolher_cliente, hd=800, hc=1000)
 
 
-def estado_orcamento():
+def estado_orcamento(cliente="Haras Santa Clara"):
     clicar("Orçamento")
     time.sleep(1)
     adicionar_ao_balcao("Arame", "Arame Liso Galvanizado 1000 m", "3")
     adicionar_ao_balcao("Ferradura", "Ferradura nº 4", "10")
-    escolher_cliente("Haras Santa Clara")
+    escolher_cliente(cliente)
     preencher("Observação", "Entrega na fazenda, na sexta de manhã.")
     time.sleep(0.6)
 
@@ -819,16 +819,24 @@ figura("orcamento-balcao", "vendedor_centro", "/emporio/vender", [
     (1, "M.B('Orçamento')", "o botao Orcamento, no alto da tela"),
     (2, "M.L('Cliente')", "o campo Cliente"),
     (3, "M.L('Observação')", "o campo Observacao"),
-    (4, "[M.B('Faturar'), M.B('Salvar orçamento')]", "os botoes Faturar e Salvar orcamento"),
-], estado=estado_orcamento, hd=1200, hc=1700)
+    (4, "[M.todos('[aria-label^=\"Desconto do item\"]'), M.L('Desconto no total (R$, opcional)')]", "os campos Desconto (%) de cada item e Desconto no total (R$)"),
+    (5, "M.todos('p').find(p => M.norm(p.innerText) === 'total do orçamento').parentElement", "o Total do orcamento, no rodape"),
+    (6, "[M.B('Faturar'), M.B('Salvar orçamento')]", "os botoes Faturar e Salvar orcamento"),
+], estado=estado_orcamento, hd=1750, hc=1900)
 
 
 def estado_orcamento_salvo():
-    estado_orcamento()
+    # Maria das Dores Ferreira tem so nome e telefone (Q336): o orcamento salva
+    # e o alerta de pendencias aparece.
+    # Com Pedido para entrega marcado e sem escolher o endereco (opcional no orcamento),
+    # a venda ainda pede o CPF e o endereco: o alerta lista as duas pendencias.
+    estado_orcamento("Maria das Dores Ferreira")
+    confere("orcamento-salvo: marcou Pedido para entrega", marcar("Pedido para entrega") is True)
+    time.sleep(1)
     # Chave fixa: na primeira vez salva, nas seguintes o servidor devolve o
     # MESMO orcamento (repeticao pela chave de operacao), e o roteiro nao enche
     # a lista de orcamentos a cada rodada.
-    js("crypto.randomUUID = () => 'manual-emporio-orcamento-salvo'")
+    js("crypto.randomUUID = () => 'manual-emporio-orcamento-salvo-entrega'")
     clicar("Salvar orçamento")
     esperar(lambda: tem_na_tela("salvo, válido até"), 60)
     time.sleep(1)
@@ -836,9 +844,10 @@ def estado_orcamento_salvo():
 
 figura("orcamento-salvo", "vendedor_centro", "/emporio/vender", [
     (1, "M.T('Orçamento nº')", "a linha Orcamento no ... salvo, valido ate ..."),
-    (2, "[M.B('Imprimir A4'), M.B('Imprimir cupom')]", "Imprimir A4 e Imprimir cupom"),
-    (3, "M.B('Faturar agora')", "o botao Faturar agora"),
-    (4, "M.B('Novo atendimento')", "o botao Novo atendimento"),
+    (2, "M.T('Finalize os dados de entrega antes de fechar a venda').parentElement", "o alerta Finalize os dados de entrega antes de fechar a venda, com o que falta"),
+    (3, "[M.B('Imprimir A4'), M.B('Imprimir cupom')]", "Imprimir A4 e Imprimir cupom"),
+    (4, "M.B('Faturar agora')", "o botao Faturar agora"),
+    (5, "M.B('Novo atendimento')", "o botao Novo atendimento"),
 ], estado=estado_orcamento_salvo, hd=700, hc=900)
 
 figura("orcamentos-lista", "gestor", "/emporio/orcamentos", [
@@ -862,7 +871,7 @@ figura("orcamento-faturar", "caixa", "/emporio/vender", [
     (2, "Array.from(" + FAIXA + ".querySelectorAll('p.rounded-md, ul.rounded-md'))", "os avisos da faixa"),
     (3, "M.L('Vendedor')", "o campo Vendedor, com O vendedor do orcamento."),
     (4, "M.B('Tirar orçamento')", "o botao Tirar orcamento"),
-], estado=estado_orcamento_faturar, hd=1400, hc=2000)
+], estado=estado_orcamento_faturar, hd=1700, hc=2100)
 
 def estado_balcao_entrega():
     adicionar_ao_balcao("Arame", "Arame Liso Galvanizado 1000 m", "2")

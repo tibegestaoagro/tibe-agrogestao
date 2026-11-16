@@ -248,7 +248,7 @@ export function ParteVendedor() {
         itens={[
           <>Em <strong>Vender</strong>, toque em <strong>Orçamento</strong>, no alto da tela.</>,
           "Monte os itens como numa venda: produto e quantidade. O preço vem do cadastro e você não o digita. O desconto vai em Desconto (%) na linha ou em Desconto no total (R$), no mesmo limite da loja; acima dele, use Pedir autorização do gestor.",
-          "Clique em Escolher cliente e busque pelo nome, pelo CPF ou CNPJ ou pelo pedaço do telefone, ou escolha o Consumidor final para quem não quer se identificar. O cliente precisa estar com o cadastro completo (na pessoa física, nome e telefone).",
+          "Clique em Escolher cliente e busque pelo nome, pelo CPF ou CNPJ ou pelo pedaço do telefone, ou escolha o Consumidor final para quem não quer se identificar. Para o orçamento bastam o nome e o telefone do cliente; o que falta para a venda aparece num aviso depois de salvar.",
           <>Clique em <strong>Salvar orçamento</strong>. Ele ganha um número e a data <strong>Válido até</strong>.</>,
           <>Imprima com <strong>Imprimir A4</strong> ou <strong>Imprimir cupom</strong> e entregue ao cliente.</>,
         ]}
