@@ -738,10 +738,11 @@ def estado_balcao():
     adicionar_ao_balcao("Milho", "Milho em Grão", "2")
     escolher_aria("Apresentação do item 1", "Saca 50 kg")
     adicionar_ao_balcao("Sal Mineral Bovinos Cria", "Sal Mineral Bovinos Cria", "1")
-    # Baixar o preco sugerido do primeiro item mostra o desconto.
-    sugerido = js("(() => { const t = Array.from(document.querySelectorAll('span')).find(s => s.innerText.startsWith('Preço sugerido')); return t ? t.innerText : ''; })()") or ""
-    print("   " + sugerido)
-    preencher_aria("Preço do item 1 (R$)", "80,00")
+    # O preco vem do cadastro e e texto; o desconto do item e por % (Q327, Q329). 5% fica dentro do limite
+    # da loja, sem o pedido de autorizacao do gestor na figura.
+    preco = js("(() => { const t = Array.from(document.querySelectorAll('span')).find(s => s.innerText.startsWith('Preço')); return t ? t.innerText : ''; })()") or ""
+    print("   " + preco)
+    preencher_aria("Desconto do item 1 (%)", "5")
     time.sleep(0.8)
 
 
@@ -750,7 +751,7 @@ CARTOES_DO_ITEM = "M.todos('div.rounded-lg').filter(e => e.querySelector('[aria-
 figura("balcao-venda", "vendedor_centro", "/emporio/vender", [
     (1, "M.A('Buscar produto')", "o campo de busca de produto"),
     (2, CARTOES_DO_ITEM, "a lista de itens da venda"),
-    (3, "M.A('Preço do item 1 (R$)')", "o campo Preço do item"),
+    (3, "M.A('Desconto do item 1 (%)')", "o campo Desconto (%) do item"),
     (4, "M.T('Total da venda').parentElement", "o total da venda"),
 ], estado=estado_balcao, hd=1100, hc=1500)
 
