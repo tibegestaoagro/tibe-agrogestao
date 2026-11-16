@@ -196,6 +196,10 @@ async function secao1() {
     R.linhaDoEndereco({ ...end, complement: "Apto 2" }) === "Rua A, 10, Apto 2, Centro, Uberlândia/MG, CEP 38400-000",
   );
   check("linhaDoEndereco nulo", R.linhaDoEndereco(null) === null);
+  check(
+    "linhaDoEndereco de endereço todo vazio é null (orçamento sem endereço, Q336)",
+    R.linhaDoEndereco({ street: null, number: null, complement: null, district: null, city: null, state: null, zip: null }) === null,
+  );
 }
 
 async function comBanco(fn: () => Promise<void>) {

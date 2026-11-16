@@ -184,5 +184,6 @@ export function linhaDoEndereco(e: EnderecoDoPedido | null): string | null {
   if (!e) return null;
   const cidade = [e.city, e.state].filter((p): p is string => !!p).join("/");
   const partes = [e.street, e.number, e.complement, e.district, cidade, e.zip ? `CEP ${formatarCep(e.zip)}` : null];
-  return partes.filter((p): p is string => !!p && p.trim() !== "").join(", ");
+  // Orçamento para entrega pode vir sem endereço (Q336): linha vazia é null, para o "sem endereço" da tela.
+  return partes.filter((p): p is string => !!p && p.trim() !== "").join(", ") || null;
 }
