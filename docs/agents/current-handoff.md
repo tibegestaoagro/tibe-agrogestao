@@ -27,8 +27,10 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 - Atualizado em: 2026-11-16. **Em andamento:** branch `emporio-preco-travado-e-pin`
   (preço do cadastro, desconto por PIN do gestor, brinde; spec aprovada pelo
-  usuário, Q327 a Q334, e plano de 16/11). Nada implementado ainda: próximo
-  passo é a onda 0 (T1 schema) do plano. Frete no orçamento (Q326) e vendas do
+  usuário, Q327 a Q334, e plano de 16/11). Feitos e commitados até `355bcf3`:
+  T1 a T9b e T11 (schema, servidor, PIN, balcão, impresso, /docs/api; m118
+  verde). Faltam T12 manual, T10 roteiros, juiz, `test:all`; migração vai ao
+  Neon antes do push. Frete no orçamento (Q326) e vendas do
   turno (Q325) em produção. GIFs do manual: roteiro `manual-gifs` e
   `python scripts/manual-gifs-montar.py`. Os agentes `explorador`,
   `prova-juiz`, `prova-viva` e `servidor-dados` carregam (descrição entre
@@ -44,9 +46,7 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ### Granel em qualquer peso e atacado na mesma saca (Q319 a Q324): em produção
 
-Merge `8727de8`; spec de 13/11. "Converter para quilo" com prévia; fechadas do
-mesmo tamanho dividem o estoque; `UNIT_CHANGED` se a conversão cai no meio.
-Central do Milho: GRANEL da Magnus 15 kg está em 1,02 kg (a prévia marca).
+Merge `8727de8`, spec de 13/11. Central do Milho: GRANEL da Magnus 15 kg em 1,02 kg.
 
 ### Contas PIX (Q310 a Q318): em produção desde 13/11 (merge `bd7fd3f`)
 
