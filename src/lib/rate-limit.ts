@@ -39,6 +39,27 @@ export async function checkLoginRateLimit(
 
 const INCREMENTAR_COM_PRAZO = `local c = redis.call("INCR", KEYS[1]) if redis.call("TTL", KEYS[1]) < 0 then redis.call("EXPIRE", KEYS[1], ARGV[1]) end return c`;
 
+/**
+ * Trava por falha (o PIN do gestor): só LÊ o contador, sem contar a consulta. Quem conta é
+ * `registrarFalha`, e o acerto zera com `resetLoginRateLimit`.
+ */
+export async function tentativasEsgotadas(scope: string, identifier: string, max: number): Promise<boolean> {
+  const atual = Number((await getRedisConnection().get(keyFor(scope, identifier))) ?? 0);
+  return atual >= max;
+}
+
+const FALHA_COM_PRAZO = `local c = redis.call("INCR", KEYS[1]) if c >= tonumber(ARGV[2]) or redis.call("TTL", KEYS[1]) < 0 then redis.call("EXPIRE", KEYS[1], ARGV[1]) end return c`;
+
+/** Soma uma falha e devolve a contagem. Ao chegar em `max`, o bloqueio dura `janelaSeg` a partir daí. */
+export async function registrarFalha(
+  scope: string,
+  identifier: string,
+  max: number,
+  janelaSeg: number,
+): Promise<number> {
+  return Number(await getRedisConnection().eval(FALHA_COM_PRAZO, 1, keyFor(scope, identifier), janelaSeg, max));
+}
+
 /** Zera o contador após login bem-sucedido, para não penalizar tentativas válidas subsequentes. */
 export async function resetLoginRateLimit(scope: string, identifier: string): Promise<void> {
   await getRedisConnection().del(keyFor(scope, identifier));
