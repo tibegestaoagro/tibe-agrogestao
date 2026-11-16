@@ -1402,6 +1402,9 @@ model EmporioQuote {
   /// Q309: o orçamento leva o franqueado e o crédito, e a venda faturada os herda.
   franchisee_id                  String?
   franchisee_credit              Decimal                     @default(0) @db.Decimal(14, 2)
+  /// Q326: o frete cobrado do cliente, como o da venda (Q244): fora do `net_amount`, no total
+  /// do orçado e no impresso; a venda faturada o herda.
+  freight_amount                 Decimal                     @default(0) @db.Decimal(14, 2)
   created_at                     DateTime                    @default(now())
   updated_at                     DateTime                    @updatedAt
 

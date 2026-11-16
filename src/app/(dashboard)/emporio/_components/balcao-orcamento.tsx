@@ -30,10 +30,12 @@ export function dataBr(iso: string): string {
 }
 
 /** O franqueado e o crédito do orçamento como o balcão os guarda: o id e o texto do campo de dinheiro. */
-function franquiaDoOrcamento(q: OrcamentoView): { franqueadoId: string; credito: string } {
+function franquiaDoOrcamento(q: OrcamentoView): { franqueadoId: string; credito: string; frete: string } {
+  // Q326: o frete do orçamento vem junto, no mesmo formato do campo de dinheiro.
+  const frete = q.freight_amount > 0 ? centavosParaCampo(cent(q.freight_amount)) : "";
   return q.franchisee_credit > 0
-    ? { franqueadoId: q.franchisee_id ?? "", credito: centavosParaCampo(cent(q.franchisee_credit)) }
-    : { franqueadoId: "", credito: "" };
+    ? { franqueadoId: q.franchisee_id ?? "", credito: centavosParaCampo(cent(q.franchisee_credit)), frete }
+    : { franqueadoId: "", credito: "", frete };
 }
 
 /** A carga do carrinho e o pedido para entrega do orçamento, que o balcão guarda fora do carrinho. */
@@ -366,6 +368,7 @@ export function ResumoDoOrcamento({
       </p>
       <p>
         {reaisBr(orcamento.net_amount)}
+        {orcamento.freight_amount > 0 ? ` + frete ${reaisBr(orcamento.freight_amount)}` : ""}
         {orcamento.franchisee_credit > 0 ? ` + crédito do franqueado ${reaisBr(orcamento.franchisee_credit)}` : ""}, cliente {orcamento.customer.name}
         {orcamento.seller_name ? `, vendedor ${orcamento.seller_name}` : ""}
       </p>

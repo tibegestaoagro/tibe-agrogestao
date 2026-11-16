@@ -18,6 +18,8 @@ const schema = corpoDoOrcamentoSchema.extend({
     .number({ error: "O crédito do franqueado deve ser um número." })
     .min(0, { error: "O crédito do franqueado não pode ser negativo." })
     .nullish(),
+  /** Q326: o frete cobrado do cliente; ausente, a edição mantém o do orçamento e "a partir deste" copia o da origem. */
+  freight_amount: z.number({ error: "O frete deve ser um número." }).min(0, { error: "O frete não pode ser negativo." }).nullish(),
   operation_key: chaveDeOperacao,
   establishment_id: z.string({ error: "Escolha o estabelecimento." }).min(1, "Escolha o estabelecimento."),
   based_on_quote_id: z.string().nullish(),

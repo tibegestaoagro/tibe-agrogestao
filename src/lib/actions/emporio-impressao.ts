@@ -44,7 +44,7 @@ export type ImpressoVenda = {
   itens_sem_peso: number;
   subtotal: number;
   desconto: number;
-  /** Frete cobrado do cliente (Q244); 0 sem frete e no orçamento. */
+  /** Frete cobrado do cliente (Q244 na venda, Q326 no orçamento); 0 sem frete. */
   frete: number;
   /** Itens mais frete: o que o cliente paga. */
   total: number;
@@ -427,7 +427,9 @@ export async function lerImpressoDoOrcamentoAction(
     })),
   );
   const { itens, subtotal } = comCreditoRateado(cru.itens, q.items.map((i) => i.quantity), cru.subtotal, creditoCent);
-  const total = creditoCent > 0 ? (emCentavos(subtotal) - emCentavos(q.discount_amount)) / 100 : q.net_amount;
+  // Q326: o frete do orçamento sai em linha própria e soma ao total, como na venda.
+  const itensMenosDesconto = creditoCent > 0 ? emCentavos(subtotal) - emCentavos(q.discount_amount) : emCentavos(q.net_amount);
+  const total = (itensMenosDesconto + emCentavos(q.freight_amount)) / 100;
   const pesos = pesoTotal(itens.map((i) => i.peso_kg));
   const [ano, mes, dia] = q.valid_until.split("-");
 
@@ -445,7 +447,7 @@ export async function lerImpressoDoOrcamentoAction(
     itens_sem_peso: pesos.sem_peso,
     subtotal,
     desconto: q.discount_amount,
-    frete: 0,
+    frete: q.freight_amount,
     total,
     origem: "balcao",
     pagamentos: [],

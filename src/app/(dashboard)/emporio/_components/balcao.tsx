@@ -395,6 +395,8 @@ export function Balcao({
       // O PATCH regrava o corpo inteiro: ausente seria sem crédito, então vai sempre o que está na tela.
       franchisee_id: m.corpo.franchisee_id ?? null,
       franchisee_credit: m.corpo.franchisee_credit ?? 0,
+      // Q326: o frete também vai sempre, para editar e zerar.
+      freight_amount: m.corpo.freight_amount ?? 0,
       ...corpoDoPedido,
       ...(vendedor ? { seller_user_id: vendedor } : {}),
       notes: observacao || null,
@@ -683,6 +685,7 @@ export function Balcao({
             aoEscolherLoja={lembrarLoja}
             semPagamento={modo === "orcamento"}
             comFrete={modo === "venda"}
+            freteNoOrcamento={modo === "orcamento"}
             depoisDoFrete={
               <FranquiaCampos
                 v={v}

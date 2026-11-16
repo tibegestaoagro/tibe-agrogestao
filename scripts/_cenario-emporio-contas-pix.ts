@@ -64,6 +64,12 @@ async function limpar(tenant_id: string) {
   await prisma.financialPayment.deleteMany({ where: { tenant_id, entry_id: { in: lancamentos } } });
   await prisma.financialEntry.deleteMany({ where: { tenant_id, id: { in: lancamentos } } });
   await prisma.emporioSaleItem.deleteMany({ where: { tenant_id, sale_id: { in: vendas } } });
+  // Os orçamentos que os roteiros salvam nas lojas do cenário (o do frete no orçamento, Q326):
+  // a venda faturada aponta para eles e eles para ela, então solta os dois lados antes.
+  await prisma.emporioSale.updateMany({ where: { tenant_id, id: { in: vendas } }, data: { quote_id: null, replaces_sale_id: null } });
+  await prisma.emporioQuote.updateMany({ where: { tenant_id, establishment_id: { in: lojas } }, data: { sale_id: null, based_on_quote_id: null } });
+  await prisma.emporioQuoteItem.deleteMany({ where: { tenant_id, quote: { establishment_id: { in: lojas } } } });
+  await prisma.emporioQuote.deleteMany({ where: { tenant_id, establishment_id: { in: lojas } } });
   await prisma.emporioSale.deleteMany({ where: { tenant_id, id: { in: vendas } } });
   await prisma.emporioCustomer.deleteMany({ where: { tenant_id, name: { startsWith: PREFIXO } } });
   await prisma.cashHandover.deleteMany({ where: { tenant_id, establishment_id: { in: lojas } } });

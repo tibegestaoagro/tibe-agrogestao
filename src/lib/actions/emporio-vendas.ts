@@ -864,6 +864,8 @@ type OrcamentoAFaturar = {
   /** Q309: o franqueado e o crédito do orçamento; a venda herda quando o corpo não os traz. */
   franchisee_id: string | null;
   franchisee_credit: number;
+  /** Q326: o frete do orçamento; a venda herda quando o corpo não traz `freight_amount`. */
+  freight_amount: number;
 };
 
 /**
@@ -894,6 +896,7 @@ async function orcamentoAFaturar(
       discount_authorized_by_user_id: true,
       franchisee_id: true,
       franchisee_credit: true,
+      freight_amount: true,
       for_delivery: true,
       delivery_address_kind: true,
       delivery_zip: true,
@@ -926,7 +929,11 @@ async function orcamentoAFaturar(
     delivery_city: q.delivery_city,
     delivery_state: q.delivery_state,
   };
-  const franquia = { franchisee_id: q.franchisee_id, franchisee_credit: decToNum(q.franchisee_credit) ?? 0 };
+  const franquia = {
+    franchisee_id: q.franchisee_id,
+    franchisee_credit: decToNum(q.franchisee_credit) ?? 0,
+    freight_amount: decToNum(q.freight_amount) ?? 0,
+  };
   // Vencido: os itens do orçamento seguem a regra normal, sem referência nem autorização herdada.
   if (hojeEmBrasilia(soldAt).getTime() > q.valid_until.getTime()) {
     return ok({ quote, vendedor: q.seller_user_id, precificacao: null, pedido, ...franquia });
@@ -1050,6 +1057,8 @@ async function prepararVenda(
   );
   if (!franquia.ok) return franquia;
   const creditoCent = franquia.data.credit_cent;
+  // Q326: ao faturar, o corpo sem `freight_amount` herda o frete do orçamento.
+  if (orcamento && input.freight_amount === undefined) freteCent = centavos(orcamento.freight_amount);
 
   // O vendedor (entrega 3), validado aqui fora da transação como a loja e o cliente.
   // Ao faturar, é o do orçamento, como a troca herda o da venda original.

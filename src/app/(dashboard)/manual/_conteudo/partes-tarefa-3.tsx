@@ -157,6 +157,7 @@ export function ParteDeOrcamento() {
           "Busque os produtos e ajuste a quantidade e o preço, como numa venda. O desconto segue o mesmo limite da loja.",
           <>No campo <strong>Cliente</strong>, clique em <strong>Escolher cliente</strong> e busque pelo nome, pelo CPF ou CNPJ, ou por um pedaço do telefone. Quem não quer se identificar entra como <strong>Consumidor final</strong>, que vale para o orçamento. O cliente precisa estar com o cadastro completo: na pessoa física, nome e telefone; na jurídica, também o CNPJ e o endereço principal. Para um cliente novo, clique em <strong>Cadastrar novo cliente</strong>.</>,
           <>Se o orçamento é de um franqueado, escolha o <strong>Franqueado</strong> e digite o <strong>Crédito do franqueado (R$)</strong>. O papel do orçamento já sai com o crédito repartido nos itens, e a venda, ao faturar, nasce com os dois.</>,
+          <>Se vai ter entrega cobrada, digite o <strong>Frete cobrado do cliente</strong>. O papel do orçamento mostra o frete numa linha própria e o total com ele, e a venda, ao faturar, já nasce com o frete. O frete não entra no faturamento da loja.</>,
           <>Se quiser, escreva uma <strong>Observação</strong>.</>,
           <>Confira o <strong>Vendedor</strong>. Ele já vem com o seu nome. Se você é Caixa, escolha quem atendeu.</>,
           <>Clique em <strong>Salvar orçamento</strong>. O quadro verde mostra o número e a data até quando ele vale (<strong>válido até</strong>); vale até o fim desse dia.</>,
