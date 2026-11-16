@@ -25,9 +25,9 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-16. **Em andamento:** branch
-  `emporio-orcamento-total-e-cadastro-leve` PRONTA, aguardando autorização de
-  merge e push (sem migração): Q335 total do orçamento na tela; Q336 orçamento
+- Atualizado em: 2026-11-16. Nada em andamento. Branch
+  `emporio-orcamento-total-e-cadastro-leve` EM PRODUÇÃO (merge `762854a`,
+  autorizado em 16/11, sem migração, deploy confirmado): Q335 total do orçamento na tela; Q336 orçamento
   só com nome e telefone, endereço de entrega opcional, `pendencias_para_venda`
   e alerta (decisão do usuário 16/11); CEP Q337 a Q340 (spec de 16/11, rota
   `GET /api/v1/cep/:cep`, ViaCEP com BrasilAPI de reserva, `test:m119`).
