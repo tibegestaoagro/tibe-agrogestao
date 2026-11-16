@@ -37,7 +37,8 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   antes do push, merge `c43a130`, autorizados. m118,
   roteiro `emporio-desconto-pin` (93 ok), juiz 5/10 com os 9 achados
   corrigidos, `test:all` 121/121. Os gestores precisam cadastrar o PIN.
-  Pendente: regerar as figuras do balcão no manual. Frete no orçamento (Q326) e vendas do
+  Figuras do balcão regeradas na branch `manual-figuras-balcao` (aguarda merge);
+  o `manual-emporio` completo reprova 23 figuras de fora do balcão (altura e imagem em branco). Frete no orçamento (Q326) e vendas do
   turno (Q325) em produção. GIFs do manual: roteiro `manual-gifs` e
   `python scripts/manual-gifs-montar.py`. Os agentes `explorador`,
   `prova-juiz`, `prova-viva` e `servidor-dados` carregam (descrição entre
