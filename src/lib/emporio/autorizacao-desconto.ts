@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
 /**
  * Meu Empório: autorização de desconto. O gestor digita o PIN, o servidor confere e devolve este
@@ -10,9 +10,16 @@ export type PayloadAutorizacao = {
   authorizer_user_id: string;
   requester_user_id: string;
   max_pct: number;
+  /** A marca do PIN que emitiu (`marcaDoPin`): trocar ou apagar o PIN derruba a autorização. Sem ela, a venda recusa. */
+  pin_fp?: string;
   /** ms desde a epoch. */
   exp: number;
 };
+
+/** Os 16 primeiros hex do sha256 do hash do PIN: identifica o PIN sem expor o hash. */
+export function marcaDoPin(pinHash: string): string {
+  return createHash("sha256").update(pinHash).digest("hex").slice(0, 16);
+}
 
 const VALIDADE_PADRAO_MS = 15 * 60_000;
 

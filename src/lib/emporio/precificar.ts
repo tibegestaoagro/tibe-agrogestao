@@ -4,7 +4,7 @@ import { decToNum } from "@/lib/serialize";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { vendedoresDaLoja } from "@/lib/emporio/vendedores";
 import { precoComDesconto, ratearDescontoNosItens, pctDoDesconto } from "@/lib/emporio/desconto";
-import { conferirAutorizacao } from "@/lib/emporio/autorizacao-desconto";
+import { conferirAutorizacao, marcaDoPin } from "@/lib/emporio/autorizacao-desconto";
 import { podeAutorizarNaLoja } from "@/lib/emporio/autorizadores";
 import { dinheiro } from "@/lib/emporio/historico";
 import { INCLUDE_PRODUTO, lacradoEfetivo, type Ator, type ProdutoRow } from "@/lib/actions/emporio-catalogo";
@@ -105,6 +105,8 @@ export type OrcamentoNaPrecificacao = {
   autorizou: string | null;
   /** O desconto no total do orçamento, em centavos: a venda herda quando o corpo o omite, e a autorização herdada não cobre mais que ele. */
   order_discount_cent: number;
+  /** O % do desconto do orçamento (linhas e total sobre a referência dele, sem arredondar): a autorização herdada não cobre um % maior. */
+  pct: number;
 };
 
 /** A venda que a edição substitui (Q249): a linha igual à dela é a mesma linha, mesmo acima do cadastro de hoje. */
@@ -323,10 +325,12 @@ export async function precificarItens(
     const limite = decToNum(loja.max_discount_pct) ?? 0;
     if (pct > limite + 1e-9) {
       // O orçamento autorizado acima do limite vale ao faturar, se nada ficar abaixo do que ele garantiu
-      // (nem linha abaixo do `vale`, nem desconto no total acima do orçado).
+      // (nem linha abaixo do `vale`, nem desconto no total acima do orçado, nem % maior que o do orçamento:
+      // faturar só parte dos itens com o mesmo R$ do total faria o % crescer).
       const herdada = opts.orcamento?.autorizou
         ? linhas.every((i) => i.piso === null || centavos(i.unit_price) >= centavos(i.piso)) &&
-          totalDescontoCent <= opts.orcamento.order_discount_cent
+          totalDescontoCent <= opts.orcamento.order_discount_cent &&
+          pct <= opts.orcamento.pct + 1e-9
           ? opts.orcamento.autorizou
           : null
         : null;
@@ -354,7 +358,8 @@ export async function precificarItens(
           p.establishment_id === loja.id &&
           p.requester_user_id === ator.id &&
           p.max_pct + 1e-9 >= pctDoDesconto(descontoCent, baseCent) &&
-          (await podeAutorizarNaLoja(db, p.authorizer_user_id, loja.id));
+          (await podeAutorizarNaLoja(db, p.authorizer_user_id, loja.id)) &&
+          (await pinAindaEhOMesmo(db, p.authorizer_user_id, p.pin_fp));
         if (!p || !vale) {
           return fail(
             "DISCOUNT_AUTHORIZATION_INVALID",
@@ -391,6 +396,13 @@ export async function precificarItens(
     autorizou,
     autorizou_nome: autorizouNome,
   });
+}
+
+/** A autorização só vale enquanto o gestor tem o mesmo PIN que a emitiu (sem PIN, ou outro, recusa). */
+async function pinAindaEhOMesmo(db: TenantPrismaClient, userId: string, marca: string | undefined): Promise<boolean> {
+  if (!marca) return false;
+  const u = await db.user.findFirst({ where: { id: userId }, select: { emporio_auth_pin_hash: true } });
+  return !!u?.emporio_auth_pin_hash && marcaDoPin(u.emporio_auth_pin_hash) === marca;
 }
 
 /** A frase do Histórico: vazia quando ninguém autorizou ou quem autorizou é quem registra. Nunca leva PIN, hash nem o token. */

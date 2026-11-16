@@ -48,16 +48,19 @@ export async function tentativasEsgotadas(scope: string, identifier: string, max
   return atual >= max;
 }
 
-const FALHA_COM_PRAZO = `local c = redis.call("INCR", KEYS[1]) if c >= tonumber(ARGV[2]) or redis.call("TTL", KEYS[1]) < 0 then redis.call("EXPIRE", KEYS[1], ARGV[1]) end return c`;
-
-/** Soma uma falha e devolve a contagem. Ao chegar em `max`, o bloqueio dura `janelaSeg` a partir daí. */
+/**
+ * Soma uma tentativa ANTES de conferir o segredo e devolve a contagem (atômico no Redis: pedidos em
+ * paralelo recebem contagens distintas, então ninguém passa de `max` sem ser barrado). O prazo da
+ * chave nasce no primeiro INCR e não renova: a janela de `janelaSeg` conta da primeira tentativa.
+ * `max` fica na assinatura por compatibilidade; quem decide o bloqueio é o chamador (`n > max`).
+ */
 export async function registrarFalha(
   scope: string,
   identifier: string,
-  max: number,
+  _max: number,
   janelaSeg: number,
 ): Promise<number> {
-  return Number(await getRedisConnection().eval(FALHA_COM_PRAZO, 1, keyFor(scope, identifier), janelaSeg, max));
+  return Number(await getRedisConnection().eval(INCREMENTAR_COM_PRAZO, 1, keyFor(scope, identifier), janelaSeg));
 }
 
 /** Zera o contador após login bem-sucedido, para não penalizar tentativas válidas subsequentes. */

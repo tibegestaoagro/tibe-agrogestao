@@ -924,7 +924,7 @@ async function orcamentoAFaturar(
       delivery_city: true,
       delivery_state: true,
       sale: { select: { id: true, number: true } },
-      items: { select: { presentation_id: true, unit_price: true, suggested_price: true } },
+      items: { select: { presentation_id: true, quantity: true, unit_price: true, suggested_price: true } },
     },
   });
   if (!q) return QUOTE_NOT_FOUND();
@@ -982,13 +982,27 @@ async function orcamentoAFaturar(
       ja ? { referencia: Math.min(ja.referencia, referencia), vale: Math.min(ja.vale, vale) } : { referencia, vale },
     );
   }
+  // O % do desconto do próprio orçamento (a base dele: referência vezes quantidade): a autorização
+  // herdada não cobre um % maior ao faturar só parte dos itens.
+  const orderDiscountCent = centavos(decToNum(q.order_discount_amount) ?? 0);
+  let baseOrcCent = 0;
+  let descOrcCent = orderDiscountCent;
+  for (const i of q.items) {
+    const orcadoCent = centavos(decToNum(i.unit_price) ?? 0);
+    const sugerida = decToNum(i.suggested_price);
+    const refCent = sugerida === null ? orcadoCent : centavos(sugerida);
+    const qtd = decToNum(i.quantity) ?? 0;
+    baseOrcCent += centavos((refCent * qtd) / 100);
+    if (orcadoCent < refCent) descOrcCent += centavos(((refCent - orcadoCent) * qtd) / 100);
+  }
   return ok({
     quote,
     vendedor: q.seller_user_id,
     precificacao: {
       linhas,
       autorizou: q.discount_authorized_by_user_id,
-      order_discount_cent: centavos(decToNum(q.order_discount_amount) ?? 0),
+      order_discount_cent: orderDiscountCent,
+      pct: baseOrcCent > 0 ? (descOrcCent / baseOrcCent) * 100 : 0,
     },
     pedido,
     ...franquia,

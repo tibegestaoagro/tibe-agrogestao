@@ -4,8 +4,8 @@ import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { exigir, papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { registrarNoHistorico } from "@/lib/emporio/historico";
 import { autorizadoresDaLoja } from "@/lib/emporio/autorizadores";
-import { assinarAutorizacao } from "@/lib/emporio/autorizacao-desconto";
-import { registrarFalha, resetLoginRateLimit, tentativasEsgotadas } from "@/lib/rate-limit";
+import { assinarAutorizacao, marcaDoPin } from "@/lib/emporio/autorizacao-desconto";
+import { registrarFalha, resetLoginRateLimit } from "@/lib/rate-limit";
 import type { AppUserRole } from "@/types/next-auth";
 
 /**
@@ -75,14 +75,16 @@ export async function autorizarDescontoAction(
     return fail("VALIDATION_ERROR", "Informe o PIN.", 422, "pin");
   }
 
-  if (await tentativasEsgotadas("emporio-pin", autorizador.id, MAX_TENTATIVAS)) {
+  // Conta ANTES de conferir, num passo atômico do Redis: pedidos em paralelo recebem contagens
+  // distintas, e do 6º em diante nenhum chega ao bcrypt.
+  const tentativa = await registrarFalha("emporio-pin", autorizador.id, MAX_TENTATIVAS, JANELA_SEG);
+  if (tentativa > MAX_TENTATIVAS) {
     return fail("PIN_LOCKED", "Muitas tentativas. Tente de novo em 15 minutos.", 429, "pin");
   }
   const dono = await db.user.findFirst({ where: { id: autorizador.id }, select: { emporio_auth_pin_hash: true } });
   const hash = dono?.emporio_auth_pin_hash;
   const confere = hash ? await bcrypt.compare(input.pin, hash) : false;
-  if (!confere) {
-    await registrarFalha("emporio-pin", autorizador.id, MAX_TENTATIVAS, JANELA_SEG);
+  if (!hash || !confere) {
     return fail("INVALID_PIN", "PIN incorreto.", 422, "pin");
   }
   await resetLoginRateLimit("emporio-pin", autorizador.id);
@@ -92,6 +94,7 @@ export async function autorizarDescontoAction(
     authorizer_user_id: autorizador.id,
     requester_user_id: ator.id,
     max_pct: pct,
+    pin_fp: marcaDoPin(hash),
   });
   const exp = Number(JSON.parse(Buffer.from(token.split(".")[0], "base64url").toString("utf-8")).exp);
 
@@ -101,7 +104,7 @@ export async function autorizarDescontoAction(
     establishment_id: loja.id,
     target_type: "usuario",
     target_id: autorizador.id,
-    summary: `Autorizou desconto de até ${pct.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}% na ${loja.name} para ${quem?.name ?? "o vendedor"}`,
+    summary: `${autorizador.name} autorizou com PIN desconto de até ${pct.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}% na ${loja.name} para ${quem?.name ?? "o vendedor"}`,
   });
 
   return ok({
@@ -127,13 +130,13 @@ export async function definirMeuPinAction(
   if (typeof input.password !== "string" || !input.password) {
     return fail("VALIDATION_ERROR", "Informe sua senha.", 422, "password");
   }
-  if (await tentativasEsgotadas("emporio-pin-senha", ator.id, MAX_TENTATIVAS)) {
+  const tentativa = await registrarFalha("emporio-pin-senha", ator.id, MAX_TENTATIVAS, JANELA_SEG);
+  if (tentativa > MAX_TENTATIVAS) {
     return fail("PASSWORD_LOCKED", "Muitas tentativas. Tente de novo em 15 minutos.", 429, "password");
   }
   const u = await db.user.findFirst({ where: { id: ator.id }, select: { password_hash: true } });
   if (!u) return fail("NOT_FOUND", "Usuário não encontrado.", 404);
   if (!(await bcrypt.compare(input.password, u.password_hash))) {
-    await registrarFalha("emporio-pin-senha", ator.id, MAX_TENTATIVAS, JANELA_SEG);
     return fail("INVALID_PASSWORD", "Senha incorreta.", 422, "password");
   }
   await resetLoginRateLimit("emporio-pin-senha", ator.id);

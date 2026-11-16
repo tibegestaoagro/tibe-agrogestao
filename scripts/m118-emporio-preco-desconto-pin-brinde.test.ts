@@ -601,6 +601,87 @@ async function main() {
       check("devolver metade reembolsa R$ 40 (proporcional ao total do item), não R$ 50", ok(dev) && perto(dev.corpo?.data?.amount, 40), `${dev.status} ${j(dev.corpo?.data?.amount ?? dev.corpo?.error)}`);
     });
 
+    await rodar("correções do juiz", async () => {
+      console.log("\n7b. Correções do juiz: trava atômica, % herdado do orçamento, Histórico e PIN trocado");
+      const { resetLoginRateLimit } = await import("@/lib/rate-limit");
+
+      // 1. A trava de cinco PINs errados não se contorna com pedidos em paralelo.
+      await resetLoginRateLimit("emporio-pin", A.ids.g12);
+      const rajada = await Promise.all(
+        Array.from({ length: 10 }, (_, i) => pedirAutorizacao(A, A.tok.vend, A.L1, A.ids.g12, `99${i}1`, 15)),
+      );
+      const n422 = rajada.filter((r) => r.status === 422).length;
+      const n429 = rajada.filter((r) => r.status === 429).length;
+      check("10 PINs errados em paralelo: no máximo 5 recebem 422 e o resto 429", n422 <= 5 && n429 >= 5 && n422 + n429 === 10, `422=${n422} 429=${n429}`);
+      check("os 429 são PIN_LOCKED em pin", rajada.filter((r) => r.status === 429).every((r) => erro(r, 429, "pin", "PIN_LOCKED")), j(rajada.map((r) => r.status)));
+      const certoDepois = await pedirAutorizacao(A, A.tok.vend, A.L1, A.ids.g12, PIN.g12, 15);
+      check("o PIN certo logo depois também recebe 429", erro(certoDepois, 429, "pin", "PIN_LOCKED") && certoDepois.corpo?.data?.authorization === undefined, `${certoDepois.status} ${sobra(certoDepois)}`);
+      await resetLoginRateLimit("emporio-pin", A.ids.g12);
+      const liberado = await pedirAutorizacao(A, A.tok.vend, A.L1, A.ids.g12, PIN.g12, 15);
+      check("zerada a trava, o PIN certo volta a valer", ok(liberado), `${liberado.status} ${sobra(liberado)}`);
+
+      // O mesmo na senha de login que protege o cadastro do PIN.
+      await resetLoginRateLimit("emporio-pin-senha", A.ids.g12);
+      const rajadaSenha = await Promise.all(Array.from({ length: 10 }, (_, i) => definirPin(A.tok.g12, "5678", `errada-${i}`)));
+      const s422 = rajadaSenha.filter((r) => r.status === 422).length;
+      const s429 = rajadaSenha.filter((r) => r.status === 429).length;
+      check("10 senhas erradas em paralelo ao definir o PIN: no máximo 5 recebem 422 e o resto 429", s422 <= 5 && s429 >= 5 && s422 + s429 === 10, `422=${s422} 429=${s429}`);
+      const senhaCerta = await definirPin(A.tok.g12, "5678");
+      check("a senha certa logo depois também recebe 429", senhaCerta.status === 429, `${senhaCerta.status} ${sobra(senhaCerta)}`);
+      await resetLoginRateLimit("emporio-pin-senha", A.ids.g12);
+
+      // 2. A autorização herdada do orçamento não cobre um % maior ao faturar parte dos itens.
+      const oAut = await Orc.salvarOrcamentoAction(A.db, A.owner, {
+        operation_key: chave("orc"), establishment_id: A.L1, customer_id: A.cli.id, items: itens(A, [{ q: "quilo", qty: 10 }]), order_discount_amount: 30,
+      });
+      check("(preparo) o dono orça 10 x R$ 10 com R$ 30 no total (30% acima do limite de 10%)", oAut.ok === true && oAut.data?.discount_authorized_by_user_id === A.owner.id, j(oAut.data ?? oAut));
+      const parte = await chamar(A.tok.vend, R.sales, "POST", "emporio/sales", {
+        operation_key: chave("v"), establishment_id: A.L1, cash_register_id: A.reg1, customer_id: A.cli.id,
+        quote_id: oAut.data?.id, items: itens(A, [{ q: "quilo", qty: 4 }]), payments: din(10),
+      });
+      check("faturar 4 dos 10 pelo vendedor herdando os R$ 30 (75%): 403 DISCOUNT_ABOVE_LIMIT, não sai autorizado", erro(parte, 403, "items", "DISCOUNT_ABOVE_LIMIT"), `${parte.status} ${sobra(parte)}`);
+      const inteiro = await chamar(A.tok.vend, R.sales, "POST", "emporio/sales", {
+        operation_key: chave("v"), establishment_id: A.L1, cash_register_id: A.reg1, customer_id: A.cli.id,
+        quote_id: oAut.data?.id, items: itens(A, [{ q: "quilo", qty: 10 }]), payments: din(70),
+      });
+      check("faturar o orçamento inteiro herda a autorização do dono (mesmo %): 201", inteiro.status === 201 && inteiro.corpo?.data?.discount_authorized_by_user_id === A.owner.id, `${inteiro.status} ${sobra(inteiro)}`);
+      const oAut2 = await Orc.salvarOrcamentoAction(A.db, A.owner, {
+        operation_key: chave("orc"), establishment_id: A.L1, customer_id: A.cli.id, items: itens(A, [{ q: "quilo", qty: 10 }]), order_discount_amount: 30,
+      });
+      const aParte = await pedirAutorizacao(A, A.tok.vend, A.L1, A.ids.g1, PIN.g1, 80);
+      const parteComToken = await chamar(A.tok.vend, R.sales, "POST", "emporio/sales", {
+        operation_key: chave("v"), establishment_id: A.L1, cash_register_id: A.reg1, customer_id: A.cli.id,
+        quote_id: oAut2.data?.id, items: itens(A, [{ q: "quilo", qty: 4 }]), payments: din(10),
+        discount_authorization: String(aParte.corpo?.data?.authorization ?? ""),
+      });
+      check("faturar parte com autorização nova do gestor (80%): 201 em nome do gestor", parteComToken.status === 201 && parteComToken.corpo?.data?.discount_authorized_by_user_id === A.ids.g1, `${parteComToken.status} ${sobra(parteComToken)}`);
+
+      // 3. O Histórico nomeia o gestor que autorizou, sem PIN nem token.
+      const reg = await P.emporioAuditLog.findFirst({ where: { tenant_id: A.tenantId, action: "desconto.autorizar", target_id: A.ids.g1 }, orderBy: { created_at: "desc" } });
+      check("o Histórico de desconto.autorizar traz o nome do gestor e 'autorizou com PIN'", !!reg && String(reg.summary).includes("M118 g1") && String(reg.summary).includes("autorizou com PIN"), String(reg?.summary));
+      check("e não traz PIN nem token", !!reg && !String(reg.summary).includes(PIN.g1) && !String(reg.summary).includes(String(aParte.corpo?.data?.authorization)), String(reg?.summary));
+
+      // 4. Apagar ou trocar o PIN derruba as autorizações já emitidas.
+      const emitida = await pedirAutorizacao(A, A.tok.vend, A.L1, A.ids.g1, PIN.g1, 15);
+      const tokenA = String(emitida.corpo?.data?.authorization ?? "");
+      const usar = (tk: string) => vender(A, A.tok.vend, [{ q: "quilo", qty: 10, discount_pct: 15 }], 85, { discount_authorization: tk });
+      const antes = await usar(tokenA);
+      check("(controle) a autorização emitida vale antes de mexer no PIN: 201", antes.status === 201, `${antes.status} ${sobra(antes)}`);
+      await chamar(A.tok.owner, R.apagarPin, "DELETE", `emporio/team/${A.ids.g1}/pin`, undefined, { userId: A.ids.g1 });
+      const depoisApagar = await usar(tokenA);
+      check("o Dono apaga o PIN do gestor: a venda com o token recebe 403 DISCOUNT_AUTHORIZATION_INVALID", erro(depoisApagar, 403, "discount_authorization", "DISCOUNT_AUTHORIZATION_INVALID"), `${depoisApagar.status} ${sobra(depoisApagar)}`);
+      await definirPin(A.tok.g1, PIN.g1);
+      const mesmoPinDeNovo = await usar(tokenA);
+      check("o gestor cadastra outro PIN (mesmo número, outro hash): o token antigo segue recusado", erro(mesmoPinDeNovo, 403, "discount_authorization", "DISCOUNT_AUTHORIZATION_INVALID"), `${mesmoPinDeNovo.status} ${sobra(mesmoPinDeNovo)}`);
+      const emitida2 = await pedirAutorizacao(A, A.tok.vend, A.L1, A.ids.g1, PIN.g1, 15);
+      const tokenB = String(emitida2.corpo?.data?.authorization ?? "");
+      check("(controle) a autorização nova vale: 201", (await usar(tokenB)).status === 201);
+      await definirPin(A.tok.g1, "135790");
+      const depoisTrocar = await usar(tokenB);
+      check("o gestor troca o PIN: o token emitido com o anterior recebe 403 DISCOUNT_AUTHORIZATION_INVALID", erro(depoisTrocar, 403, "discount_authorization", "DISCOUNT_AUTHORIZATION_INVALID"), `${depoisTrocar.status} ${sobra(depoisTrocar)}`);
+      await definirPin(A.tok.g1, PIN.g1);
+    });
+
     await rodar("isolamento", async () => {
       console.log("\n8. Isolamento entre contas");
       const doA = await pedirAutorizacao(A, A.tok.vend, A.L1, A.ids.g1, PIN.g1, 15);
