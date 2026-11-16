@@ -25,9 +25,10 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-13. Manual com 8 GIFs em produção (merge `a531ae4`,
-  autorizado); regerar: roteiro `manual-gifs` e `python
-  scripts/manual-gifs-montar.py`. Granel e PIX em produção. Os agentes `explorador`,
+- Atualizado em: 2026-11-16. Branch `emporio-caixa-vendas-do-turno` (Q325,
+  spec de 16/11) pronta, NÃO publicada, sem migração. Manual com GIFs em
+  produção (regerar: roteiro `manual-gifs` e `python
+  scripts/manual-gifs-montar.py`). Os agentes `explorador`,
   `prova-juiz`, `prova-viva` e `servidor-dados` carregam (descrição entre
   aspas). Outros agentes: leia `AGENTS.md`.
 - `main` igual a `origin/main`, Neon em dia. Em produção também: conta avulsa e
@@ -41,13 +42,9 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ### Granel em qualquer peso e atacado na mesma saca (Q319 a Q324): em produção
 
-Branch `emporio-granel-e-atacado`, `ef7f356` a `31ad5ed`. Spec
-[../superpowers/specs/2026-11-13-emporio-granel-e-atacado-design.md](../superpowers/specs/2026-11-13-emporio-granel-e-atacado-design.md).
-"Converter para quilo" por produto, com prévia; fechadas do mesmo tamanho
-dividem o estoque (ATACADO e Saca 40 kg); `UNIT_CHANGED` se a conversão cai no
-meio. Sem migração. m115, roteiro `emporio-granel` (125 ok), juiz 5/10 com os
-achados corrigidos, `test:all` 118/118. Central do Milho: GRANEL da Magnus 15
-kg está em 0,068 saca (1,02 kg); a prévia marca "confira".
+Merge `8727de8`; spec de 13/11. "Converter para quilo" com prévia; fechadas do
+mesmo tamanho dividem o estoque; `UNIT_CHANGED` se a conversão cai no meio.
+Central do Milho: GRANEL da Magnus 15 kg está em 1,02 kg (a prévia marca).
 
 ### Contas PIX (Q310 a Q318): em produção desde 13/11 (merge `bd7fd3f`)
 
@@ -72,8 +69,9 @@ Agromax, a entrega 4 (extrato da Stone) depende de um arquivo real.
 
 ### ⏭️ Próximo passo
 
-0. Central do Milho: converter os produtos que vendem a granel. Próximos
-   ajustes: o usuário traz (vídeo em `docs/financeiro-reuniao/`, fora do git).
+0. Vendas do turno (Q325): o usuário autoriza merge e push. Central do Milho:
+   cadastrar taxas do cartão e editar as vendas lançadas como fiado; converter
+   os produtos de granel. Vídeo em `docs/financeiro-reuniao/` (fora do git).
    Contas PIX: a Agromax cadastra as contas PIX das lojas e do site (CNPJ,
    favorecido, onde vale) e define a padrão de cada loja.
    Franqueado: o usuário responde as três decisões abertas (Caixa, devolução,

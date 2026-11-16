@@ -143,7 +143,7 @@ export default async function CaixaPage() {
                   <div>
                     <h3 className="text-base font-semibold text-texto">{d.name}</h3>
                     <p className="text-2xl font-semibold text-texto">{reaisBr(d.balance)}</p>
-                    <p className="text-xs text-texto-secundario">Soma dos caixas</p>
+                    <p className="text-xs text-texto-secundario">Dinheiro nas gavetas (só espécie)</p>
                   </div>
 
                   <ul className="divide-y divide-borda rounded-md border border-borda">
@@ -154,13 +154,28 @@ export default async function CaixaPage() {
                           <div className="flex flex-wrap items-start justify-between gap-2">
                             <div>
                               <p className="font-medium text-texto">
-                                {r.nome} <span className="font-normal text-texto-secundario">({reaisBr(r.saldo)})</span>
+                                {r.nome}{" "}
+                                <span className="font-normal text-texto-secundario">(na gaveta: {reaisBr(r.saldo)})</span>
                               </p>
                               <p className="text-sm text-texto-secundario">
                                 {turno
                                   ? `Aberto por ${turno.aberto_por.name} desde ${DATA_HORA.format(new Date(turno.aberto_em))}`
                                   : "Fechado"}
                               </p>
+                              {turno && (
+                                <div className="mt-1 text-sm">
+                                  <p className="text-texto">
+                                    Vendas do turno: <strong>{reaisBr(turno.vendas_total)}</strong>
+                                  </p>
+                                  {turno.vendas.length > 0 ? (
+                                    <p className="text-texto-secundario">
+                                      {turno.vendas.map((v) => `${v.forma} ${reaisBr(v.valor)}`).join(", ")}
+                                    </p>
+                                  ) : (
+                                    <p className="text-texto-secundario">Nenhuma venda neste turno ainda.</p>
+                                  )}
+                                </div>
+                              )}
                             </div>
                             <Badge variant={turno ? "green" : "gray"}>{turno ? "Aberto" : "Fechado"}</Badge>
                           </div>
