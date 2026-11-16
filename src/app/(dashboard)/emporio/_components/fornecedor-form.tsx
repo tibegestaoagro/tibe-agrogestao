@@ -18,6 +18,7 @@ import { apiGet, apiPatch, apiPost } from "@/lib/client-api";
 import type { FornecedorView } from "@/lib/actions/emporio-fornecedores";
 import { UFS, formatarCep, formatarDocumento } from "@/lib/contatos/cadastro";
 import { mascararCep, mascararDocumento, mascararTelefone } from "@/components/contatos/campos-do-cadastro";
+import { avisoDoCep, focarNumero, useBuscaCep } from "@/components/contatos/use-busca-cep";
 
 // Ordem VISUAL. Só entra o que a tela renderiza em algum momento.
 const ORDEM = [
@@ -122,6 +123,19 @@ export function FornecedorForm({
     err.limparCampo(campo);
   }
 
+  // Q340: Rua e Bairro já digitados ficam; Cidade e UF vêm do CEP; o foco vai ao Número.
+  const cep = useBuscaCep((e) => {
+    setValores((v) => ({
+      ...v,
+      address_street: e.street && !v.address_street.trim() ? e.street : v.address_street,
+      address_district: e.district && !v.address_district.trim() ? e.district : v.address_district,
+      city: e.city ?? v.city,
+      address_state: e.state && UFS.includes(e.state) ? e.state : v.address_state,
+    }));
+    for (const c of ["address_street", "address_district", "city", "address_state"] as const) err.limparCampo(c);
+    focarNumero(err.idDe("address_number"), err.idDe("address_zip"));
+  });
+
   // O painel abre pelo gatilho ou por quem chama (`open`): o preparo é o mesmo, feito no
   // render quando `aberto` muda, e a leitura (o cadastro ou as propriedades) no efeito abaixo.
   const [abertoAntes, setAbertoAntes] = useState(aberto);
@@ -221,10 +235,18 @@ export function FornecedorForm({
   function texto(
     campo: keyof Valores,
     rotulo: string,
-    extra: { mascara?: (v: string) => string; inputMode?: "numeric" | "text"; hint?: string; placeholder?: string } = {},
+    extra: {
+      mascara?: (v: string) => string;
+      inputMode?: "numeric" | "text";
+      hint?: string;
+      placeholder?: string;
+      /** Ajuda que vence a dica (a busca do CEP): não é erro e não bloqueia o salvar. */
+      aviso?: string;
+      aoDigitar?: (v: string) => void;
+    } = {},
   ) {
     return (
-      <Field label={rotulo} required={campo === "name"} hint={extra.hint} id={err.idDe(campo)} error={err.erros[campo]}>
+      <Field label={rotulo} required={campo === "name"} hint={extra.aviso ?? extra.hint} id={err.idDe(campo)} error={err.erros[campo]}>
         {({ id: fid, ...aria }) => (
           <Input
             id={fid}
@@ -233,7 +255,11 @@ export function FornecedorForm({
             placeholder={extra.placeholder}
             autoComplete="off"
             value={valores[campo]}
-            onChange={(e) => mudar(campo, extra.mascara ? extra.mascara(e.target.value) : e.target.value)}
+            onChange={(e) => {
+              const novo = extra.mascara ? extra.mascara(e.target.value) : e.target.value;
+              mudar(campo, novo);
+              extra.aoDigitar?.(novo);
+            }}
           />
         )}
       </Field>
@@ -365,7 +391,13 @@ export function FornecedorForm({
 
           <section className="space-y-3 rounded-lg border border-borda p-3" aria-label="Endereço">
             <h3 className="text-sm font-semibold text-texto">Endereço</h3>
-            {texto("address_zip", "CEP", { inputMode: "numeric", mascara: mascararCep, placeholder: "00000-000" })}
+            {texto("address_zip", "CEP", {
+              inputMode: "numeric",
+              mascara: mascararCep,
+              placeholder: "00000-000",
+              aviso: avisoDoCep(cep),
+              aoDigitar: (v) => void cep.aoMudarCep(v),
+            })}
             {texto("address_street", "Rua")}
             <div className="grid grid-cols-2 gap-3">
               {texto("address_number", "Número")}

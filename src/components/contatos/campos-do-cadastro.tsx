@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
 import { UFS, formatarCep, formatarDocumento, normalizarCnpj } from "@/lib/contatos/cadastro";
+import { avisoDoCep, focarNumero, useBuscaCep, type EnderecoDoCep } from "./use-busca-cep";
 
 /**
  * Os campos do cadastro PF/PJ do contato, compartilhados pelo balcão do Empório
@@ -161,6 +162,8 @@ function CampoTexto({
   placeholder,
   inputMode,
   mascara,
+  aviso,
+  aoDigitar,
   p,
 }: {
   campo: CampoCadastro;
@@ -170,10 +173,14 @@ function CampoTexto({
   placeholder?: string;
   inputMode?: "numeric" | "tel" | "text";
   mascara?: (valor: string) => string;
+  /** Texto de ajuda que vence a dica (a busca do CEP): não é erro, não bloqueia o salvar. */
+  aviso?: string;
+  /** Recebe o valor já mascarado, em todo onChange. */
+  aoDigitar?: (valor: string) => void;
   p: Props;
 }) {
   return (
-    <Field label={rotulo} required={required} hint={hint} id={p.idDe(campo)} error={p.erros[campo]}>
+    <Field label={rotulo} required={required} hint={aviso ?? hint} id={p.idDe(campo)} error={p.erros[campo]}>
       {({ id, ...aria }) => (
         <Input
           id={id}
@@ -182,7 +189,11 @@ function CampoTexto({
           placeholder={placeholder}
           autoComplete="off"
           value={p.valores[campo]}
-          onChange={(e) => p.aoMudar(campo, mascara ? mascara(e.target.value) : e.target.value)}
+          onChange={(e) => {
+            const novo = mascara ? mascara(e.target.value) : e.target.value;
+            p.aoMudar(campo, novo);
+            aoDigitar?.(novo);
+          }}
         />
       )}
     </Field>
@@ -224,12 +235,50 @@ function CampoUf({
   );
 }
 
+type CamposDoEndereco = {
+  zip: CampoCadastro;
+  street: CampoCadastro;
+  number: CampoCadastro;
+  district: CampoCadastro;
+  city: CampoCadastro;
+  state: CampoCadastro;
+};
+
+const ENDERECO_PRINCIPAL: CamposDoEndereco = {
+  zip: "address_zip",
+  street: "address_street",
+  number: "address_number",
+  district: "address_district",
+  city: "city",
+  state: "address_state",
+};
+
+const ENDERECO_ENTREGA: CamposDoEndereco = {
+  zip: "delivery_zip",
+  street: "delivery_street",
+  number: "delivery_number",
+  district: "delivery_district",
+  city: "delivery_city",
+  state: "delivery_state",
+};
+
 export function CamposDoCadastro(props: Props) {
   const { valores, aoMudar, erros, idDe, obrigatorios } = props;
   const kind = valores.person_kind;
   const pf = kind === "pf";
   const pj = kind === "pj";
   const enderecoObrigatorio = obrigatorios && pj;
+
+  // Q340: Rua e Bairro já preenchidos ficam; Cidade e UF vêm do CEP; o foco vai ao Número.
+  function preencherPeloCep(c: CamposDoEndereco, e: EnderecoDoCep) {
+    if (e.street && !valores[c.street].trim()) aoMudar(c.street, e.street);
+    if (e.district && !valores[c.district].trim()) aoMudar(c.district, e.district);
+    if (e.city) aoMudar(c.city, e.city);
+    if (e.state && UFS.includes(e.state)) aoMudar(c.state, e.state);
+    focarNumero(idDe(c.number), idDe(c.zip));
+  }
+  const cepPrincipal = useBuscaCep((e) => preencherPeloCep(ENDERECO_PRINCIPAL, e));
+  const cepEntrega = useBuscaCep((e) => preencherPeloCep(ENDERECO_ENTREGA, e));
 
   function usarMesmoEndereco() {
     aoMudar("delivery_zip", valores.address_zip);
@@ -333,7 +382,17 @@ export function CamposDoCadastro(props: Props) {
         <h3 className="text-sm font-semibold text-texto">
           {pf ? "Endereço residencial" : pj ? "Endereço da empresa" : "Endereço"}
         </h3>
-        <CampoTexto campo="address_zip" rotulo="CEP" required={enderecoObrigatorio} inputMode="numeric" mascara={mascararCep} placeholder="00000-000" p={props} />
+        <CampoTexto
+          campo="address_zip"
+          rotulo="CEP"
+          required={enderecoObrigatorio}
+          inputMode="numeric"
+          mascara={mascararCep}
+          placeholder="00000-000"
+          aviso={avisoDoCep(cepPrincipal)}
+          aoDigitar={cepPrincipal.aoMudarCep}
+          p={props}
+        />
         <CampoTexto campo="address_street" rotulo="Rua" required={enderecoObrigatorio} p={props} />
         <div className="grid grid-cols-2 gap-3">
           <CampoTexto campo="address_number" rotulo="Número" required={enderecoObrigatorio} p={props} />
@@ -353,7 +412,16 @@ export function CamposDoCadastro(props: Props) {
             Usar o mesmo endereço
           </Button>
         </div>
-        <CampoTexto campo="delivery_zip" rotulo="CEP de entrega" inputMode="numeric" mascara={mascararCep} placeholder="00000-000" p={props} />
+        <CampoTexto
+          campo="delivery_zip"
+          rotulo="CEP de entrega"
+          inputMode="numeric"
+          mascara={mascararCep}
+          placeholder="00000-000"
+          aviso={avisoDoCep(cepEntrega)}
+          aoDigitar={cepEntrega.aoMudarCep}
+          p={props}
+        />
         <CampoTexto campo="delivery_street" rotulo="Rua de entrega" p={props} />
         <div className="grid grid-cols-2 gap-3">
           <CampoTexto campo="delivery_number" rotulo="Número de entrega" p={props} />

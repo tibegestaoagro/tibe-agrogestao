@@ -12,6 +12,7 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { apiGet } from "@/lib/client-api";
+import { avisoDoCep, focarNumero, useBuscaCep } from "@/components/contatos/use-busca-cep";
 import { UFS, formatarCep } from "@/lib/contatos/cadastro";
 import { faltaParaEntrega, type EnderecoDoPedido, type Falta } from "@/lib/emporio/cliente-cadastro";
 import { clienteEscolhidoDe } from "@/lib/emporio/cliente-escolhido";
@@ -223,6 +224,19 @@ export function PedidoParaEntregaCampos({
     mudar(campo, { ...valor, outro: { ...valor.outro, [campo]: texto } });
   }
 
+  // Q340: Rua e Bairro já digitados ficam; Cidade e UF vêm do CEP; o foco vai ao Número.
+  // Um aoMudar só, com o valor de quando a resposta chega: vários seguidos se atropelariam.
+  const cep = useBuscaCep((e) => {
+    const outro = { ...valor.outro };
+    if (e.street && !outro.delivery_street.trim()) outro.delivery_street = e.street;
+    if (e.district && !outro.delivery_district.trim()) outro.delivery_district = e.district;
+    if (e.city) outro.delivery_city = e.city;
+    if (e.state && UFS.includes(e.state)) outro.delivery_state = e.state;
+    aoMudar({ ...valor, outro });
+    for (const c of ["delivery_street", "delivery_district", "delivery_city", "delivery_state"] as const) limpar?.(c);
+    focarNumero(idDe("delivery_number"), idDe("delivery_zip"));
+  });
+
   const escolhas: { valor: EscolhaDoEndereco; rotulo: string }[] = [
     { valor: "principal", rotulo: opcoes ? `Endereço principal: ${rotuloDaOpcao(opcoes.principal)}` : "Endereço principal" },
     // Também enquanto as opções carregam ou a leitura falha: um orçamento já
@@ -318,7 +332,14 @@ export function PedidoParaEntregaCampos({
           {valor.delivery_address_kind === "outro" && (
             <div className="grid gap-3 sm:grid-cols-2">
               {CAMPOS_DO_OUTRO.map((c) => (
-                <Field key={c.campo} label={c.rotulo} required={c.required} id={idDe(c.campo)} error={erros[c.campo]}>
+                <Field
+                  key={c.campo}
+                  label={c.rotulo}
+                  required={c.required}
+                  id={idDe(c.campo)}
+                  error={erros[c.campo]}
+                  hint={c.campo === "delivery_zip" ? avisoDoCep(cep) : undefined}
+                >
                   {({ id, ...aria }) => (
                     <Input
                       id={id}
@@ -326,7 +347,10 @@ export function PedidoParaEntregaCampos({
                       autoComplete="off"
                       {...(c.campo === "delivery_zip" ? { inputMode: "numeric" as const, maxLength: 9, placeholder: "00000-000" } : {})}
                       value={valor.outro[c.campo]}
-                      onChange={(e) => mudarOutro(c.campo, e.target.value)}
+                      onChange={(e) => {
+                        mudarOutro(c.campo, e.target.value);
+                        if (c.campo === "delivery_zip") void cep.aoMudarCep(e.target.value);
+                      }}
                     />
                   )}
                 </Field>
