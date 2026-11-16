@@ -187,7 +187,8 @@ export default async function OrcamentoPage({ params }: { params: Promise<{ id: 
           {descontoDasLinhas > 0 && <p>Desconto: <strong>{reaisBr(descontoDasLinhas)}</strong></p>}
           {o.order_discount_amount > 0 && (
             <p>
-              Desconto no total: <strong>{reaisBr(o.order_discount_amount)}</strong>
+              Desconto no total: <strong>{reaisBr(o.order_discount_amount)}</strong>{" "}
+              <span className="text-texto-secundario">(já descontado nos itens)</span>
             </p>
           )}
           {autorizador && (

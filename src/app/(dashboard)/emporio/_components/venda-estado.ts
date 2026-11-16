@@ -235,6 +235,8 @@ export type CorpoDaVenda = {
 export type CargaDoOrcamento = {
   referencia: Record<string, number>;
   vale: Record<string, number>;
+  /** Verdadeiro quando `vale` é o preço de hoje na loja (orçamento refeito): a tela não o chama de "do orçamento". */
+  deHoje?: boolean;
   itens: { produtoId: string; apresentacaoId: string; qtd: string }[];
   /** O cliente do orçamento (só `id`, `name`, `phone` e `document`; o resto nulo), ou nulo sem cliente. */
   cliente: ClienteEscolhido | null;
@@ -427,8 +429,8 @@ export function useVenda({
       lista.map((p) => (p.kind === "cheque" && !p.chequeTitularEditado ? { ...p, chequeTitular: novo?.name ?? "" } : p)),
     );
   }
-  const [orc, setOrc] = useState<Pick<CargaDoOrcamento, "referencia" | "vale"> | null>(
-    cargaInicial ? { referencia: cargaInicial.referencia, vale: cargaInicial.vale } : null,
+  const [orc, setOrc] = useState<Pick<CargaDoOrcamento, "referencia" | "vale" | "deHoje"> | null>(
+    cargaInicial ? { referencia: cargaInicial.referencia, vale: cargaInicial.vale, deHoje: cargaInicial.deHoje } : null,
   );
 
   const precoDaLoja = (apresentacaoId: string, lojaId: string): number | null =>
@@ -459,7 +461,7 @@ export function useVenda({
 
   /** Põe o orçamento no carrinho: os itens dele no lugar dos que havia, o cliente dele, sem pagamento. */
   function carregarOrcamento(carga: CargaDoOrcamento) {
-    setOrc({ referencia: carga.referencia, vale: carga.vale });
+    setOrc({ referencia: carga.referencia, vale: carga.vale, deHoje: carga.deHoje });
     setItens(linhasDaCarga(carga, proximo));
     setPagamentos([]);
     setCliente(carga.cliente);
@@ -540,7 +542,7 @@ export function useVenda({
       valida && refCent !== null && unitCent < refCent ? Math.round(arred3(q) * (refCent - unitCent)) : 0;
     const baseDoItem = valida && refCent !== null ? Math.round(arred3(q) * refCent) : 0;
     // O preço que o orçamento garante nesta linha (nulo fora dele).
-    const doOrcamento = orc?.vale[i.apresentacaoId] ?? null;
+    const doOrcamento = orc?.deHoje ? null : (orc?.vale[i.apresentacaoId] ?? null);
     return {
       linha: i,
       produto,

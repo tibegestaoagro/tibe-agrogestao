@@ -107,6 +107,7 @@ export function cargaParaRefazer(
       // Sem referência: o desconto se mede contra o preço de hoje, como numa criação.
       referencia: {},
       vale,
+      deHoje: true,
       itens: presentes.map((i) => ({
         produtoId: i.emporio_product_id,
         apresentacaoId: i.presentation_id,

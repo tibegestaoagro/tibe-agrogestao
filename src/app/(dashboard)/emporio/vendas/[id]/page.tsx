@@ -301,7 +301,7 @@ export default async function VendaPage({ params }: { params: Promise<{ id: stri
                     <span className="block text-xs text-atencao-tinta">sugerido {reaisBr(i.suggested_price)}</span>
                   )}
                 </TableCell>
-                <TableCell>{reaisBr(i.total)}</TableCell>
+                <TableCell>{i.unit_price === 0 && i.total === 0 ? "Brinde" : reaisBr(i.total)}</TableCell>
                 <TableCell>{i.returned_qty > 0 ? numeroBr(i.returned_qty) : "-"}</TableCell>
               </TableRow>
             ))}

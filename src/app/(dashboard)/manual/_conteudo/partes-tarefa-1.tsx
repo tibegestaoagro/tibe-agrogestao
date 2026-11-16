@@ -110,7 +110,7 @@ export function ParteDeEquipe() {
 
       <Subtitulo>O PIN de autorização do gestor</Subtitulo>
       <Tarefa
-        paraQueServe="Deixar o gestor liberar, no balcão, um desconto acima do limite da loja, sem ficar ao lado do vendedor. Cada gestor tem o seu PIN."
+        paraQueServe="Deixar o gestor liberar, no balcão, um desconto acima do limite da loja: o gestor digita o PIN na tela do balcão, com ele presente. Cada gestor tem o seu PIN, que é pessoal e não deve ser ditado ao vendedor."
         passos={[
           <>Quem tem PIN são o <strong>Gestor</strong>, o <strong>Gerente geral</strong> e o <strong>Dono</strong>. Cada um abre <strong>Configurações</strong> &gt; <strong>Minha senha</strong>.</>,
           <>Em <strong>PIN de autorização do Empório</strong>, clique em <strong>Cadastrar PIN</strong>, digite de 4 a 6 números, repita para confirmar e informe a senha de entrada. O PIN não é a senha de entrada, e a tela nunca o mostra.</>,

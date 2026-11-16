@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSessionUser, getTenantDb } from "@/lib/tenant-context";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
+import { isFeatureVisibleForUser } from "@/lib/features";
 import ChangeOwnPasswordForm from "./change-own-password-form";
 import { EmporioPinForm } from "./emporio-pin-form";
 
@@ -16,7 +17,8 @@ export default async function TrocarMinhaSenhaPage() {
   // O PIN é de quem autoriza desconto em loja: Dono, Gerente geral e Gestor.
   const db = await getTenantDb();
   const papel = await papelDoEmporio(db, user);
-  const podeTerPin = pode(papel, "gestor_da_loja");
+  const podeTerPin =
+    pode(papel, "gestor_da_loja") && (await isFeatureVisibleForUser(user.tenant_id, user.id, "emporio"));
   const dono = podeTerPin
     ? await db.user.findFirst({ where: { id: user.id }, select: { emporio_auth_pin_hash: true } })
     : null;

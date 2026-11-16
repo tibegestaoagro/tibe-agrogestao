@@ -55,10 +55,10 @@ export function PapelCupom({ d }: { d: ImpressoVenda }) {
           <div className="nome">{i.produto}</div>
           <div className="l">
             <span>
-              {i.quantidade} x {reaisBr(i.preco)}
+              {i.quantidade} x {i.preco === 0 && i.total === 0 ? "Brinde" : reaisBr(i.preco)}
               {i.peso_kg !== null ? ` (${pesoBr(i.peso_kg)})` : ""}
             </span>
-            <span>{i.preco === 0 && i.total === 0 ? "Brinde" : reaisBr(i.total)}</span>
+            <span>{i.preco === 0 && i.total === 0 ? "" : reaisBr(i.total)}</span>
           </div>
         </div>
       ))}
