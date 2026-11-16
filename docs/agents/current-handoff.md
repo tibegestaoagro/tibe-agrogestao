@@ -31,9 +31,7 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   só com nome e telefone, endereço de entrega opcional, `pendencias_para_venda`
   e alerta (decisão do usuário 16/11); CEP Q337 a Q340 (spec de 16/11, rota
   `GET /api/v1/cep/:cep`, ViaCEP com BrasilAPI de reserva, `test:m119`).
-  `test:all` 122/122, roteiro `emporio-orcamento-leve-e-cep` 107 ok (provado
-  nos dois sentidos). Sem juiz. No balcão, o CEP do "Outro endereço" segue
-  sem máscara (anterior).
+  `test:all` 122/122, roteiro `emporio-orcamento-leve-e-cep` 107 ok.
   Preço do cadastro, desconto por PIN do gestor e
   brinde (Q327 a Q334, spec e plano de 16/11) EM PRODUÇÃO: migração no Neon
   antes do push, merge `c43a130`, autorizados. m118,
