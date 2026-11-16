@@ -25,9 +25,11 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-16. Frete no orçamento (Q326) em produção (migração
-  no Neon antes do push, merge `066e371`, autorizados). Vendas do turno (Q325)
-  também. Nenhuma branch aberta. Manual com GIFs em
+- Atualizado em: 2026-11-16. **Em andamento:** branch `emporio-preco-travado-e-pin`
+  (preço do cadastro, desconto por PIN do gestor, brinde; spec aprovada pelo
+  usuário, Q327 a Q334, e plano de 16/11). Nada implementado ainda: próximo
+  passo é a onda 0 (T1 schema) do plano. Frete no orçamento (Q326) e vendas do
+  turno (Q325) em produção. Manual com GIFs em
   produção (regerar: roteiro `manual-gifs` e `python
   scripts/manual-gifs-montar.py`). Os agentes `explorador`,
   `prova-juiz`, `prova-viva` e `servidor-dados` carregam (descrição entre

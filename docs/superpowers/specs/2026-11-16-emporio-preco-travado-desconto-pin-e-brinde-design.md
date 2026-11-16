@@ -34,6 +34,30 @@ executado.
 | Q333 | **Como a tela pede a autorização:** quando o desconto passa do limite, o balcão mostra "Pedir autorização do gestor": escolhe o gestor (lista dos que podem autorizar na loja) e ele digita o PIN. O servidor confere e devolve uma autorização assinada, curta (15 minutos), que vale para aquela loja e até aquele % de desconto. A venda (ou o orçamento) manda essa autorização; o servidor confere de novo a assinatura, a loja, a validade e o %. Aumentar o desconto acima do autorizado pede de novo. Cinco PINs errados do mesmo gestor em 15 minutos travam as tentativas dele por 15 minutos. Quem autorizou fica na venda (`discount_authorized_by_user_id`, que já existe) e no Histórico | o PIN não fica guardado na tela, e a autorização não serve para outra loja nem para um desconto maior |
 | Q334 | **Brinde:** a apresentação com preço cadastrado R$ 0,00 (a "BONUS" da tranca) passa direto, sem desconto. Dar de graça um item com preço cheio é desconto de 100% naquela linha, sujeito ao limite e ao PIN. **Brinde acompanha venda:** venda e orçamento precisam de valor a pagar nos itens (`net_amount` maior que zero), senão 422 `items`, "Um brinde acompanha uma venda: inclua ao menos um produto pago." O estoque baixa normal e o custo do brinde entra no custo da venda (a margem cai pelo custo dele). O "Vendeu, Pagou" por unidade e por apresentação não conta as unidades com preço zero. No papel do cliente, a linha de preço zero mostra "Brinde" no lugar de R$ 0,00 | quantidade e "acompanha venda": decisão do usuário; o resto, escolha do agente, para confirmar |
 
+## Escolhas do agente depois da revisão de builder (16/11, para o usuário vetar)
+
+1. Orçamento faturado dentro da validade: a venda herda o `order_discount_amount`
+   quando o corpo não o manda (como o frete, Q326); vencido, não herda; o valor
+   em R$ fica fixo, limitado ao total dos itens; a autorização herdada vale se o
+   desconto não passar do orçado.
+2. Editar venda: a linha com o mesmo `presentation_id` e o mesmo `unit_price`
+   da original é a mesma linha (quantidade livre); fica como quem autorizou o
+   da venda original se o desconto não cresceu.
+3. A troca aceita `discount_authorization` (sem desconto no total).
+4. A autorização vale para várias vendas nos 15 minutos, presa a quem pediu, à
+   loja e ao % máximo.
+5. Apagar o PIN de alguém: o Dono e o Gerente geral (quem cuida da Equipe).
+6. "Vendeu, Pagou": linha de `total` zero (brinde de cadastro ou 100% de
+   desconto) não entra nas regras por unidade, de embalagem nem nas com
+   condição de produto ou apresentação.
+7. Consequências que o builder corrige: devolução proporcional ao `total` do
+   item (com desconto no total, `quantidade x unit_price` reembolsaria a
+   mais); impresso sem desconto em dobro (`desconto_no_total` à parte); preço
+   nulo é "sem preço", nunca R$ 0 (`emporio-vendas.ts`, preço que vale do
+   orçamento); a causa "preço abaixo do custo" do Resultado ignora linha de
+   total zero; a assinatura usa chave derivada do `NEXTAUTH_SECRET` (sem
+   variável nova na Vercel); a frase do `DISCOUNT_ABOVE_LIMIT` não muda.
+
 ## O que não muda
 
 - O orçamento faturado dentro da validade mantém o preço e o desconto orçados,
