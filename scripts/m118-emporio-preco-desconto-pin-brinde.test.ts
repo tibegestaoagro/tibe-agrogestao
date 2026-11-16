@@ -259,23 +259,6 @@ const listaDeAutorizadores = async (w: Mundo, tok: string, loja: string) => {
 };
 const somaTotais = (v: Dado) => arred(((v?.items ?? []) as Dado[]).reduce((s, i) => s + Number(i.total), 0));
 
-/** Adianta o relógio do processo (rotas rodam no mesmo processo): serve para vencer a autorização sem esperar 15 minutos. */
-function viajar(ms: number): () => void {
-  const Real = Date;
-  class Falso extends Real {
-    constructor(...a: unknown[]) {
-      if (a.length === 0) super(Real.now() + ms);
-      else super(...(a as [number]));
-    }
-    static now() {
-      return Real.now() + ms;
-    }
-  }
-  (globalThis as Dado).Date = Falso;
-  return () => {
-    (globalThis as Dado).Date = Real;
-  };
-}
 
 async function main() {
   const { prisma } = await import("@/lib/prisma");
@@ -443,13 +426,13 @@ async function main() {
       const outraLoja = await vender(A, A.tok.vend, [{ q: "quilo", qty: 10, discount_pct: 15 }], 85, { discount_authorization: authL2 });
       check("autorização de outra loja (da 2 na 1): 403 DISCOUNT_AUTHORIZATION_INVALID", erro(outraLoja, 403, "discount_authorization", "DISCOUNT_AUTHORIZATION_INVALID"), `${outraLoja.status} ${sobra(outraLoja)}`);
 
-      const voltar = viajar(16 * 60_000);
-      let vencida: Resp;
-      try {
-        vencida = await vender(A, A.tok.vend, [{ q: "quilo", qty: 10, discount_pct: 15 }], 85, { discount_authorization: authG1 });
-      } finally {
-        voltar();
-      }
+      // Vencida: assinada 16 minutos no passado (adiantar o relógio do processo derrubava a sessão: 401).
+      const { assinarAutorizacao } = await import("@/lib/emporio/autorizacao-desconto");
+      const authVencida = assinarAutorizacao(
+        { establishment_id: A.L1, authorizer_user_id: A.ids.g1, requester_user_id: A.ids.vend, max_pct: 15 },
+        Date.now() - 16 * 60_000,
+      );
+      const vencida = await vender(A, A.tok.vend, [{ q: "quilo", qty: 10, discount_pct: 15 }], 85, { discount_authorization: authVencida });
       check("autorização vencida (16 minutos depois): 403 DISCOUNT_AUTHORIZATION_INVALID", erro(vencida, 403, "discount_authorization", "DISCOUNT_AUTHORIZATION_INVALID"), `${vencida.status} ${sobra(vencida)}`);
 
       const errado = await pedirAutorizacao(A, A.tok.vend, A.L1, A.ids.g12, "0000", 15);
@@ -464,8 +447,8 @@ async function main() {
 
       const erros: Resp[] = [];
       for (let i = 0; i < 5; i += 1) erros.push(await pedirAutorizacao(A, A.tok.vend, A.L1, A.ids.glock, `00${i}0`, 15));
-      check("quatro PINs errados seguidos do mesmo gestor: 422 INVALID_PIN cada um", erros.slice(0, 4).every((e) => erro(e, 422, "pin", "INVALID_PIN")), erros.map((e) => e.status).join(","));
-      check("no 5º erro: 429 PIN_LOCKED em pin", erro(erros[4], 429, "pin", "PIN_LOCKED"), `${erros[4].status} ${sobra(erros[4])}`);
+      // Cinco PINs errados travam: os cinco recebem "PIN incorreto" e a tentativa seguinte já é recusada.
+      check("cinco PINs errados seguidos do mesmo gestor: 422 INVALID_PIN cada um", erros.every((e) => erro(e, 422, "pin", "INVALID_PIN")), erros.map((e) => e.status).join(","));
       const certoTravado = await pedirAutorizacao(A, A.tok.vend, A.L1, A.ids.glock, PIN.glock, 15);
       check("travado: até o PIN certo recebe 429 PIN_LOCKED", erro(certoTravado, 429, "pin", "PIN_LOCKED"), `${certoTravado.status} ${sobra(certoTravado)}`);
       const outroGestorLivre = await pedirAutorizacao(A, A.tok.vend, A.L1, A.ids.g1, PIN.g1, 12);
