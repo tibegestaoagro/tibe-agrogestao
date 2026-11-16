@@ -1142,8 +1142,50 @@ export type CaixaRegistradoView = {
   number: number;
   nome: string;
   saldo: number;
-  turno_aberto: { id: string; aberto_por: { id: string; name: string }; aberto_em: string } | null;
+  turno_aberto: {
+    id: string;
+    aberto_por: { id: string; name: string };
+    aberto_em: string;
+    /**
+     * Q325: o que as vendas concluídas do turno receberam, por forma (só as que têm valor), na
+     * ordem dinheiro, PIX, cartão, cheque, boleto, fiado. Não é o saldo da gaveta: o PIX vai para
+     * a conta, o cartão para a adquirente e o fiado fica a receber. A troca (crédito) fica fora.
+     */
+    vendas: { forma: string; valor: number }[];
+    vendas_total: number;
+  } | null;
 };
+
+/** Q325: rótulo e ordem das formas na linha "Vendas do turno"; os três cartões somam juntos. */
+const FORMA_NO_TURNO: Record<string, string> = {
+  dinheiro: "Dinheiro",
+  pix: "PIX",
+  debito: "Cartão",
+  credito_vista: "Cartão",
+  credito_parcelado: "Cartão",
+  cheque: "Cheque",
+  boleto: "Boleto",
+  fiado: "Fiado",
+};
+const ORDEM_NO_TURNO = ["Dinheiro", "PIX", "Cartão", "Cheque", "Boleto", "Fiado"];
+
+/** Q325: as vendas concluídas de cada turno, somadas por forma, em centavos. */
+async function vendasDosTurnos(db: TenantPrismaClient, turnoIds: string[]): Promise<Map<string, Map<string, number>>> {
+  const porTurno = new Map<string, Map<string, number>>();
+  if (turnoIds.length === 0) return porTurno;
+  const pagamentos = await db.emporioSalePayment.findMany({
+    where: { sale: { cash_session_id: { in: turnoIds }, status: "concluida" }, kind: { not: "troca" } },
+    select: { kind: true, amount: true, sale: { select: { cash_session_id: true } } },
+  });
+  for (const p of pagamentos) {
+    const turno = p.sale.cash_session_id as string;
+    const forma = FORMA_NO_TURNO[p.kind] ?? p.kind;
+    const mapa = porTurno.get(turno) ?? new Map<string, number>();
+    mapa.set(forma, (mapa.get(forma) ?? 0) + centavos(decToNum(p.amount) ?? 0));
+    porTurno.set(turno, mapa);
+  }
+  return porTurno;
+}
 
 /** Os caixas das lojas, por loja e número, com o saldo (soma dos movimentos) e o turno aberto. */
 export async function viewsDosCaixas(db: TenantPrismaClient, lojaIds: string[]): Promise<CaixaRegistradoView[]> {
@@ -1180,8 +1222,15 @@ export async function viewsDosCaixas(db: TenantPrismaClient, lojaIds: string[]):
     ).map((u) => [u.id, u.name]),
   );
   const turno = new Map(abertos.map((a) => [a.cash_register_id, a]));
+  const vendas = await vendasDosTurnos(db, abertos.map((a) => a.id));
   return caixas.map((c) => {
     const t = turno.get(c.id);
+    const doTurno = t ? (vendas.get(t.id) ?? new Map<string, number>()) : null;
+    const linhas = doTurno
+      ? [...doTurno.entries()]
+          .filter(([, cent]) => cent !== 0)
+          .sort(([a], [b]) => ORDEM_NO_TURNO.indexOf(a) - ORDEM_NO_TURNO.indexOf(b))
+      : [];
     return {
       id: c.id,
       establishment_id: c.establishment_id,
@@ -1189,7 +1238,13 @@ export async function viewsDosCaixas(db: TenantPrismaClient, lojaIds: string[]):
       nome: `Caixa ${c.number}`,
       saldo: (saldo.get(c.id) ?? 0) / 100,
       turno_aberto: t
-        ? { id: t.id, aberto_por: { id: t.opened_by_user_id, name: nomes.get(t.opened_by_user_id) ?? "" }, aberto_em: t.opened_at.toISOString() }
+        ? {
+            id: t.id,
+            aberto_por: { id: t.opened_by_user_id, name: nomes.get(t.opened_by_user_id) ?? "" },
+            aberto_em: t.opened_at.toISOString(),
+            vendas: linhas.map(([forma, cent]) => ({ forma, valor: cent / 100 })),
+            vendas_total: linhas.reduce((s, [, cent]) => s + cent, 0) / 100,
+          }
         : null,
     };
   });

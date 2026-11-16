@@ -470,9 +470,14 @@ export function ParteDeCaixa() {
           <>O Gestor cria o caixa novo em <Link className="underline" href={`${B}/configuracoes`}>Configurações</Link>, com o botão <strong>Novo caixa</strong>. Toda loja nasce com o Caixa 1.</>,
           "Cada caixa abre, faz sangria e encerra separado, e tem no máximo um turno aberto.",
           <>Com dois caixas abertos, o balcão mostra o campo <strong>Caixa</strong> para escolher onde a venda cai. Vem marcado o caixa que você abriu.</>,
-          "O saldo da loja, no alto do cartão dela, é a soma dos caixas.",
+          "O valor no alto do cartão da loja é o dinheiro nas gavetas: só o dinheiro em espécie dos caixas dela.",
+          <>Em cada caixa aberto, <strong>Vendas do turno</strong> mostra o total vendido no turno, separado por forma (dinheiro, PIX, cartão, cheque, boleto, fiado). Só a parte em dinheiro está na gaveta: o PIX cai na conta, o cartão fica a receber da maquininha e o fiado fica a receber do cliente.</>,
         ]}
         problemas={[
+          {
+            quando: "Vendi o dia todo e o valor no alto do cartão está zerado.",
+            fazer: <>Esse valor é só o dinheiro em espécie. Veja <strong>Vendas do turno</strong> no caixa aberto: as vendas em PIX, cartão e fiado aparecem lá, e o PIX também no saldo da conta, em Contas bancárias.</>,
+          },
           {
             quando: "“Há mais de um caixa aberto. Escolha o caixa.”",
             fazer: <>Escolha no campo <strong>Caixa</strong> a gaveta em que o dinheiro entra.</>,
