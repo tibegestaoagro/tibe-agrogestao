@@ -288,8 +288,8 @@ export const FIGURAS: Figura[] = [
     alt: "Tela Vender com Venda e Orçamento no alto, a loja, a busca de produto, os itens da venda e o total",
     marcas: [
       { numero: 1, alvo: "o campo Buscar por nome, marca ou código", texto: "Digite o nome, a marca ou o código e toque no produto para adicionar." },
-      { numero: 2, alvo: "um item da venda, com a quantidade, o preço e o Preço sugerido embaixo", texto: "Mude a quantidade ou o preço de cada item aqui." },
-      { numero: 3, alvo: "o campo Preço do item", texto: "Digite um preço menor que o sugerido para dar desconto. Até o limite da loja. Acima dele, só o Gestor ou o Dono." },
+      { numero: 2, alvo: "um item da venda, com a quantidade, o preço do cadastro e o total do item", texto: "Mude a quantidade de cada item aqui. O preço vem do cadastro da loja e não se digita." },
+      { numero: 3, alvo: "o campo Desconto (%) do item", texto: "Digite o desconto do item. Até o limite da loja você mesmo dá. Acima dele, aparece Pedir autorização do gestor, e o gestor digita o PIN." },
       { numero: 4, alvo: "o Total da venda, no rodapé", texto: "O que o cliente vai pagar." },
     ],
   },
@@ -315,7 +315,7 @@ export const FIGURAS: Figura[] = [
     marcas: [
       { numero: 1, alvo: "o título Venda nº e a linha Vendedor", texto: "O número da venda e quem atendeu. Registrada por aparece quando outra pessoa registrou." },
       { numero: 2, alvo: "os botões Imprimir A4 e Imprimir cupom", texto: "Imprimem a venda de novo, a qualquer momento." },
-      { numero: 3, alvo: "as seções Itens e Pagamentos", texto: "O que foi vendido, a que preço e como o cliente pagou." },
+      { numero: 3, alvo: "as seções Itens e Pagamentos", texto: "O que foi vendido, a que preço (o brinde aparece como Brinde), o desconto no total e como o cliente pagou." },
       { numero: 4, alvo: "o botão Devolver", texto: "Devolve parte dos itens." },
       { numero: 5, alvo: "o botão Trocar", texto: "Devolve e já faz uma venda nova ligada a esta." },
       { numero: 6, alvo: "o botão Cancelar venda", texto: "Desfaz a venda inteira. É do Gestor e do Dono." },
@@ -606,8 +606,9 @@ export const FIGURAS: Figura[] = [
     marcas: [
       { numero: 1, alvo: "o logo e os dados da loja, no alto à esquerda", texto: "Vêm de Configurações." },
       { numero: 2, alvo: "o título VENDA, com o número e a data", texto: "O mesmo número da Venda nº da tela." },
-      { numero: 3, alvo: "o rodapé, com Vendedor e Documento sem valor fiscal.", texto: "O papel não é nota fiscal." },
-      { numero: 4, alvo: "o botão Imprimir", texto: "Abre a impressão do navegador. Para PDF, escolha Salvar como PDF." },
+      { numero: 3, alvo: "a tabela de itens, com as linhas Desconto e Desconto no total", texto: "O desconto de cada item e o desconto no total saem em linhas separadas. O brinde sai como Brinde." },
+      { numero: 4, alvo: "o rodapé, com Vendedor e Documento sem valor fiscal.", texto: "O papel não é nota fiscal." },
+      { numero: 5, alvo: "o botão Imprimir", texto: "Abre a impressão do navegador. Para PDF, escolha Salvar como PDF." },
     ],
   },
   {
@@ -620,7 +621,8 @@ export const FIGURAS: Figura[] = [
       { numero: 1, alvo: "o botão Orçamento, no alto da tela", texto: "Troca a venda pelo orçamento. Não pede pagamento nem caixa." },
       { numero: 2, alvo: "o campo Cliente", texto: "O cliente com o cadastro completo, ou o Consumidor final." },
       { numero: 3, alvo: "o campo Observação", texto: "Opcional. Fica guardada no orçamento, para quem o abrir depois." },
-      { numero: 4, alvo: "os botões Faturar e Salvar orçamento", texto: "Faturar leva os itens para a venda sem salvar. Salvar orçamento guarda com número e validade." },
+      { numero: 4, alvo: "os campos Desconto (%) de cada item e Desconto no total (R$)", texto: "O preço vem do cadastro. O desconto segue o limite da loja, e acima dele o gestor autoriza com o PIN." },
+      { numero: 5, alvo: "os botões Faturar e Salvar orçamento", texto: "Faturar leva os itens para a venda sem salvar. Salvar orçamento guarda com número e validade." },
     ],
   },
   {
@@ -657,7 +659,7 @@ export const FIGURAS: Figura[] = [
     alt: "Tela Vender com a faixa Faturando o orçamento nº, os avisos de preço e o campo Vendedor com o vendedor do orçamento",
     marcas: [
       { numero: 1, alvo: "a faixa Faturando o orçamento nº ..., com o cliente, o vendedor e Válido até", texto: "O orçamento carregado. Os itens e o cliente já entraram na venda." },
-      { numero: 2, alvo: "os avisos da faixa (O preço mudou, Orçamento vencido, Falta estoque)", texto: "Leia antes de fechar. Eles dizem o preço que vale hoje e o que falta no estoque." },
+      { numero: 2, alvo: "os avisos da faixa (O preço mudou, Orçamento vencido, Falta estoque)", texto: "Leia antes de fechar. Eles dizem o que mudou no preço cadastrado e o que falta no estoque. Dentro da validade, o preço e o desconto orçados se mantêm." },
       { numero: 3, alvo: "o campo Vendedor, com O vendedor do orçamento.", texto: "Vem do orçamento. Ninguém precisa escolher." },
       { numero: 4, alvo: "o botão Tirar orçamento", texto: "Desfaz a carga, se foi o orçamento errado." },
     ],

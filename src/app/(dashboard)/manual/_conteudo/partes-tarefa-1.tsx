@@ -65,6 +65,10 @@ export function ParteDeEquipe() {
             fazer: "Gestor, Vendedor e Caixa trabalham em lojas. Marque ao menos uma em Lojas.",
           },
           {
+            quando: "Um gestor esqueceu o PIN de autorização, ou saiu da função",
+            fazer: <>Na Equipe, o Dono e o Gerente geral clicam em <strong>Apagar PIN</strong> na linha da pessoa. Quem tem PIN ganha a marca <strong>PIN</strong>. O gestor cadastra um novo em Configurações &gt; Minha senha. O PIN do Dono só ele troca.</>,
+          },
+          {
             quando: "Um Vendedor de confiança precisa fazer mais",
             fazer: "Ligue a permissão extra dele na Equipe, ou promova a Gestor. Subir e descer de função é livre. Quem volta a Vendedor volta com as permissões extras desligadas.",
           },
@@ -102,6 +106,33 @@ export function ParteDeEquipe() {
         <p>
           O dia a dia do Caixa está em <Link className="underline" href={`${B}/caixa-papel`}>Sou Caixa</Link>.
         </p>
+      </Tarefa>
+
+      <Subtitulo>O PIN de autorização do gestor</Subtitulo>
+      <Tarefa
+        paraQueServe="Deixar o gestor liberar, no balcão, um desconto acima do limite da loja, sem ficar ao lado do vendedor. Cada gestor tem o seu PIN."
+        passos={[
+          <>Quem tem PIN são o <strong>Gestor</strong>, o <strong>Gerente geral</strong> e o <strong>Dono</strong>. Cada um abre <strong>Configurações</strong> &gt; <strong>Minha senha</strong>.</>,
+          <>Em <strong>PIN de autorização do Empório</strong>, clique em <strong>Cadastrar PIN</strong>, digite de 4 a 6 números, repita para confirmar e informe a senha de entrada. O PIN não é a senha de entrada, e a tela nunca o mostra.</>,
+          <>Para trocar, clique em <strong>Trocar PIN</strong>. Para apagar o PIN de alguém, o Dono e o Gerente geral abrem a <strong>Equipe</strong> e clicam em <strong>Apagar PIN</strong> na linha da pessoa. Quem tem PIN ganha a marca <strong>PIN</strong>.</>,
+        ]}
+        problemas={[
+          {
+            quando: "“O PIN deve ter de 4 a 6 números.”",
+            fazer: "Use só números, de 4 a 6. Letras e símbolos não valem.",
+          },
+          {
+            quando: "No balcão aparece “Nenhum gestor desta loja tem PIN cadastrado.”",
+            fazer: "Peça ao gestor da loja que cadastre o PIN em Configurações > Minha senha.",
+          },
+        ]}
+      >
+        <Chamada tipo="saiba">
+          <p>
+            O gestor da loja que está vendendo não precisa de PIN: o desconto dele já vale. O PIN serve para o Vendedor
+            e o Caixa pedirem a autorização de outro gestor. Quem digita o PIN é o gestor, nunca o vendedor.
+          </p>
+        </Chamada>
       </Tarefa>
     </div>
   );
@@ -228,12 +259,17 @@ export function ParteDePreco() {
           Linha sem preço: clique em <strong>Aplicar sugerido</strong> para gravar o sugerido como preço. Para digitar
           o seu, clique em <strong>Editar</strong> na linha.
         </>,
+        "O preço da linha é o que o balcão cobra: o vendedor não digita o preço na venda. Ele só dá desconto, dentro do limite da loja.",
         "Quando o custo muda, o Sugerido muda junto e o Preço fica como está. A tela não avisa: confira a coluna Sugerido e, se quiser, troque o preço em Editar, linha por linha.",
       ]}
       problemas={[
         {
           quando: "A apresentação aparece sem preço numa loja",
-          fazer: "Ela fica sem preço até alguém definir. No balcão, o sistema pede o valor na hora da venda.",
+          fazer: "Ela fica sem preço até alguém definir, e o vendedor não digita o preço no balcão. Enquanto não houver preço na loja, o produto não vende: o balcão diz “Cadastre o preço ... nesta loja antes de vender.” Defina o preço aqui, em Editar na linha, ou clique em Aplicar sugerido.",
+        },
+        {
+          quando: "Quero dar um brinde, um item que sai de graça junto com uma venda",
+          fazer: "Cadastre uma apresentação do produto com o preço R$ 0,00 na loja (por exemplo, uma chamada BONUS). No balcão ela sai como Brinde, na tela e no papel. O estoque baixa e o custo do brinde entra no custo da venda. O brinde acompanha uma venda: não dá para vender só brinde. Dar de graça um item que tem preço não é brinde, é desconto de 100%, e pede o PIN do gestor.",
         },
         {
           quando: "O preço não mudou depois que o custo subiu",

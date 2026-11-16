@@ -46,7 +46,7 @@ export function ParteDono() {
           <>Abrir <Link className="underline" href={`${B}/relatorios`}>Relatórios</Link> para ver as vendas por vendedor, por produto e por loja, e os produtos parados. O relatório mostra quanto cada um vendeu, para acertar a comissão. O percentual da comissão o sistema não calcula.</>,
           <>Acompanhar os <Link className="underline" href={`${B}/orcamento`}>Orçamentos</Link> que ainda não viraram venda e ligar para quem não voltou.</>,
           <>Montar e ajustar a <Link className="underline" href={`${B}/equipe`}>Equipe</Link>: quem é Gerente geral, Gestor, Vendedor ou Caixa.</>,
-          <>Decidir preço, desconto e despesas fixas, ou deixar isso com o Gestor de cada loja.</>,
+          <>Decidir o preço da loja, o limite de desconto e as despesas fixas, ou deixar isso com o Gestor de cada loja. O vendedor não digita preço: ele vende pelo preço do cadastro. Você também tem o seu PIN de autorização (Configurações &gt; Minha senha) e apaga o PIN de alguém na Equipe, em <strong>Apagar PIN</strong>.</>,
           <>Cuidar dos <Link className="underline" href={`${B}/franqueados`}>Franqueados</Link>: cadastrar, ver o saldo e pagar o crédito que cada um acumulou.</>,
           <>Conferir o <Link className="underline" href={`${B}/historico`}>Histórico</Link> quando precisar saber quem fez o quê.</>,
         ]}
@@ -130,7 +130,8 @@ export function ParteGestor() {
           <>Confere o <Link className="underline" href={`${B}/estoque`}>estoque</Link> e manda repor o que está acabando.</>,
           <>Lança <Link className="underline" href={`${B}/compras`}>compras</Link> e envia <Link className="underline" href={`${B}/transferencias`}>transferências</Link> para outras lojas.</>,
           <>Resolve a transferência que chegou a menos (ela fica aguardando você).</>,
-          <>Cancela venda, autoriza desconto maior e acompanha o <Link className="underline" href={`${B}/caixa`}>caixa</Link>.</>,
+          <>Cancela venda e acompanha o <Link className="underline" href={`${B}/caixa`}>caixa</Link>.</>,
+          <>Autoriza desconto acima do limite da loja: o vendedor clica em <strong>Pedir autorização do gestor</strong>, escolhe você, e você digita o seu PIN. Cadastre o PIN em Configurações &gt; Minha senha (de 4 a 6 números, com a senha de entrada). A autorização vale 15 minutos, naquela loja, até aquele percentual; cinco PINs errados travam as suas tentativas por 15 minutos.</>,,
           <>Cuida das <Link className="underline" href={`${B}/despesas`}>despesas</Link> e olha o <Link className="underline" href={`${B}/resultado`}>resultado</Link> da loja.</>,
           <>Abre <Link className="underline" href={`${B}/relatorios`}>Relatórios</Link> para ver quem vendeu o quê no período e os produtos parados. O filtro começa em <strong>Todas as minhas lojas</strong> e no mês atual.</>,
           <>Acompanha os <Link className="underline" href={`${B}/orcamento`}>Orçamentos</Link> abertos e vencidos da loja.</>,
@@ -246,7 +247,7 @@ export function ParteVendedor() {
       <Passos
         itens={[
           <>Em <strong>Vender</strong>, toque em <strong>Orçamento</strong>, no alto da tela.</>,
-          "Monte os itens como numa venda: produto, quantidade, preço e desconto, no mesmo limite da loja.",
+          "Monte os itens como numa venda: produto e quantidade. O preço vem do cadastro e você não o digita. O desconto vai em Desconto (%) na linha ou em Desconto no total (R$), no mesmo limite da loja; acima dele, use Pedir autorização do gestor.",
           "Clique em Escolher cliente e busque pelo nome, pelo CPF ou CNPJ ou pelo pedaço do telefone, ou escolha o Consumidor final para quem não quer se identificar. O cliente precisa estar com o cadastro completo (na pessoa física, nome e telefone).",
           <>Clique em <strong>Salvar orçamento</strong>. Ele ganha um número e a data <strong>Válido até</strong>.</>,
           <>Imprima com <strong>Imprimir A4</strong> ou <strong>Imprimir cupom</strong> e entregue ao cliente.</>,
@@ -255,8 +256,8 @@ export function ParteVendedor() {
       <p>
         O orçamento não tira do estoque nem reserva mercadoria. Quando o cliente voltar, fique em <strong>Venda</strong>,
         digite o número em <strong>Orçamento nº</strong> e clique em <strong>Carregar</strong>. Os itens entram na venda.
-        Dentro da validade, o cliente paga o preço orçado ou o de hoje, o que for menor. Depois da validade, vale o preço
-        de hoje. Na lista <Link className="underline" href={`${B}/orcamento`}>Orçamentos</Link> você busca pelo telefone,
+        Dentro da validade, a venda mantém o preço e o desconto orçados. Depois da validade, vale o preço de hoje do
+        cadastro. Na lista <Link className="underline" href={`${B}/orcamento`}>Orçamentos</Link> você busca pelo telefone,
         CPF, CNPJ, nome ou número.
       </p>
 
@@ -273,7 +274,8 @@ export function ParteVendedor() {
       <Titulo>O que você não pode</Titulo>
       <Lista
         itens={[
-          "Cancelar venda, mudar preço ou dar desconto acima do limite. Chame o Gestor.",
+          "Cancelar venda ou mudar o preço (o preço é o do cadastro, e só o Gestor ou o Dono o mudam).",
+          "Dar desconto acima do limite sozinho. Clique em Pedir autorização do gestor: o gestor da loja digita o PIN dele e libera.",
           "Confirmar a sangria e o malote que chegam ao gerente.",
           "Ver Financeiro, despesas, resultado, Relatórios, Configurações e Histórico.",
           "Enviar transferência ou resolver uma que chegou a menos.",
@@ -331,7 +333,8 @@ export function ParteCaixa() {
       <Passos
         itens={[
           <>Abra <strong>Vender</strong> e confira a loja.</>,
-          "Busque o produto pelo nome, pela marca ou pelo código e toque nele. Confira a quantidade e o preço.",
+          "Busque o produto pelo nome, pela marca ou pelo código e toque nele. Confira a quantidade e o preço, que vem do cadastro da loja. Se o produto não tem preço na loja, ele não vende: chame o Gestor.",
+          <>Se o cliente tiver desconto, preencha <strong>Desconto (%)</strong> na linha ou <strong>Desconto no total (R$)</strong>. Passou do limite da loja? Clique em <strong>Pedir autorização do gestor</strong>, e o gestor digita o PIN dele. Um item de preço R$ 0,00 sai como <strong>Brinde</strong>.</>,
           <>Escolha o <strong>Cliente</strong>. Quem não quer se identificar entra como Consumidor final, que não compra fiado nem paga em cheque.</>,
           <>Escolha como o cliente paga, em <strong>Pagamento</strong>.</>,
           <>Escolha o <strong>Vendedor</strong> que atendeu o cliente. Para você, o campo é obrigatório e volta vazio a cada venda.</>,
@@ -412,7 +415,7 @@ export function ParteCaixa() {
           "Devolver, trocar ou cancelar uma venda. Chame o Gestor.",
           "Ver a lista de Orçamentos.",
           "Ver as vendas de dias anteriores. Em Vendas aparecem só as de hoje.",
-          "Dar desconto acima do limite da loja.",
+          "Dar desconto acima do limite da loja sozinho: o gestor autoriza com o PIN dele, em Pedir autorização do gestor.",
           "Ver despesas, resultado, Relatórios, Equipe, Configurações e Histórico.",
         ]}
       />
