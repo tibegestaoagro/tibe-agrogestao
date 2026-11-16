@@ -3286,6 +3286,14 @@ export const GROUPS: Group[] = [
         response: `200
 { "data": { "unsubscribed": true, "deleted": 1 }, "meta": {} }`,
       },
+      {
+        method: "GET",
+        path: "/api/v1/cep/:cep",
+        auth: "Sessão",
+        description: "Endereço de um CEP (8 números, com ou sem traço), para os formulários preencherem rua, bairro, cidade e UF. O servidor consulta o ViaCEP e, se ele falhar ou demorar (3 s), a BrasilAPI; só o CEP sai para fora. Resultado guardado 30 dias (inexistente, 1 dia). Limite de 60 buscas por usuário por minuto. Campos vazios vêm `null`. Recusas: 422 `VALIDATION_ERROR` em `cep` (CEP sem 8 números), 404 `NOT_FOUND` (CEP não existe), 503 `SERVICE_UNAVAILABLE` (os dois serviços fora), 429 `RATE_LIMITED`.",
+        response: `200
+{ "data": { "cep": "38701044", "street": "Rua Exemplo", "district": "Centro", "city": "Patos de Minas", "state": "MG" }, "meta": {} }`,
+      },
     ],
   },
   {
