@@ -25,8 +25,8 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-16. Branch `emporio-caixa-vendas-do-turno` (Q325,
-  spec de 16/11) pronta, NÃO publicada, sem migração. Manual com GIFs em
+- Atualizado em: 2026-11-16. Vendas do turno no caixa (Q325, spec de 16/11) em
+  produção (merge `dedd6a8`, sem migração, autorizado). Manual com GIFs em
   produção (regerar: roteiro `manual-gifs` e `python
   scripts/manual-gifs-montar.py`). Os agentes `explorador`,
   `prova-juiz`, `prova-viva` e `servidor-dados` carregam (descrição entre
@@ -69,7 +69,7 @@ Agromax, a entrega 4 (extrato da Stone) depende de um arquivo real.
 
 ### ⏭️ Próximo passo
 
-0. Vendas do turno (Q325): o usuário autoriza merge e push. Central do Milho:
+0. Central do Milho (orientação entregue ao usuário em 16/11):
    cadastrar taxas do cartão e editar as vendas lançadas como fiado; converter
    os produtos de granel. Vídeo em `docs/financeiro-reuniao/` (fora do git).
    Contas PIX: a Agromax cadastra as contas PIX das lojas e do site (CNPJ,
