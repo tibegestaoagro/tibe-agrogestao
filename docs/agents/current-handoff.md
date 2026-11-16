@@ -67,10 +67,7 @@ a contagem tirar a mais (candidato a dívida).
 
 ### Cartão (Q250 a Q267): entregas 1 a 3 em produção
 
-Specs em `docs/superpowers/specs/` de 09/11. Adquirentes e taxas por loja,
-bandeira, modalidade e parcelas; recebíveis em dia útil, antecipação pontual
-e automática, cancelamento como a Stone. Abertas 2.60, 2.62 e 2.63. Na
-Agromax, a entrega 4 (extrato da Stone) depende de um arquivo real.
+Specs de 09/11. Abertas 2.60, 2.62, 2.63; entrega 4 depende do extrato real da Stone.
 
 ### ⏭️ Próximo passo
 
