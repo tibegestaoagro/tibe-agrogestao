@@ -30,12 +30,18 @@ export function dataBr(iso: string): string {
 }
 
 /** O franqueado e o crédito do orçamento como o balcão os guarda: o id e o texto do campo de dinheiro. */
-function franquiaDoOrcamento(q: OrcamentoView): { franqueadoId: string; credito: string; frete: string } {
-  // Q326: o frete do orçamento vem junto, no mesmo formato do campo de dinheiro.
+function franquiaDoOrcamento(q: OrcamentoView): {
+  franqueadoId: string;
+  credito: string;
+  frete: string;
+  descontoTotal: string;
+} {
+  // Q326: o frete do orçamento vem junto, no mesmo formato do campo de dinheiro. Q329: o desconto no total também.
   const frete = q.freight_amount > 0 ? centavosParaCampo(cent(q.freight_amount)) : "";
+  const descontoTotal = q.order_discount_amount > 0 ? centavosParaCampo(cent(q.order_discount_amount)) : "";
   return q.franchisee_credit > 0
-    ? { franqueadoId: q.franchisee_id ?? "", credito: centavosParaCampo(cent(q.franchisee_credit)), frete }
-    : { franqueadoId: "", credito: "", frete };
+    ? { franqueadoId: q.franchisee_id ?? "", credito: centavosParaCampo(cent(q.franchisee_credit)), frete, descontoTotal }
+    : { franqueadoId: "", credito: "", frete, descontoTotal };
 }
 
 /** A carga do carrinho e o pedido para entrega do orçamento, que o balcão guarda fora do carrinho. */

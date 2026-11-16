@@ -4,6 +4,7 @@ import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { lerVendaAction } from "@/lib/actions/emporio-vendas";
+import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
 import { buscarClientesAction } from "@/lib/actions/emporio-clientes";
 import { viewsDosCaixas } from "@/lib/actions/emporio-caixa";
 import { paraCaixasDaLoja } from "../../_components/caixas-da-loja";
@@ -78,13 +79,37 @@ export default async function VendaPage({ params }: { params: Promise<{ id: stri
   const clienteDaTroca = buscado?.ok ? (buscado.data.itens[0] ?? null) : null;
   const nomeDoItem = new Map(venda.items.map((i) => [i.id, `${i.product_name} (${i.presentation_name})`]));
 
-  const itensDevolviveis = devolviveis.map((i) => ({
-    id: i.id,
-    product_name: i.product_name,
-    presentation_name: i.presentation_name,
-    unit_price: i.unit_price,
-    returnable_qty: i.returnable_qty,
-  }));
+  // Escolha 7: o valor devolvido é proporcional ao que o item pagou (`total`), e o que as devoluções anteriores
+  // já reembolsaram sai da mesma conta do servidor, para a última fração fechar o que sobra.
+  const itensDevolviveis = devolviveis.map((i) => {
+    const totalCent = Math.round(i.total * 100);
+    const jaReembolsadoCent = venda.returns
+      .flatMap((d) => d.items)
+      .filter((r) => r.sale_item_id === i.id)
+      .reduce((s, r) => s + Math.round((totalCent * r.quantity) / i.quantity), 0);
+    return {
+      id: i.id,
+      product_name: i.product_name,
+      presentation_name: i.presentation_name,
+      unit_price: i.unit_price,
+      returnable_qty: i.returnable_qty,
+      total_cent: totalCent,
+      sold_qty: i.quantity,
+      ja_reembolsado_cent: jaReembolsadoCent,
+    };
+  });
+
+  // O limite de desconto da loja da venda, para a venda nova da troca (o client não importa permissões).
+  const lojasRes = podeDevolver ? await listarEstabelecimentosAction(db, user) : null;
+  const lojaDaVenda = lojasRes?.ok ? lojasRes.data.find((l) => l.id === venda.establishment_id) : undefined;
+  const limiteDaTroca = {
+    max: lojaDaVenda?.max_discount_pct ?? null,
+    gestor: pode(papel, "gestor_da_loja", venda.establishment_id),
+  };
+  // Quem autorizou o desconto acima do limite: o nome vem do cadastro, a venda guarda só o id.
+  const autorizador = venda.discount_authorized_by_user_id
+    ? await db.user.findFirst({ where: { id: venda.discount_authorized_by_user_id }, select: { name: true } })
+    : null;
 
   return (
     <div className="space-y-6">
@@ -162,6 +187,7 @@ export default async function VendaPage({ params }: { params: Promise<{ id: stri
                   precos={catalogo.precos}
                   consumidorFinal={catalogo.consumidorFinal}
                   clienteInicial={clienteDaTroca}
+                  limite={limiteDaTroca}
                   caixas={caixas}
                   usuarioId={user.id}
                 />
@@ -270,8 +296,8 @@ export default async function VendaPage({ params }: { params: Promise<{ id: stri
                 <TableCell>{numeroBr(i.quantity)}</TableCell>
                 <TableCell>{i.weight_kg === null ? "Sem peso" : pesoBr(i.weight_kg)}</TableCell>
                 <TableCell>
-                  {reaisBr(i.unit_price)}
-                  {i.suggested_price !== null && i.unit_price < i.suggested_price && (
+                  {i.unit_price === 0 ? "Brinde" : reaisBr(i.unit_price)}
+                  {i.suggested_price !== null && i.unit_price < i.suggested_price && i.unit_price > 0 && (
                     <span className="block text-xs text-atencao-tinta">sugerido {reaisBr(i.suggested_price)}</span>
                   )}
                 </TableCell>
@@ -291,6 +317,15 @@ export default async function VendaPage({ params }: { params: Promise<{ id: stri
             </span>
           )}
         </p>
+        {venda.order_discount_amount > 0 && (
+          <p className="text-sm text-texto">
+            Desconto no total: <strong>{reaisBr(venda.order_discount_amount)}</strong>{" "}
+            <span className="text-texto-secundario">(já descontado nos itens)</span>
+          </p>
+        )}
+        {venda.discount_amount > 0 && autorizador && (
+          <p className="text-sm text-texto-secundario">Desconto autorizado por {autorizador.name}.</p>
+        )}
         {venda.freight_amount > 0 && (
           <p className="text-sm text-texto">
             Frete: <strong>{reaisBr(venda.freight_amount)}</strong>

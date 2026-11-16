@@ -14,6 +14,7 @@ import {
   type RegraDiaUtil,
 } from "@/lib/emporio/cartao";
 import { lerNumeroBr, reaisBr } from "@/lib/numero-br";
+import { precoComDesconto, ratearDescontoNosItens } from "@/lib/emporio/desconto";
 import type { ClienteEscolhido } from "@/lib/emporio/cliente-escolhido";
 import type { OrigemDaVenda } from "@/lib/emporio/frete";
 import type { VendaView } from "@/lib/actions/emporio-vendas";
@@ -47,9 +48,26 @@ export type LinhaItem = {
   produtoId: string;
   apresentacaoId: string;
   qtd: string;
-  preco: string;
-  /** Preço mexido à mão: trocar de loja não o sobrescreve com o sugerido. */
-  manual: boolean;
+  /** Desconto da linha em %, como texto do campo (vazio vale zero). O preço não se digita: vem do cadastro (Q327). */
+  desconto: string;
+  /**
+   * Linha que vem da venda editada: mantém o preço e a referência da original, e o servidor a aceita igual
+   * mesmo que o cadastro tenha mudado. Trocar a apresentação a faz virar linha nova.
+   */
+  daOriginal: { preco: number; referencia: number } | null;
+};
+
+/** O que a tela precisa do limite de desconto de uma loja: o teto (nulo vale 0%) e se quem vende é gestor dela. */
+export type LimiteDaLoja = { max: number | null; gestor: boolean };
+
+/** A autorização do gestor guardada na tela: nunca o PIN, só o que o servidor devolveu. */
+export type AutorizacaoGuardada = {
+  authorization: string;
+  max_pct: number;
+  authorizer_name: string;
+  expires_at: string;
+  /** A autorização vale para uma loja só. */
+  loja: string;
 };
 
 export type FormaDePagamento =
@@ -122,6 +140,8 @@ export type CampoDaVenda =
   | "freight_amount"
   | "origin"
   | "acquirer_id"
+  | "order_discount_amount"
+  | "discount_authorization"
   | "payments";
 
 export const cent = (n: number) => Math.round(Number((n * 100).toPrecision(12)));
@@ -166,7 +186,17 @@ const paraIso =(data: string) => new Date(`${data}T12:00:00`).toISOString();
 export type CorpoDaVenda = {
   establishment_id: string;
   customer_id: string | null;
-  items: { emporio_product_id: string; presentation_id: string; quantity: number; unit_price: number }[];
+  /**
+   * O preço não vai: vem do cadastro (Q327). Só a linha da venda editada leva `unit_price` (o original),
+   * e só a linha com desconto leva `discount_pct`; nunca os dois no mesmo item.
+   */
+  items: {
+    emporio_product_id: string;
+    presentation_id: string;
+    quantity: number;
+    unit_price?: number;
+    discount_pct?: number;
+  }[];
   payments: {
     kind: FormaDePagamento;
     amount: number;
@@ -189,6 +219,10 @@ export type CorpoDaVenda = {
    */
   franchisee_id?: string | null;
   franchisee_credit?: number;
+  /** Q329: desconto no total, em R$. Só o balcão e o orçamento o têm (a troca não). */
+  order_discount_amount?: number;
+  /** A autorização do gestor (PIN), só quando há uma valendo. */
+  discount_authorization?: string;
 };
 
 /**
@@ -209,19 +243,19 @@ export type CargaDoOrcamento = {
   credito: string;
   /** Q326: o frete do orçamento, como texto do campo de dinheiro ("" sem frete). */
   frete: string;
+  /** Q329: o desconto no total do orçamento, como texto do campo de dinheiro ("" sem desconto). */
+  descontoTotal: string;
 };
 
-const paraCampoDePreco = (s: number | null) => (s === null ? "" : centavosParaCampo(cent(s)));
-
-/** Os itens do orçamento como linhas do carrinho, com o preço que vale (vazio quando não há). */
+/** Os itens do orçamento como linhas do carrinho: o preço que vale vem de `orc`, na conta de `linhas`. */
 function linhasDaCarga(carga: CargaDoOrcamento, chave: (n: number) => number): LinhaItem[] {
   return carga.itens.map((i, n) => ({
     key: chave(n),
     produtoId: i.produtoId,
     apresentacaoId: i.apresentacaoId,
     qtd: i.qtd,
-    preco: paraCampoDePreco(carga.vale[i.apresentacaoId] ?? null),
-    manual: false,
+    desconto: "",
+    daOriginal: null,
   }));
 }
 
@@ -234,14 +268,16 @@ export type InicialDaVenda = {
   cliente: ClienteEscolhido | null;
   franqueadoId: string;
   credito: string;
+  /** Q329: o desconto no total da venda original, como texto do campo de dinheiro. */
+  descontoTotal: string;
 };
 
 /**
  * A venda gravada como estado do balcão. O item cuja apresentação já não está no
  * catálogo carregado fica de fora (e é contado em `ausentes`): o servidor
  * recusaria a venda com um item que não pode ser vendido, e quem edita o
- * acrescenta de novo. O preço entra como digitado (`manual`), para trocar de loja
- * ou de preço sugerido não reescrever o que foi cobrado.
+ * acrescenta de novo. A linha leva o preço e a referência da original (`daOriginal`),
+ * para trocar de loja ou o cadastro mudar não reescrever o que foi cobrado.
  */
 export function inicialDaVenda(
   venda: VendaView,
@@ -258,8 +294,8 @@ export function inicialDaVenda(
         produtoId: i.emporio_product_id,
         apresentacaoId: i.presentation_id,
         qtd: String(i.quantity).replace(".", ","),
-        preco: centavosParaCampo(cent(i.unit_price)),
-        manual: true,
+        desconto: "",
+        daOriginal: { preco: i.unit_price, referencia: i.suggested_price ?? i.unit_price },
       })),
       pagamentos: venda.payments.map((p) => ({
         kind: p.kind as FormaDePagamento,
@@ -283,6 +319,7 @@ export function inicialDaVenda(
       cliente,
       franqueadoId: venda.franchisee_credit > 0 ? (venda.franchisee_id ?? "") : "",
       credito: venda.franchisee_credit > 0 ? centavosParaCampo(cent(venda.franchisee_credit)) : "",
+      descontoTotal: venda.order_discount_amount > 0 ? centavosParaCampo(cent(venda.order_discount_amount)) : "",
     },
   };
 }
@@ -312,7 +349,13 @@ export function useVenda({
   inicial = null,
   diaDaVenda,
   comFranquia = false,
+  comDescontoNoTotal = false,
+  limites = {},
 }: {
+  /** Q329: o balcão e o orçamento têm o desconto no total; a troca não (o servidor o ignora nela). */
+  comDescontoNoTotal?: boolean;
+  /** O limite de desconto e o papel de quem vende, por loja (resolvidos no servidor, descem por prop). */
+  limites?: Record<string, LimiteDaLoja>;
   /** O balcão tem os campos do franqueado: o corpo leva os dois explícitos (ver `CorpoDaVenda`). */
   comFranquia?: boolean;
   /** A venda que o balcão abre para editar (`/emporio/vender?editar=<id>`). */
@@ -355,6 +398,19 @@ export function useVenda({
   // O franqueado e o crédito dele (Q301): o crédito é o texto digitado, e vazio vale zero.
   const [franqueadoId, setFranqueadoEstado] = useState(cargaInicial?.franqueadoId ?? inicial?.franqueadoId ?? "");
   const [credito, setCredito] = useState(cargaInicial?.credito ?? inicial?.credito ?? "");
+  // Q329: o desconto no total é o texto digitado no campo de dinheiro; vazio vale zero.
+  const [descontoTotal, setDescontoTotal] = useState(cargaInicial?.descontoTotal ?? inicial?.descontoTotal ?? "");
+  // Q331: a autorização do gestor (PIN). `agora` só anda quando ela vence, para a tela a soltar na hora.
+  const [autorizacao, setAutorizacao] = useState<AutorizacaoGuardada | null>(null);
+  const [pedidoAberto, setPedidoAberto] = useState(false);
+  const [agora, setAgora] = useState(() => Date.now());
+  const venceEm = autorizacao ? Date.parse(autorizacao.expires_at) : null;
+  useEffect(() => {
+    if (venceEm === null) return;
+    const espera = Math.max(0, venceEm - Date.now());
+    const t = setTimeout(() => setAgora(Date.now()), Math.min(espera + 50, 2_000_000_000));
+    return () => clearTimeout(t);
+  }, [venceEm]);
   /** Escolher "Nenhum" zera o crédito: crédito sem franqueado não existe. */
   function setFranqueado(id: string) {
     setFranqueadoEstado(id);
@@ -382,21 +438,22 @@ export function useVenda({
   const sugerido = (apresentacaoId: string, lojaId: string): number | null =>
     orc?.referencia[apresentacaoId] ?? precoDaLoja(apresentacaoId, lojaId);
 
-  /** O preço que a linha recebe: o que vale no orçamento, senão o sugerido. */
-  const precoInicial = (apresentacaoId: string, lojaId: string) =>
-    paraCampoDePreco(orc?.vale[apresentacaoId] ?? sugerido(apresentacaoId, lojaId));
+  /** O preço da linha (Q327): o que vale no orçamento carregado, senão o do cadastro na loja. Nulo é "sem preço". */
+  const precoQueVale = (apresentacaoId: string): number | null =>
+    orc?.vale[apresentacaoId] ?? precoDaLoja(apresentacaoId, loja);
 
-  /** Trocar de loja tira o orçamento carregado: o preço dele só vale na loja dele. */
+  /** Sem loja escolhida ainda não há como saber o preço: a apresentação vale até a loja ser escolhida. */
+  const temPreco = (apresentacaoId: string): boolean => loja === "" || precoQueVale(apresentacaoId) !== null;
+
+  /** Trocar de loja tira o orçamento carregado (o preço dele só vale na loja dele) e a autorização (é de uma loja). */
   function setLoja(nova: string) {
     setLojaEstado(nova);
     setOrc(null);
+    setAutorizacao(null);
     // A conta do PIX é da loja: trocar de loja volta à padrão da nova. A que veio da venda em edição
     // (tem nome) fica: o servidor mantém a loja da venda e aceita essa conta (Q315).
     setPagamentos((lista) =>
       lista.map((p) => (p.contaPixId && !p.contaPixNome ? { ...p, contaPixId: "", contaPixNome: "" } : p)),
-    );
-    setItens((lista) =>
-      lista.map((i) => (i.manual ? i : { ...i, preco: paraCampoDePreco(precoDaLoja(i.apresentacaoId, nova)) })),
     );
   }
 
@@ -409,24 +466,25 @@ export function useVenda({
     setFranqueadoEstado(carga.franqueadoId);
     setCredito(carga.credito);
     setFrete(carga.frete);
+    setDescontoTotal(carga.descontoTotal);
   }
 
-  /** Tira o orçamento: o carrinho fica, e o que não foi digitado volta ao preço da loja. */
+  /** Tira o orçamento: o carrinho fica, e os preços voltam ao cadastro da loja (a linha lê o preço na hora). */
   function soltarOrcamento() {
     setOrc(null);
-    setItens((lista) =>
-      lista.map((i) => (i.manual ? i : { ...i, preco: paraCampoDePreco(precoDaLoja(i.apresentacaoId, loja)) })),
-    );
   }
 
-  /** A menor apresentação primeiro: no balcão se vende o pacote pequeno mais vezes. */
-  function apresentacaoPadrao(p: ProdutoVenda): ApresentacaoVenda {
-    return [...p.apresentacoes].sort((a, b) => a.base_qty - b.base_qty)[0];
+  /** A menor apresentação com preço na loja primeiro: no balcão se vende o pacote pequeno mais vezes. */
+  function apresentacaoPadrao(p: ProdutoVenda): ApresentacaoVenda | null {
+    const candidatas = p.apresentacoes.filter((a) => temPreco(a.id));
+    return [...candidatas].sort((a, b) => a.base_qty - b.base_qty)[0] ?? null;
   }
 
-  function adicionarProduto(p: ProdutoVenda) {
-    if (p.apresentacoes.length === 0) return;
+  /** Falso quando nenhuma apresentação do produto tem preço na loja: não entra no carrinho (Q328). */
+  function adicionarProduto(p: ProdutoVenda): boolean {
+    if (p.apresentacoes.length === 0) return false;
     const ap = apresentacaoPadrao(p);
+    if (!ap) return false;
     setItens((lista) => {
       const mesmo = lista.find((i) => i.produtoId === p.id && i.apresentacaoId === ap.id);
       if (mesmo) {
@@ -437,9 +495,10 @@ export function useVenda({
       }
       return [
         ...lista,
-        { key: proximo(), produtoId: p.id, apresentacaoId: ap.id, qtd: "1", preco: precoInicial(ap.id, loja), manual: false },
+        { key: proximo(), produtoId: p.id, apresentacaoId: ap.id, qtd: "1", desconto: "", daOriginal: null },
       ];
     });
+    return true;
   }
 
   function atualizarItem(key: number, parte: Partial<LinhaItem>) {
@@ -447,10 +506,8 @@ export function useVenda({
       lista.map((i) => {
         if (i.key !== key) return i;
         const novo = { ...i, ...parte };
-        // Trocar a apresentação traz o preço dela, a não ser que o preço tenha sido digitado.
-        if (parte.apresentacaoId && parte.apresentacaoId !== i.apresentacaoId && !novo.manual) {
-          novo.preco = precoInicial(parte.apresentacaoId, loja);
-        }
+        // Outra apresentação é outra linha: o preço da original não vale mais (o do cadastro entra no lugar).
+        if (parte.apresentacaoId && parte.apresentacaoId !== i.apresentacaoId) novo.daOriginal = null;
         return novo;
       }),
     );
@@ -465,13 +522,23 @@ export function useVenda({
     const produto = produtos.find((p) => p.id === i.produtoId) ?? null;
     const apresentacao = produto?.apresentacoes.find((a) => a.id === i.apresentacaoId) ?? null;
     const q = lerNumeroBr(i.qtd);
-    const p = lerNumeroBr(i.preco);
-    const sug = sugerido(i.apresentacaoId, loja);
-    const valida = q !== null && q > 0 && p !== null && p > 0;
-    const total = valida ? totalDoItemCent(q, p) : 0;
-    // Desconto (Q85): só o que fica abaixo do sugerido.
-    const desconto = valida && sug !== null && cent(p) < cent(sug) ? cent(arred3(q) * ((cent(sug) - cent(p)) / 100)) : 0;
-    const baseDoItem = valida && sug !== null ? cent(arred3(q) * (cent(sug) / 100)) : 0;
+    // O desconto da linha (0 a 100): vazio vale zero, texto ilegível ou fora da faixa reprova a linha.
+    const pctLido = i.desconto.trim() === "" ? 0 : lerNumeroBr(i.desconto);
+    const pctValido = pctLido !== null && pctLido >= 0 && pctLido <= 100;
+    const pct = pctValido ? pctLido : 0;
+    const original = i.daOriginal;
+    // O preço vem do cadastro (Q327), nunca digitado; a linha da venda editada mantém o da original.
+    const piso = original ? original.preco : precoQueVale(i.apresentacaoId);
+    const sug = original ? original.referencia : (sugerido(i.apresentacaoId, loja) ?? piso);
+    const unitCent = piso === null ? null : original || pct <= 0 ? cent(piso) : precoComDesconto(cent(piso), pct);
+    const semPreco = piso === null;
+    const valida = q !== null && q > 0 && unitCent !== null && pctValido;
+    const total = valida ? totalDoItemCent(q, unitCent / 100) : 0;
+    const refCent = sug === null ? null : cent(sug);
+    // Desconto (Q85): só o que fica abaixo da referência.
+    const desconto =
+      valida && refCent !== null && unitCent < refCent ? Math.round(arred3(q) * (refCent - unitCent)) : 0;
+    const baseDoItem = valida && refCent !== null ? Math.round(arred3(q) * refCent) : 0;
     // O preço que o orçamento garante nesta linha (nulo fora dele).
     const doOrcamento = orc?.vale[i.apresentacaoId] ?? null;
     return {
@@ -479,7 +546,13 @@ export function useVenda({
       produto,
       apresentacao,
       q,
-      p,
+      pct,
+      pctValido,
+      /** O preço unitário com o desconto da linha, em centavos; nulo sem preço. */
+      unitCent,
+      /** O preço de cadastro da linha (antes do desconto da linha), em R$; nulo sem preço. */
+      preco: piso,
+      semPreco,
       sugerido: sug,
       doOrcamento,
       valida,
@@ -489,10 +562,39 @@ export function useVenda({
     };
   });
 
-  const totalCent = linhas.reduce((s, l) => s + l.totalCent, 0);
-  const descontoCent = linhas.reduce((s, l) => s + l.descontoCent, 0);
+  // Q329: o desconto no total, em R$, de 0 até o valor dos itens (a tela recusa o que passa).
+  const somaItensCent = linhas.reduce((s, l) => s + l.totalCent, 0);
+  const descontoTotalLido = lerNumeroBr(descontoTotal);
+  const descontoTotalDigitadoCent = !comDescontoNoTotal || descontoTotalLido === null || descontoTotalLido <= 0 ? 0 : cent(descontoTotalLido);
+  const descontoTotalIlegivel = comDescontoNoTotal && descontoTotal.trim() !== "" && (descontoTotalLido === null || descontoTotalLido < 0);
+  const descontoTotalExcede = descontoTotalDigitadoCent > somaItensCent;
+  const descontoNoTotalCent = descontoTotalExcede ? 0 : descontoTotalDigitadoCent;
+  // As partes que o servidor vai gravar em cada linha: a soma fecha o desconto, e a linha de brinde fica com 0.
+  const partesDoDesconto = ratearDescontoNosItens(
+    linhas.map((l) => l.totalCent),
+    descontoNoTotalCent,
+  );
+  const totalCent = linhas.reduce((s, l, n) => s + l.totalCent - partesDoDesconto[n], 0);
+  const descontoDasLinhasCent = linhas.reduce((s, l) => s + l.descontoCent, 0);
+  const descontoCent = descontoDasLinhasCent + descontoNoTotalCent;
   const baseCent = linhas.reduce((s, l) => s + l.baseCent, 0);
   const descontoPct = baseCent > 0 ? (descontoCent / baseCent) * 100 : 0;
+  // O % que se pede ao gestor: arredondado PARA CIMA em 2 casas, porque o servidor compara o teto da
+  // autorização com o % arredondado dele.
+  const pctParaAutorizar = Math.ceil(Number((descontoPct * 100).toFixed(6))) / 100;
+  const limiteDaLoja = limites[loja] ?? null;
+  const limitePct = limiteDaLoja?.max ?? 0;
+  const ehGestorDaLoja = limiteDaLoja?.gestor ?? false;
+  const acimaDoLimite = descontoCent > 0 && descontoPct > limitePct + 1e-9;
+  // A autorização vale para esta loja, até o % que o gestor liberou e antes de vencer.
+  const autorizacaoValida =
+    autorizacao &&
+    autorizacao.loja === loja &&
+    agora < Date.parse(autorizacao.expires_at) &&
+    pctParaAutorizar <= autorizacao.max_pct + 1e-9
+      ? autorizacao
+      : null;
+  const precisaDeAutorizacao = acimaDoLimite && !ehGestorDaLoja && !autorizacaoValida;
   const freteLido = lerNumeroBr(frete);
   const freteCent = freteLido === null || freteLido <= 0 ? 0 : cent(freteLido);
   const creditoLido = lerNumeroBr(credito);
@@ -663,6 +765,8 @@ export function useVenda({
     setOrigem("balcao");
     setFranqueadoEstado("");
     setCredito("");
+    setDescontoTotal("");
+    setAutorizacao(null);
   }
 
   function itensDaApi(): CorpoDaVenda["items"] {
@@ -670,8 +774,17 @@ export function useVenda({
       emporio_product_id: l.linha.produtoId,
       presentation_id: l.linha.apresentacaoId,
       quantity: l.q ?? 0,
-      unit_price: l.p ?? 0,
+      // O preço é do cadastro: só a linha da venda editada leva o original, e só a linha com desconto leva o %.
+      ...(l.linha.daOriginal ? { unit_price: l.linha.daOriginal.preco } : l.pct > 0 ? { discount_pct: l.pct } : {}),
     }));
+  }
+
+  /** Os campos de desconto do corpo: o total (balcão e orçamento) e a autorização, só quando há uma valendo. */
+  function descontoDaApi(): Pick<CorpoDaVenda, "order_discount_amount" | "discount_authorization"> {
+    return {
+      ...(comDescontoNoTotal ? { order_discount_amount: descontoNoTotalCent / 100 } : {}),
+      ...(autorizacaoValida ? { discount_authorization: autorizacaoValida.authorization } : {}),
+    };
   }
 
   /**
@@ -685,8 +798,25 @@ export function useVenda({
 
     if (linhas.length === 0) {
       novos.items = orcamento ? "Inclua ao menos um produto no orçamento." : "Inclua ao menos um produto na venda.";
-    } else if (linhas.some((l) => !l.valida)) {
-      novos.items = "Cada item precisa de quantidade e preço maiores que zero.";
+    } else {
+      // A mesma frase do servidor (Q328): sem preço no cadastro da loja a venda não segue. Sem loja escolhida a
+      // recusa é a da loja, e o preço ainda não se sabe.
+      const semPreco = loja !== "" ? linhas.find((l) => l.semPreco) : undefined;
+      const pctRuim = linhas.find((l) => !l.pctValido);
+      if (semPreco) {
+        novos.items = `Cadastre o preço de ${semPreco.produto?.name ?? "um produto"} (${semPreco.apresentacao?.name ?? "apresentação"}) nesta loja antes de vender.`;
+      } else if (pctRuim) {
+        novos.items = `O desconto de "${pctRuim.produto?.name ?? "um item"}" deve ficar entre 0% e 100%.`;
+      } else if (linhas.some((l) => l.q === null || l.q <= 0)) {
+        novos.items = "Cada item precisa de quantidade maior que zero.";
+      } else if (loja !== "" && totalCent <= 0) {
+        // Q334: um brinde acompanha uma venda. A mesma frase do servidor.
+        novos.items = "Um brinde acompanha uma venda: inclua ao menos um produto pago.";
+      }
+    }
+    if (comDescontoNoTotal) {
+      if (descontoTotalIlegivel) novos.order_discount_amount = "Informe o desconto no total em reais, zero ou mais.";
+      else if (descontoTotalExcede) novos.order_discount_amount = "O desconto no total não pode passar do valor dos itens.";
     }
 
     const temFiado = pagamentos.some((p) => p.kind === "fiado");
@@ -730,8 +860,17 @@ export function useVenda({
                 // Q326: sempre explícito no orçamento, para editar e zerar o frete.
                 freight_amount: freteCent / 100,
                 ...franquiaDaApi,
+                ...descontoDaApi(),
               },
-        assinatura: JSON.stringify(["orcamento", loja, cliente?.id ?? null, itensDaApi(), franquiaDaApi, freteCent]),
+        assinatura: JSON.stringify([
+          "orcamento",
+          loja,
+          cliente?.id ?? null,
+          itensDaApi(),
+          franquiaDaApi,
+          freteCent,
+          descontoDaApi(),
+        ]),
       };
     }
     // Texto preenchido e ilegível ou negativo: a recusa fica embaixo do campo do frete.
@@ -840,6 +979,7 @@ export function useVenda({
       freight_amount: freteCent / 100,
       origin: origem,
       ...franquiaDaApi,
+      ...descontoDaApi(),
     };
     return {
       novos,
@@ -873,8 +1013,22 @@ export function useVenda({
     cliente,
     setCliente,
     totalCent,
+    somaItensCent,
+    partesDoDesconto,
     descontoCent,
     descontoPct,
+    descontoTotal,
+    definirDescontoTotal: setDescontoTotal,
+    descontoNoTotalCent,
+    limitePct,
+    pctParaAutorizar,
+    precisaDeAutorizacao,
+    autorizacaoValida,
+    guardarAutorizacao: setAutorizacao,
+    soltarAutorizacao: () => setAutorizacao(null),
+    pedidoAberto,
+    definirPedidoAberto: setPedidoAberto,
+    temPreco,
     aPagarCent,
     frete,
     freteCent,
