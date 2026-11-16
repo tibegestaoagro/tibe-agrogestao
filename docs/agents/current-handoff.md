@@ -29,9 +29,8 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   (preço do cadastro, desconto por PIN do gestor, brinde; spec aprovada pelo
   usuário, Q327 a Q334, e plano de 16/11). Nada implementado ainda: próximo
   passo é a onda 0 (T1 schema) do plano. Frete no orçamento (Q326) e vendas do
-  turno (Q325) em produção. Manual com GIFs em
-  produção (regerar: roteiro `manual-gifs` e `python
-  scripts/manual-gifs-montar.py`). Os agentes `explorador`,
+  turno (Q325) em produção. GIFs do manual: roteiro `manual-gifs` e
+  `python scripts/manual-gifs-montar.py`. Os agentes `explorador`,
   `prova-juiz`, `prova-viva` e `servidor-dados` carregam (descrição entre
   aspas). Outros agentes: leia `AGENTS.md`.
 - `main` igual a `origin/main`, Neon em dia. Em produção também: conta avulsa e
