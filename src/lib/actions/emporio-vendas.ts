@@ -37,7 +37,9 @@ import {
   precoDeReferencia,
   precoQueVale,
   resolverVendedor,
+  fraseDoAutorizador,
   type OrcamentoNaPrecificacao,
+  type OriginalNaPrecificacao,
   type VendaItemInput,
 } from "@/lib/emporio/precificar";
 import {
@@ -274,6 +276,8 @@ export type VendaView = {
   replaces: { id: string; number: number } | null;
   replaced_by: { id: string; number: number } | null;
   discount_amount: number;
+  /** Q329: a parte de `discount_amount` dada no total da venda (rateada nas linhas). */
+  order_discount_amount: number;
   discount_pct: number;
   discount_authorized_by_user_id: string | null;
   status: "concluida" | "cancelada";
@@ -446,6 +450,7 @@ async function montarVendas(db: TenantPrismaClient, linhas: VendaRow[]): Promise
       replaces: s.replaces ? { id: s.replaces.id, number: s.replaces.number } : null,
       replaced_by: s.replaced_by ? { id: s.replaced_by.id, number: s.replaced_by.number } : null,
       discount_amount: desconto,
+      order_discount_amount: decToNum(s.order_discount_amount) ?? 0,
       discount_pct: denominador > 0 ? arred2((desconto / denominador) * 100) : 0,
       discount_authorized_by_user_id: s.discount_authorized_by_user_id,
       status: s.status,
@@ -647,6 +652,13 @@ export type VenderInput = PedidoParaEntregaInput & {
   /** Frete cobrado do cliente (Q244): soma ao que ele paga, não ao faturamento. */
   freight_amount?: number | null;
   /**
+   * Q329: o desconto no total, em R$ (0 até o valor dos itens), rateado nas linhas. Ausente ao faturar um
+   * orçamento dentro da validade herda o dele; `null` é zero. A troca não o aceita.
+   */
+  order_discount_amount?: number | null;
+  /** Q331, Q333: a autorização assinada do gestor, exigida só quando o desconto passa do limite da loja. */
+  discount_authorization?: string | null;
+  /**
    * Q301: o franqueado e o crédito dele, digitados, cobrados a mais do cliente como o frete. Ausentes
    * (`undefined`) ao faturar um orçamento herdam os dele; `null` é "sem franqueado".
    */
@@ -832,7 +844,11 @@ type Preparada = {
   franchisee_credit: number;
   origin: OrigemDaVenda;
   desconto: number;
+  /** A parte de `desconto` dada no total (Q329). */
+  desconto_no_total: number;
   autorizou: string | null;
+  /** O nome de quem autorizou, quando não é quem registra: para o Histórico. */
+  autorizou_nome: string | null;
   /** Parte da venda paga pelo valor devolvido na troca (já limitada ao total). */
   troca: number;
   notes: string | null;
@@ -894,6 +910,7 @@ async function orcamentoAFaturar(
       valid_until: true,
       canceled_at: true,
       discount_authorized_by_user_id: true,
+      order_discount_amount: true,
       franchisee_id: true,
       franchisee_credit: true,
       freight_amount: true,
@@ -942,7 +959,13 @@ async function orcamentoAFaturar(
     where: { establishment_id: lojaId, presentation_id: { in: q.items.map((i) => i.presentation_id) } },
     select: { presentation_id: true, price: true },
   });
-  const precoHoje = new Map(precos.map((p) => [p.presentation_id, centavos(decToNum(p.price) ?? 0)]));
+  // Preço nulo é "sem preço" (Q328), nunca R$ 0: o orçado vale.
+  const precoHoje = new Map<string, number | null>(
+    precos.map((p) => {
+      const preco = decToNum(p.price);
+      return [p.presentation_id, preco === null ? null : centavos(preco)];
+    }),
+  );
   // O orçado é o preço praticado no orçamento (já com o desconto dele). A mesma
   // apresentação em duas linhas do orçamento: vale a mais barata de cada conta.
   const linhas = new Map<string, { referencia: number; vale: number }>();
@@ -962,7 +985,11 @@ async function orcamentoAFaturar(
   return ok({
     quote,
     vendedor: q.seller_user_id,
-    precificacao: { linhas, autorizou: q.discount_authorized_by_user_id },
+    precificacao: {
+      linhas,
+      autorizou: q.discount_authorized_by_user_id,
+      order_discount_cent: centavos(decToNum(q.order_discount_amount) ?? 0),
+    },
     pedido,
     ...franquia,
   });
@@ -1008,6 +1035,10 @@ async function prepararVenda(
     franqueadoAtual?: string | null;
     /** Q315: as contas dos PIX da venda substituída, aceitas mesmo indisponíveis para a loja. */
     contasPixAtuais?: string[];
+    /** A edição (Q249): a venda original, para a linha igual à dela valer e a autorização dela ser herdada. */
+    original?: OriginalNaPrecificacao | null;
+    /** A edição: o desconto no total da original, que o corpo sem `order_discount_amount` mantém (em centavos). */
+    orderDiscountHerdadoCent?: number | null;
   } = {},
 ): Promise<ActionResult<Preparada>> {
   const neg = await exigir(db, ator, "vendedor_da_loja", "vender");
@@ -1106,7 +1137,13 @@ async function prepararVenda(
     ator,
     { id: loja.data.id, max_discount_pct: lojaExtra?.max_discount_pct ?? null },
     input.items,
-    orcamento?.precificacao ? { orcamento: orcamento.precificacao } : {},
+    {
+      orcamento: orcamento?.precificacao ?? null,
+      orderDiscountAmount: input.order_discount_amount,
+      orderDiscountHerdadoCent: opts.orderDiscountHerdadoCent ?? null,
+      authorization: input.discount_authorization,
+      original: opts.original ?? null,
+    },
   );
   if (!precificados.ok) return precificados;
   const itens: ItemPreparado[] = precificados.data.itens.map((i) => ({
@@ -1355,7 +1392,9 @@ async function prepararVenda(
     franchisee_credit: creditoCent / 100,
     origin: origin as OrigemDaVenda,
     desconto: descontoCent / 100,
+    desconto_no_total: precificados.data.order_discount_cent / 100,
     autorizou,
+    autorizou_nome: precificados.data.autorizou_nome,
     troca: trocaCent / 100,
     notes: typeof input.notes === "string" && input.notes.trim() ? input.notes.trim() : null,
     cash_register_id: pedidoDeCaixa(input.cash_register_id),
@@ -1531,6 +1570,7 @@ async function gravarVenda(
       franchisee_credit: p.franchisee_credit,
       origin: p.origin,
       discount_amount: p.desconto,
+      order_discount_amount: p.desconto_no_total,
       discount_authorized_by_user_id: p.autorizou,
       exchange_return_id: extra.exchange_return_id ?? null,
       replaces_sale_id: extra.replaces_sale_id ?? null,
@@ -1941,7 +1981,7 @@ export async function venderAction(
           prep.data.quote ? ` do orçamento nº ${formatarNumero(prep.data.quote.number)}` : ""
         }${prep.data.pedido.for_delivery ? ", para entrega" : ""}${
           prep.data.frete > 0 ? `, com frete ${dinheiro(prep.data.frete)}` : ""
-        }${fraseDoCredito(prep.data.franchisee_credit)}`,
+        }${fraseDoCredito(prep.data.franchisee_credit)}${fraseDoAutorizador(prep.data.autorizou_nome)}`,
       });
       return novaId;
     });
@@ -2291,6 +2331,30 @@ export async function editarVendaAction(
           delivery_state: antiga.delivery_state,
         }
       : {};
+  // Escolhas 1 e 2: o que a original tinha de preço, desconto e autorização vale para a linha igual à dela.
+  const origem = await db.emporioSale.findFirst({
+    where: { id },
+    select: {
+      discount_amount: true,
+      order_discount_amount: true,
+      discount_authorized_by_user_id: true,
+      items: { select: { presentation_id: true, quantity: true, unit_price: true, suggested_price: true } },
+    },
+  });
+  const linhasDaOriginal: OriginalNaPrecificacao["linhas"] = new Map();
+  let baseDaOriginalCent = 0;
+  for (const i of origem?.items ?? []) {
+    const sugerida = decToNum(i.suggested_price);
+    if (sugerida !== null) baseDaOriginalCent += centavos(sugerida * (decToNum(i.quantity) ?? 0));
+    const lista = linhasDaOriginal.get(i.presentation_id) ?? [];
+    lista.push({ unit_cent: centavos(decToNum(i.unit_price) ?? 0), suggested_cent: sugerida === null ? null : centavos(sugerida) });
+    linhasDaOriginal.set(i.presentation_id, lista);
+  }
+  const original: OriginalNaPrecificacao = {
+    linhas: linhasDaOriginal,
+    autorizou: origem?.discount_authorized_by_user_id ?? null,
+    pct: baseDaOriginalCent > 0 ? (centavos(decToNum(origem?.discount_amount) ?? 0) / baseDaOriginalCent) * 100 : 0,
+  };
   const prep = await prepararVenda(
     db,
     ator,
@@ -2311,6 +2375,8 @@ export async function editarVendaAction(
     },
     {
       substituindo: id,
+      original,
+      orderDiscountHerdadoCent: centavos(decToNum(origem?.order_discount_amount) ?? 0),
       franqueadoAtual: antiga.franchisee_id,
       contasPixAtuais: (
         await db.emporioSalePayment.findMany({
@@ -2363,7 +2429,7 @@ export async function editarVendaAction(
         target_id: nova,
         summary: `Substituiu a venda nº ${formatarNumero(await numeroDaVenda(tx, id))} pela nº ${rotulo} na ${prep.data.loja.name} (${frasItens(
           prep.data.itens.length,
-        )}, total ${dinheiro(prep.data.net + prep.data.frete + prep.data.franchisee_credit)}${fraseDoCredito(prep.data.franchisee_credit)})${motivo ? `: ${motivo}` : ""}`,
+        )}, total ${dinheiro(prep.data.net + prep.data.frete + prep.data.franchisee_credit)}${fraseDoCredito(prep.data.franchisee_credit)})${fraseDoAutorizador(prep.data.autorizou_nome)}${motivo ? `: ${motivo}` : ""}`,
       });
       return nova;
     });
@@ -2583,7 +2649,16 @@ function validarItensDevolvidos(venda: VendaParaDevolver, entrada: unknown): Act
       }
       motivo = raw.loss_reason as LinhaDevolucao["loss_reason"];
     }
-    linhas.push({ item, quantity, base_qty, valorCent: centavos(quantity * (decToNum(item.unit_price) ?? 0)), loss_reason: motivo });
+    // Escolha 7: o reembolso é proporcional ao `total` do item (com desconto no total, quantidade x preço
+    // reembolsaria a mais). Na última fração o que sobra fecha a conta, para a soma nunca passar do total.
+    const totalDoItemCent = centavos(decToNum(item.total) ?? 0);
+    const jaReembolsadoCent = item.return_items.reduce(
+      (s, r) => s + Math.round((totalDoItemCent * (decToNum(r.quantity) ?? 0)) / vendido),
+      0,
+    );
+    const valorCent =
+      quantity === sobra ? Math.max(0, totalDoItemCent - jaReembolsadoCent) : Math.round((totalDoItemCent * quantity) / vendido);
+    linhas.push({ item, quantity, base_qty, valorCent, loss_reason: motivo });
   }
   return ok({ linhas, totalCent: linhas.reduce((s, l) => s + l.valorCent, 0) });
 }
@@ -3017,6 +3092,8 @@ export async function trocarAction(
     seller_user_id: null,
     // A venda nova da troca não fatura orçamento, e nasce retirada (D6): quem fatura a marca depois.
     quote_id: null,
+    // A troca não tem desconto no total (Q329, escolha 3); a autorização do gestor do corpo vale.
+    order_discount_amount: null,
     for_delivery: false,
     operation_key: String(input.venda?.operation_key ?? "").trim() || `${chave}:venda`,
     establishment_id: input.venda?.establishment_id || origem.establishment_id,
@@ -3048,7 +3125,7 @@ export async function trocarAction(
         establishment_id: atual.establishment_id,
         target_type: "venda",
         target_id: atual.id,
-        summary: `Trocou itens de uma venda da ${prep.data.loja.name}: devolveu ${dinheiro(rev.data.totalCent / 100)} e vendeu ${dinheiro(prep.data.net)}`,
+        summary: `Trocou itens de uma venda da ${prep.data.loja.name}: devolveu ${dinheiro(rev.data.totalCent / 100)} e vendeu ${dinheiro(prep.data.net)}${fraseDoAutorizador(prep.data.autorizou_nome)}`,
       });
 
       // Se o devolvido passa da venda nova, a diferença sai da gaveta.

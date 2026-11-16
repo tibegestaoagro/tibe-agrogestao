@@ -20,8 +20,24 @@ export const itemDeVendaSchema = z.object({
   emporio_product_id: z.string({ error: "Escolha o produto." }).min(1, "Escolha o produto."),
   presentation_id: z.string({ error: "Escolha a apresentação." }).min(1, "Escolha a apresentação."),
   quantity: z.number({ error: "Informe a quantidade." }),
+  /** Só igual ou abaixo do preço do cadastro (a regra é da action); o preço vem do cadastro. */
   unit_price: z.number({ error: "Informe o preço." }).nullish(),
+  /** Desconto da linha em % (Q329). */
+  discount_pct: z
+    .number({ error: "O desconto deve ser um número." })
+    .min(0, { error: "O desconto não pode ser negativo." })
+    .max(100, { error: "O desconto não pode passar de 100%." })
+    .nullish(),
 });
+
+/** Q329, Q331: o desconto no total (R$) e a autorização assinada do gestor, no corpo da venda e do orçamento. */
+const descontoDoCorpo = {
+  order_discount_amount: z
+    .number({ error: "O desconto no total deve ser um número." })
+    .min(0, { error: "O desconto no total não pode ser negativo." })
+    .nullish(),
+  discount_authorization: z.string({ error: "A autorização do gestor é inválida." }).nullish(),
+};
 
 export const pagamentoDeVendaSchema = z.object({
   kind: z.string({ error: "Escolha a forma de pagamento." }).min(1, "Escolha a forma de pagamento."),
@@ -81,6 +97,7 @@ export const corpoDaVendaSchema = z.object({
   freight_amount: z.number({ error: "O frete deve ser um número." }).min(0, { error: "O frete não pode ser negativo." }).nullish(),
   /** De onde veio o pedido (Q248). */
   origin: z.enum(ORIGENS_DA_VENDA, { error: "Escolha a origem: balcão ou e-commerce." }).nullish(),
+  ...descontoDoCorpo,
 });
 
 /**
@@ -93,6 +110,7 @@ export const corpoDoOrcamentoSchema = z.object({
   items: z.array(itemDeVendaSchema, { error: "Inclua os itens do orçamento." }),
   notes: z.string().nullish(),
   seller_user_id: z.string().nullish(),
+  ...descontoDoCorpo,
 });
 
 export const itemDevolvidoSchema = z.object({

@@ -898,7 +898,8 @@ export async function vendasComMargemNegativaAction(
     const abaixoDoCusto = v.items.some((i) => {
       const custo = decToNum(i.unit_cost);
       const qtd = decToNum(i.quantity) ?? 0;
-      if (custo === null || qtd <= 0) return false;
+      // Q334: o brinde (linha de total zero) não é "preço abaixo do custo": o custo dele é escolha, não erro de preço.
+      if (custo === null || qtd <= 0 || centavos(decToNum(i.total) ?? 0) === 0) return false;
       const custoDaApresentacaoCent = Math.round(custo * ((decToNum(i.base_qty) ?? 0) / qtd) * 100);
       return centavos(decToNum(i.unit_price) ?? 0) < custoDaApresentacaoCent;
     });

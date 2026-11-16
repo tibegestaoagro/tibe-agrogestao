@@ -14,6 +14,7 @@ import {
   precificarItens,
   precoDeReferencia,
   precoQueVale,
+  fraseDoAutorizador,
   resolverVendedor,
   type VendaItemInput,
 } from "@/lib/emporio/precificar";
@@ -138,6 +139,10 @@ export type OrcamentoView = {
   /** `net_amount + freight_amount + franchisee_credit`: o que o cliente paga pelo orçado. */
   total_amount: number;
   discount_amount: number;
+  /** Q329: a parte de `discount_amount` dada no total do orçamento (rateada nas linhas). */
+  order_discount_amount: number;
+  /** Quem autorizou o desconto acima do limite da loja (Q331); nulo se ninguém precisou. */
+  discount_authorized_by_user_id: string | null;
   notes: string | null;
   /** O pedido para entrega: a marca, a escolha e a cópia do endereço (nulos na retirada). */
   for_delivery: boolean;
@@ -292,6 +297,8 @@ async function montarOrcamentos(db: TenantPrismaClient, linhas: OrcamentoRow[]):
       total_amount:
         Math.round(((decToNum(q.net_amount) ?? 0) + (decToNum(q.freight_amount) ?? 0) + (decToNum(q.franchisee_credit) ?? 0)) * 100) / 100,
       discount_amount: decToNum(q.discount_amount) ?? 0,
+      order_discount_amount: decToNum(q.order_discount_amount) ?? 0,
+      discount_authorized_by_user_id: q.discount_authorized_by_user_id,
       notes: q.notes,
       for_delivery: q.for_delivery,
       delivery_address_kind: q.delivery_address_kind,
@@ -494,12 +501,24 @@ export type OrcamentoInput = PedidoParaEntregaInput & {
   franchisee_credit?: number | null;
   /** Q326: o frete cobrado do cliente (R$, não negativo); ausente vale zero na criação. */
   freight_amount?: number | null;
+  /** Q329: o desconto no total, em R$ (0 até o valor dos itens), rateado nas linhas; ausente ou nulo vale zero. */
+  order_discount_amount?: number | null;
+  /** Q331, Q333: a autorização assinada do gestor, exigida só quando o desconto passa do limite da loja. */
+  discount_authorization?: string | null;
 };
 
 /** O corpo do orçamento, o mesmo na criação e na edição (Q285): sem chave de operação nem loja. */
 export type OrcamentoCorpo = Pick<
   OrcamentoInput,
-  "customer_id" | "items" | "seller_user_id" | "notes" | "franchisee_id" | "franchisee_credit" | "freight_amount"
+  | "customer_id"
+  | "items"
+  | "seller_user_id"
+  | "notes"
+  | "franchisee_id"
+  | "franchisee_credit"
+  | "freight_amount"
+  | "order_discount_amount"
+  | "discount_authorization"
 > &
   PedidoParaEntregaInput;
 
@@ -553,6 +572,11 @@ async function prepararCorpo(
     ator,
     { id: loja.id, max_discount_pct: lojaExtra?.max_discount_pct ?? null },
     input.items,
+    {
+      // O orçamento regrava o estado inteiro: sem desconto no total no corpo, vale zero.
+      orderDiscountAmount: input.order_discount_amount ?? null,
+      authorization: input.discount_authorization,
+    },
   );
   if (!precificados.ok) return precificados;
 
@@ -643,6 +667,7 @@ export async function salvarOrcamentoAction(
           valid_until: validUntil,
           net_amount: p.total_cent / 100,
           discount_amount: p.desconto_cent / 100,
+          order_discount_amount: p.order_discount_cent / 100,
           discount_authorized_by_user_id: p.autorizou,
           notes,
           ...franquia,
@@ -670,7 +695,7 @@ export async function salvarOrcamentoAction(
         establishment_id: loja.data.id,
         target_type: "orcamento",
         target_id: orcamento.id,
-        summary: `Salvou o orçamento nº ${formatarNumero(numero)} de ${dinheiro(p.total_cent / 100)} para ${cliente.name} na ${loja.data.name} (${frasItens(p.itens.length)})${entrega.for_delivery ? ", para entrega" : ""}${origem ? `, a partir do orçamento nº ${formatarNumero(origem.number)}` : ""}${fraseDoCredito(franquia.franchisee_credit)}${fraseDoFrete(frete)}`,
+        summary: `Salvou o orçamento nº ${formatarNumero(numero)} de ${dinheiro(p.total_cent / 100)} para ${cliente.name} na ${loja.data.name} (${frasItens(p.itens.length)})${entrega.for_delivery ? ", para entrega" : ""}${origem ? `, a partir do orçamento nº ${formatarNumero(origem.number)}` : ""}${fraseDoCredito(franquia.franchisee_credit)}${fraseDoFrete(frete)}${fraseDoAutorizador(p.autorizou_nome)}`,
       });
       return orcamento.id;
     });
@@ -754,6 +779,7 @@ export async function editarOrcamentoAction(
         valid_until: validUntil,
         net_amount: p.total_cent / 100,
         discount_amount: p.desconto_cent / 100,
+        order_discount_amount: p.order_discount_cent / 100,
         discount_authorized_by_user_id: p.autorizou,
         notes,
         ...franquia,
@@ -781,7 +807,7 @@ export async function editarOrcamentoAction(
       establishment_id: antes.establishment_id,
       target_type: "orcamento",
       target_id: limpo,
-      summary: `Editou o orçamento nº ${antes.numero}: ${frasItens(antes.items.length)} para ${frasItens(p.itens.length)}, total de ${dinheiro(antes.net_amount)} para ${dinheiro(p.total_cent / 100)}, validade de ${dataBr(antes.valid_until)} para ${dataBr(validadeDepois)}${fraseDoCredito(franquia.franchisee_credit)}${frete !== antes.freight_amount ? `, frete de ${dinheiro(antes.freight_amount)} para ${dinheiro(frete)}` : ""}`,
+      summary: `Editou o orçamento nº ${antes.numero}: ${frasItens(antes.items.length)} para ${frasItens(p.itens.length)}, total de ${dinheiro(antes.net_amount)} para ${dinheiro(p.total_cent / 100)}, validade de ${dataBr(antes.valid_until)} para ${dataBr(validadeDepois)}${fraseDoCredito(franquia.franchisee_credit)}${frete !== antes.freight_amount ? `, frete de ${dinheiro(antes.freight_amount)} para ${dinheiro(frete)}` : ""}${fraseDoAutorizador(p.autorizou_nome)}`,
     });
     return null;
   });
