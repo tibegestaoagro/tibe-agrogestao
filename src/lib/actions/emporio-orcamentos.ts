@@ -133,7 +133,9 @@ export type OrcamentoView = {
   franchisee_id: string | null;
   franchisee_name: string | null;
   franchisee_credit: number;
-  /** `net_amount + franchisee_credit`: o que o cliente paga pelo orçado (o frete não entra no orçamento). */
+  /** Q326: o frete cobrado do cliente, como na venda (fora do `net_amount`). */
+  freight_amount: number;
+  /** `net_amount + freight_amount + franchisee_credit`: o que o cliente paga pelo orçado. */
   total_amount: number;
   discount_amount: number;
   notes: string | null;
@@ -286,7 +288,9 @@ async function montarOrcamentos(db: TenantPrismaClient, linhas: OrcamentoRow[]):
       franchisee_id: q.franchisee_id,
       franchisee_name: q.franchisee?.name ?? null,
       franchisee_credit: decToNum(q.franchisee_credit) ?? 0,
-      total_amount: Math.round(((decToNum(q.net_amount) ?? 0) + (decToNum(q.franchisee_credit) ?? 0)) * 100) / 100,
+      freight_amount: decToNum(q.freight_amount) ?? 0,
+      total_amount:
+        Math.round(((decToNum(q.net_amount) ?? 0) + (decToNum(q.freight_amount) ?? 0) + (decToNum(q.franchisee_credit) ?? 0)) * 100) / 100,
       discount_amount: decToNum(q.discount_amount) ?? 0,
       notes: q.notes,
       for_delivery: q.for_delivery,
@@ -488,12 +492,14 @@ export type OrcamentoInput = PedidoParaEntregaInput & {
   /** Q309: o franqueado e o crédito dele, digitados (ausentes valem sem crédito; ver `resolverFranqueadoDoCredito`). */
   franchisee_id?: string | null;
   franchisee_credit?: number | null;
+  /** Q326: o frete cobrado do cliente (R$, não negativo); ausente vale zero na criação. */
+  freight_amount?: number | null;
 };
 
 /** O corpo do orçamento, o mesmo na criação e na edição (Q285): sem chave de operação nem loja. */
 export type OrcamentoCorpo = Pick<
   OrcamentoInput,
-  "customer_id" | "items" | "seller_user_id" | "notes" | "franchisee_id" | "franchisee_credit"
+  "customer_id" | "items" | "seller_user_id" | "notes" | "franchisee_id" | "franchisee_credit" | "freight_amount"
 > &
   PedidoParaEntregaInput;
 
@@ -530,6 +536,15 @@ async function prepararCorpo(
   const franquia = await resolverFranqueadoDoCredito(db, input.franchisee_id, input.franchisee_credit, [franqueadoAtual]);
   if (!franquia.ok) return franquia;
 
+  let freteCent = 0;
+  if (input.freight_amount != null) {
+    const f = input.freight_amount;
+    if (typeof f !== "number" || !Number.isFinite(f) || f < 0) {
+      return fail("VALIDATION_ERROR", "O frete não pode ser negativo.", 422, "freight_amount");
+    }
+    freteCent = Math.round(Number((f * 100).toPrecision(12)));
+  }
+
   if (!Array.isArray(input.items) || input.items.length === 0) {
     return fail("VALIDATION_ERROR", "Inclua ao menos um item no orçamento.", 422, "items");
   }
@@ -549,11 +564,14 @@ async function prepararCorpo(
     p: precificados.data,
     notes,
     franquia: { franchisee_id: franquia.data.franchisee_id, franchisee_credit: franquia.data.credit_cent / 100 },
+    frete: freteCent / 100,
   });
 }
 
 /** A frase do Histórico: vazia sem crédito. */
 const fraseDoCredito = (credito: number): string => (credito > 0 ? `, crédito do franqueado ${dinheiro(credito)}` : "");
+/** Q326: a frase do frete no Histórico: vazia sem frete. */
+const fraseDoFrete = (frete: number): string => (frete > 0 ? `, frete ${dinheiro(frete)}` : "");
 
 export async function salvarOrcamentoAction(
   db: TenantPrismaClient,
@@ -589,7 +607,7 @@ export async function salvarOrcamentoAction(
   if (origemId) {
     const o = await db.emporioQuote.findFirst({
       where: { id: origemId },
-      select: { id: true, number: true, establishment_id: true, franchisee_id: true, franchisee_credit: true },
+      select: { id: true, number: true, establishment_id: true, franchisee_id: true, franchisee_credit: true, freight_amount: true },
     });
     if (!o || !(await lojaVisivel(db, ator, o.establishment_id))) {
       return fail("NOT_FOUND", "Orçamento de origem não encontrado.", 404, "based_on_quote_id");
@@ -597,13 +615,15 @@ export async function salvarOrcamentoAction(
     origem = { id: o.id, number: o.number };
     // Q286, Q309: o novo orçamento copia o franqueado e o crédito da origem, salvo se o corpo os traz.
     if (input.franchisee_id === undefined && input.franchisee_credit === undefined) {
-      corpo = { ...input, franchisee_id: o.franchisee_id, franchisee_credit: decToNum(o.franchisee_credit) ?? 0 };
+      corpo = { ...corpo, franchisee_id: o.franchisee_id, franchisee_credit: decToNum(o.franchisee_credit) ?? 0 };
     }
+    // Q326: e o frete, salvo se o corpo o traz.
+    if (input.freight_amount === undefined) corpo = { ...corpo, freight_amount: decToNum(o.freight_amount) ?? 0 };
   }
 
   const prep = await prepararCorpo(db, ator, loja.data, corpo);
   if (!prep.ok) return prep;
-  const { vendedor, cliente, entrega, p, notes, franquia } = prep.data;
+  const { vendedor, cliente, entrega, p, notes, franquia, frete } = prep.data;
 
   const config = await db.emporioSettings.findFirst({ select: { quote_validity_days: true } });
   const agora = opts.agora ?? new Date();
@@ -626,6 +646,7 @@ export async function salvarOrcamentoAction(
           discount_authorized_by_user_id: p.autorizou,
           notes,
           ...franquia,
+          freight_amount: frete,
           ...entrega,
           based_on_quote_id: origem?.id ?? null,
           created_at: agora,
@@ -649,7 +670,7 @@ export async function salvarOrcamentoAction(
         establishment_id: loja.data.id,
         target_type: "orcamento",
         target_id: orcamento.id,
-        summary: `Salvou o orçamento nº ${formatarNumero(numero)} de ${dinheiro(p.total_cent / 100)} para ${cliente.name} na ${loja.data.name} (${frasItens(p.itens.length)})${entrega.for_delivery ? ", para entrega" : ""}${origem ? `, a partir do orçamento nº ${formatarNumero(origem.number)}` : ""}${fraseDoCredito(franquia.franchisee_credit)}`,
+        summary: `Salvou o orçamento nº ${formatarNumero(numero)} de ${dinheiro(p.total_cent / 100)} para ${cliente.name} na ${loja.data.name} (${frasItens(p.itens.length)})${entrega.for_delivery ? ", para entrega" : ""}${origem ? `, a partir do orçamento nº ${formatarNumero(origem.number)}` : ""}${fraseDoCredito(franquia.franchisee_credit)}${fraseDoFrete(frete)}`,
       });
       return orcamento.id;
     });
@@ -713,9 +734,11 @@ export async function editarOrcamentoAction(
 
   const loja = await acharLojaParaEscrita(db, ator, antes.establishment_id);
   if (!loja.ok) return loja;
-  const prep = await prepararCorpo(db, ator, loja.data, input, antes.franchisee_id);
+  // Q326: sem `freight_amount` no corpo, o frete que o orçamento já tinha continua.
+  const corpo: OrcamentoCorpo = input.freight_amount === undefined ? { ...input, freight_amount: antes.freight_amount } : input;
+  const prep = await prepararCorpo(db, ator, loja.data, corpo, antes.franchisee_id);
   if (!prep.ok) return prep;
-  const { vendedor, cliente, entrega, p, notes, franquia } = prep.data;
+  const { vendedor, cliente, entrega, p, notes, franquia, frete } = prep.data;
 
   const config = await db.emporioSettings.findFirst({ select: { quote_validity_days: true } });
   const agora = opts.agora ?? new Date();
@@ -734,6 +757,7 @@ export async function editarOrcamentoAction(
         discount_authorized_by_user_id: p.autorizou,
         notes,
         ...franquia,
+        freight_amount: frete,
         ...entrega,
       },
     });
@@ -757,7 +781,7 @@ export async function editarOrcamentoAction(
       establishment_id: antes.establishment_id,
       target_type: "orcamento",
       target_id: limpo,
-      summary: `Editou o orçamento nº ${antes.numero}: ${frasItens(antes.items.length)} para ${frasItens(p.itens.length)}, total de ${dinheiro(antes.net_amount)} para ${dinheiro(p.total_cent / 100)}, validade de ${dataBr(antes.valid_until)} para ${dataBr(validadeDepois)}${fraseDoCredito(franquia.franchisee_credit)}`,
+      summary: `Editou o orçamento nº ${antes.numero}: ${frasItens(antes.items.length)} para ${frasItens(p.itens.length)}, total de ${dinheiro(antes.net_amount)} para ${dinheiro(p.total_cent / 100)}, validade de ${dataBr(antes.valid_until)} para ${dataBr(validadeDepois)}${fraseDoCredito(franquia.franchisee_credit)}${frete !== antes.freight_amount ? `, frete de ${dinheiro(antes.freight_amount)} para ${dinheiro(frete)}` : ""}`,
     });
     return null;
   });

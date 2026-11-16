@@ -179,7 +179,7 @@ export type CorpoDaVenda = {
     check?: { number: string; bank: string; good_for: string; holder_name: string };
     boleto?: { due_on: string; number?: string };
   }[];
-  /** Frete cobrado do cliente (Q244): omitido quando é zero. */
+  /** Frete cobrado do cliente (Q244). O balcão manda sempre, zero inclusive (Q326). */
   freight_amount?: number;
   /** De onde veio a venda (Q248). */
   origin?: OrigemDaVenda;
@@ -207,6 +207,8 @@ export type CargaDoOrcamento = {
   /** O franqueado do orçamento ("" sem ele) e o crédito, como texto do campo de dinheiro. */
   franqueadoId: string;
   credito: string;
+  /** Q326: o frete do orçamento, como texto do campo de dinheiro ("" sem frete). */
+  frete: string;
 };
 
 const paraCampoDePreco = (s: number | null) => (s === null ? "" : centavosParaCampo(cent(s)));
@@ -348,7 +350,7 @@ export function useVenda({
     (inicial?.pagamentos ?? []).map((p, n) => ({ ...p, key: -(n + 1) })),
   );
   // O frete é o texto digitado no campo de dinheiro; vazio vale zero.
-  const [frete, setFrete] = useState(inicial?.frete ?? "");
+  const [frete, setFrete] = useState(cargaInicial?.frete ?? inicial?.frete ?? "");
   const [origem, setOrigem] = useState<OrigemDaVenda>(inicial?.origem ?? "balcao");
   // O franqueado e o crédito dele (Q301): o crédito é o texto digitado, e vazio vale zero.
   const [franqueadoId, setFranqueadoEstado] = useState(cargaInicial?.franqueadoId ?? inicial?.franqueadoId ?? "");
@@ -406,6 +408,7 @@ export function useVenda({
     setCliente(carga.cliente);
     setFranqueadoEstado(carga.franqueadoId);
     setCredito(carga.credito);
+    setFrete(carga.frete);
   }
 
   /** Tira o orçamento: o carrinho fica, e o que não foi digitado volta ao preço da loja. */
@@ -710,14 +713,25 @@ export function useVenda({
       if (!cliente) {
         novos.customer_id = "Escolha o cliente do orçamento. Quem não quer se identificar entra como Consumidor final.";
       }
+      if (frete.trim() !== "" && (freteLido === null || freteLido < 0)) {
+        novos.freight_amount = "Informe o frete em reais, zero ou mais.";
+      }
       return {
         novos,
         novosDaFranquia: novosFranquia,
         corpo:
           Object.keys(novos).length > 0 || Object.keys(novosFranquia).length > 0 || !cliente
             ? null
-            : { establishment_id: loja, customer_id: cliente.id, items: itensDaApi(), payments: [], ...franquiaDaApi },
-        assinatura: JSON.stringify(["orcamento", loja, cliente?.id ?? null, itensDaApi(), franquiaDaApi]),
+            : {
+                establishment_id: loja,
+                customer_id: cliente.id,
+                items: itensDaApi(),
+                payments: [],
+                // Q326: sempre explícito no orçamento, para editar e zerar o frete.
+                freight_amount: freteCent / 100,
+                ...franquiaDaApi,
+              },
+        assinatura: JSON.stringify(["orcamento", loja, cliente?.id ?? null, itensDaApi(), franquiaDaApi, freteCent]),
       };
     }
     // Texto preenchido e ilegível ou negativo: a recusa fica embaixo do campo do frete.
@@ -822,7 +836,8 @@ export function useVenda({
       customer_id: cliente?.id ?? null,
       items: itensDaApi(),
       payments: pagamentosApi,
-      ...(freteCent > 0 ? { freight_amount: freteCent / 100 } : {}),
+      // Sempre explícito: sem o campo, o servidor herdaria o frete do orçamento faturado (Q326).
+      freight_amount: freteCent / 100,
       origin: origem,
       ...franquiaDaApi,
     };

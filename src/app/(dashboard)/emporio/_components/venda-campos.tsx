@@ -417,12 +417,15 @@ export function VendaCampos({
   creditoDoFiado,
   depoisDoPagamento,
   comFrete,
+  freteNoOrcamento,
   depoisDoFrete,
 }: {
   /** O que o balcão põe logo abaixo do frete e da origem (o franqueado e o crédito), na ordem visual do `ORDEM`. */
   depoisDoFrete?: ReactNode;
-  /** Frete cobrado e origem da venda (Q244, Q248): só o balcão, e só na venda (orçamento e troca não têm). */
+  /** Frete cobrado e origem da venda (Q244, Q248): só o balcão, e só na venda (a troca não tem). */
   comFrete?: boolean;
+  /** Q326: só o frete, sem a origem: o orçamento no balcão. */
+  freteNoOrcamento?: boolean;
   /** O crédito do cliente, lido pelo balcão quando há fiado: só informa, a recusa de verdade é do servidor. */
   creditoDoFiado?: CreditoView | null;
   /** O que o balcão põe logo abaixo do pagamento (o atalho da recusa de crédito). */
@@ -644,7 +647,7 @@ export function VendaCampos({
 
       {depoisDoCliente}
 
-      {comFrete && (
+      {(comFrete || freteNoOrcamento) && (
         <>
           <Field label="Frete cobrado do cliente (opcional)" id={idDe("freight_amount")} error={erros.freight_amount}>
             {({ id, ...aria }) => (
@@ -661,27 +664,29 @@ export function VendaCampos({
               />
             )}
           </Field>
-          <Field label="Origem da venda" id={idDe("origin")} error={erros.origin}>
-            {({ id, ...aria }) => (
-              <div id={id} tabIndex={-1} {...aria} className="flex flex-wrap gap-2">
-                {ORIGENS_DA_VENDA.map((o) => (
-                  <Button
-                    key={o}
-                    type="button"
-                    size="sm"
-                    variant={v.origem === o ? "default" : "outline"}
-                    aria-pressed={v.origem === o}
-                    onClick={() => {
-                      v.definirOrigem(o);
-                      limpar("origin");
-                    }}
-                  >
-                    {ROTULO_DA_ORIGEM[o]}
-                  </Button>
-                ))}
-              </div>
-            )}
-          </Field>
+          {comFrete && (
+            <Field label="Origem da venda" id={idDe("origin")} error={erros.origin}>
+              {({ id, ...aria }) => (
+                <div id={id} tabIndex={-1} {...aria} className="flex flex-wrap gap-2">
+                  {ORIGENS_DA_VENDA.map((o) => (
+                    <Button
+                      key={o}
+                      type="button"
+                      size="sm"
+                      variant={v.origem === o ? "default" : "outline"}
+                      aria-pressed={v.origem === o}
+                      onClick={() => {
+                        v.definirOrigem(o);
+                        limpar("origin");
+                      }}
+                    >
+                      {ROTULO_DA_ORIGEM[o]}
+                    </Button>
+                  ))}
+                </div>
+              )}
+            </Field>
+          )}
         </>
       )}
 
