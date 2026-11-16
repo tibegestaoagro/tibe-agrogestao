@@ -115,6 +115,9 @@ export const ACOES_DO_HISTORICO = {
   "equipe.tirar": "Tirou alguém do Empório",
   "equipe.desativar": "Desativou alguém da equipe",
   "equipe.reativar": "Reativou alguém da equipe",
+  "desconto.autorizar": "Autorizou um desconto com PIN",
+  "pin.definir": "Definiu o PIN de autorização",
+  "equipe.pin_apagar": "Apagou o PIN de alguém da equipe",
   "configuracoes.editar": "Editou as configurações do Empório",
   "configuracoes.logo": "Mexeu no logo do Empório",
 } as const;

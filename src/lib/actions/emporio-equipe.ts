@@ -36,6 +36,8 @@ export type MembroView = {
   emporio_only: boolean;
   emporio_keys: string[];
   establishment_ids: string[];
+  /** Só diz se existe PIN de autorização. O hash nunca sai. */
+  has_pin: boolean;
 };
 
 export type EquipeView = {
@@ -187,6 +189,7 @@ export async function listarEquipeAction(db: TenantPrismaClient, ator: Ator): Pr
     emporio_only: u.emporio_only,
     emporio_keys: u.emporio_keys,
     establishment_ids: porUsuario.get(u.id) ?? [],
+    has_pin: u.emporio_auth_pin_hash !== null,
   });
 
   return ok({
@@ -418,6 +421,30 @@ export async function tirarDoEmporioAction(
       target_id: userId,
       summary: `Desativou ${alvo.name} da equipe`,
       changes: diferencas({ situacao: "Ativa" }, { situacao: "Desativada" }, { situacao: "Situação" }),
+    });
+  });
+  return ok({ id: userId });
+}
+
+/** Zera o PIN de autorização de um membro (esqueceu, ou saiu da função). Quem administra a Equipe. */
+export async function apagarPinAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  userId: string,
+): Promise<ActionResult<{ id: string }>> {
+  const neg = await exigirConta(db, ator, "apagar o PIN de alguém");
+  if (neg) return neg;
+  // O dono tem o PIN dele e ninguém o apaga pela Equipe; o gerente geral não mexe em outro ADMIN.
+  const { alvo, neg: recusaAlvo } = await alvoPermitido(db, ator, userId);
+  if (recusaAlvo || !alvo) return recusaAlvo ?? fail("NOT_FOUND", "Usuário não encontrado.", 404);
+
+  await db.$transaction(async (tx) => {
+    await tx.user.update({ where: { id: userId }, data: { emporio_auth_pin_hash: null } });
+    await registrarNoHistorico(tx, ator, {
+      action: "equipe.pin_apagar",
+      target_type: "usuario",
+      target_id: userId,
+      summary: `Apagou o PIN de autorização de ${alvo.name}`,
     });
   });
   return ok({ id: userId });
