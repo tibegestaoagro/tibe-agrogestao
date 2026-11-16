@@ -25,8 +25,9 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-16. Vendas do turno no caixa (Q325, spec de 16/11) em
-  produção (merge `dedd6a8`, sem migração, autorizado). Manual com GIFs em
+- Atualizado em: 2026-11-16. Branch `emporio-frete-no-orcamento` (Q326) pronta,
+  NÃO publicada: migração `20261116150000_emporio_frete_no_orcamento` vai ao
+  Neon antes do push. Vendas do turno (Q325) em produção. Manual com GIFs em
   produção (regerar: roteiro `manual-gifs` e `python
   scripts/manual-gifs-montar.py`). Os agentes `explorador`,
   `prova-juiz`, `prova-viva` e `servidor-dados` carregam (descrição entre
