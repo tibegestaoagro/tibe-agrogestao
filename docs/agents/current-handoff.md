@@ -25,9 +25,16 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-16. Preço do cadastro, desconto por PIN do gestor e
+- Atualizado em: 2026-11-16. **Em andamento:** branch
+  `emporio-orcamento-total-e-cadastro-leve` PRONTA, aguardando autorização de
+  merge e push (sem migração): Q335 total do orçamento na tela; Q336 orçamento
+  só com nome e telefone, endereço de entrega opcional, `pendencias_para_venda`
+  e alerta (decisão do usuário 16/11); CEP Q337 a Q340 (spec de 16/11, rota
+  `GET /api/v1/cep/:cep`, ViaCEP com BrasilAPI de reserva, `test:m119`).
+  `test:all` 122/122, roteiro `emporio-orcamento-leve-e-cep` 107 ok.
+  Preço do cadastro, desconto por PIN do gestor e
   brinde (Q327 a Q334, spec e plano de 16/11) EM PRODUÇÃO: migração no Neon
-  antes do push, merge `c43a130`, autorizados. Nenhuma branch aberta. m118,
+  antes do push, merge `c43a130`, autorizados. m118,
   roteiro `emporio-desconto-pin` (93 ok), juiz 5/10 com os 9 achados
   corrigidos, `test:all` 121/121. Os gestores precisam cadastrar o PIN.
   Pendente: regerar as figuras do balcão no manual. Frete no orçamento (Q326) e vendas do
@@ -54,19 +61,13 @@ Spec de 13/11. Na Da Mata só a `CAIXA DAMATTA - PIX - 1076-6` ficou no PIX.
 
 ### Em produção desde 11/11: franqueado (Q300 a Q309) e custo único (Q298, Q299)
 
-Specs de 11/11 em `docs/superpowers/specs/`. Franqueado: merge `9eac1fe`.
-Decisões abertas do usuário: o Caixa escolhe franqueado? Devolução de venda
-com crédito (hoje o crédito fica). A taxa do cartão incide sobre o crédito?
-Custo único: merges `4245e48` e `2910302`, com os dados da Da Mata corrigidos
-(detalhe em `historico/2026-11.md`). ⚠️ Cancelar compra anterior a uma
-contagem faz a contagem tirar a mais: o app não trata; candidato a dívida.
+Specs de 11/11. Abertas: o Caixa escolhe franqueado? devolução com crédito?
+taxa do cartão sobre o crédito? ⚠️ Cancelar compra anterior a uma contagem faz
+a contagem tirar a mais (candidato a dívida).
 
 ### Cartão (Q250 a Q267): entregas 1 a 3 em produção
 
-Specs em `docs/superpowers/specs/` de 09/11. Adquirentes e taxas por loja,
-bandeira, modalidade e parcelas; recebíveis em dia útil, antecipação pontual
-e automática, cancelamento como a Stone. Abertas 2.60, 2.62 e 2.63. Na
-Agromax, a entrega 4 (extrato da Stone) depende de um arquivo real.
+Specs de 09/11. Abertas 2.60, 2.62, 2.63; entrega 4 depende do extrato real da Stone.
 
 ### ⏭️ Próximo passo
 

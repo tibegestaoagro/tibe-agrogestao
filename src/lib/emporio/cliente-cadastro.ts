@@ -84,6 +84,24 @@ export function faltaNoCadastro(c: ClienteParaConferir): Falta | null {
   return null;
 }
 
+/** O orçamento exige só nome e telefone, de PF ou PJ (o resto é cobrado ao vender). */
+export function faltaNoCadastroDoOrcamento(c: ClienteParaConferir): Falta | null {
+  if (ehConsumidorFinal(c)) return null;
+  if (vazio(c.name)) {
+    return { field: "name", message: c.person_kind === "pj" ? "Informe o nome da empresa." : "Informe o nome do cliente." };
+  }
+  if (vazio(c.phone)) return { field: "phone", message: "Informe o telefone." };
+  return null;
+}
+
+/** Só o endereço de entrega, sem conferir o cadastro do cliente. */
+export function faltaNoEnderecoDeEntrega(endereco: EnderecoDoPedido | null): Falta | null {
+  for (const [k, rotulo] of CAMPOS_ENDERECO) {
+    if (vazio(endereco?.[k])) return { field: `delivery_${k}`, message: mensagemDoEndereco(k, rotulo, "de entrega") };
+  }
+  return null;
+}
+
 export function faltaParaEntrega(c: ClienteParaConferir, endereco: EnderecoDoPedido | null): Falta | null {
   if (ehConsumidorFinal(c)) {
     return { field: "customer_id", message: "Pedido para entrega precisa do cliente de verdade, não do Consumidor final." };

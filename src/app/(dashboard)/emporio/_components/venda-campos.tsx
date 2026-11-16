@@ -791,6 +791,37 @@ export function VendaCampos({
 
       {depoisDoFrete}
 
+      {semPagamento && v.linhas.length > 0 && (
+        <dl className="space-y-1 rounded-lg bg-superficie-afundada px-3 py-2 text-sm text-texto-secundario" aria-live="polite">
+          <div className="flex justify-between gap-3">
+            <dt>Itens</dt>
+            <dd>{reaisBr(v.somaItensCent / 100)}</dd>
+          </div>
+          {v.descontoNoTotalCent > 0 && (
+            <div className="flex justify-between gap-3">
+              <dt>Desconto no total</dt>
+              <dd>- {reaisBr(v.descontoNoTotalCent / 100)}</dd>
+            </div>
+          )}
+          {v.freteCent > 0 && (
+            <div className="flex justify-between gap-3">
+              <dt>Frete</dt>
+              <dd>{reaisBr(v.freteCent / 100)}</dd>
+            </div>
+          )}
+          {v.creditoCent > 0 && (
+            <div className="flex justify-between gap-3">
+              <dt>Crédito do franqueado (fora do faturamento)</dt>
+              <dd>{reaisBr(v.creditoCent / 100)}</dd>
+            </div>
+          )}
+          <div className="flex justify-between gap-3 font-semibold text-texto">
+            <dt>Total do orçamento</dt>
+            <dd>{reaisBr((v.totalCent + v.freteCent + v.creditoCent) / 100)}</dd>
+          </div>
+        </dl>
+      )}
+
       {!semPagamento && (
         <Field label="Pagamento" required={v.aPagarCent > 0} id={idDe("payments")} error={erros.payments}>
           {({ id, ...aria }) => (

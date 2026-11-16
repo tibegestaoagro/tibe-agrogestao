@@ -372,8 +372,9 @@ async function secao3() {
 
   const rSemCpf = await postar(tokVend, { customer_id: pfSemCpf.id, for_delivery: true, delivery_address_kind: "principal" });
   check(
-    "marcado, PF sem CPF: 422 DELIVERY_CUSTOMER_INCOMPLETE",
-    rSemCpf.status === 422 && rSemCpf.corpo?.error?.code === "DELIVERY_CUSTOMER_INCOMPLETE" && rSemCpf.corpo?.error?.field === "customer_id",
+    "marcado, PF sem CPF: 201 (o orçamento só exige nome e telefone; o CPF é cobrado ao faturar)",
+    rSemCpf.status === 201 && rSemCpf.corpo?.data?.for_delivery === true
+      && j(rSemCpf.corpo?.data?.pendencias_para_venda) === j(["CPF do cliente"]),
     `${rSemCpf.status} ${j(rSemCpf.corpo)}`,
   );
 
@@ -403,12 +404,12 @@ async function secao3() {
 
   const rPrinInc = await postar(tokVend, { customer_id: pfCpfSemEnd.id, for_delivery: true, delivery_address_kind: "principal" });
   check(
-    "principal incompleto: 422 delivery_address_kind",
-    rPrinInc.status === 422 && rPrinInc.corpo?.error?.field === "delivery_address_kind",
+    "principal incompleto: o orçamento salva e a visão lista o endereço de entrega (a venda é que recusa)",
+    rPrinInc.status === 201 && (rPrinInc.corpo?.data?.pendencias_para_venda ?? []).includes("Endereço de entrega"),
     `${rPrinInc.status} ${j(rPrinInc.corpo)}`,
   );
   const rSemBairro = await postar(tokVend, { customer_id: pfCpf.id, for_delivery: true, delivery_address_kind: "outro", ...OUTRO, delivery_district: "" });
-  check("outro sem bairro: 422 delivery_district", rSemBairro.status === 422 && rSemBairro.corpo?.error?.field === "delivery_district", `${rSemBairro.status} ${j(rSemBairro.corpo)}`);
+  check("outro sem bairro: o orçamento salva com a pendência de endereço de entrega", rSemBairro.status === 201 && (rSemBairro.corpo?.data?.pendencias_para_venda ?? []).includes("Endereço de entrega"), `${rSemBairro.status} ${j(rSemBairro.corpo)}`);
 
   const hist = await prisma.emporioAuditLog.findMany({ where: { tenant_id: t.id, action: "orcamento.criar" } });
   check("o resumo do orcamento.criar de pedido para entrega termina com , para entrega", hist.some((h) => h.summary.endsWith(", para entrega")), j(hist.map((h) => h.summary)));
@@ -665,6 +666,35 @@ async function secao4() {
     f7.status === 201 && f7.corpo?.data?.for_delivery === true && f7.corpo?.data?.quote?.id === qSemCpf,
     `${f7.status} ${j(f7.corpo)}`,
   );
+
+  console.log("  orçamento salvo já sem CPF (Q336): salva, mas faturar recusa");
+  const tira2 = await C.editarClienteAction(db, vend, pfC.id, { document: null });
+  check("tirar o CPF de novo ok", tira2.ok, j(tira2));
+  const qSemCpf2 = await orcar(pfC.id, { for_delivery: true, delivery_address_kind: "principal" });
+  check("o orçamento para entrega de PF sem CPF foi salvo", typeof qSemCpf2 === "string" && qSemCpf2.length > 0);
+  const qSemTudo = await orcar(pfC.id, { for_delivery: true });
+  const visSemTudo = await O.lerOrcamentoAction(db, vend, qSemTudo);
+  check(
+    "orçamento para entrega sem endereço e sem CPF salva e traz as pendências",
+    visSemTudo.ok && visSemTudo.data.for_delivery === true && visSemTudo.data.delivery_address_kind === null
+      && j(visSemTudo.data.pendencias_para_venda) === j(["CPF do cliente", "Endereço de entrega"]),
+    j(visSemTudo),
+  );
+  const fSemTudo = await vender(tokOwner, { customer_id: pfC.id, quote_id: qSemTudo });
+  check(
+    "faturar esse orçamento recusa e ele segue aberto",
+    fSemTudo.status === 422 && fSemTudo.corpo?.error?.code === "DELIVERY_CUSTOMER_INCOMPLETE"
+      && (await prisma.emporioQuote.findUnique({ where: { id: qSemTudo } }))?.sale_id === null,
+    `${fSemTudo.status} ${j(fSemTudo.corpo)}`,
+  );
+  const antesSemCpf2 = await contagens();
+  const f8 = await vender(tokOwner, { customer_id: pfC.id, quote_id: qSemCpf2 });
+  check(
+    "faturar esse orçamento: 422 DELIVERY_CUSTOMER_INCOMPLETE em customer_id",
+    f8.status === 422 && f8.corpo?.error?.code === "DELIVERY_CUSTOMER_INCOMPLETE" && f8.corpo?.error?.field === "customer_id",
+    `${f8.status} ${j(f8.corpo)}`,
+  );
+  check("o orçamento segue aberto e nada foi gravado", (await prisma.emporioQuote.findUnique({ where: { id: qSemCpf2 } }))?.sale_id === null && (await contagens()) === antesSemCpf2);
 
   console.log("  a troca (D6)");
   const itemV1 = v1.corpo?.data?.items?.[0]?.id;

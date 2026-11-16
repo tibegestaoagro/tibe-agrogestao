@@ -19,6 +19,7 @@ import { apiPost, apiPatch } from "@/lib/client-api";
 import { lerOpcional, paraCampo } from "./formato";
 import { mascararCep, mascararDocumento } from "@/components/contatos/campos-do-cadastro";
 import { UFS } from "@/lib/contatos/cadastro";
+import { avisoDoCep, focarNumero, useBuscaCep } from "@/components/contatos/use-busca-cep";
 
 export type LojaParaForm = {
   id: string;
@@ -99,6 +100,15 @@ export function EstabelecimentoForm({
   const [negativo, setNegativo] = useState(loja?.allow_negative_stock ?? false);
   const [area, setArea] = useState(paraCampo(loja?.area_m2));
   const [funcionarios, setFuncionarios] = useState(paraCampo(loja?.employees_count));
+
+  // Q340: a loja não tem Bairro nem Número separados: a rua só entra se o Endereço estiver
+  // vazio, Cidade e UF vêm do CEP, e o foco vai ao Endereço, onde a pessoa acrescenta o número.
+  const cep = useBuscaCep((e) => {
+    if (e.street && !address.trim()) setAddress(e.street);
+    if (e.city) setCity(e.city);
+    if (e.state && UFS.includes(e.state)) setUf(e.state);
+    focarNumero(err.idDe("address"), err.idDe("zip"));
+  });
 
   function reiniciar() {
     setArea(paraCampo(loja?.area_m2));
@@ -283,7 +293,7 @@ export function EstabelecimentoForm({
         )}
       </Field>
 
-      <Field label="CEP" id={err.idDe("zip")} error={err.erros.zip}>
+      <Field label="CEP" id={err.idDe("zip")} error={err.erros.zip} hint={avisoDoCep(cep)}>
         {({ id, ...aria }) => (
           <Input
             id={id}
@@ -292,8 +302,10 @@ export function EstabelecimentoForm({
             autoComplete="off"
             value={zip}
             onChange={(e) => {
-              setZip(mascararCep(e.target.value));
+              const novo = mascararCep(e.target.value);
+              setZip(novo);
               err.limparCampo("zip");
+              void cep.aoMudarCep(novo);
             }}
           />
         )}

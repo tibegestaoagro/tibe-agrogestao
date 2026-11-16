@@ -390,13 +390,14 @@ export function Balcao({
   async function salvarOrcamento() {
     const m = v.montar(true, { orcamento: true });
     const novos: typeof m.novos &
-      typeof m.novosDaFranquia & { seller_user_id?: string; delivery_address_kind?: string } = {
+      typeof m.novosDaFranquia & { seller_user_id?: string } = {
       ...m.novos,
       ...m.novosDaFranquia,
     };
     if (ehCaixa && !vendedor) novos.seller_user_id = AVISO_SEM_VENDEDOR;
-    if (pedido.for_delivery && !pedido.delivery_address_kind) novos.delivery_address_kind = AVISO_SEM_ESCOLHA;
-    if (!m.corpo || novos.seller_user_id || novos.delivery_address_kind) {
+    // Q336: no orçamento o endereço de entrega é opcional (sem escolha, vai nulo); o alerta de
+    // pendências aparece depois de salvar, e a recusa de verdade é a de fechar a venda.
+    if (!m.corpo || novos.seller_user_id) {
       err.setGlobal(null);
       err.reprovar(novos);
       return;
@@ -742,7 +743,7 @@ export function Balcao({
                 </p>
               ) : undefined
             }
-            avisoDoCliente={pedido.for_delivery ? faltaDoPedido : null}
+            avisoDoCliente={pedido.for_delivery && modo === "venda" ? faltaDoPedido : null}
             aoEscolherCliente={(c) => {
               // Trocar o cliente limpa a escolha do endereço e mantém a marca.
               if (c.id !== v.cliente?.id) {
@@ -761,6 +762,7 @@ export function Balcao({
                 idDe={err.idDe}
                 limpar={err.limparCampo}
                 aoVerFalta={setFaltaDoPedido}
+                opcional={modo === "orcamento"}
               />
             }
             depoisDaLoja={
@@ -947,9 +949,9 @@ export function Balcao({
                     : "Total da venda"}
               </p>
               <p className="text-xl font-semibold text-texto">
-                {reaisBr((v.totalCent + (modo === "venda" ? v.freteCent : 0) + v.creditoCent) / 100)}
+                {reaisBr((v.totalCent + v.freteCent + v.creditoCent) / 100)}
               </p>
-              {modo === "venda" && v.freteCent > 0 && (
+              {v.freteCent > 0 && (
                 <p className="text-xs text-texto-secundario">
                   Itens {reaisBr(v.totalCent / 100)} + frete {reaisBr(v.freteCent / 100)}
                 </p>
