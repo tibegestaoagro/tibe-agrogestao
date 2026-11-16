@@ -6,7 +6,7 @@
 import { fail, ok, type ActionResult } from "@/lib/actions/types";
 import { conferirCadastro, formatarCep } from "@/lib/contatos/cadastro";
 import {
-  ehConsumidorFinal, enderecoDeEntregaDe, enderecoPrincipalDe, faltaNoCadastro, faltaParaEntrega,
+  ehConsumidorFinal, enderecoDeEntregaDe, enderecoPrincipalDe, faltaNoCadastro, faltaNoEnderecoDeEntrega, faltaParaEntrega,
   type ClienteParaConferir, type EnderecoDoPedido,
 } from "@/lib/emporio/cliente-cadastro";
 
@@ -43,13 +43,14 @@ const MSG_ENTREGA_INCOMPLETA =
   "O endereço de entrega do cadastro está incompleto. Complete o cadastro do cliente ou escolha outro endereço.";
 
 /** A recusa do cliente sai em `customer_id`: o balcão não tem campo de CPF, o aviso fica embaixo do cliente. */
-export function faltaNoClienteParaEntrega(c: ClienteParaConferir): FaltaNoCliente | null {
+export function faltaNoClienteParaEntrega(c: ClienteParaConferir, soConsumidorFinal = false): FaltaNoCliente | null {
   if (ehConsumidorFinal(c)) {
     return {
       code: "VALIDATION_ERROR", field: "customer_id",
       message: "Pedido para entrega precisa do cliente de verdade, não do Consumidor final.",
     };
   }
+  if (soConsumidorFinal) return null;
   const cadastro = faltaNoCadastro(c);
   if (cadastro) {
     return {
@@ -61,6 +62,34 @@ export function faltaNoClienteParaEntrega(c: ClienteParaConferir): FaltaNoClient
     return { code: "DELIVERY_CUSTOMER_INCOMPLETE", field: "customer_id", message: "Para entrega, informe o CPF do cliente." };
   }
   return null;
+}
+
+const VAZIO: EnderecoDoPedido = { zip: null, street: null, number: null, complement: null, district: null, city: null, state: null };
+
+/**
+ * O que falta para o orçamento virar venda, em frases curtas, pelas mesmas funções que a venda usa.
+ * Lista vazia: pode faturar. O endereço do `principal` e do `cadastro_entrega` é o do cadastro de agora.
+ */
+export function pendenciasParaVenda(c: ClienteParaConferir, pedido: PedidoParaEntregaColunas): string[] {
+  const out: string[] = [];
+  const cadastro = faltaNoCadastro(c);
+  if (cadastro) {
+    out.push(
+      cadastro.field === "person_kind" ? "Tipo do cliente (pessoa física ou jurídica)"
+        : cadastro.field === "document" ? "CNPJ"
+        : cadastro.field === "name" ? "Nome do cliente"
+        : cadastro.field === "phone" ? "Telefone do cliente"
+        : "Endereço principal",
+    );
+  }
+  if (!pedido.for_delivery) return out;
+  if (c.person_kind === "pf" && (c.document == null || c.document.trim() === "")) out.push("CPF do cliente");
+  let endereco: EnderecoDoPedido | null = null;
+  if (pedido.delivery_address_kind === "principal") endereco = enderecoPrincipalDe(c);
+  else if (pedido.delivery_address_kind === "cadastro_entrega") endereco = enderecoDeEntregaDe(c);
+  else if (pedido.delivery_address_kind === "outro") endereco = enderecoDasColunas(pedido);
+  if (faltaNoEnderecoDeEntrega(endereco)) out.push("Endereço de entrega");
+  return out;
 }
 
 function colunasDe(escolha: EscolhaDoEndereco, e: EnderecoDoPedido): PedidoParaEntregaColunas {
@@ -76,14 +105,21 @@ const texto = (v: string | null | undefined): string | null => (typeof v === "st
 export function resolverPedidoParaEntrega(
   c: ClienteParaConferir,
   input: PedidoParaEntregaInput,
+  /** "orcamento": o cliente não precisa de CPF/CNPJ nem de endereço principal (só o endereço de entrega conta). */
+  modo: "venda" | "orcamento" = "venda",
 ): ActionResult<PedidoParaEntregaColunas> {
   if (input.for_delivery !== true) return ok({ ...RETIRADA });
 
-  const faltaCliente = faltaNoClienteParaEntrega(c);
+  const orcamento = modo === "orcamento";
+  const faltaCliente = faltaNoClienteParaEntrega(c, orcamento);
   if (faltaCliente) return fail(faltaCliente.code, faltaCliente.message, 422, faltaCliente.field);
 
   const escolha = input.delivery_address_kind;
   if (typeof escolha !== "string" || !ESCOLHAS.includes(escolha)) {
+    // O orçamento guarda a marca sem o endereço: a venda cobra a escolha (Q336).
+    if (orcamento && (escolha == null || escolha === "")) {
+      return ok({ ...RETIRADA, for_delivery: true });
+    }
     return fail("VALIDATION_ERROR", MSG_ESCOLHA, 422, "delivery_address_kind");
   }
 
@@ -108,6 +144,8 @@ export function resolverPedidoParaEntrega(
     };
   }
 
+  // No orçamento o endereço incompleto é guardado como está: a venda recusa, e a visão lista a pendência.
+  if (orcamento) return ok(colunasDe(escolha as EscolhaDoEndereco, endereco ?? VAZIO));
   const falta = faltaParaEntrega(c, endereco);
   if (falta) {
     if (escolha === "outro") return fail("VALIDATION_ERROR", falta.message, 422, falta.field);

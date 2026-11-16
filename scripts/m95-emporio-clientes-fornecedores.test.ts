@@ -504,11 +504,14 @@ async function secao3() {
       && oSemTel.message === "Complete o cadastro do cliente antes de salvar o orçamento. Informe o telefone.",
     j(oSemTel),
   );
+  const pjLeve = await db.emporioCustomer.create({ data: scoped({ name: "PJ Sem CNPJ", person_kind: "pj", phone: "34 3333-0000" }) });
+  const oPjLeve = await orc({ customer_id: pjLeve.id });
+  check("orçamento com PJ sem CNPJ e sem endereço: ok (Q336)", oPjLeve.ok, j(oPjLeve));
   const oMig = await orc({ customer_id: migrado.id });
   check(
-    "orçamento com o cliente migrado só com nome: a falta do tipo",
+    "orçamento com o cliente migrado só com nome: a falta do telefone (o tipo não é mais exigido)",
     !oMig.ok && oMig.code === "QUOTE_CUSTOMER_INCOMPLETE"
-      && oMig.message === "Complete o cadastro do cliente antes de salvar o orçamento. Escolha pessoa física ou jurídica.",
+      && oMig.message === "Complete o cadastro do cliente antes de salvar o orçamento. Informe o telefone.",
     j(oMig),
   );
   const oSem = await orc({});

@@ -18,9 +18,10 @@ import {
   resolverVendedor,
   type VendaItemInput,
 } from "@/lib/emporio/precificar";
-import { faltaNoCadastro, type EnderecoDoPedido } from "@/lib/emporio/cliente-cadastro";
+import { faltaNoCadastro, faltaNoCadastroDoOrcamento, type EnderecoDoPedido } from "@/lib/emporio/cliente-cadastro";
 import {
   enderecoDasColunas,
+  pendenciasParaVenda,
   resolverPedidoParaEntrega,
   type EscolhaDoEndereco,
   type PedidoParaEntregaInput,
@@ -148,6 +149,8 @@ export type OrcamentoView = {
   for_delivery: boolean;
   delivery_address_kind: EscolhaDoEndereco | null;
   delivery_address: EnderecoDoPedido | null;
+  /** O que falta para virar venda (CPF, CNPJ, endereço principal ou de entrega); vazio quando pode faturar. */
+  pendencias_para_venda: string[];
   items: OrcamentoItemView[];
 };
 
@@ -303,6 +306,7 @@ async function montarOrcamentos(db: TenantPrismaClient, linhas: OrcamentoRow[]):
       for_delivery: q.for_delivery,
       delivery_address_kind: q.delivery_address_kind,
       delivery_address: enderecoDasColunas(q),
+      pendencias_para_venda: q.customer ? pendenciasParaVenda(q.customer, q) : [],
       items,
     };
   });
@@ -547,9 +551,9 @@ async function prepararCorpo(
   if (input.customer_id == null || input.customer_id === "") return CLIENTE_OBRIGATORIO();
   const cliente = await db.emporioCustomer.findFirst({ where: { id: String(input.customer_id) } });
   if (!cliente || cliente.archived_at) return fail("VALIDATION_ERROR", "Escolha um cliente ativo.", 422, "customer_id");
-  const falta = faltaNoCadastro(cliente);
+  const falta = faltaNoCadastroDoOrcamento(cliente);
   if (falta) return CLIENTE_INCOMPLETO(falta.message);
-  const entrega = resolverPedidoParaEntrega(cliente, input);
+  const entrega = resolverPedidoParaEntrega(cliente, input, "orcamento");
   if (!entrega.ok) return entrega;
 
   const franquia = await resolverFranqueadoDoCredito(db, input.franchisee_id, input.franchisee_credit, [franqueadoAtual]);
