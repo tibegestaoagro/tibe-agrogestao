@@ -18,6 +18,7 @@ import {
 import { EquipeForm } from "./_components/equipe-form";
 import { FUNCAO_ROTULO } from "./_components/funcao";
 import { EquipeTirarBotao } from "./_components/equipe-tirar-botao";
+import { EquipeApagarPinBotao } from "./_components/equipe-apagar-pin-botao";
 import { EquipeReativarBotao } from "./_components/equipe-reativar-botao";
 
 const ROTULO_DA_CHAVE = new Map<string, string>(EMPORIO_KEYS.map((k) => [k.id, k.label]));
@@ -105,6 +106,11 @@ export default async function EquipePage() {
                     ) : (
                       <Badge variant="gray">Sem função</Badge>
                     )}
+                    {u.has_pin && (
+                      <Badge variant="gray" className="ml-1">
+                        PIN
+                      </Badge>
+                    )}
                   </TableCell>
                   <TableCell className="text-sm">
                     {dono || funcao === "gerente_geral" || funcao === "financeiro"
@@ -132,6 +138,7 @@ export default async function EquipePage() {
                             emporio_keys: u.emporio_keys,
                           }}
                         />
+                        {u.has_pin && <EquipeApagarPinBotao userId={u.id} nome={u.name} />}
                         {funcao && <EquipeTirarBotao userId={u.id} nome={u.name} />}
                       </div>
                     )}
