@@ -25,12 +25,11 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-16. **Em andamento:** branch `emporio-preco-travado-e-pin`
-  (preço do cadastro, desconto por PIN do gestor, brinde; spec aprovada pelo
-  usuário, Q327 a Q334, e plano de 16/11) PRONTA, NÃO publicada (até `7ee8bd9`).
-  m118 verde e reprovando sabotada; roteiro `emporio-desconto-pin` 93 ok; juiz
-  5/10 com os 9 achados corrigidos; `test:all` 121/121. Migração
-  `20261116180000_emporio_desconto_pin_brinde` vai ao Neon antes do push.
+- Atualizado em: 2026-11-16. Preço do cadastro, desconto por PIN do gestor e
+  brinde (Q327 a Q334, spec e plano de 16/11) EM PRODUÇÃO: migração no Neon
+  antes do push, merge `c43a130`, autorizados. Nenhuma branch aberta. m118,
+  roteiro `emporio-desconto-pin` (93 ok), juiz 5/10 com os 9 achados
+  corrigidos, `test:all` 121/121. Os gestores precisam cadastrar o PIN.
   Pendente: regerar as figuras do balcão no manual. Frete no orçamento (Q326) e vendas do
   turno (Q325) em produção. GIFs do manual: roteiro `manual-gifs` e
   `python scripts/manual-gifs-montar.py`. Os agentes `explorador`,
