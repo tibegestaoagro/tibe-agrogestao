@@ -29,9 +29,9 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   09/11): Q341 a Q344 e a ordem das frentes em
   [../superpowers/specs/2026-11-17-emporio-plano-gestaoclick.md](../superpowers/specs/2026-11-17-emporio-plano-gestaoclick.md).
   Material em `docs/financeiro-reuniao/` (fora do git, só no desktop).
-  **Frente A (informação amarrada, Q345 a Q348) PRONTA na branch
-  `emporio-informacao-amarrada`, aguardando merge** (sem migração): spec de
-  17/11; rotas novas `payables/summary` e `customers/:id/receipts`.
+  **Frente A (informação amarrada, Q345 a Q348) EM PRODUÇÃO** (merge
+  `49fbd47`, autorizado em 17/11, sem migração, deploy confirmado no
+  `/docs/api`): spec de 17/11; rotas novas `payables/summary` e `customers/:id/receipts`.
   `test:all` 123/123, `test:m120` (141), roteiro
   `emporio-informacao-amarrada` (133 ok, sabotado falha), juiz 8,5 com os
   achados 3 e 4 corrigidos, manual com as figuras novas. Próxima: frente G1
