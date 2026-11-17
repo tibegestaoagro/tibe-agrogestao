@@ -54,7 +54,13 @@ function exigir<T>(r: { ok: true; data: T } | { ok: false; message: string }, o_
   return r.data;
 }
 
+async function restaurarConfiguracoes(tenant_id: string) {
+  const padrao = { fiado_due_days: 30, fiado_block_after_days: 15, fiado_default_limit: null, fiado_collection_message: null, payment_approval_limit: null };
+  await prisma.emporioSettings.upsert({ where: { tenant_id }, update: padrao, create: { tenant_id, ...padrao } });
+}
+
 async function limpar(tenant_id: string) {
+  await restaurarConfiguracoes(tenant_id);
   const lojas = (await prisma.establishment.findMany({ where: { tenant_id, name: { startsWith: PREFIXO } }, select: { id: true } })).map((l) => l.id);
   const contas = (await prisma.bankAccount.findMany({ where: { tenant_id, name: { startsWith: PREFIXO } }, select: { id: true } })).map((c) => c.id);
   const produtos = (await prisma.product.findMany({ where: { tenant_id, name: { startsWith: PREFIXO } }, select: { id: true } })).map((p) => p.id);
@@ -289,6 +295,10 @@ async function main() {
   await avulsa("Conta de amanha", 90, somaDias(hojeStr, 1), loja1);
   await avulsa("Conta paga", 60, ONTEM, loja1, { fornecedor: fornecedor.id, paga: true });
   await avulsa("Conta da Loja 2", 100, somaDias(hojeStr, 5), loja2);
+
+  // As configurações são da conta inteira: devolve o padrão (15 dias) para não deixar a ficha dos outros
+  // cenários "Em dia" com fiado vencido (o manual quebrou assim em 17/11).
+  await restaurarConfiguracoes(tenant_id);
 
   console.log("Conta do seed:", tenant_id, "(hoje:", hojeStr + ", ontem:", ONTEM + ")");
   console.log("Lojas:", loja1, loja2, "Gestor:", EMAIL_GESTOR, "Ficha:", cFicha.id);
