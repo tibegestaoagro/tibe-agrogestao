@@ -25,18 +25,15 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-16. Nada em andamento. Branch
-  `emporio-orcamento-total-e-cadastro-leve` EM PRODUÇÃO (merge `762854a`,
-  autorizado em 16/11, sem migração, deploy confirmado): Q335 total do orçamento na tela; Q336 orçamento
-  só com nome e telefone, endereço de entrega opcional, `pendencias_para_venda`
-  e alerta (decisão do usuário 16/11); CEP Q337 a Q340 (spec de 16/11, rota
-  `GET /api/v1/cep/:cep`, ViaCEP com BrasilAPI de reserva, `test:m119`).
-  `test:all` 122/122, roteiro `emporio-orcamento-leve-e-cep` 107 ok.
-  Preço do cadastro, desconto por PIN do gestor e
-  brinde (Q327 a Q334, spec e plano de 16/11) EM PRODUÇÃO: migração no Neon
-  antes do push, merge `c43a130`, autorizados. m118,
-  roteiro `emporio-desconto-pin` (93 ok), juiz 5/10 com os 9 achados
-  corrigidos, `test:all` 121/121. Os gestores precisam cadastrar o PIN.
+- Atualizado em: 2026-11-17. **Plano das ideias do GestãoClick** (reunião de
+  09/11): Q341 a Q344 e a ordem das frentes em
+  [../superpowers/specs/2026-11-17-emporio-plano-gestaoclick.md](../superpowers/specs/2026-11-17-emporio-plano-gestaoclick.md).
+  Material em `docs/financeiro-reuniao/` (fora do git, só no desktop).
+  Próxima: spec da frente A (informação amarrada).
+- Em produção desde 16/11: orçamento com total, cadastro leve e CEP (Q335 a
+  Q340, merge `762854a`, `test:m119`); preço do cadastro, desconto por PIN e
+  brinde (Q327 a Q334, merge `c43a130`, m118; os gestores precisam cadastrar o
+  PIN).
   Manual completo 0 falhas EM PRODUÇÃO (merge `1616dbd`, autorizado em 17/11, sem migração): o cenário do manual limpa a conta do seed; o `npm run navegador` fecha as abas (`--limpar`). Frete no orçamento (Q326) e vendas do
   turno (Q325) em produção. GIFs do manual: roteiro `manual-gifs` e
   `python scripts/manual-gifs-montar.py`. Os agentes `explorador`,
