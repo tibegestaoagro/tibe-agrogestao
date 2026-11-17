@@ -14,6 +14,7 @@ import {
 } from "@/lib/actions/emporio-relatorios-financeiro";
 import { EmptyState } from "@/components/ui/empty-state";
 import { RelatorioAcoes, consulta } from "../../_components/relatorio-acoes";
+import { idDoClientePadrao } from "../../_components/cliente-padrao";
 import { FinanceiroAbas } from "../../_components/financeiro-abas";
 import { LojaFiltro } from "../../_components/loja-filtro";
 import {
@@ -81,7 +82,7 @@ export default async function FinanceiroRelatoriosPage({
             csvHref={`${API}/receivables-aging${consulta({ establishment_id: estab, format: "csv" })}`}
             imprimirHref={`${IMPRIMIR}/a-receber${consulta({ loja: estab })}`}
           />
-          <AReceberPorIdadeBloco r={receber.data} />
+          <AReceberPorIdadeBloco r={receber.data} padraoId={await idDoClientePadrao(db)} />
         </>
       ) : (
         falhou("Não foi possível ler o a receber", receber.message)

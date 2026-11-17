@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,6 +24,8 @@ import { reaisBr } from "@/lib/numero-br";
 import type { BoletoView } from "@/lib/actions/emporio-caixa";
 import { BOLETO_SITUACAO_ROTULO } from "./venda-rotulos";
 import { diaDeHoje } from "./venda-estado";
+import { NomeDoCliente, VendaLink } from "./amarras";
+import { noRecorte } from "./recorte";
 
 const FILTROS = ["aberto", "vencido", "pago", "no_fiado"] as const;
 type Filtro = (typeof FILTROS)[number];
@@ -62,7 +63,13 @@ export function BoletosLista({
   contas,
   ehDinheiro,
   lojasDoGestor,
+  recorte,
+  padraoId = null,
 }: {
+  /** Frente A: o cartão do A receber ativo (`?ver=`) recorta os boletos abertos e vencidos pelo vencimento. */
+  recorte?: { ver: "vencido" | "hoje" | "a_vencer"; hoje: string } | null;
+  /** O cliente padrão, que não vira link. */
+  padraoId?: string | null;
   /** Os boletos abertos, lidos pelo servidor na carga da página. */
   iniciais: BoletoView[];
   /** A loja do filtro da página, vazio para todas. */
@@ -109,6 +116,10 @@ export function BoletosLista({
     router.refresh();
   }
 
+  const aparece =
+    recorte && (filtro === "aberto" || filtro === "vencido")
+      ? linhas.filter((b) => noRecorte(recorte.ver, recorte.hoje, b.due_on))
+      : linhas;
   const podeAgir = (lojaId: string) => ehDinheiro || lojasDoGestor.includes(lojaId);
 
   return (
@@ -133,7 +144,7 @@ export function BoletosLista({
         <EmptyState titulo="Não foi possível ler os boletos">{recusa}</EmptyState>
       ) : carregando ? (
         <Carregando linhas={3} />
-      ) : linhas.length === 0 ? (
+      ) : aparece.length === 0 ? (
         <EmptyState titulo={VAZIO_ROTULO[filtro]}>
           Os boletos registrados nas vendas aparecem aqui, pelo vencimento.
         </EmptyState>
@@ -152,13 +163,13 @@ export function BoletosLista({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {linhas.map((b) => (
+            {aparece.map((b) => (
               <TableRow key={b.id}>
-                <TableCell className="font-medium text-texto">{b.customer_name}</TableCell>
+                <TableCell className="font-medium text-texto">
+                  <NomeDoCliente id={b.customer_id} nome={b.customer_name} padraoId={padraoId} />
+                </TableCell>
                 <TableCell>
-                  <Link href={`/emporio/vendas/${b.sale_id}`} className="font-medium text-texto-marca hover:underline">
-                    nº {b.sale_number}
-                  </Link>
+                  <VendaLink id={b.sale_id} numero={b.sale_number} />
                 </TableCell>
                 <TableCell>{b.establishment_name}</TableCell>
                 <TableCell>{b.number ?? "-"}</TableCell>

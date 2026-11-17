@@ -798,7 +798,7 @@ export function ParteDeFinanceiroDasLojas() {
       <Tarefa
         paraQueServe="Ver quem deve há quanto tempo, o que vence a pagar e onde está o dinheiro."
         passos={[
-          <>Abra <strong>Financeiro</strong> e a aba <strong>Relatórios</strong>. Se quiser, escolha a loja e o período em <strong>De</strong> e <strong>Até</strong>, e clique em <strong>Ver relatórios</strong>.</>,
+          <>Abra <strong>Financeiro</strong> e a aba <strong>Relatórios</strong>. Se quiser, escolha a loja e o período pelos atalhos (<strong>Este mês</strong>, <strong>Mês passado</strong>) ou em <strong>Escolher</strong>.</>,
           <><strong>A receber por idade</strong> mostra cada cliente com o que deve em dia e o que está vencido há 1 a 15 dias, 16 a 30 dias ou mais de 30.</>,
           <><strong>A pagar por vencimento</strong> junta as contas por semana e por nome. O que já venceu fica na primeira semana, com a marca <strong>Vencido</strong>.</>,
           <><strong>Posição de caixa por lugar</strong> mostra o saldo de hoje de cada gaveta, gerência e conta, e o que entrou e saiu no período.</>,

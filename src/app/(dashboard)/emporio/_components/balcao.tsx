@@ -119,6 +119,7 @@ type VendaGravada = {
   net_amount: number;
   freight_amount: number;
   franchisee_credit: number;
+  customer_id: string | null;
   customer_name: string | null;
   seller_name: string | null;
   quote: { id: string; numero: string } | null;
@@ -640,7 +641,18 @@ export function Balcao({
           </p>
           <p>
             {resumo.venda.payments.map((p) => `${FORMA_ROTULO[p.kind] ?? p.kind} ${reaisBr(p.amount)}`).join(", ")}
-            {resumo.venda.customer_name ? `, cliente ${resumo.venda.customer_name}` : ""}
+            {resumo.venda.customer_name && (
+              <>
+                , cliente{" "}
+                {resumo.venda.customer_id && resumo.venda.customer_id !== consumidorFinal.id ? (
+                  <Link href={`/emporio/clientes/${resumo.venda.customer_id}`} className="font-medium underline">
+                    {resumo.venda.customer_name}
+                  </Link>
+                ) : (
+                  resumo.venda.customer_name
+                )}
+              </>
+            )}
             {resumo.venda.seller_name ? `, vendedor ${resumo.venda.seller_name}` : ""}
             {resumo.venda.quote ? `, do orçamento nº ${resumo.venda.quote.numero}` : ""}
           </p>

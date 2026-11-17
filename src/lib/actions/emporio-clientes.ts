@@ -4,6 +4,9 @@ import type { EmporioCustomer, Prisma } from "@/generated/prisma/client";
 import { lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
 import { formatarNumero } from "@/lib/emporio/numeracao";
 import { hojeEmBrasilia } from "@/lib/emporio/cartao";
+import { ehDataCalendario, inicioDoDiaEmSaoPaulo } from "@/lib/dia-calendario";
+import { listarFiadoAction } from "@/lib/actions/emporio-caixa";
+import type { RecebimentoView } from "@/lib/actions/emporio-financeiro";
 import { lerTermo, ondeBuscaCliente, paginaValida, type ResultadoDaBusca } from "@/lib/emporio/busca-de-cadastro";
 import { clienteEscolhidoDe, type ClienteDaBusca } from "@/lib/emporio/cliente-escolhido";
 import { CONSUMIDOR_FINAL, conferirCadastro, type CadastroDoContato } from "@/lib/contatos/cadastro";
@@ -284,7 +287,18 @@ export async function editarClienteAction(
 export type ClienteLinha = Pick<ClienteView, "id" | "name" | "person_kind" | "document" | "phone" | "incomplete" | "fixed" | "archived">;
 
 export type ClienteFichaView = ClienteView & {
-  resumo: { total_comprado: number; ultima_compra_em: string | null; vendas_ativas: number };
+  /**
+   * `em_aberto`: fiado, cheques em carteira e boletos abertos; `vencido`: a parte disso com data antes de hoje;
+   * `recebido`: tudo o que o cliente já pagou (ver `leituraFinanceiraDoCliente`). Todos nas lojas que o ator vê.
+   */
+  resumo: {
+    total_comprado: number;
+    ultima_compra_em: string | null;
+    vendas_ativas: number;
+    em_aberto: number;
+    vencido: number;
+    recebido: number;
+  };
   vendas: {
     id: string;
     numero: string;
@@ -465,6 +479,196 @@ export async function lerOpcoesDeEntregaDoClienteAction(
   });
 }
 
+const centavos = (n: number) => Math.round(Number((n * 100).toPrecision(12)));
+const diaIso = (d: Date) => d.toISOString().slice(0, 10);
+
+/**
+ * O lado financeiro do cliente (Q347), nas lojas que o ator vê.
+ *
+ * Em aberto: fiado aberto (o saldo de cada lançamento, parcelas de acordo inclusive), cheques em
+ * carteira (recebido ou depositado) e boletos abertos. Vencido: a parte disso com data antes de hoje.
+ * Recebido: os pagamentos da venda em dinheiro, PIX e cartão (na data da venda), os recebimentos de
+ * fiado, os boletos pagos e os cheques compensados; cheque em carteira ou devolvido não conta, venda
+ * cancelada não conta, e a devolução em dinheiro abate. `itens` é a lista dos recebimentos (o cheque
+ * entra em qualquer situação, mas só o compensado soma).
+ */
+async function leituraFinanceiraDoCliente(
+  db: TenantPrismaClient,
+  ator: Ator,
+  customerId: string,
+): Promise<{ emAbertoCent: number; vencidoCent: number; recebidoCent: number; itens: RecebimentoView[] }> {
+  const visiveis = await lojasDoAtor(db, ator);
+  const daLoja = visiveis ? { establishment_id: { in: [...visiveis] } } : {};
+  const hoje = hojeEmBrasilia();
+  const nome = { select: { name: true } };
+  const vendaViva = { status: "concluida" as const };
+
+  const fiado = await listarFiadoAction(db, ator, { customer_id: customerId });
+  const [cheques, boletos, pagamentos, fiados, devolucoes] = await Promise.all([
+    db.emporioCheck.findMany({
+      where: { customer_id: customerId, sale: vendaViva, ...daLoja },
+      include: { establishment: nome, sale: { select: { number: true } } },
+    }),
+    db.emporioBoleto.findMany({
+      where: { customer_id: customerId, status: { in: ["aberto", "pago"] }, sale: vendaViva, ...daLoja },
+      include: { establishment: nome, sale: { select: { number: true } } },
+    }),
+    db.emporioSalePayment.findMany({
+      where: {
+        kind: { in: ["dinheiro", "pix", "debito", "credito_vista", "credito_parcelado"] },
+        sale: { customer_id: customerId, ...vendaViva, ...daLoja },
+      },
+      include: { sale: { select: { id: true, number: true, sold_at: true, establishment_id: true, establishment: nome } } },
+    }),
+    db.cashMovement.findMany({
+      where: {
+        origin: "recebimento_fiado",
+        direction: "entrada",
+        financial_payment: { entry: { emporio_customer_id: customerId, ...daLoja } },
+        OR: [{ sale_id: null }, { sale: vendaViva }],
+      },
+      include: {
+        sale: { select: { number: true } },
+        financial_payment: { select: { entry: { select: { establishment_id: true, establishment: nome } } } },
+      },
+    }),
+    db.emporioSaleReturn.findMany({
+      where: { refund_kind: "dinheiro", sale: { customer_id: customerId, ...vendaViva, ...daLoja } },
+      include: { sale: { select: { number: true, establishment_id: true, establishment: nome } } },
+    }),
+  ]);
+
+  const doCliente = { customer_id: customerId };
+  const itens: RecebimentoView[] = [
+    ...pagamentos.map((p): RecebimentoView => ({
+      id: p.id,
+      kind: p.kind === "dinheiro" ? "dinheiro" : p.kind === "pix" ? "pix" : "cartao",
+      occurred_on: diaIso(inicioDoDiaEmSaoPaulo(p.sale.sold_at)),
+      ...doCliente,
+      customer_name: null,
+      sale_id: p.sale.id,
+      sale_number: p.sale.number,
+      establishment_id: p.sale.establishment_id,
+      establishment_name: p.sale.establishment.name,
+      amount: Number(p.amount),
+    })),
+    ...fiados.map((m): RecebimentoView => {
+      const e = m.financial_payment?.entry;
+      return {
+        id: m.id,
+        kind: "fiado",
+        occurred_on: diaIso(inicioDoDiaEmSaoPaulo(m.occurred_at)),
+        ...doCliente,
+        customer_name: null,
+        sale_id: m.sale_id,
+        sale_number: m.sale?.number ?? null,
+        establishment_id: e?.establishment_id ?? null,
+        establishment_name: e?.establishment?.name ?? null,
+        amount: Number(m.amount),
+      };
+    }),
+    ...boletos
+      .filter((b) => b.status === "pago" && b.paid_on)
+      .map((b): RecebimentoView => ({
+        id: b.id,
+        kind: "boleto",
+        occurred_on: diaIso(b.paid_on as Date),
+        ...doCliente,
+        customer_name: null,
+        sale_id: b.sale_id,
+        sale_number: b.sale.number,
+        establishment_id: b.establishment_id,
+        establishment_name: b.establishment.name,
+        amount: Number(b.amount),
+      })),
+    ...cheques.map((c): RecebimentoView => ({
+      id: c.id,
+      kind: "cheque",
+      occurred_on: diaIso(inicioDoDiaEmSaoPaulo(c.cleared_at ?? c.returned_at ?? c.deposited_at ?? c.created_at)),
+      ...doCliente,
+      customer_name: null,
+      sale_id: c.sale_id,
+      sale_number: c.sale.number,
+      establishment_id: c.establishment_id,
+      establishment_name: c.establishment.name,
+      amount: Number(c.amount),
+      check_status: c.status,
+    })),
+    // A devolução em dinheiro entra como linha negativa, para a lista somar o mesmo que o cartão Recebido.
+    ...devolucoes.map((d): RecebimentoView => ({
+      id: d.id,
+      kind: "devolucao",
+      occurred_on: diaIso(inicioDoDiaEmSaoPaulo(d.returned_at)),
+      ...doCliente,
+      customer_name: null,
+      sale_id: d.sale_id,
+      sale_number: d.sale.number,
+      establishment_id: d.sale.establishment_id,
+      establishment_name: d.sale.establishment.name,
+      amount: -Number(d.amount),
+    })),
+  ];
+  itens.sort((a, b) => b.occurred_on.localeCompare(a.occurred_on) || b.id.localeCompare(a.id));
+
+  const recebidoCent = itens
+    .filter((i) => i.kind !== "cheque" || i.check_status === "compensado")
+    .reduce((s, i) => s + centavos(i.amount), 0);
+
+  const hojeIso = diaIso(hoje);
+  const doFiado = fiado.ok ? fiado.data[0] : undefined;
+  const carteira = cheques.filter((c) => c.status === "recebido" || c.status === "depositado");
+  const abertos = boletos.filter((b) => b.status === "aberto");
+  const emAbertoCent =
+    centavos(doFiado?.owed ?? 0) +
+    carteira.reduce((s, c) => s + centavos(Number(c.amount)), 0) +
+    abertos.reduce((s, b) => s + centavos(Number(b.amount)), 0);
+  const vencidoCent =
+    centavos(doFiado?.overdue_amount ?? 0) +
+    carteira.filter((c) => diaIso(c.good_for) < hojeIso).reduce((s, c) => s + centavos(Number(c.amount)), 0) +
+    abertos.filter((b) => diaIso(b.due_on) < hojeIso).reduce((s, b) => s + centavos(Number(b.amount)), 0);
+  return { emAbertoCent, vencidoCent, recebidoCent, itens };
+}
+
+/**
+ * Os recebimentos do cliente, do mais recente ao mais antigo, nas lojas que o ator vê. `before` é o dia
+ * (AAAA-MM-DD) de corte: só vêm os de antes dele. `next_before` é o dia do último item mais o id dele
+ * (AAAA-MM-DD_id), para a página seguinte não perder os do mesmo dia; nulo quando não há mais.
+ */
+export async function listarRecebimentosDoClienteAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  customerId: string,
+  opts: { before?: string; limit?: number } = {},
+): Promise<ActionResult<{ items: RecebimentoView[]; next_before: string | null }>> {
+  const neg = await exigirUma(db, ator, ["vendedor_da_loja", "dinheiro"], "ver os recebimentos de um cliente");
+  if (neg) return neg;
+  // O cursor é o dia (AAAA-MM-DD) ou o dia mais o id do último item (AAAA-MM-DD_id), que desempata o mesmo dia.
+  const antes = typeof opts?.before === "string" && opts.before ? opts.before : null;
+  const [antesDia, antesId] = antes ? antes.split("_") : [null, null];
+  if (antes && (!ehDataCalendario(antesDia as string) || antes.split("_").length > 2)) {
+    return fail("VALIDATION_ERROR", "Informe uma data válida (AAAA-MM-DD).", 422, "before");
+  }
+  const limite = opts?.limit;
+  if (limite !== undefined && limite !== null && !(Number.isInteger(limite) && limite >= 1 && limite <= 100)) {
+    return fail("VALIDATION_ERROR", "O limite é um número inteiro de 1 a 100.", 422, "limit");
+  }
+  const id = typeof customerId === "string" ? customerId.trim() : "";
+  const c = id ? await db.emporioCustomer.findFirst({ where: { id }, select: { id: true, name: true } }) : null;
+  if (!c) return NAO_ACHADO();
+
+  const { itens } = await leituraFinanceiraDoCliente(db, ator, c.id);
+  // A lista já vem em (dia, id) decrescente: o corte é "depois do cursor" nessa mesma ordem.
+  const restantes = antesDia
+    ? itens.filter((i) => i.occurred_on < antesDia || (typeof antesId === "string" && i.occurred_on === antesDia && i.id < antesId))
+    : itens;
+  const pagina = restantes.slice(0, limite ?? 20).map((i) => ({ ...i, customer_name: c.name }));
+  const ultimo = pagina[pagina.length - 1];
+  return ok({
+    items: pagina,
+    next_before: restantes.length > pagina.length && ultimo ? `${ultimo.occurred_on}_${ultimo.id}` : null,
+  });
+}
+
 /** A ficha com o limite de vendas listadas à vista: o resumo NUNCA depende dele (vale para todas as vendas). */
 export async function lerFicha(
   db: TenantPrismaClient,
@@ -532,12 +736,16 @@ export async function lerFicha(
   });
 
   const hojeMs = hojeEmBrasilia().getTime();
+  const financeiro = await leituraFinanceiraDoCliente(db, ator, id);
   return ok({
     ...serializarCliente(c),
     resumo: {
       total_comprado: Math.round((Number(vendido._sum.net_amount ?? 0) - Number(devolvido._sum.amount ?? 0)) * 100) / 100,
       ultima_compra_em: vendido._max.sold_at?.toISOString() ?? null,
       vendas_ativas: ativas,
+      em_aberto: financeiro.emAbertoCent / 100,
+      vencido: financeiro.vencidoCent / 100,
+      recebido: financeiro.recebidoCent / 100,
     },
     vendas: linhas,
     orcamentos: orcamentos.map((q) => ({

@@ -165,6 +165,7 @@ export const FIGURAS: Figura[] = [
     marcas: [
       { numero: 1, alvo: "a lista de contas a pagar", texto: "A conta de uma compra aparece com o nome do fornecedor e a loja." },
       { numero: 2, alvo: "o botão Pagar selecionadas", texto: "Marque as contas e escolha de onde sai o dinheiro. O Financeiro paga pela conta bancária." },
+      { numero: 3, alvo: "os cartões de resumo", texto: "Vencida, Vence hoje, A vencer e Pago no período. Toque num cartão para ver só aquelas contas; em Pago, a lista do que já saiu. O período do Pago se escolhe logo abaixo." },
     ],
   },
   {
@@ -213,7 +214,7 @@ export const FIGURAS: Figura[] = [
     legenda: "Os relatórios do dinheiro: a receber por idade, a pagar por vencimento e a posição por lugar",
     alt: "Aba Relatórios do Financeiro com o período, a tabela de quanto cada cliente deve por faixa de atraso, as contas a pagar por semana e o saldo de cada lugar",
     marcas: [
-      { numero: 1, alvo: "o período e o botão Ver relatórios", texto: "Vazio, cada relatório usa o seu período padrão. Preencha De e Até para mudar." },
+      { numero: 1, alvo: "o seletor de período", texto: "Em Padrão, cada relatório usa o seu período padrão. Toque em Hoje, Esta semana, Este mês ou Mês passado, ou em Escolher para digitar De e Até." },
       { numero: 2, alvo: "o bloco A receber por idade", texto: "Cada cliente com o que deve em dia e o que está vencido, por faixa de dias de atraso." },
       { numero: 3, alvo: "o bloco A pagar por vencimento", texto: "As contas pendentes por semana e por nome. O vencido fica na primeira semana, em destaque." },
       { numero: 4, alvo: "o bloco Posição de caixa por lugar", texto: "O saldo de hoje de cada gaveta, gerência e conta, e o que entrou e saiu no período." },

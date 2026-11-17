@@ -17,6 +17,8 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { ReceberFiadoForm } from "../_components/receber-fiado-form";
+import { NomeDoCliente } from "../_components/amarras";
+import { idDoClientePadrao } from "../_components/cliente-padrao";
 
 const DATA = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo" });
 const DATA_UTC = new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC" });
@@ -27,9 +29,10 @@ export default async function FiadoPage() {
   const db = await getTenantDb();
   // F6b: receber fiado é do Vendedor da loja para cima.
   const podeEscrever = pode(await papelDoEmporio(db, user), "vendedor_da_loja");
-  const [lojasRes, fiadoRes] = await Promise.all([
+  const [lojasRes, fiadoRes, padraoId] = await Promise.all([
     listarEstabelecimentosAction(db, user),
     listarFiadoAction(db, user),
+    idDoClientePadrao(db),
   ]);
   const lojas = lojasRes.ok ? lojasRes.data.map((l) => ({ id: l.id, name: l.name })) : [];
   const clientes = fiadoRes.ok ? fiadoRes.data : [];
@@ -90,7 +93,7 @@ export default async function FiadoPage() {
                 return (
                   <TableRow key={c.customer_id}>
                     <TableCell className="font-medium text-texto">
-                      {c.customer_name}
+                      <NomeDoCliente id={c.customer_id} nome={c.customer_name} padraoId={padraoId} />
                       {c.phone && <span className="block text-xs font-normal text-texto-secundario">{c.phone}</span>}
                     </TableCell>
                     <TableCell>

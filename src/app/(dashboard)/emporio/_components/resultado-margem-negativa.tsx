@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { VendaLink } from "./amarras";
 import type { CausaDaMargemNegativa, VendaComMargemNegativaView } from "@/lib/actions/emporio-resultado";
 import { reaisBr } from "@/lib/numero-br";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
@@ -42,9 +42,7 @@ export function ResultadoMargemNegativa({ vendas, mostrarLoja }: { vendas: Venda
                 <TableCell className="text-right font-semibold text-perigo-tinta">{reaisBr(v.margin)}</TableCell>
                 <TableCell>{CAUSA[v.cause]}</TableCell>
                 <TableCell className="text-right">
-                  <Link href={`/emporio/vendas/${v.sale_id}`} className="text-texto-marca hover:underline">
-                    Ver venda
-                  </Link>
+                  <VendaLink id={v.sale_id} numero={v.sale_number} />
                 </TableCell>
               </TableRow>
             ))}

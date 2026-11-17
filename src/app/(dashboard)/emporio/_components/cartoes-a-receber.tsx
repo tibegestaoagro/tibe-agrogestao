@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { AntecipacaoView } from "@/lib/actions/emporio-antecipacao";
@@ -20,6 +19,7 @@ import { MoneyInput } from "@/components/ui/money-input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAviso } from "@/components/ui/toast";
 import { useErrosDeFormulario } from "@/components/ui/use-erros-de-formulario";
+import { NomeDoCliente, VendaLink } from "./amarras";
 import { pctBr } from "./formato";
 
 /** Ordem VISUAL, com o nome que a API usa. */
@@ -39,7 +39,13 @@ export function CartoesAReceber({
   cards,
   antecipacoes,
   lojasQueAntecipam,
+  padraoId = null,
+  semVencidoNoFiltro = false,
 }: {
+  /** O cliente padrão, que não vira link. */
+  padraoId?: string | null;
+  /** O filtro Vencido: parcela de cartão não vence, então a seção diz isso em vez da frase de "nada a receber". */
+  semVencidoNoFiltro?: boolean;
   cards: CartaoAReceberView[];
   antecipacoes: AntecipacaoView[];
   /** As lojas em que quem lê pode antecipar (a conta toda traz todas). */
@@ -61,7 +67,11 @@ export function CartoesAReceber({
     <>
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-texto">Cartões a receber</h2>
-        {cards.length === 0 ? (
+        {cards.length === 0 && semVencidoNoFiltro ? (
+          <EmptyState titulo="Nada vencido no cartão">
+            Parcela de cartão cai sozinha na data; a conferência vem na próxima etapa.
+          </EmptyState>
+        ) : cards.length === 0 ? (
           <EmptyState titulo="Nada a receber do cartão">
             As parcelas das vendas no cartão que ainda não caíram aparecem aqui, por data.
           </EmptyState>
@@ -145,9 +155,12 @@ export function CartoesAReceber({
                       )}
                     </TableCell>
                     <TableCell>
-                      <Link href={`/emporio/vendas/${p.sale_id}`} className="font-medium text-texto-marca hover:underline">
-                        Ver a venda
-                      </Link>
+                      <VendaLink id={p.sale_id} numero={p.sale_number} parcela={`${p.installment}/${p.installments}`} />
+                      {p.customer_name && (
+                        <span className="block text-xs text-texto-secundario">
+                          <NomeDoCliente id={p.customer_id} nome={p.customer_name} padraoId={padraoId} />
+                        </span>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}

@@ -14,6 +14,7 @@ import { Field } from "@/components/ui/field";
 import { FormSheet } from "@/components/ui/form-sheet";
 import { useAviso } from "@/components/ui/toast";
 import { useErrosDeFormulario } from "@/components/ui/use-erros-de-formulario";
+import { NomeDoFornecedor } from "./amarras";
 
 const DATA_HORA = new Intl.DateTimeFormat("pt-BR", {
   timeZone: "America/Sao_Paulo",
@@ -180,7 +181,11 @@ export function FinanceiroAprovacoes({
               {p.entries.map((e) => (
                 <li key={e.entry_id} className="flex flex-wrap justify-between gap-x-3 py-1.5">
                   <span className="min-w-0 break-words text-texto">
-                    {e.supplier_or_category ?? e.description}
+                    {e.supplier_id ? (
+                      <NomeDoFornecedor id={e.supplier_id} nome={e.supplier_or_category ?? e.description} />
+                    ) : (
+                      (e.supplier_or_category ?? e.description)
+                    )}
                     {e.due_date ? `, vence ${dataBr(e.due_date)}` : ""}
                   </span>
                   <span className="shrink-0 text-texto">{reaisBr(e.amount)}</span>

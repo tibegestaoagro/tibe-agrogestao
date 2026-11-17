@@ -1,6 +1,6 @@
-import Link from "next/link";
 import type { AntecipacaoView } from "@/lib/actions/emporio-antecipacao";
 import type { AReceberView } from "@/lib/actions/emporio-financeiro";
+import type { FiadoClienteView } from "@/lib/actions/emporio-caixa";
 import { pode, type PapelContexto } from "@/lib/emporio/papel";
 import { reaisBr } from "@/lib/numero-br";
 import { dataBr } from "@/lib/emporio/datas";
@@ -14,6 +14,8 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { NomeDoCliente, VendaLink } from "./amarras";
+import { noRecorte } from "./recorte";
 import { BoletosLista } from "./boletos-lista";
 import { CartoesAReceber } from "./cartoes-a-receber";
 import { ChequeAcoes } from "./cheque-acoes";
@@ -32,7 +34,16 @@ export function FinanceiroReceber({
   contasDoBanco,
   usuarioId,
   antecipacoes,
+  ver = null,
+  hoje,
+  padraoId = null,
 }: {
+  /** Frente A: o cartão ativo da faixa (`?ver=`), sem o "recebido", que troca a tela por outra lista. */
+  ver?: "vencido" | "hoje" | "a_vencer" | null;
+  /** Hoje em Brasília (AAAA-MM-DD), a régua do recorte. */
+  hoje: string;
+  /** O cliente padrão, que não vira link. */
+  padraoId?: string | null;
   antecipacoes: AntecipacaoView[];
   dados: AReceberView;
   papel: PapelContexto;
@@ -45,7 +56,22 @@ export function FinanceiroReceber({
   // Quem não passa em `vendedor_da_loja` (o Financeiro) recebe só por PIX, na conta.
   const soPix = !pode(papel, "vendedor_da_loja");
   const nomeDaLoja = new Map(lojas.map((l) => [l.id, l.name]));
-  const totalFiado = dados.fiado.reduce((s, c) => s + Math.round(c.owed * 100), 0) / 100;
+  // O valor do cliente naquele recorte (o aberto dos lançamentos com a data do cartão ativo).
+  const doRecorte = (c: FiadoClienteView): number =>
+    ver === "vencido" ? c.overdue_amount : ver === "hoje" ? c.due_today_amount : ver === "a_vencer" ? c.upcoming_amount : c.owed;
+  // Com recorte, a data da linha é o vencimento mais antigo DENTRO do recorte (lançamento sem data fica com a geral).
+  const vencimentoDaLinha = (c: FiadoClienteView): string | null => {
+    if (!ver) return c.oldest_due_date;
+    const datas = c.entries
+      .filter((e) => e.open > 0 && e.due_date !== null && noRecorte(ver, hoje, e.due_date))
+      .map((e) => (e.due_date as string).slice(0, 10))
+      .sort();
+    return datas[0] ?? c.oldest_due_date;
+  };
+  const fiado = ver ? dados.fiado.filter((c) => doRecorte(c) > 0) : dados.fiado;
+  const cheques = ver ? dados.checks.filter((c) => noRecorte(ver, hoje, c.good_for)) : dados.checks;
+  const cartoes = ver ? dados.cards.filter((p) => ver !== "vencido" && noRecorte(ver, hoje, p.effective_on)) : dados.cards;
+  const totalFiado = fiado.reduce((s, c) => s + Math.round(doRecorte(c) * 100), 0) / 100;
   // Antecipar é de quem gere a loja da parcela ou cuida do dinheiro (o servidor confere de novo).
   const lojasQueAntecipam = [...new Set(dados.cards.map((c) => c.establishment_id))].filter(
     (id) => pode(papel, "dinheiro") || pode(papel, "gestor_da_loja", id),
@@ -60,15 +86,17 @@ export function FinanceiroReceber({
             O recebimento aqui é por PIX, na conta da loja. O dinheiro em espécie é recebido no caixa da loja.
           </p>
         )}
-        {dados.fiado.length === 0 ? (
-          <EmptyState titulo="Ninguém deve nada no momento">
-            As vendas no fiado aparecem aqui, por cliente, até serem recebidas.
+        {fiado.length === 0 ? (
+          <EmptyState titulo={ver ? "Nenhum fiado neste recorte" : "Ninguém deve nada no momento"}>
+            {ver
+              ? "Nenhum cliente tem fiado com essa data. Use Ver tudo para voltar."
+              : "As vendas no fiado aparecem aqui, por cliente, até serem recebidas."}
           </EmptyState>
         ) : (
           <>
             <p className="text-sm text-texto">
-              Total em aberto: <strong>{reaisBr(totalFiado)}</strong> em {dados.fiado.length}{" "}
-              {dados.fiado.length === 1 ? "cliente" : "clientes"}.
+              {ver ? "Total neste recorte" : "Total em aberto"}: <strong>{reaisBr(totalFiado)}</strong> em {fiado.length}{" "}
+              {fiado.length === 1 ? "cliente" : "clientes"}.
             </p>
             <Table>
               <TableHeader>
@@ -80,10 +108,10 @@ export function FinanceiroReceber({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {dados.fiado.map((c) => (
+                {fiado.map((c) => (
                   <TableRow key={c.customer_id}>
                     <TableCell className="font-medium text-texto">
-                      {c.customer_name}
+                      <NomeDoCliente id={c.customer_id} nome={c.customer_name} padraoId={padraoId} />
                       {c.phone && <span className="block text-xs font-normal text-texto-secundario">{c.phone}</span>}
                     </TableCell>
                     <TableCell>
@@ -93,8 +121,23 @@ export function FinanceiroReceber({
                           Vencido {reaisBr(c.overdue_amount)}
                         </Badge>
                       )}
+                      {ver === "hoje" && (
+                        <Badge variant="amber" className="ml-2">
+                          Vence hoje {reaisBr(c.due_today_amount)}
+                        </Badge>
+                      )}
+                      {ver === "a_vencer" && (
+                        <Badge variant="blue" className="ml-2">
+                          A vencer {reaisBr(c.upcoming_amount)}
+                        </Badge>
+                      )}
                     </TableCell>
-                    <TableCell>{c.oldest_due_date ? DATA_UTC.format(new Date(c.oldest_due_date)) : "-"}</TableCell>
+                    <TableCell>
+                      {(() => {
+                        const d = vencimentoDaLinha(c);
+                        return d ? DATA_UTC.format(new Date(d.length === 10 ? `${d}T00:00:00Z` : d)) : "-";
+                      })()}
+                    </TableCell>
                     <TableCell>
                       <ReceberFiadoForm
                         contatoId={c.customer_id}
@@ -116,9 +159,11 @@ export function FinanceiroReceber({
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-texto">Cheques em carteira</h2>
-        {dados.checks.length === 0 ? (
-          <EmptyState titulo="Nenhum cheque na carteira">
-            Os cheques recebidos e ainda não compensados aparecem aqui, por data.
+        {cheques.length === 0 ? (
+          <EmptyState titulo={ver ? "Nenhum cheque neste recorte" : "Nenhum cheque na carteira"}>
+            {ver
+              ? "Nenhum cheque tem bom para essa data. Use Ver tudo para voltar."
+              : "Os cheques recebidos e ainda não compensados aparecem aqui, por data."}
           </EmptyState>
         ) : (
           <Table>
@@ -133,7 +178,7 @@ export function FinanceiroReceber({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {dados.checks.map((c) => (
+              {cheques.map((c) => (
                 <TableRow key={c.id}>
                   <TableCell className="font-medium text-texto">
                     nº {c.number}
@@ -142,11 +187,9 @@ export function FinanceiroReceber({
                     </span>
                   </TableCell>
                   <TableCell>
-                    {c.customer_name}
+                    <NomeDoCliente id={c.customer_id} nome={c.customer_name} padraoId={padraoId} />
                     <span className="block text-xs text-texto-secundario">Em nome de {c.holder_name}</span>
-                    <Link href={`/emporio/vendas/${c.sale_id}`} className="block text-xs font-medium text-texto-marca hover:underline">
-                      Ver a venda
-                    </Link>
+                    <VendaLink id={c.sale_id} numero={c.sale_number} className="block text-xs" />
                   </TableCell>
                   <TableCell>{dataBr(c.good_for)}</TableCell>
                   <TableCell>{reaisBr(c.amount)}</TableCell>
@@ -178,9 +221,17 @@ export function FinanceiroReceber({
         contas={contasDoBanco}
         ehDinheiro={pode(papel, "dinheiro")}
         lojasDoGestor={lojas.filter((l) => pode(papel, "gestor_da_loja", l.id)).map((l) => l.id)}
+        recorte={ver ? { ver, hoje } : null}
+        padraoId={padraoId}
       />
 
-      <CartoesAReceber cards={dados.cards} antecipacoes={antecipacoes} lojasQueAntecipam={lojasQueAntecipam} />
+      <CartoesAReceber
+        cards={cartoes}
+        antecipacoes={antecipacoes}
+        lojasQueAntecipam={lojasQueAntecipam}
+        padraoId={padraoId}
+        semVencidoNoFiltro={ver === "vencido"}
+      />
     </div>
   );
 }

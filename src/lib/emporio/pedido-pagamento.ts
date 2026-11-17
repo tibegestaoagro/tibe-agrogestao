@@ -19,7 +19,8 @@ export type PedidoDePagamentoView = {
   created_at: string;
   requested_by: { id: string; name: string };
   from: { kind: "gaveta" | "conta"; id: string; name: string };
-  entries: { entry_id: string; description: string; supplier_or_category: string | null; due_date: string | null; amount: number }[];
+  /** `supplier_id` (frente A): o fornecedor cadastrado da conta, para o link; nulo sem fornecedor (ou com "outro nome"). */
+  entries: { entry_id: string; description: string; supplier_id: string | null; supplier_or_category: string | null; due_date: string | null; amount: number }[];
   reason: string | null;
   last_failure: string | null;
   decided_by: { name: string } | null;
@@ -63,6 +64,7 @@ export async function viewsDosPedidos(db: TenantPrismaClient, linhas: PedidoRow[
       emporio_manual: true,
       emporio_manual_description: true,
       emporio_other_name: true,
+      emporio_supplier_id: true,
       emporio_supplier: { select: { name: true } },
       sale_variable_expense: { select: { rule: { select: { name: true } } } },
       fixed_occurrence: { select: { template: { select: { name: true } } } },
@@ -107,6 +109,7 @@ export async function viewsDosPedidos(db: TenantPrismaClient, linhas: PedidoRow[
           {
             entry_id: e.id,
             description: nome,
+            supplier_id: e.emporio_supplier_id,
             supplier_or_category: fornecedor ?? e.category ?? null,
             due_date: e.due_date ? diaIso(e.due_date) : null,
             amount: decToNum(e.amount) ?? 0,

@@ -40,6 +40,29 @@ export const diaIso = (campo: string) =>
     }, "Informe uma data válida (AAAA-MM-DD).")
     .transform((v) => new Date(`${v}T00:00:00Z`));
 
+/** Um dia `AAAA-MM-DD` de query string, mantido como texto (o período do A receber e do A pagar). */
+export const diaEmTexto = z
+  .string({ error: "Informe uma data válida (AAAA-MM-DD)." })
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Informe uma data válida (AAAA-MM-DD).")
+  .refine((v) => {
+    const t = Date.parse(`${v}T00:00:00Z`);
+    return !Number.isNaN(t) && new Date(t).toISOString().slice(0, 10) === v;
+  }, "Informe uma data válida (AAAA-MM-DD).");
+
+/** `?establishment_id=&de=&ate=` das rotas de resumo do A receber e do A pagar. Parâmetro vazio vale como ausente. */
+export const filtroDeResumo = z.object({
+  establishment_id: z.string().optional(),
+  de: diaEmTexto.optional(),
+  ate: diaEmTexto.optional(),
+});
+
+/** Os parâmetros da query como objeto, com o vazio fora (para o Zod ler "ausente"). */
+export function queryComoObjeto(request: Request): Record<string, string> {
+  const o: Record<string, string> = {};
+  for (const [k, v] of new URL(request.url).searchParams) if (v !== "") o[k] = v;
+  return o;
+}
+
 /** Um dia `AAAA-MM-DD` do corpo ou da query, como `Date` à meia-noite UTC, com a mensagem de quem pede. */
 export const diaComMensagem = (mensagem: string) =>
   z

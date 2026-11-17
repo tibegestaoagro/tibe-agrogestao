@@ -646,7 +646,8 @@ figura("financeiro-hoje", "dono", lambda: "/emporio/financeiro?loja=" + id_da_lo
 figura("financeiro-pagar", "dono", "/emporio/financeiro/pagar", [
     (1, "M.TH('Conta')", "a lista de contas a pagar"),
     (2, "M.T('Pagar selecionadas')", "o botao Pagar selecionadas"),
-], limite=6, hd=700, hc=1000)
+    (3, "document.querySelector('section[aria-label=\"Resumo\"]')", "os cartoes de resumo"),
+], limite=6, hd=1000, hc=1500)
 
 figura("fornecedores-lista", "gestor", "/emporio/fornecedores", [
     (1, "M.B('Novo fornecedor')", "o botao Novo fornecedor"),
@@ -1201,7 +1202,7 @@ figura("financeiro-projecao", "dono", "/emporio/financeiro/projecao", [
 ], hd=900, hc=1300)
 
 figura("financeiro-relatorios", "dono", "/emporio/financeiro/relatorios", [
-    (1, "M.B('Ver relatórios').closest('form')", "o periodo e o botao Ver relatorios"),
+    (1, "document.querySelector('[role=\"group\"][aria-label=\"Período\"]')", "o seletor de periodo"),
     (2, "M.H('A receber por idade')", "o bloco A receber por idade"),
     (3, "M.H('A pagar por vencimento')", "o bloco A pagar por vencimento"),
     (4, "M.H('Posição de caixa por lugar')", "o bloco Posicao de caixa por lugar"),

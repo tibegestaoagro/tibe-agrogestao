@@ -9,6 +9,7 @@ import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
 import { lerExtratoAction, lerResumoHojeAction } from "@/lib/actions/emporio-financeiro";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ExtratoDoLugar, ExtratoPeriodo, PosicoesTabela } from "../../_components/financeiro-extrato";
+import { idDoClientePadrao } from "../../_components/cliente-padrao";
 import { FinanceiroAbas } from "../../_components/financeiro-abas";
 import { LojaFiltro } from "../../_components/loja-filtro";
 
@@ -101,7 +102,12 @@ export default async function FinanceiroCaixaPage({
             soSemCarimbo={soSemCarimbo}
           />
           {extrato && extrato.ok ? (
-            <ExtratoDoLugar extrato={extrato.data} hoje={hoje} podeCarimbar={pode(papel, "dinheiro")} />
+            <ExtratoDoLugar
+              extrato={extrato.data}
+              hoje={hoje}
+              podeCarimbar={pode(papel, "dinheiro")}
+              padraoId={await idDoClientePadrao(db)}
+            />
           ) : (
             <p role="alert" className="text-sm text-perigo-tinta">
               {extrato ? extrato.message : ""}

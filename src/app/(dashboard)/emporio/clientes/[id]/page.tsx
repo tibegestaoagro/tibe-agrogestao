@@ -3,13 +3,18 @@ import { notFound } from "next/navigation";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
-import { lerClienteAction, type ClienteFichaView } from "@/lib/actions/emporio-clientes";
+import {
+  lerClienteAction,
+  listarRecebimentosDoClienteAction,
+  type ClienteFichaView,
+} from "@/lib/actions/emporio-clientes";
 import { lerCreditoDoClienteAction } from "@/lib/actions/emporio-credito";
 import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
 import { listarAcordosDoClienteAction } from "@/lib/actions/emporio-acordos";
 import { listarFiadoAction } from "@/lib/actions/emporio-caixa";
 import { hojeEmBrasilia } from "@/lib/emporio/datas";
 import { AcordosDoCliente } from "../_components/acordos-do-cliente";
+import { RecebimentosDoCliente } from "../_components/recebimentos-do-cliente";
 import { CreditoDoCliente } from "../_components/credito-do-cliente";
 import { formatarCep, formatarDocumento } from "@/lib/contatos/cadastro";
 import { formatarTelefone } from "@/lib/emporio/telefone";
@@ -99,6 +104,8 @@ export default async function ClienteFichaPage({ params }: { params: Promise<{ i
   const c = res.data;
   const papel = await papelDoEmporio(db, user);
   const podeArquivar = pode(papel, "gestor_da_loja") && !c.fixed;
+  // Quem a action recusa não vê a lista (a ficha em si segue aberta).
+  const recebimentosRes = await listarRecebimentosDoClienteAction(db, user, c.id, { limit: 20 });
 
   // O Consumidor final não tem crédito, e quem a action recusa (403) não vê a seção.
   const creditoRes = c.fixed ? null : await lerCreditoDoClienteAction(db, user, c.id);
@@ -212,7 +219,7 @@ export default async function ClienteFichaPage({ params }: { params: Promise<{ i
         </p>
       </section>
 
-      <section className="grid gap-3 sm:grid-cols-3" aria-label="Resumo">
+      <section className="grid grid-cols-2 gap-3 lg:grid-cols-5" aria-label="Resumo">
         <div className="rounded-lg border border-borda p-4">
           <p className="text-xs text-texto-secundario">Total comprado</p>
           <p className="text-xl font-semibold text-texto">{reaisBr(c.resumo.total_comprado)}</p>
@@ -224,8 +231,18 @@ export default async function ClienteFichaPage({ params }: { params: Promise<{ i
           </p>
         </div>
         <div className="rounded-lg border border-borda p-4">
-          <p className="text-xs text-texto-secundario">Vendas ativas</p>
-          <p className="text-xl font-semibold text-texto">{c.resumo.vendas_ativas}</p>
+          <p className="text-xs text-texto-secundario">Em aberto</p>
+          <p className="text-xl font-semibold text-texto">{reaisBr(c.resumo.em_aberto)}</p>
+        </div>
+        <div className="rounded-lg border border-borda p-4">
+          <p className="text-xs text-texto-secundario">Vencido</p>
+          <p className={`text-xl font-semibold ${c.resumo.vencido > 0 ? "text-perigo-tinta" : "text-texto"}`}>
+            {reaisBr(c.resumo.vencido)}
+          </p>
+        </div>
+        <div className="col-span-2 rounded-lg border border-borda p-4 lg:col-span-1">
+          <p className="text-xs text-texto-secundario">Recebido</p>
+          <p className="text-xl font-semibold text-texto">{reaisBr(c.resumo.recebido)}</p>
         </div>
       </section>
 
@@ -297,6 +314,14 @@ export default async function ClienteFichaPage({ params }: { params: Promise<{ i
           </Table>
         )}
       </section>
+
+      {recebimentosRes?.ok && (
+        <RecebimentosDoCliente
+          customerId={c.id}
+          iniciais={recebimentosRes.data.items}
+          proximo={recebimentosRes.data.next_before}
+        />
+      )}
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-texto">Orçamentos</h2>

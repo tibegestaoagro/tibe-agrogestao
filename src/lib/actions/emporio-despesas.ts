@@ -17,7 +17,9 @@ import {
   type PedidoDePagamentoView,
 } from "@/lib/emporio/pedido-pagamento";
 import { CATEGORIA_FRETE } from "@/lib/emporio/frete";
-import { fimDoDiaEmSaoPaulo } from "@/lib/dia-calendario";
+import { fimDoDiaEmSaoPaulo, inicioDoDiaEmSaoPaulo, periodoDeDatasEmSaoPaulo } from "@/lib/dia-calendario";
+import { hojeEmBrasilia } from "@/lib/emporio/cartao";
+import { conferirPeriodo, type Faixa, type Periodo } from "@/lib/emporio/periodo";
 import { CATEGORIAS_RESERVADAS } from "@/lib/emporio/vendeu-pagou";
 import { faturamentoLiquidoDoMes } from "@/lib/emporio/faturamento";
 import {
@@ -1580,6 +1582,8 @@ export type ContaAPagarView = {
   /** A compra que gerou a conta (só `origin: "compra"`). */
   purchase_id: string | null;
   supplier_name: string | null;
+  /** Frente A: o fornecedor cadastrado (compra e avulsa), para o link; nulo sem fornecedor ou com "outro nome". */
+  supplier_id: string | null;
   /** Corrigir só vale em conta pendente e sem pagamento, e não vale para a conta da compra. */
   can_correct: boolean;
 };
@@ -1619,6 +1623,7 @@ function viewDaConta(e: ContaRow, saleNumber: number | null = null): ContaAPagar
           : (e.emporio_supplier?.name ?? "Compra sem fornecedor"),
     purchase_id: compra ? e.related_id : null,
     supplier_name: compra || avulsa ? (e.emporio_supplier?.name ?? e.emporio_other_name ?? null) : null,
+    supplier_id: compra || avulsa ? e.emporio_supplier_id : null,
     category: e.category,
     establishment_id: e.establishment_id,
     establishment_name: e.establishment?.name ?? null,
@@ -1779,6 +1784,115 @@ export async function lerQuantidadeDeContasAPagar(
   const f = await filtroDeContasAPagar(db, ator, opts);
   if (!f.ok) return f;
   return ok(await db.financialEntry.count({ where: f.data.where }));
+}
+
+export type ResumoAPagar = {
+  overdue: Faixa;
+  due_today: Faixa;
+  upcoming: Faixa & { undated_count: number };
+  paid: Faixa & { expected_pct: number | null };
+};
+
+/** Uma linha de "Pago no período" (A pagar). */
+export type PagamentoView = {
+  id: string;
+  /** Dia de calendário (AAAA-MM-DD) em Brasília. */
+  paid_on: string;
+  entry_id: string;
+  name: string;
+  supplier_id: string | null;
+  supplier_name: string | null;
+  origin: ContaAPagarView["origin"];
+  /** De onde saiu o dinheiro: "Gaveta da loja X" ou o nome da conta bancária. */
+  source_label: string;
+  establishment_name: string | null;
+  amount: number;
+};
+
+/**
+ * A faixa de resumo do A pagar (Q345, Q346): vencida, vence hoje, a vencer (as sem vencimento
+ * entram aqui, contadas à parte) e o pago no período, com o % do previsto. Mesma permissão e
+ * mesmo alcance de lojas de `listarContasAPagarAction`. A conta cancelada fica fora.
+ */
+export async function resumoDoAPagarAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  opts: { establishment_id?: string; de?: string; ate?: string } = {},
+): Promise<ActionResult<{ summary: ResumoAPagar; paid_items: PagamentoView[]; period: Periodo }>> {
+  const hoje = hojeEmBrasilia();
+  const periodo = conferirPeriodo(opts?.de, opts?.ate, hoje);
+  const lojaId = idOuNulo(opts?.establishment_id) ?? undefined;
+  const escopo = await filtroDeContasAPagar(db, ator, { establishment_id: lojaId, status: "all" });
+  if (!escopo.ok) return escopo;
+  if (lojaId && !(await db.establishment.findFirst({ where: { id: lojaId }, select: { id: true } }))) {
+    return NAO_ACHADO("Estabelecimento", "establishment_id");
+  }
+  if (!periodo.ok) return periodo;
+  const { de, ate } = periodo.data;
+
+  const pendentes = await listarContasAPagarAction(db, ator, { establishment_id: lojaId, status: "pending", limit: TETO_DE_CONTAS_A_PAGAR });
+  if (!pendentes.ok) return pendentes;
+
+  const hojeIso = diaIso(hoje);
+  const faixa = (xs: ContaAPagarView[]): Faixa => ({
+    total: xs.reduce((s, c) => s + centavos(c.open_amount), 0) / 100,
+    count: xs.length,
+  });
+  const comVencimento = pendentes.data.filter((c) => c.due_date !== null);
+  const semVencimento = pendentes.data.filter((c) => c.due_date === null);
+  const previstoCent = comVencimento
+    .filter((c) => (c.due_date as string) >= de && (c.due_date as string) <= ate)
+    .reduce((s, c) => s + centavos(c.open_amount), 0);
+
+  const { since, until } = periodoDeDatasEmSaoPaulo(de, ate);
+  const pagamentos = await db.financialPayment.findMany({
+    where: { paid_at: { gte: since, lte: until }, entry: { AND: [escopo.data.where, { status: { not: "cancelled" } }] } },
+    include: { entry: { include: INCLUDE_CONTA } },
+    orderBy: [{ paid_at: "desc" }, { id: "desc" }],
+  });
+  const contasDosPagamentos = await viewsDasContas(db, [...new Map(pagamentos.map((p) => [p.entry.id, p.entry])).values()]);
+  const viewDaEntrada = new Map(contasDosPagamentos.map((v) => [v.entry_id, v]));
+  const saidas = pagamentos.length
+    ? await db.cashMovement.findMany({
+        where: { financial_payment_id: { in: pagamentos.map((p) => p.id) } },
+        include: { establishment: { select: { name: true } }, bank_account: { select: { name: true } } },
+      })
+    : [];
+  const origemDoPagamento = new Map(
+    saidas.flatMap((m) =>
+      m.financial_payment_id
+        ? [[m.financial_payment_id, m.establishment ? `Gaveta da ${m.establishment.name}` : (m.bank_account?.name ?? "Conta bancária")] as const]
+        : [],
+    ),
+  );
+  const paid_items: PagamentoView[] = pagamentos.map((p) => {
+    const v = viewDaEntrada.get(p.entry.id) as ContaAPagarView;
+    return {
+      id: p.id,
+      paid_on: diaIso(inicioDoDiaEmSaoPaulo(p.paid_at)),
+      entry_id: p.entry.id,
+      name: v.name,
+      supplier_id: v.supplier_id,
+      supplier_name: v.supplier_name,
+      origin: v.origin,
+      source_label: origemDoPagamento.get(p.id) ?? "Sem saída de caixa registrada",
+      establishment_name: v.establishment_name,
+      amount: decToNum(p.amount) ?? 0,
+    };
+  });
+  const pagoCent = paid_items.reduce((s, i) => s + centavos(i.amount), 0);
+  const base = pagoCent + previstoCent;
+
+  return ok({
+    summary: {
+      overdue: faixa(comVencimento.filter((c) => (c.due_date as string) < hojeIso)),
+      due_today: faixa(comVencimento.filter((c) => c.due_date === hojeIso)),
+      upcoming: { ...faixa([...comVencimento.filter((c) => (c.due_date as string) > hojeIso), ...semVencimento]), undated_count: semVencimento.length },
+      paid: { total: pagoCent / 100, count: paid_items.length, expected_pct: base > 0 ? Math.round((pagoCent / base) * 100) : null },
+    },
+    paid_items,
+    period: periodo.data,
+  });
 }
 
 /** `semVisibilidade` acha a conta mesmo de loja fora do vínculo: só para distinguir "não existe" de "não é sua". */

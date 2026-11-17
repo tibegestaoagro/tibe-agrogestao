@@ -11,6 +11,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { reaisBr } from "@/lib/numero-br";
+import { NomeDoFornecedor } from "./amarras";
 import { CorrigirContaForm } from "./corrigir-conta-form";
 import type { CaixaDaLoja } from "./caixas-da-loja";
 import { PagarContasForm, type OrigemDoDinheiro } from "./pagar-contas-form";
@@ -30,6 +31,8 @@ export type ContaDaLista = {
   name: string;
   /** Da compra: o fornecedor (o `name` já o traz; fica para a frase da origem). */
   supplier_name?: string | null;
+  /** O fornecedor cadastrado (compra e avulsa): vira link para a ficha. */
+  supplier_id?: string | null;
   establishment_name: string | null;
   open_amount: number;
   paid_amount: number;
@@ -124,11 +127,15 @@ export function ContasAPagar({
                   />
                 </TableCell>
                 <TableCell className="font-medium text-texto">
-                  {c.name}
+                  {c.origin === "compra" ? <NomeDoFornecedor id={c.supplier_id} nome={c.name} /> : c.name}
                   <span className="block text-xs font-normal text-texto-secundario">
                     {ORIGEM_ROTULO[c.origin]}
                     {c.establishment_name ? `, ${c.establishment_name}` : ""}
-                    {c.origin === "avulsa" && c.supplier_name ? `, ${c.supplier_name}` : ""}
+                    {c.origin === "avulsa" && c.supplier_name && (
+                      <>
+                        , <NomeDoFornecedor id={c.supplier_id} nome={c.supplier_name} />
+                      </>
+                    )}
                   </span>
                 </TableCell>
                 <TableCell>

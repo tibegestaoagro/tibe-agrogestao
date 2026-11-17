@@ -17,6 +17,8 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { NomeDoCliente, VendaLink } from "../_components/amarras";
+import { idDoClientePadrao } from "../_components/cliente-padrao";
 import { ContaForm } from "../_components/conta-form";
 import { ContaArquivarBotao } from "../_components/conta-arquivar-botao";
 import { PixLojaForm } from "../_components/pix-loja-form";
@@ -54,7 +56,7 @@ export default async function CaixaPage() {
   // Cadastrar conta bancária, informar o saldo inicial e arquivar: do dono da conta ou do Financeiro.
   const mexeNaConta = ehConta || ehDinheiro;
 
-  const [caixaRes, boletosRes, contasRes, contasDoBanco, implantados, comTurno, entregasRes] = await Promise.all([
+  const [caixaRes, boletosRes, contasRes, contasDoBanco, implantados, comTurno, entregasRes, padraoId] = await Promise.all([
     lerCaixaAction(db, user),
     listarBoletosAction(db, user, { status: "aberto" }),
     veContas ? listarContasAction(db, user, { incluir_arquivadas: true }) : Promise.resolve(null),
@@ -72,6 +74,7 @@ export default async function CaixaPage() {
     // O saldo inicial de um caixa só vale antes do primeiro turno: quem já teve turno não o recebe.
     ehGestor ? db.cashSession.findMany({ select: { cash_register_id: true }, distinct: ["cash_register_id"] }) : Promise.resolve([]),
     ehGestor ? listarEntregasAction(db, user, { status: "pending" }) : Promise.resolve(null),
+    idDoClientePadrao(db),
   ]);
   const caixa = caixaRes.ok
     ? caixaRes.data
@@ -362,9 +365,12 @@ export default async function CaixaPage() {
                       </TableCell>
                       <TableCell>{reaisBr(p.effective_net)}</TableCell>
                       <TableCell>
-                        <Link href={`/emporio/vendas/${p.sale_id}`} className="font-medium text-texto-marca hover:underline">
-                          Ver a venda
-                        </Link>
+                        <VendaLink id={p.sale_id} numero={p.sale_number} parcela={`${p.installment}/${p.installments}`} />
+                        {p.customer_name && (
+                          <span className="block text-xs text-texto-secundario">
+                            <NomeDoCliente id={p.customer_id} nome={p.customer_name} padraoId={padraoId} />
+                          </span>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -406,11 +412,9 @@ export default async function CaixaPage() {
                     </span>
                   </TableCell>
                   <TableCell>
-                    {c.customer_name}
+                    <NomeDoCliente id={c.customer_id} nome={c.customer_name} padraoId={padraoId} />
                     <span className="block text-xs text-texto-secundario">Em nome de {c.holder_name}</span>
-                    <Link href={`/emporio/vendas/${c.sale_id}`} className="block text-xs font-medium text-texto-marca hover:underline">
-                      Ver a venda
-                    </Link>
+                    <VendaLink id={c.sale_id} numero={c.sale_number} className="block text-xs" />
                   </TableCell>
                   <TableCell>{dataBr(c.good_for)}</TableCell>
                   <TableCell>{reaisBr(c.amount)}</TableCell>
@@ -438,6 +442,7 @@ export default async function CaixaPage() {
 
       <BoletosLista
         iniciais={boletosRes.ok ? boletosRes.data : []}
+        padraoId={padraoId}
         loja=""
         contas={contasDoBanco}
         ehDinheiro={ehDinheiro}
@@ -556,13 +561,14 @@ export default async function CaixaPage() {
                     <TableCell>{DATA_HORA.format(new Date(m.occurred_at))}</TableCell>
                     <TableCell>{onde}</TableCell>
                     <TableCell>
-                      {m.sale_id ? (
-                        <Link href={`/emporio/vendas/${m.sale_id}`} className="font-medium text-texto-marca hover:underline">
-                          {ORIGEM_CAIXA_ROTULO[m.origin] ?? m.origin}
+                      {ORIGEM_CAIXA_ROTULO[m.origin] ?? m.origin}
+                      {m.sale_id && m.sale_number != null ? (
+                        <VendaLink id={m.sale_id} numero={m.sale_number} className="block text-xs" />
+                      ) : m.sale_id ? (
+                        <Link href={`/emporio/vendas/${m.sale_id}`} className="block text-xs font-medium text-texto-marca hover:underline">
+                          Ver a venda
                         </Link>
-                      ) : (
-                        (ORIGEM_CAIXA_ROTULO[m.origin] ?? m.origin)
-                      )}
+                      ) : null}
                     </TableCell>
                     <TableCell className={entrada ? "text-sucesso-tinta" : "text-perigo-tinta"}>
                       {entrada ? "+" : "-"} {reaisBr(m.amount)}

@@ -3,7 +3,8 @@ import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { decToNum } from "@/lib/serialize";
 import { exigir, exigirUma } from "@/lib/emporio/papel";
 import { hojeEmBrasilia } from "@/lib/emporio/cartao";
-import { inicioDoDiaEmSaoPaulo } from "@/lib/dia-calendario";
+import { dataCalendario, inicioDoDiaEmSaoPaulo, periodoDeDatasEmSaoPaulo } from "@/lib/dia-calendario";
+import { conferirPeriodo, type Faixa, type Periodo } from "@/lib/emporio/periodo";
 import { dinheiro, registrarNoHistorico } from "@/lib/emporio/historico";
 import { lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
 import {
@@ -85,6 +86,37 @@ export type CartaoAReceberView = {
   /** Taxas de cartão (Q254): nulos nas parcelas de antes da entrega. */
   acquirer_name: string | null;
   brand: string | null;
+  /** Frente A: a venda e o cliente da parcela, para os links. `customer_*` é nulo na venda sem cliente. */
+  sale_number: number;
+  customer_id: string | null;
+  customer_name: string | null;
+};
+
+export type { Faixa, Periodo };
+
+export type ResumoAReceber = {
+  overdue: Faixa;
+  due_today: Faixa;
+  upcoming: Faixa;
+  received: Faixa & { expected_pct: number | null };
+};
+
+/** Uma linha de "Recebido no período" (A receber) e dos recebimentos da ficha do cliente. */
+export type RecebimentoView = {
+  id: string;
+  /** `devolucao` só existe na ficha do cliente: o dinheiro devolvido, com `amount` negativo. */
+  kind: "dinheiro" | "pix" | "cartao" | "fiado" | "cheque" | "boleto" | "devolucao";
+  /** Dia de calendário (AAAA-MM-DD) em Brasília. */
+  occurred_on: string;
+  customer_id: string | null;
+  customer_name: string | null;
+  sale_id: string | null;
+  sale_number: number | null;
+  establishment_id: string | null;
+  establishment_name: string | null;
+  amount: number;
+  /** Só no cheque: a situação dele. */
+  check_status?: string;
 };
 
 export type AReceberView = {
@@ -108,6 +140,9 @@ export type ExtratoLinhaView = {
   /** A venda que gerou a linha (PIX, dinheiro, cartão): o cliente e o número; nulos sem venda. */
   customer_name?: string | null;
   sale_number?: number | null;
+  /** Frente A: ids para os links; nulos sem venda. */
+  sale_id: string | null;
+  customer_id: string | null;
   /** Só na linha de cartão (Q254); nulos nas demais e nas parcelas antigas. */
   acquirer_name?: string | null;
   brand?: string | null;
@@ -286,14 +321,17 @@ export async function lerResumoHojeAction(
 export async function listarContasAReceberAction(
   db: TenantPrismaClient,
   ator: Ator,
-  opts: { establishment_id?: string } = {},
-): Promise<ActionResult<AReceberView>> {
+  opts: { establishment_id?: string; de?: string; ate?: string } = {},
+): Promise<ActionResult<AReceberView & { summary: ResumoAReceber; received_items: RecebimentoView[]; period: Periodo }>> {
   const neg = await exigir(db, ator, "dinheiro", "ver as contas a receber");
   if (neg) return neg;
   const lojaId = typeof opts?.establishment_id === "string" && opts.establishment_id ? opts.establishment_id : undefined;
   if (lojaId && !(await db.establishment.findFirst({ where: { id: lojaId }, select: { id: true } }))) {
     return fail("NOT_FOUND", "Estabelecimento não encontrado.", 404, "establishment_id");
   }
+  const hoje = hojeEmBrasilia();
+  const periodo = conferirPeriodo(opts?.de, opts?.ate, hoje);
+  if (!periodo.ok) return periodo;
   const fiado = await listarFiadoAction(db, ator, { establishment_id: lojaId });
   if (!fiado.ok) return fiado;
   const carteira = await listarChequesAction(db, ator, { establishment_id: lojaId });
@@ -301,19 +339,60 @@ export async function listarContasAReceberAction(
   const boletos = await listarBoletosAction(db, ator, { establishment_id: lojaId, status: "aberto" });
   if (!boletos.ok) return boletos;
 
-  const hoje = hojeEmBrasilia();
+  // Toda soma respeita as lojas do ator (quem vê uma loja só soma a dele).
+  const visiveis = await lojasDoAtor(db, ator);
+  const lojas = lojaId ? { establishment_id: lojaId } : visiveis ? { establishment_id: { in: [...visiveis] } } : {};
   const parcelas = await db.cardReceivable.findMany({
-    where: { canceled_at: null, effective_on: { gte: hoje }, ...(lojaId ? { establishment_id: lojaId } : {}) },
+    where: { canceled_at: null, effective_on: { gte: hoje }, ...lojas },
     include: {
       establishment: { select: { name: true } },
       bank_account: { select: { name: true } },
       acquirer: { select: { name: true } },
+      sale: { select: { number: true, customer_id: true, customer: { select: { name: true } } } },
     },
     orderBy: [{ effective_on: "asc" }, { installment: "asc" }],
   });
+  const cheques = carteira.data.filter((c) => c.status === "recebido" || c.status === "depositado");
+  const recebidos = await recebidosNoPeriodo(db, lojas, periodo.data, hoje);
+
+  const hojeIso = dia(hoje);
+  const soma = (xs: { cent: number }[]): Faixa => ({ total: xs.reduce((s, x) => s + x.cent, 0) / 100, count: xs.length });
+  // O fiado tem uma linha por cliente: a quantidade é a de clientes com valor naquele recorte.
+  const faixaDoFiado = (campo: "overdue_amount" | "due_today_amount" | "upcoming_amount") => {
+    const com = fiado.data.filter((c) => c[campo] > 0);
+    return com.map((c) => ({ cent: centavos(c[campo]) }));
+  };
+  const doCheque = (c: ChequeView) => ({ cent: centavos(c.amount), em: c.good_for });
+  const doBoleto = (b: BoletoView) => ({ cent: centavos(b.amount), em: b.due_on });
+  const recorte = (f: (em: string) => boolean) => [
+    ...cheques.map(doCheque).filter((x) => f(x.em)),
+    ...boletos.data.map(doBoleto).filter((x) => f(x.em)),
+  ];
+  const doCartao = (f: (em: string) => boolean) =>
+    parcelas.filter((p) => f(dia(p.effective_on))).map((p) => ({ cent: centavos(decToNum(p.effective_net) ?? 0) }));
+
+  // O previsto do período que segue em aberto: o aberto de cada lançamento (não o valor original) e o cartão que ainda não caiu.
+  const noPeriodo = (em: string) => em >= periodo.data.de && em <= periodo.data.ate;
+  const previstoCent =
+    fiado.data.flatMap((c) => c.entries).filter((e) => e.due_date && noPeriodo(e.due_date.slice(0, 10))).reduce((s, e) => s + centavos(e.open), 0) +
+    recorte(noPeriodo).reduce((s, x) => s + x.cent, 0) +
+    doCartao((em) => em > hojeIso && noPeriodo(em)).reduce((s, x) => s + x.cent, 0);
+  const recebidoCent = recebidos.reduce((s, r) => s + centavos(r.amount), 0);
+  const base = recebidoCent + previstoCent;
+
+  const summary: ResumoAReceber = {
+    overdue: soma([...faixaDoFiado("overdue_amount"), ...recorte((em) => em < hojeIso)]),
+    due_today: soma([...faixaDoFiado("due_today_amount"), ...recorte((em) => em === hojeIso), ...doCartao((em) => em === hojeIso)]),
+    upcoming: soma([...faixaDoFiado("upcoming_amount"), ...recorte((em) => em > hojeIso), ...doCartao((em) => em > hojeIso)]),
+    received: { total: recebidoCent / 100, count: recebidos.length, expected_pct: base > 0 ? Math.round((recebidoCent / base) * 100) : null },
+  };
+
   return ok({
+    summary,
+    received_items: recebidos,
+    period: periodo.data,
     fiado: fiado.data,
-    checks: carteira.data.filter((c) => c.status === "recebido" || c.status === "depositado"),
+    checks: cheques,
     boletos: boletos.data,
     cards: parcelas.map((p) => ({
       id: p.id,
@@ -334,8 +413,115 @@ export async function listarContasAReceberAction(
       received: p.effective_on.getTime() <= hoje.getTime(),
       acquirer_name: p.acquirer?.name ?? null,
       brand: p.brand,
+      sale_number: p.sale.number,
+      customer_id: p.sale.customer_id,
+      customer_name: p.sale.customer?.name ?? null,
     })),
   });
+}
+
+/**
+ * O que entrou no período e já foi A receber: fiado recebido, cheque compensado, boleto pago e
+ * parcela de cartão caída (até hoje). O dinheiro e o PIX do ato da venda ficam fora. Venda
+ * cancelada fica fora; os instantes se medem pelo dia de Brasília (o das 22h do último dia vale o mês).
+ */
+async function recebidosNoPeriodo(
+  db: TenantPrismaClient,
+  lojas: { establishment_id?: string | { in: string[] } },
+  periodo: Periodo,
+  hoje: Date,
+): Promise<RecebimentoView[]> {
+  const { since, until } = periodoDeDatasEmSaoPaulo(periodo.de, periodo.ate);
+  const deDia = dataCalendario(periodo.de);
+  const ateDia = dataCalendario(periodo.ate);
+  const ateCartao = ateDia.getTime() < hoje.getTime() ? ateDia : hoje;
+  const nome = { select: { name: true } };
+
+  const [fiados, cheques, boletos, cartoes] = await Promise.all([
+    db.cashMovement.findMany({
+      where: {
+        origin: "recebimento_fiado",
+        direction: "entrada",
+        occurred_at: { gte: since, lte: until },
+        financial_payment: { entry: lojas },
+        OR: [{ sale_id: null }, { sale: { status: "concluida" } }],
+      },
+      include: {
+        sale: { select: { number: true } },
+        financial_payment: {
+          select: { entry: { select: { emporio_customer_id: true, establishment_id: true, emporio_customer: nome, establishment: nome } } },
+        },
+      },
+    }),
+    db.emporioCheck.findMany({
+      where: { status: "compensado", cleared_at: { gte: since, lte: until }, ...lojas },
+      include: { customer: nome, establishment: nome, sale: { select: { number: true } } },
+    }),
+    db.emporioBoleto.findMany({
+      where: { status: "pago", paid_on: { gte: deDia, lte: ateDia }, ...lojas },
+      include: { customer: nome, establishment: nome, sale: { select: { number: true } } },
+    }),
+    db.cardReceivable.findMany({
+      where: { canceled_at: null, effective_on: { gte: deDia, lte: ateCartao }, sale: { status: "concluida" }, ...lojas },
+      include: { establishment: nome, sale: { select: { number: true, customer_id: true, customer: nome } } },
+    }),
+  ]);
+
+  const linhas: RecebimentoView[] = [
+    ...fiados.map((m): RecebimentoView => {
+      const e = m.financial_payment?.entry;
+      return {
+        id: m.id,
+        kind: "fiado",
+        occurred_on: dia(inicioDoDiaEmSaoPaulo(m.occurred_at)),
+        customer_id: e?.emporio_customer_id ?? null,
+        customer_name: e?.emporio_customer?.name ?? null,
+        sale_id: m.sale_id,
+        sale_number: m.sale?.number ?? null,
+        establishment_id: e?.establishment_id ?? null,
+        establishment_name: e?.establishment?.name ?? null,
+        amount: decToNum(m.amount) ?? 0,
+      };
+    }),
+    ...cheques.map((c): RecebimentoView => ({
+      id: c.id,
+      kind: "cheque",
+      occurred_on: dia(inicioDoDiaEmSaoPaulo(c.cleared_at as Date)),
+      customer_id: c.customer_id,
+      customer_name: c.customer.name,
+      sale_id: c.sale_id,
+      sale_number: c.sale.number,
+      establishment_id: c.establishment_id,
+      establishment_name: c.establishment.name,
+      amount: decToNum(c.amount) ?? 0,
+      check_status: c.status,
+    })),
+    ...boletos.map((b): RecebimentoView => ({
+      id: b.id,
+      kind: "boleto",
+      occurred_on: dia(b.paid_on as Date),
+      customer_id: b.customer_id,
+      customer_name: b.customer.name,
+      sale_id: b.sale_id,
+      sale_number: b.sale.number,
+      establishment_id: b.establishment_id,
+      establishment_name: b.establishment.name,
+      amount: decToNum(b.amount) ?? 0,
+    })),
+    ...cartoes.map((p): RecebimentoView => ({
+      id: p.id,
+      kind: "cartao",
+      occurred_on: dia(p.effective_on),
+      customer_id: p.sale.customer_id,
+      customer_name: p.sale.customer?.name ?? null,
+      sale_id: p.sale_id,
+      sale_number: p.sale.number,
+      establishment_id: p.establishment_id,
+      establishment_name: p.establishment.name,
+      amount: decToNum(p.effective_net) ?? 0,
+    })),
+  ];
+  return linhas.sort((a, b) => b.occurred_on.localeCompare(a.occurred_on) || b.id.localeCompare(a.id));
 }
 
 /**
@@ -437,7 +623,7 @@ export async function lerExtratoAction(
       include: {
         establishment: { select: { name: true } },
         // O PIX e a transferência caem na conta sem loja: a venda diz a loja e o cliente da linha.
-        sale: { select: { number: true, customer: { select: { name: true } }, establishment: { select: { name: true } } } },
+        sale: { select: { number: true, customer_id: true, customer: { select: { name: true } }, establishment: { select: { name: true } } } },
       },
       orderBy: [{ occurred_at: "asc" }, { created_at: "asc" }],
     }),
@@ -447,7 +633,7 @@ export async function lerExtratoAction(
           include: {
             establishment: { select: { name: true } },
             acquirer: { select: { name: true } },
-            sale: { select: { number: true, customer: { select: { name: true } } } },
+            sale: { select: { number: true, customer_id: true, customer: { select: { name: true } } } },
           },
           orderBy: [{ effective_on: "asc" }, { installment: "asc" }],
         })
@@ -491,6 +677,8 @@ export async function lerExtratoAction(
       description: m.notes?.trim() || ROTULO_ORIGEM[m.origin] || m.origin,
       customer_name: m.sale?.customer?.name ?? null,
       sale_number: m.sale?.number ?? null,
+      sale_id: m.sale_id,
+      customer_id: m.sale?.customer_id ?? null,
       ...carimbo(m),
     })),
     ...parcelas.map((p): ExtratoLinhaView => ({
@@ -505,6 +693,8 @@ export async function lerExtratoAction(
       description: `Cartão, parcela ${p.installment}/${p.installments}`,
       customer_name: p.sale?.customer?.name ?? null,
       sale_number: p.sale?.number ?? null,
+      sale_id: p.sale_id,
+      customer_id: p.sale?.customer_id ?? null,
       acquirer_name: p.acquirer?.name ?? null,
       brand: p.brand,
       ...carimbo(p),

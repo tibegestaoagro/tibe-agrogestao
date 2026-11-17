@@ -25,23 +25,23 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-16. Nada em andamento. Branch
-  `emporio-orcamento-total-e-cadastro-leve` EM PRODUÇÃO (merge `762854a`,
-  autorizado em 16/11, sem migração, deploy confirmado): Q335 total do orçamento na tela; Q336 orçamento
-  só com nome e telefone, endereço de entrega opcional, `pendencias_para_venda`
-  e alerta (decisão do usuário 16/11); CEP Q337 a Q340 (spec de 16/11, rota
-  `GET /api/v1/cep/:cep`, ViaCEP com BrasilAPI de reserva, `test:m119`).
-  `test:all` 122/122, roteiro `emporio-orcamento-leve-e-cep` 107 ok.
-  Preço do cadastro, desconto por PIN do gestor e
-  brinde (Q327 a Q334, spec e plano de 16/11) EM PRODUÇÃO: migração no Neon
-  antes do push, merge `c43a130`, autorizados. m118,
-  roteiro `emporio-desconto-pin` (93 ok), juiz 5/10 com os 9 achados
-  corrigidos, `test:all` 121/121. Os gestores precisam cadastrar o PIN.
-  Manual completo 0 falhas EM PRODUÇÃO (merge `1616dbd`, autorizado em 17/11, sem migração): o cenário do manual limpa a conta do seed; o `npm run navegador` fecha as abas (`--limpar`). Frete no orçamento (Q326) e vendas do
-  turno (Q325) em produção. GIFs do manual: roteiro `manual-gifs` e
-  `python scripts/manual-gifs-montar.py`. Os agentes `explorador`,
-  `prova-juiz`, `prova-viva` e `servidor-dados` carregam (descrição entre
-  aspas). Outros agentes: leia `AGENTS.md`.
+- Atualizado em: 2026-11-17. **Plano das ideias do GestãoClick** (reunião de
+  09/11): Q341 a Q344 e a ordem das frentes em
+  [../superpowers/specs/2026-11-17-emporio-plano-gestaoclick.md](../superpowers/specs/2026-11-17-emporio-plano-gestaoclick.md).
+  Material em `docs/financeiro-reuniao/` (fora do git, só no desktop).
+  **Frente A (informação amarrada, Q345 a Q348) PRONTA na branch
+  `emporio-informacao-amarrada`, aguardando merge** (sem migração): spec de
+  17/11; rotas novas `payables/summary` e `customers/:id/receipts`.
+  `test:all` 123/123, `test:m120` (141), roteiro
+  `emporio-informacao-amarrada` (133 ok, sabotado falha), juiz 8,5 com os
+  achados 3 e 4 corrigidos, manual com as figuras novas. Próxima: frente G1
+  (planilha), que espera a exportação do GestãoClick.
+- Em produção desde 16/11: orçamento com total, cadastro leve e CEP (Q335 a
+  Q340, merge `762854a`, `test:m119`); preço do cadastro, desconto por PIN e
+  brinde (Q327 a Q334, merge `c43a130`, m118; os gestores precisam cadastrar o
+  PIN); manual completo (merge `1616dbd`, 17/11); frete no orçamento (Q326) e
+  vendas do turno (Q325). GIFs do manual: roteiro `manual-gifs` e
+  `python scripts/manual-gifs-montar.py`.
 - `main` igual a `origin/main`, Neon em dia. Em produção também: conta avulsa e
   2.64/2.65, Apresentação sempre visível, observação no impresso, cliente no
   extrato, relatórios e exportação (Q268 a Q274), cartão (Q250 a Q267), frete
