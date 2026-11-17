@@ -69,6 +69,9 @@ export type FiadoClienteView = {
   owed: number;
   oldest_due_date: string | null;
   overdue_amount: number;
+  /** Frente A: o aberto de cada lançamento que vence hoje e o que vence depois (o recorte do cartão do A receber). */
+  due_today_amount: number;
+  upcoming_amount: number;
   entries: FiadoEntradaView[];
 };
 
@@ -238,12 +241,17 @@ export async function listarFiadoAction(
         owed: 0,
         oldest_due_date: null,
         overdue_amount: 0,
+        due_today_amount: 0,
+        upcoming_amount: 0,
         entries: [],
       };
       clientes.set(id, cli);
     }
     cli.owed = arred2(cli.owed + aberto);
+    const diaDoVencimento = diaUtc(e.effective_due_date);
     if (vencido) cli.overdue_amount = arred2(cli.overdue_amount + aberto);
+    else if (diaDoVencimento === hoje.getTime()) cli.due_today_amount = arred2(cli.due_today_amount + aberto);
+    else cli.upcoming_amount = arred2(cli.upcoming_amount + aberto);
     if (cli.oldest_due_date === null || venceEm < cli.oldest_due_date) cli.oldest_due_date = venceEm;
     cli.entries.push({
       entry_id: e.id,
@@ -1026,6 +1034,8 @@ export type MovimentoDeCaixaView = {
   manager_establishment_id: string | null;
   cash_handover_id: string | null;
   notes: string | null;
+  /** Frente A: o número da venda do movimento (só na leitura do caixa), para "Venda nº X". */
+  sale_number?: number | null;
 };
 
 type MovimentoRow = {
@@ -1049,10 +1059,12 @@ type MovimentoRow = {
   manager_establishment_id: string | null;
   cash_handover_id: string | null;
   notes: string | null;
+  sale?: { number: number } | null;
 };
 
 function viewDoMovimento(m: MovimentoRow): MovimentoDeCaixaView {
   return {
+    ...(m.sale !== undefined ? { sale_number: m.sale?.number ?? null } : {}),
     id: m.id,
     establishment_id: m.establishment_id,
     bank_account_id: m.bank_account_id,
@@ -1111,11 +1123,17 @@ export type ParcelaCartaoView = {
   /** Taxas de cartão (Q254): nulos nas parcelas de antes da entrega. */
   acquirer_name: string | null;
   brand: string | null;
+  /** Frente A: a venda e o cliente da parcela, para os links. `customer_*` é nulo na venda sem cliente. */
+  sale_number: number;
+  customer_id: string | null;
+  customer_name: string | null;
 };
 
 export type ChequeView = {
   id: string;
   sale_id: string;
+  /** Frente A: o número da venda, para o link "Venda nº X". */
+  sale_number: number | null;
   sale_payment_id: string;
   customer_id: string;
   customer_name: string;
@@ -1323,12 +1341,14 @@ type ChequeRow = {
   returned_at: Date | null;
   return_reason: string | null;
   customer: { name: string } | null;
+  sale?: { number: number } | null;
 };
 
 function viewDoCheque(c: ChequeRow): ChequeView {
   return {
     id: c.id,
     sale_id: c.sale_id,
+    sale_number: c.sale?.number ?? null,
     sale_payment_id: c.sale_payment_id,
     customer_id: c.customer_id ?? "",
     customer_name: c.customer?.name ?? "",
@@ -1398,7 +1418,11 @@ export async function lerCaixaAction(
     const todas = await viewsDasContas(db, { archived_at: null });
     const todasFuturas = await db.cardReceivable.findMany({
       where: { canceled_at: null, effective_on: { gt: hojeEmBrasilia() } },
-      include: { bank_account: { select: { name: true } }, acquirer: { select: { name: true } } },
+      include: {
+        bank_account: { select: { name: true } },
+        acquirer: { select: { name: true } },
+        sale: { select: { number: true, customer_id: true, customer: { select: { name: true } } } },
+      },
       orderBy: [{ effective_on: "asc" }, { installment: "asc" }],
     });
     parcelas = todasFuturas
@@ -1424,6 +1448,9 @@ export async function lerCaixaAction(
         anticipated: f.anticipation_id !== null,
         acquirer_name: f.acquirer?.name ?? null,
         brand: f.brand,
+        sale_number: f.sale.number,
+        customer_id: f.sale.customer_id,
+        customer_name: f.sale.customer?.name ?? null,
       }));
     const aReceber = new Map<string, number>();
     for (const f of todasFuturas) {
@@ -1442,7 +1469,7 @@ export async function lerCaixaAction(
       status: { in: ["recebido", "depositado"] },
       establishment_id: opts.establishment_id ? opts.establishment_id : { in: lojas.map((l) => l.id) },
     },
-    include: { customer: { select: { name: true } } },
+    include: { customer: { select: { name: true } }, sale: { select: { number: true } } },
     orderBy: [{ good_for: "asc" }, { created_at: "asc" }],
   });
 
@@ -1458,6 +1485,7 @@ export async function lerCaixaAction(
   const limite = opts.limit && opts.limit > 0 ? Math.min(Math.floor(opts.limit), 500) : 100;
   const movs = await db.cashMovement.findMany({
     where: onde,
+    include: { sale: { select: { number: true } } },
     orderBy: [{ occurred_at: "desc" }, { created_at: "desc" }],
     take: limite,
   });
@@ -1831,7 +1859,7 @@ export async function listarChequesAction(
       ...(opts.customer_id ? { customer_id: opts.customer_id } : {}),
       ...(opts.status ? { status: opts.status as (typeof STATUS_DE_CHEQUE)[number] } : {}),
     },
-    include: { customer: { select: { name: true } } },
+    include: { customer: { select: { name: true } }, sale: { select: { number: true } } },
     orderBy: [{ good_for: "asc" }, { created_at: "asc" }],
   });
   return ok(cheques.map(viewDoCheque));
@@ -1844,7 +1872,7 @@ async function acharCheque(db: TenantPrismaClient, ator: Ator, id: string) {
 }
 
 async function chequePorId(db: TenantPrismaClient, id: string): Promise<ActionResult<ChequeView>> {
-  const c = await db.emporioCheck.findFirst({ where: { id }, include: { customer: { select: { name: true } } } });
+  const c = await db.emporioCheck.findFirst({ where: { id }, include: { customer: { select: { name: true } }, sale: { select: { number: true } } } });
   return c ? ok(viewDoCheque(c)) : NAO_ACHADO("Cheque");
 }
 
