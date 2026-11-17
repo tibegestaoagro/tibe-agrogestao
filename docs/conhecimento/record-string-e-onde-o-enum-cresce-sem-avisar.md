@@ -63,3 +63,24 @@ quebrar, devolva. Sem isso você tem a sensação de proteção, não a proteç�
 
 - [[portao-mede-a-relacao-que-lhe-deram]]
 - [[campo-no-ordem-sem-error-engole-a-recusa]]
+
+## Acréscimo de 2026-11-17: `satisfies Record<Enum, string>` quando o mapa é lido por `string`
+
+O `pagamento_franqueado` (Q304) apareceu cru na coluna Origem do Caixa: o mapa
+`ORIGEM_CAIXA_ROTULO` era `Record<string, string>`, e o enum cresceu sem ele.
+
+Tipar o mapa como `Record<CashMovementOrigin, string>` quebrou outro arquivo: a
+página do Caixa indexa o mapa com uma `string` que vem da linha do banco. A
+saída foi manter o tipo e conferir a cobertura:
+
+```ts
+export const ORIGEM_CAIXA_ROTULO: Record<string, string> = {
+  venda: "Venda",
+  // ...
+} satisfies Record<CashMovementOrigin, string>;
+```
+
+Diferente do `satisfies readonly T[]` citado acima, o `satisfies` com `Record`
+sobre um objeto reprova a chave que FALTA e a chave inventada. Provado nos dois
+sentidos (chave removida: o `tsc` reprova; devolvida: passa). Use esta forma
+quando o mapa já é lido por `string` em mais de um lugar.

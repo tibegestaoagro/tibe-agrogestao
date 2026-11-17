@@ -99,6 +99,7 @@ grep -rl "^tipo: armadilha" docs/conhecimento/
 | [o custo médio que parecia errado era a compra carimbada ao meio-dia](o-custo-medio-que-parecia-errado-era-estoque-fantasma.md) | licao | a contagem grava a hora e a compra só o dia: compare `created_at` com `occurred_at` antes de culpar o processo |
 | [na Agromax a apresentação é faixa de preço](na-agromax-a-apresentacao-e-faixa-de-preco.md) | decisao | CONSUMIDOR, FRANQUIA e ATACADO no mesmo produto; a regra casa pelo nome |
 | [a suíte que importa a rota de token não encerra sozinha](suite-que-importa-a-rota-de-token-nao-encerra-sozinha.md) | armadilha | o Redis do limitador segura o processo; termine com process.exit |
+| [a conta do seed acumula o que os cenários deixam](a-conta-do-seed-acumula-o-que-os-cenarios-deixam.md) | armadilha | 23 figuras do manual reprovaram com 46 lojas na conta; conte as linhas antes de abrir o código |
 
 ⚠️ **`[[wikilink]]` para nota que não existe reprova o `npm run check`**
 (conferência 13). É o que impede esta pasta de virar um cemitério de links
