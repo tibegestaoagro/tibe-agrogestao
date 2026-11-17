@@ -532,9 +532,9 @@ async function leituraFinanceiraDoCliente(
         financial_payment: { select: { entry: { select: { establishment_id: true, establishment: nome } } } },
       },
     }),
-    db.emporioSaleReturn.aggregate({
+    db.emporioSaleReturn.findMany({
       where: { refund_kind: "dinheiro", sale: { customer_id: customerId, ...vendaViva, ...daLoja } },
-      _sum: { amount: true },
+      include: { sale: { select: { number: true, establishment_id: true, establishment: nome } } },
     }),
   ]);
 
@@ -594,13 +594,25 @@ async function leituraFinanceiraDoCliente(
       amount: Number(c.amount),
       check_status: c.status,
     })),
+    // A devolução em dinheiro entra como linha negativa, para a lista somar o mesmo que o cartão Recebido.
+    ...devolucoes.map((d): RecebimentoView => ({
+      id: d.id,
+      kind: "devolucao",
+      occurred_on: diaIso(inicioDoDiaEmSaoPaulo(d.returned_at)),
+      ...doCliente,
+      customer_name: null,
+      sale_id: d.sale_id,
+      sale_number: d.sale.number,
+      establishment_id: d.sale.establishment_id,
+      establishment_name: d.sale.establishment.name,
+      amount: -Number(d.amount),
+    })),
   ];
   itens.sort((a, b) => b.occurred_on.localeCompare(a.occurred_on) || b.id.localeCompare(a.id));
 
-  const soma = itens
+  const recebidoCent = itens
     .filter((i) => i.kind !== "cheque" || i.check_status === "compensado")
     .reduce((s, i) => s + centavos(i.amount), 0);
-  const recebidoCent = soma - centavos(Number(devolucoes._sum.amount ?? 0));
 
   const hojeIso = diaIso(hoje);
   const doFiado = fiado.ok ? fiado.data[0] : undefined;

@@ -12,6 +12,7 @@ export const FORMA_DO_RECEBIMENTO: Record<RecebimentoView["kind"], string> = {
   fiado: "Fiado",
   cheque: "Cheque",
   boleto: "Boleto",
+  devolucao: "Devolução em dinheiro",
 };
 
 /** "Recebido no período" do A receber: do mais recente ao mais antigo, como o servidor devolve. */

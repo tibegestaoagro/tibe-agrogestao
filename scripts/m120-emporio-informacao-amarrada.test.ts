@@ -761,6 +761,12 @@ async function secao8() {
   check("a venda cancelada não tem linha", itens.length > 0 && !itens.some((i) => i.sale_id === X.vCancelada), j(itens.filter((i) => i.sale_id === X.vCancelada)));
   check("o boleto aberto (70) não tem linha, o pago (30) tem", !itens.some((i) => i.kind === "boleto" && perto(i.amount, 70)) && itens.some((i) => i.kind === "boleto" && perto(i.amount, 30) && i.sale_id === X.vZB2), j(itens.filter((i) => i.kind === "boleto")));
   check("o fiado recebido (30) vem como linha de fiado", itens.some((i) => i.kind === "fiado" && perto(i.amount, 30)), j(itens.filter((i) => i.kind === "fiado")));
+  // Juiz da frente A, achado 3: a lista precisa somar o mesmo que o cartão Recebido.
+  check("a devolução em dinheiro (20) vem como linha negativa", itens.some((i) => i.kind === "devolucao" && perto(i.amount, -20)), j(itens.filter((i) => i.kind === "devolucao")));
+  const somaDaLista = itens
+    .filter((i) => i.kind !== "cheque" || i.check_status === "compensado")
+    .reduce((s, i) => s + Math.round(Number(i.amount) * 100), 0) / 100;
+  check("a lista (sem cheque fora de compensado) soma o Recebido de R$ 280", perto(somaDaLista, 280), String(somaDaLista));
   check("cada linha traz sale_number quando há venda", itens.length > 0 && itens.filter((i) => i.sale_id).every((i) => typeof i.sale_number === "number"), j(itens.filter((i) => i.sale_id && typeof i.sale_number !== "number")));
   const datas = itens.map((i) => String(i.occurred_on));
   check("da mais recente para a mais antiga", datas.length > 0 && datas.every((d, i) => i === 0 || datas[i - 1] >= d), j(datas));

@@ -104,7 +104,8 @@ export type ResumoAReceber = {
 /** Uma linha de "Recebido no período" (A receber) e dos recebimentos da ficha do cliente. */
 export type RecebimentoView = {
   id: string;
-  kind: "dinheiro" | "pix" | "cartao" | "fiado" | "cheque" | "boleto";
+  /** `devolucao` só existe na ficha do cliente: o dinheiro devolvido, com `amount` negativo. */
+  kind: "dinheiro" | "pix" | "cartao" | "fiado" | "cheque" | "boleto" | "devolucao";
   /** Dia de calendário (AAAA-MM-DD) em Brasília. */
   occurred_on: string;
   customer_id: string | null;

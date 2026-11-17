@@ -59,6 +59,15 @@ export function FinanceiroReceber({
   // O valor do cliente naquele recorte (o aberto dos lançamentos com a data do cartão ativo).
   const doRecorte = (c: FiadoClienteView): number =>
     ver === "vencido" ? c.overdue_amount : ver === "hoje" ? c.due_today_amount : ver === "a_vencer" ? c.upcoming_amount : c.owed;
+  // Com recorte, a data da linha é o vencimento mais antigo DENTRO do recorte (lançamento sem data fica com a geral).
+  const vencimentoDaLinha = (c: FiadoClienteView): string | null => {
+    if (!ver) return c.oldest_due_date;
+    const datas = c.entries
+      .filter((e) => e.open > 0 && e.due_date !== null && noRecorte(ver, hoje, e.due_date))
+      .map((e) => (e.due_date as string).slice(0, 10))
+      .sort();
+    return datas[0] ?? c.oldest_due_date;
+  };
   const fiado = ver ? dados.fiado.filter((c) => doRecorte(c) > 0) : dados.fiado;
   const cheques = ver ? dados.checks.filter((c) => noRecorte(ver, hoje, c.good_for)) : dados.checks;
   const cartoes = ver ? dados.cards.filter((p) => ver !== "vencido" && noRecorte(ver, hoje, p.effective_on)) : dados.cards;
@@ -123,7 +132,12 @@ export function FinanceiroReceber({
                         </Badge>
                       )}
                     </TableCell>
-                    <TableCell>{c.oldest_due_date ? DATA_UTC.format(new Date(c.oldest_due_date)) : "-"}</TableCell>
+                    <TableCell>
+                      {(() => {
+                        const d = vencimentoDaLinha(c);
+                        return d ? DATA_UTC.format(new Date(d.length === 10 ? `${d}T00:00:00Z` : d)) : "-";
+                      })()}
+                    </TableCell>
                     <TableCell>
                       <ReceberFiadoForm
                         contatoId={c.customer_id}

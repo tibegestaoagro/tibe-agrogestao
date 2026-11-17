@@ -19,6 +19,7 @@ const FORMA: Record<RecebimentoView["kind"], string> = {
   fiado: "Fiado",
   cheque: "Cheque",
   boleto: "Boleto",
+  devolucao: "Devolução em dinheiro",
 };
 
 type Pagina = { items: RecebimentoView[]; next_before: string | null };
