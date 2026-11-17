@@ -80,3 +80,16 @@ Nono e décimo atritos, no roteiro `emporio-escolha`:
 ## Relacionado
 
 - [[a-data-dita-vence-a-palavra-que-quita]]
+
+## Acréscimo de 2026-11-17: o `npm run navegador` fecha as abas sozinho
+
+Pedido do usuário (cada aba custa memória da estação). Desde o commit
+`c44d3e0`, o `scripts/navegador.ts` fecha, antes do roteiro, as abas que
+sobraram de rodadas anteriores e, depois, as que o roteiro abriu, passe ou
+caia. Isso também elimina a causa do oitavo atrito (aba que sobrou e recarga
+em laço).
+
+- **Fica sempre uma aba aberta.** Fechar a última encerra o Chrome de testes.
+- Fechar à mão: `npm run navegador -- --limpar`.
+- Aba aberta fora do comando (browser-harness direto, `new_tab`): feche ao
+  terminar de olhar. A regra está em `.claude/agents/prova-viva.md`.
