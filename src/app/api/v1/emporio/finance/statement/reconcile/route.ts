@@ -13,6 +13,8 @@ import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
 const schema = z.object({
   kind: z.enum(["movimento", "cartao"], { error: "Escolha o tipo da linha: movimento ou cartão." }),
   id: z.string({ error: "Escolha a linha." }).trim().min(1, "Escolha a linha."),
+  /** Só na linha de cartão (frente B): o valor que caiu; padrão o previsto. */
+  received_amount: z.number({ error: "Informe o valor que caiu, zero ou mais." }).min(0, "Informe o valor que caiu, zero ou mais.").optional(),
 });
 
 async function POSTHandler(request: Request) {

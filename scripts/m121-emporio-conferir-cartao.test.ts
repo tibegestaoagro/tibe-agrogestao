@@ -358,6 +358,14 @@ async function custoDoCartao(w: Mundo, loja: string): Promise<number> {
   return Object.entries(cc).filter(([k, v]) => k !== "card_sales" && k !== "pct" && typeof v === "number").reduce((s, [, v]) => s + cent(v), 0);
 }
 
+/** O resultado da loja no mês, em centavos (decisão da sessão principal: o ajuste também sai do resultado). */
+async function resultadoDoMes(w: Mundo, loja: string): Promise<number> {
+  const Res = await import("@/lib/actions/emporio-resultado");
+  const r = (await Res.resultadoDaLojaAction(w.db, w.owner, { establishment_id: loja, month: mesAtual })) as Dado;
+  if (!r.ok) throw new Error(`resultado: ${j(r)}`);
+  return cent(r.data.result);
+}
+
 async function logs(w: Mundo): Promise<number> {
   return (await prismaCru()).emporioAuditLog.count({ where: { tenant_id: w.tenantId } });
 }
@@ -429,6 +437,7 @@ async function secao3() {
   const p1 = await parcela(A, c, { net: 100, on });
   const s0 = await saldo(A, c.conta);
   const k0 = await custoDoCartao(A, L);
+  const res0 = await resultadoDoMes(A, L);
   const l0 = await logs(A);
   const r1 = await conf(A, A.tok.fin, p1.id, 90, { notes: "caiu a menos" });
   check("2xx", ok2xx(r1), `${r1.status} ${j(r1.corpo).slice(0, 200)}`);
@@ -438,10 +447,12 @@ async function secao3() {
   const a1 = await ajustesDe([p1.id]);
   check("nasce UM CashMovement ajuste_cartao ligado à parcela", a1.length === 1, j(a1));
   check("saída de R$ 10,00 na conta da parcela", a1.length === 1 && a1[0].direction === "saida" && cent(a1[0].amount) === 1000 && a1[0].bank_account_id === c.conta, j(a1));
-  check("o ajuste carrega a loja da parcela", a1.length === 1 && a1[0].establishment_id === L, j(a1[0]?.establishment_id));
+  // O movimento de conta não leva loja (CHECK CashMovement_exactly_one_place): a loja vem da parcela ligada.
+  check("o ajuste aponta para a parcela (e por ela, para a loja)", a1.length === 1 && a1[0].card_receivable_id === p1.id && d1.establishment_id === L, j({ cr: a1[0]?.card_receivable_id, loja: d1.establishment_id }));
   check("o saldo da conta cai exatamente 10,00 (1000 centavos)", (await saldo(A, c.conta)) - s0 === -1000, `${(await saldo(A, c.conta)) - s0}`);
   check("a resposta: status conferida, confirmed_net 90, adjustment -10 (conferido menos previsto)", dados(r1)?.status === "conferida" && perto(dados(r1)?.confirmed_net, 90) && perto(dados(r1)?.adjustment, -10), j(dados(r1)));
   check("o Custo do cartão do Resultado sobe 10,00", (await custoDoCartao(A, L)) - k0 === 1000, `${(await custoDoCartao(A, L)) - k0} centavos`);
+  check("o resultado do mês cai 10,00 (o ajuste é dinheiro que não entrou)", (await resultadoDoMes(A, L)) - res0 === -1000, `${(await resultadoDoMes(A, L)) - res0} centavos`);
   check("a escrita foi para o Histórico", (await logs(A)) > l0, `${l0} -> ${await logs(A)}`);
   const r1b = await conf(A, A.tok.fin, p1.id, 95);
   check("conferir de novo a mesma parcela: 409 (conferida não se edita)", recusou(r1b, 409), `${r1b.status} ${j(r1b.corpo).slice(0, 160)}`);
@@ -758,8 +769,8 @@ async function secao8() {
   check("preparação: conferida com 4,00 a menos", ok2xx(rc), `${rc.status}`);
   const rv = await cancelarVenda(A, p);
   check("cancelar a venda: 2xx", ok2xx(rv), `${rv.status} ${j(rv.corpo).slice(0, 200)}`);
-  const d = await lerParcela(p.id);
-  check("a parcela fica cancelada (canceled_at)", !!d.canceled_at);
+  // A parcela que já caiu segue viva e o estorno_cartao a compensa no saldo (cancelamento de antes desta frente);
+  // a spec só pede que ela saia dos estados.
   const r = await aReceber(A.tok.owner);
   check("a parcela cancelada some dos estados (A receber)", cartoesDe(r).find((x) => x.id === p.id) === undefined);
   const aj = await ajustesDe([p.id]);

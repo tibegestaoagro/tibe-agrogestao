@@ -19,6 +19,14 @@ import {
   type ChequeView,
   type FiadoClienteView,
 } from "@/lib/actions/emporio-caixa";
+import {
+  INCLUDE_CARTAO,
+  conferirParcelaAction,
+  desfazerConferenciaAction,
+  estadoDaParcela,
+  viewDoCartao,
+  type EstadoDaParcela,
+} from "@/lib/actions/emporio-conferencia-cartao";
 import { lerQuantidadeDeContasAPagar, listarContasAPagarAction, type ContaAPagarView } from "@/lib/actions/emporio-despesas";
 
 /**
@@ -63,6 +71,9 @@ export type HojeView = {
   pending_approvals: { count: number; total: number };
   /** Entrega 3: linhas de conta (movimentos e parcelas de cartão já devidas) sem carimbo nos últimos 30 dias. */
   unreconciled: { count: number; total: number };
+  /** Frente B: parcelas de cartão a conferir (já caíram, dentro do prazo) e atrasadas (passou 1 dia útil sem conferência). */
+  cards_to_confirm: { count: number; total: number };
+  cards_overdue: { count: number; total: number };
 };
 
 export type CartaoAReceberView = {
@@ -90,6 +101,10 @@ export type CartaoAReceberView = {
   sale_number: number;
   customer_id: string | null;
   customer_name: string | null;
+  /** Frente B: o estado da parcela, o que caiu de fato (nulo sem conferência) e a diferença com sinal (nula sem conferência; 0 se conferida sem diferença). */
+  status: EstadoDaParcela;
+  confirmed_net: number | null;
+  adjustment: number | null;
 };
 
 export type { Faixa, Periodo };
@@ -149,6 +164,8 @@ export type ExtratoLinhaView = {
   /** Entrega 3: o carimbo de conciliação (só linha de conta; gaveta e gerência vêm nulos). */
   reconciled_at: string | null;
   reconciled_by: string | null;
+  /** Só na linha de cartão conferida: o valor que caiu (o `amount` segue o previsto, que é o que entra no saldo; a diferença é a linha `ajuste_cartao`). */
+  confirmed_net?: number | null;
 };
 
 export type LugarDoExtrato = { kind: "conta" | "gaveta" | "gerencia"; id: string };
@@ -184,6 +201,7 @@ export const ROTULO_ORIGEM: Record<string, string> = {
   entrega_gerencia: "Entrega à gerência",
   pagamento_compra: "Pagamento de compra",
   cartao: "Cartão",
+  ajuste_cartao: "Ajuste da conferência do cartão",
 };
 
 /**
@@ -291,6 +309,16 @@ export async function lerResumoHojeAction(
   ]);
   const semCarimbo = [...movsSem.map((m) => m.amount), ...cartoesSem.map((c) => c.effective_net)];
 
+  // Frente B: o cartão que já caiu e falta conferir, dentro do prazo (a conferir) e fora dele (atrasadas).
+  const aberto = await db.cardReceivable.findMany({
+    where: { canceled_at: null, reconciled_at: null, effective_on: { lte: hoje }, sale: { status: { not: "cancelada" } }, ...lojasDoFiltro },
+    select: { effective_on: true, reconciled_at: true, effective_net: true },
+  });
+  const doEstado = (estado: EstadoDaParcela) => {
+    const xs = aberto.filter((p) => estadoDaParcela(p, hoje) === estado);
+    return { count: xs.length, total: xs.reduce((s, p) => s + centavos(decToNum(p.effective_net) ?? 0), 0) / 100 };
+  };
+
   return ok({
     positions,
     total_balance: total,
@@ -314,6 +342,8 @@ export async function lerResumoHojeAction(
     },
     pending_approvals: { count: pedidos.length, total: pedidos.reduce((s, p) => s + centavos(decToNum(p.total) ?? 0), 0) / 100 },
     unreconciled: { count: semCarimbo.length, total: semCarimbo.reduce((s, v) => s + centavos(Math.abs(decToNum(v) ?? 0)), 0) / 100 },
+    cards_to_confirm: doEstado("a_conferir"),
+    cards_overdue: doEstado("atrasada"),
   });
 }
 
@@ -343,13 +373,14 @@ export async function listarContasAReceberAction(
   const visiveis = await lojasDoAtor(db, ator);
   const lojas = lojaId ? { establishment_id: lojaId } : visiveis ? { establishment_id: { in: [...visiveis] } } : {};
   const parcelas = await db.cardReceivable.findMany({
-    where: { canceled_at: null, effective_on: { gte: hoje }, ...lojas },
-    include: {
-      establishment: { select: { name: true } },
-      bank_account: { select: { name: true } },
-      acquirer: { select: { name: true } },
-      sale: { select: { number: true, customer_id: true, customer: { select: { name: true } } } },
+    // Frente B: as que ainda vão cair e as passadas que seguem sem conferência (venda cancelada fica fora).
+    where: {
+      canceled_at: null,
+      sale: { status: { not: "cancelada" } },
+      OR: [{ effective_on: { gte: hoje } }, { reconciled_at: null }],
+      ...lojas,
     },
+    include: INCLUDE_CARTAO,
     orderBy: [{ effective_on: "asc" }, { installment: "asc" }],
   });
   const cheques = carteira.data.filter((c) => c.status === "recebido" || c.status === "depositado");
@@ -381,7 +412,11 @@ export async function listarContasAReceberAction(
   const base = recebidoCent + previstoCent;
 
   const summary: ResumoAReceber = {
-    overdue: soma([...faixaDoFiado("overdue_amount"), ...recorte((em) => em < hojeIso)]),
+    overdue: soma([
+      ...faixaDoFiado("overdue_amount"),
+      ...recorte((em) => em < hojeIso),
+      ...parcelas.filter((p) => estadoDaParcela(p, hoje) === "atrasada").map((p) => ({ cent: centavos(decToNum(p.effective_net) ?? 0) })),
+    ]),
     due_today: soma([...faixaDoFiado("due_today_amount"), ...recorte((em) => em === hojeIso), ...doCartao((em) => em === hojeIso)]),
     upcoming: soma([...faixaDoFiado("upcoming_amount"), ...recorte((em) => em > hojeIso), ...doCartao((em) => em > hojeIso)]),
     received: { total: recebidoCent / 100, count: recebidos.length, expected_pct: base > 0 ? Math.round((recebidoCent / base) * 100) : null },
@@ -394,29 +429,7 @@ export async function listarContasAReceberAction(
     fiado: fiado.data,
     checks: cheques,
     boletos: boletos.data,
-    cards: parcelas.map((p) => ({
-      id: p.id,
-      sale_id: p.sale_id,
-      establishment_id: p.establishment_id,
-      establishment_name: p.establishment.name,
-      bank_account_id: p.bank_account_id,
-      bank_account_name: p.bank_account.name,
-      installment: p.installment,
-      installments: p.installments,
-      gross_amount: decToNum(p.gross_amount) ?? 0,
-      net_amount: decToNum(p.net_amount) ?? 0,
-      expected_on: dia(p.expected_on),
-      effective_on: dia(p.effective_on),
-      effective_net: decToNum(p.effective_net) ?? 0,
-      fee_amount: decToNum(p.fee_amount) ?? 0,
-      anticipated: p.anticipation_id !== null,
-      received: p.effective_on.getTime() <= hoje.getTime(),
-      acquirer_name: p.acquirer?.name ?? null,
-      brand: p.brand,
-      sale_number: p.sale.number,
-      customer_id: p.sale.customer_id,
-      customer_name: p.sale.customer?.name ?? null,
-    })),
+    cards: parcelas.map((p) => viewDoCartao(p, hoje)),
   });
 }
 
@@ -697,9 +710,26 @@ export async function lerExtratoAction(
       customer_id: p.sale?.customer_id ?? null,
       acquirer_name: p.acquirer?.name ?? null,
       brand: p.brand,
+      confirmed_net: decToNum(p.confirmed_net),
       ...carimbo(p),
     })),
   ].sort((a, b) => a.occurred_on.localeCompare(b.occurred_on));
+
+  // Frente B: o ajuste da conferência fica logo abaixo da linha de cartão a que pertence (quando ela está no período).
+  const parcelaDoAjuste = new Map(movs.filter((m) => m.origin === "ajuste_cartao" && m.card_receivable_id).map((m) => [m.id, m.card_receivable_id as string]));
+  const idsDeCartao = new Set(todas.filter((l) => l.kind === "cartao").map((l) => l.id));
+  const ajustesDe = new Map<string, ExtratoLinhaView[]>();
+  const ordenadas: ExtratoLinhaView[] = [];
+  for (const l of todas) {
+    const pai = l.kind === "movimento" ? parcelaDoAjuste.get(l.id) : undefined;
+    if (pai && idsDeCartao.has(pai)) ajustesDe.set(pai, [...(ajustesDe.get(pai) ?? []), l]);
+    else ordenadas.push(l);
+  }
+  todas.length = 0;
+  for (const l of ordenadas) {
+    todas.push(l);
+    if (l.kind === "cartao") todas.push(...(ajustesDe.get(l.id) ?? []));
+  }
 
   // O total sem carimbo se calcula ANTES do filtro, para o aviso não mudar com ele.
   const semCarimbo = conta ? todas.filter((l) => l.reconciled_at === null) : [];
@@ -771,7 +801,7 @@ async function acharLinhaDeConta(
 export async function carimbarLinhaAction(
   db: TenantPrismaClient,
   ator: Ator,
-  input: { kind: KindDaLinha; id: string },
+  input: { kind: KindDaLinha; id: string; received_amount?: number },
 ): Promise<ActionResult<{ kind: KindDaLinha; id: string; reconciled_at: string; reconciled_by: string }>> {
   const neg = await exigir(db, ator, "dinheiro", "carimbar o extrato");
   if (neg) return neg;
@@ -780,6 +810,12 @@ export async function carimbarLinhaAction(
   const { linha } = a;
   if (linha.carimbada) return fail("JA_CARIMBADO", "Esta linha já tem carimbo.", 409, "id");
   const id = input.id.trim();
+  // Q352: na linha de cartão, carimbar É conferir a parcela (o valor padrão é o previsto).
+  if (input.kind === "cartao") {
+    const r = await conferirParcelaAction(db, ator, id, { received_amount: input.received_amount ?? linha.valor });
+    if (!r.ok) return r.code === "JA_CONFERIDA" ? fail("JA_CARIMBADO", "Esta linha já tem carimbo.", 409, "id") : r;
+    return ok({ kind: "cartao", id, reconciled_at: r.data.reconciled_at, reconciled_by: r.data.reconciled_by ?? "" });
+  }
   const agora = new Date();
   const quem = await db.user.findFirst({ where: { id: ator.id }, select: { name: true } });
   const gravou = await db.$transaction(async (tx) => {
@@ -811,6 +847,12 @@ export async function descarimbarLinhaAction(
   const { linha } = a;
   if (!linha.carimbada) return fail("SEM_CARIMBO", "Esta linha não tem carimbo.", 409, "id");
   const id = input.id.trim();
+  // Q352: na linha de cartão, tirar o carimbo É desfazer a conferência.
+  if (input.kind === "cartao") {
+    const r = await desfazerConferenciaAction(db, ator, id, { reason: "Carimbo retirado no extrato" });
+    if (!r.ok) return r.code === "NAO_CONFERIDA" ? fail("SEM_CARIMBO", "Esta linha não tem carimbo.", 409, "id") : r;
+    return ok({ kind: "cartao", id });
+  }
   const limpou = await db.$transaction(async (tx) => {
     const alvo = { where: { id, reconciled_at: { not: null } }, data: { reconciled_at: null, reconciled_by_user_id: null } };
     const r = input.kind === "movimento" ? await tx.cashMovement.updateMany(alvo) : await tx.cardReceivable.updateMany(alvo);

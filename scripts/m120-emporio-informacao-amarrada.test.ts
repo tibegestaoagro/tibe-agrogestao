@@ -516,7 +516,8 @@ async function secao2() {
   check("o período explícito volta como veio", (await aReceber(A, A.tok.owner, `?${periodoQs(ONTEM, hojeStr)}`)).corpo?.data?.period?.de === ONTEM);
   check("as seções de hoje seguem devolvendo as listas (fiado, checks, boletos, cards)", ["fiado", "checks", "boletos", "cards"].every((k) => Array.isArray(r.corpo?.data?.[k])), j(Object.keys(r.corpo?.data ?? {})));
   const cards = (r.corpo?.data?.cards ?? []) as Dado[];
-  check("cards traz as parcelas de hoje e futuras e não a cancelada: 3 linhas (200, 300 e 60)", cards.length === 3 && [200, 300, 60].every((v) => cards.some((c) => perto(c.gross_amount, v))) && !cards.some((c) => perto(c.gross_amount, 400)), j(cards.map((c) => c.gross_amount)));
+  // Frente B: a parcela passada e ainda não conferida (a de 100, de ontem) agora também é listada, com o estado.
+  check("cards traz a passada não conferida, as de hoje e futuras e não a cancelada: 4 linhas (100, 200, 300 e 60)", cards.length === 4 && [100, 200, 300, 60].every((v) => cards.some((c) => perto(c.gross_amount, v))) && !cards.some((c) => perto(c.gross_amount, 400)), j(cards.map((c) => c.gross_amount)));
 }
 
 // ---------------------------------------------------------------------------

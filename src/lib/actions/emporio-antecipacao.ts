@@ -6,6 +6,7 @@ import { createLinkedEntry, runSerializableTenantTransaction } from "@/lib/finan
 import { exigirUma } from "@/lib/emporio/papel";
 import { lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
 import { registrarNoHistorico, dinheiro } from "@/lib/emporio/historico";
+import { conferidaPelaAntecipacao } from "@/lib/actions/emporio-conferencia-cartao";
 import { CATEGORIA_ANTECIPACAO, hojeEmBrasilia, pctEfetivoMes, ratearCustoCent } from "@/lib/emporio/cartao";
 
 /**
@@ -94,7 +95,7 @@ function viewDaOperacao(o: OperacaoRow, lojas: Set<string> | null = null, custoS
   const previsto = restrita ? reais(previstoCent) : (decToNum(o.expected_net) ?? 0);
   const mediaDias = pesoTotal > 0 ? pesoDias / pesoTotal : 0;
   const pctMes = pctEfetivoMes(centavos(fee), centavos(previsto), mediaDias);
-  const conciliada = o.receivables.some((r) => r.reconciled_at !== null);
+  const conciliada = o.receivables.some((r) => r.reconciled_at !== null && !conferidaPelaAntecipacao(r, o));
   return {
     id: o.id,
     kind: o.kind,
@@ -256,7 +257,7 @@ export async function anteciparAction(
         new AbortarAntecipacao(fail("VALIDATION_ERROR", msg, 422, "receivable_ids"));
       if (parcelas.some((p) => p.canceled_at !== null)) throw recusar("Há parcela cancelada na seleção.");
       if (parcelas.some((p) => p.anticipation_id !== null)) throw recusar("Há parcela já antecipada na seleção.");
-      if (parcelas.some((p) => p.reconciled_at !== null)) throw recusar("Há parcela já conciliada com o extrato na seleção.");
+      if (parcelas.some((p) => p.reconciled_at !== null)) throw recusar("Há parcela já conferida na seleção.");
       if (parcelas.some((p) => p.effective_on.getTime() <= dia.getTime())) {
         throw recusar("Só se antecipa parcela que cai depois da data da operação.");
       }
@@ -300,6 +301,8 @@ export async function anteciparAction(
       const porLoja = new Map<string, number>();
       for (let i = 0; i < parcelas.length; i++) {
         const p = parcelas[i];
+        // A antecipação pontual já pede o líquido que a adquirente pagou: a parcela nasce conferida, sem ajuste.
+        // O carimbo é o `created_at` da operação, para o desfazer reconhecer a conferência como dela.
         await tx.cardReceivable.update({
           where: { id: p.id },
           data: {
@@ -307,6 +310,9 @@ export async function anteciparAction(
             effective_net: reais(liquidos[i] - partes[i]),
             anticipation_fee: reais(partes[i]),
             anticipation_id: op.id,
+            reconciled_at: op.created_at,
+            reconciled_by_user_id: ator.id,
+            confirmed_net: reais(liquidos[i] - partes[i]),
           },
         });
         porLoja.set(p.establishment_id, (porLoja.get(p.establishment_id) ?? 0) + partes[i]);
@@ -410,7 +416,7 @@ export async function desfazerAntecipacaoAction(
           ),
         );
       }
-      if (op.receivables.some((r) => r.reconciled_at !== null)) {
+      if (op.receivables.some((r) => r.reconciled_at !== null && !conferidaPelaAntecipacao(r, op))) {
         throw new AbortarAntecipacao(
           fail(
             "ANTECIPACAO_CONCILIADA",
@@ -430,7 +436,15 @@ export async function desfazerAntecipacaoAction(
       for (const r of op.receivables) {
         await tx.cardReceivable.update({
           where: { id: r.id },
-          data: { effective_on: r.expected_on, effective_net: r.net_amount, anticipation_fee: null, anticipation_id: null },
+          data: {
+            effective_on: r.expected_on,
+            effective_net: r.net_amount,
+            anticipation_fee: null,
+            anticipation_id: null,
+            reconciled_at: null,
+            reconciled_by_user_id: null,
+            confirmed_net: null,
+          },
         });
       }
       await tx.financialEntry.updateMany({

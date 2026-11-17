@@ -75,14 +75,22 @@ export type LojaDoResultadoView = {
 };
 
 /** Q272: o custo efetivo do cartão no mês, `pct` = (taxa + antecipação) / vendas no cartão, nulo sem venda no cartão. */
-export type CustoDoCartaoView = { card_sales: number; mdr: number; anticipation: number; pct: number | null };
+export type CustoDoCartaoView = {
+  card_sales: number;
+  mdr: number;
+  anticipation: number;
+  /** Frente B: a soma dos ajustes da conferência do cartão no mês (positivo: caiu menos que o previsto, custo a mais). */
+  adjustments: number;
+  pct: number | null;
+};
 
-function custoDoCartao(cartaoCent: number, mdrCent: number, antecipacaoCent: number): CustoDoCartaoView {
+function custoDoCartao(cartaoCent: number, mdrCent: number, antecipacaoCent: number, ajusteCent: number): CustoDoCartaoView {
   return {
     card_sales: reais(cartaoCent),
     mdr: reais(mdrCent),
     anticipation: reais(antecipacaoCent),
-    pct: cartaoCent > 0 ? pct2(((mdrCent + antecipacaoCent) / cartaoCent) * 100) : null,
+    adjustments: reais(ajusteCent),
+    pct: cartaoCent > 0 ? pct2(((mdrCent + antecipacaoCent + ajusteCent) / cartaoCent) * 100) : null,
   };
 }
 
@@ -368,10 +376,26 @@ async function apurarLoja(db: TenantPrismaClient, lojaId: string, mes: MesCivil,
         });
   const cartaoCent = noCartao.reduce((s, p) => s + centavos(decToNum(p.amount) ?? 0), 0);
 
+  // Frente B: o ajuste da conferência do cartão no mês (a data é a da conferência). A saída soma, a entrada abate;
+  // o da venda cancelada fica de fora, porque a taxa dela também sai e a venda deixa a base do custo.
+  const ajustes = await db.cashMovement.findMany({
+    where: {
+      origin: "ajuste_cartao",
+      occurred_at: { gte: mesJanela.de, lt: mesJanela.ate },
+      card_receivable: { establishment_id: lojaId, sale: { status: { not: "cancelada" } } },
+    },
+    select: { direction: true, amount: true },
+  });
+  const ajusteCartaoCent = ajustes.reduce(
+    (s, a) => s + (a.direction === "saida" ? 1 : -1) * centavos(decToNum(a.amount) ?? 0),
+    0,
+  );
+
   return {
     m,
     cartaoCent,
     antecipacaoCent,
+    ajusteCartaoCent,
     perdasEstoqueCent,
     diferencaTransfCent,
     conferenciaCent,
@@ -465,7 +489,9 @@ export async function resultadoDaLojaAction(
 
   const freteDifCent = m.freteRecebidoCent - m.fretePagoCent;
   const antecipacaoCent = soma((a) => a.antecipacaoCent);
-  const resultadoCent = m.margemCent - perdasCent - fixasCent + freteDifCent - antecipacaoCent;
+  // Frente B: a diferença da conferência do cartão é dinheiro que entrou a menos (ou a mais) de verdade.
+  const ajusteCartaoCent = soma((a) => a.ajusteCartaoCent);
+  const resultadoCent = m.margemCent - perdasCent - fixasCent + freteDifCent - antecipacaoCent - ajusteCartaoCent;
 
   // Ponto de equilíbrio (Q26): no somado, o recuo de 30 dias também sai da soma das lojas.
   let base = { vendasCent: m.vendasCent, margemCent: m.margemCent, n: m.vendas.length };
@@ -597,7 +623,7 @@ export async function resultadoDaLojaAction(
     franchisee_credit: { received: reais(m.creditoRecebidoCent), paid: reais(creditoPagoCent) },
     anticipation_costs: reais(antecipacaoCent),
     result: reais(resultadoCent),
-    card_cost: custoDoCartao(soma((a) => a.cartaoCent), m.taxasCent, antecipacaoCent),
+    card_cost: custoDoCartao(soma((a) => a.cartaoCent), m.taxasCent, antecipacaoCent, soma((a) => a.ajusteCartaoCent)),
     break_even: pe,
     tracking: { days: dias, days_in_month: nDias, days_elapsed: decorridos, projected_sales: projetado },
     estimated: motivos.length > 0,
@@ -622,9 +648,9 @@ export async function resultadoDaLojaAction(
         franchisee_credit: { received: reais(a.m.creditoRecebidoCent), paid: reais(a.m.creditoPagoCent) },
         anticipation_costs: reais(a.antecipacaoCent),
         result: reais(
-          a.m.margemCent - a.perdasCent - a.fixasCent + a.m.freteRecebidoCent - a.m.fretePagoCent - a.antecipacaoCent,
+          a.m.margemCent - a.perdasCent - a.fixasCent + a.m.freteRecebidoCent - a.m.fretePagoCent - a.antecipacaoCent - a.ajusteCartaoCent,
         ),
-        card_cost: custoDoCartao(a.cartaoCent, a.m.taxasCent, a.antecipacaoCent),
+        card_cost: custoDoCartao(a.cartaoCent, a.m.taxasCent, a.antecipacaoCent, a.ajusteCartaoCent),
       };
     });
   }
