@@ -15,7 +15,7 @@
 - Nunca travessão (U+2014). Edição só com Edit/Write.
 - Migração ANTES do push (invariante 3); no Docker local primeiro, com a URL inline.
 - O saldo nunca é gravado: o ajuste é um `CashMovement`.
-- Estado calculado: Atrasada quando hoje > `proximoDiaUtil(effective_on)` (`src/lib/emporio/dia-util.ts`), sem conferência.
+- Estado calculado: Atrasada quando hoje > `proximoDiaUtil(effective_on + 1 dia)` (`src/lib/emporio/dia-util.ts`), sem conferência (segunda atrasa na quarta; sexta e sábado na terça).
 - Reparte do lote em centavos, proporcional ao `effective_net`, sobra na maior parcela; soma dos ajustes = diferença do dia, exata.
 - Permissão de conferir e desfazer: `dinheiro`. Toda escrita com `registrarNoHistorico` (conferência 19 do `check`).
 - Recusa com `fail(..., field)` e `apiErroDeZod`; rotas novas no `/docs/api`.

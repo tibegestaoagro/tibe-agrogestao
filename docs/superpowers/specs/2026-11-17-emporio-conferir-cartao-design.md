@@ -22,7 +22,7 @@ Stone (dívida 2.58): quando o extrato vier, ele preenche a mesma conferência.
 |---|---|---|
 | Q349 | **O saldo segue automático:** a parcela conta no saldo na data, como hoje. A conferência informa o que caiu e **a diferença vira ajuste** | decisão do usuário: muda pouco a projeção, a posição de caixa e o extrato |
 | Q350 | **Conferir por dia e adquirente, e também uma a uma.** "Conferir o dia" pega as parcelas não conferidas de uma conta, uma adquirente e um `effective_on`, recebe o total que caiu e reparte a diferença entre elas | decisão do usuário: a Stone deposita num lançamento só as parcelas do mesmo dia |
-| Q351 | **Atrasada = 1 dia útil depois da data** sem conferência (`proximoDiaUtil(effective_on)` já passou). Antes disso, a parcela do dia ou de ontem é "A conferir" | decisão do usuário: dá a manhã seguinte para o Financeiro conferir; o calendário é o do cartão (feriados nacionais, dívida 2.60) |
+| Q351 | **Atrasada = 1 dia útil depois da data** sem conferência. O limite é o primeiro dia útil DEPOIS da data, `proximoDiaUtil(effective_on + 1 dia)`, e a parcela fica Atrasada quando hoje passa desse limite: a de segunda atrasa na quarta, a de sexta e a de sábado na terça. Até lá ela é "A conferir" | decisão do usuário: dá a manhã seguinte para o Financeiro conferir; o calendário é o do cartão (feriados nacionais, dívida 2.60) |
 | Q352 | **Conferir = carimbar.** Na linha de cartão, o carimbo do extrato passa a ser a conferência com valor (e vice-versa); a linha de movimento segue com o carimbo de hoje | decisão do usuário: um conceito só |
 | Q353 | **Parcelas antigas:** a migração marca como conferidas pelo previsto (`confirmed_net` = `effective_net`, sem ajuste, `reconciled_by_user_id` nulo) as parcelas não canceladas e sem carimbo com `effective_on` **mais de 7 dias antes do dia em que a migração roda** (`CURRENT_DATE - 7`, no fuso do banco convertido para Brasília). As dos últimos 7 dias ficam para conferir. As já carimbadas ganham `confirmed_net` = `effective_net` | decisão do usuário: pega o que ainda dá para checar na Stone sem soterrar o Financeiro |
 
@@ -31,8 +31,8 @@ Stone (dívida 2.58): quando o extrato vier, ele preenche a mesma conferência.
 | estado | quando |
 |---|---|
 | Prevista | `effective_on` depois de hoje |
-| A conferir | `effective_on` hoje ou antes, sem conferência, e `proximoDiaUtil(effective_on)` ainda não passou |
-| Atrasada | sem conferência e hoje é depois de `proximoDiaUtil(effective_on)` |
+| A conferir | `effective_on` hoje ou antes, sem conferência, e hoje ainda não passou de `proximoDiaUtil(effective_on + 1 dia)` |
+| Atrasada | sem conferência e hoje é depois de `proximoDiaUtil(effective_on + 1 dia)` |
 | Conferida | `reconciled_at` preenchido |
 
 Parcela cancelada (`canceled_at`) fica fora de tudo.
