@@ -35,6 +35,14 @@ const FILTRO_ROTULO: Record<Filtro, string> = {
   no_fiado: "No fiado",
 };
 
+/** A lista vazia no singular: "Nenhum boleto aberto", e não "abertos". */
+const VAZIO_ROTULO: Record<Filtro, string> = {
+  aberto: "Nenhum boleto aberto",
+  vencido: "Nenhum boleto vencido",
+  pago: "Nenhum boleto pago",
+  no_fiado: "Nenhum boleto no fiado",
+};
+
 /** Data de calendário "AAAA-MM-DD" como "DD/MM/AAAA", sem passar por fuso. */
 const dataBr = (iso: string) => iso.slice(0, 10).split("-").reverse().join("/");
 
@@ -126,7 +134,7 @@ export function BoletosLista({
       ) : carregando ? (
         <Carregando linhas={3} />
       ) : linhas.length === 0 ? (
-        <EmptyState titulo={`Nenhum boleto ${FILTRO_ROTULO[filtro].toLowerCase()}`}>
+        <EmptyState titulo={VAZIO_ROTULO[filtro]}>
           Os boletos registrados nas vendas aparecem aqui, pelo vencimento.
         </EmptyState>
       ) : (

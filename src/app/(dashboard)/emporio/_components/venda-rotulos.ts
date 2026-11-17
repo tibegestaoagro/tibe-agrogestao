@@ -4,6 +4,7 @@
  * módulo client chega ao servidor como referência, não como objeto.
  */
 
+import type { CashMovementOrigin } from "@/generated/prisma/client";
 import { RATEIO_ROTULO_SERVIDOR } from "@/lib/emporio/rateio";
 
 /** Forma de pagamento da venda, como o balcão e o detalhe da venda a chamam. */
@@ -45,12 +46,15 @@ export const BOLETO_SITUACAO_ROTULO: Record<string, string> = {
 };
 
 /** Origem de um movimento de caixa (`CashMovementOrigin`). */
+// Tipado pelo enum: origem nova sem rótulo reprova o tsc, em vez de aparecer crua na tela
+// (o `pagamento_franqueado` da Q304 apareceu assim no Caixa).
 export const ORIGEM_CAIXA_ROTULO: Record<string, string> = {
   venda: "Venda",
   recebimento_fiado: "Recebimento de fiado",
   cancelamento_venda: "Venda cancelada",
   devolucao: "Devolução",
   implantacao: "Saldo inicial",
+  pagamento_franqueado: "Pagamento ao franqueado",
   transferencia: "Transferência entre caixas",
   conferencia: "Ajuste de conferência",
   cheque_compensado: "Cheque compensado",
@@ -62,7 +66,7 @@ export const ORIGEM_CAIXA_ROTULO: Record<string, string> = {
   reforco: "Reforço de troco",
   entrega_gerencia: "Entrega ao gerente",
   pagamento_compra: "Pagamento de compra",
-};
+} satisfies Record<CashMovementOrigin, string>;
 
 /** Cálculo de uma regra do "Vendeu, Pagou" (`VariableExpenseKind`). */
 export const TIPO_REGRA_ROTULO: Record<string, string> = {
