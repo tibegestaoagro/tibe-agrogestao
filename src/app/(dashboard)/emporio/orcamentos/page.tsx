@@ -17,6 +17,8 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { NomeDoCliente, VendaLink } from "../_components/amarras";
+import { idDoClientePadrao } from "../_components/cliente-padrao";
 import { OrcamentosFiltro } from "./_components/orcamentos-filtro";
 import { SITUACOES_DO_ORCAMENTO } from "./_components/situacoes";
 
@@ -45,6 +47,7 @@ export default async function OrcamentosPage({
   const papel = await papelDoEmporio(db, user);
   if (!pode(papel, "fora_do_caixa")) redirect("/emporio");
   const podeVender = pode(papel, "vendedor_da_loja");
+  const padraoId = await idDoClientePadrao(db);
 
   const [lojasRes, res] = await Promise.all([
     listarEstabelecimentosAction(db, user),
@@ -107,7 +110,7 @@ export default async function OrcamentosPage({
               <TableRow key={o.id}>
                 <TableCell className="font-medium text-texto">{o.numero}</TableCell>
                 <TableCell className="font-medium text-texto">
-                  {o.cliente}
+                  <NomeDoCliente id={o.customer_id} nome={o.cliente} padraoId={padraoId} />
                   <span className="block text-xs font-normal text-texto-secundario">{o.loja}</span>
                 </TableCell>
                 <TableCell>{o.telefone ?? "-"}</TableCell>
@@ -115,7 +118,7 @@ export default async function OrcamentosPage({
                 <TableCell>{DATA_HORA.format(new Date(o.criado_em))}</TableCell>
                 <TableCell>{DATA.format(new Date(o.valid_until))}</TableCell>
                 <TableCell>
-                  <SituacaoDoOrcamento situacao={o.situacao} vendaNumero={o.venda_numero} />
+                  <SituacaoDoOrcamento situacao={o.situacao} vendaId={o.venda_id} vendaNumero={o.venda_numero} />
                 </TableCell>
                 <TableCell>{o.vendedor ?? "-"}</TableCell>
                 <TableCell>
@@ -134,14 +137,27 @@ export default async function OrcamentosPage({
 
 function SituacaoDoOrcamento({
   situacao,
+  vendaId,
   vendaNumero,
 }: {
   situacao: "aberto" | "vencido" | "faturado" | "cancelado";
+  vendaId: string | null;
   vendaNumero: string | null;
 }) {
   if (situacao === "cancelado") return <Badge variant="red">Cancelado</Badge>;
   if (situacao === "faturado") {
-    return <Badge variant="green">Faturado{vendaNumero ? ` (venda nº ${vendaNumero})` : ""}</Badge>;
+    return (
+      <Badge variant="green">
+        Faturado
+        {vendaNumero && (
+          <>
+            {" ("}
+            <VendaLink id={vendaId} numero={Number(vendaNumero)} minusculo />
+            {")"}
+          </>
+        )}
+      </Badge>
+    );
   }
   return situacao === "vencido" ? <Badge variant="amber">Vencido</Badge> : <Badge variant="blue">Aberto</Badge>;
 }

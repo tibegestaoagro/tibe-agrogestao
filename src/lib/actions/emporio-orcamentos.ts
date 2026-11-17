@@ -367,6 +367,7 @@ export type OrcamentoLinha = {
   numero: string;
   loja: string;
   cliente: string;
+  customer_id: string | null;
   /** Como está no cadastro (pode ter máscara). */
   telefone: string | null;
   valor: number;
@@ -376,6 +377,8 @@ export type OrcamentoLinha = {
   situacao: "aberto" | "vencido" | "faturado" | "cancelado";
   /** O número da venda ativa que faturou o orçamento. */
   venda_numero: string | null;
+  /** O id dessa mesma venda, para o link. */
+  venda_id: string | null;
   vendedor: string | null;
 };
 
@@ -455,7 +458,7 @@ export async function listarOrcamentosAction(
     include: {
       establishment: { select: { name: true } },
       customer: { select: { name: true, phone: true } },
-      sale: { select: { number: true } },
+      sale: { select: { id: true, number: true } },
     },
     orderBy: { created_at: "desc" },
     take: limite,
@@ -474,12 +477,14 @@ export async function listarOrcamentosAction(
       numero: formatarNumero(l.number),
       loja: l.establishment.name,
       cliente: l.customer?.name ?? "",
+      customer_id: l.customer_id ?? null,
       telefone: l.customer?.phone ?? null,
       valor: decToNum(l.net_amount) ?? 0,
       criado_em: l.created_at.toISOString(),
       valid_until: l.valid_until.toISOString().slice(0, 10),
       situacao: situacaoDe(l, hojeMs),
       venda_numero: l.sale ? formatarNumero(l.sale.number) : null,
+      venda_id: l.sale?.id ?? null,
       vendedor: l.seller_user_id ? (nomeDoUsuario.get(l.seller_user_id) ?? null) : null,
     })),
   );

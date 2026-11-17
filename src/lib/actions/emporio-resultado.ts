@@ -655,6 +655,7 @@ async function vendasDetalhadas(db: TenantPrismaClient, lojaIds: string[], j: Ja
     where: { establishment_id: { in: lojaIds }, status: "concluida", sold_at: { gte: j.de, lt: j.ate } },
     select: {
       id: true,
+      number: true,
       sold_at: true,
       net_amount: true,
       discount_amount: true,
@@ -863,6 +864,7 @@ export type CausaDaMargemNegativa =
 
 export type VendaComMargemNegativaView = {
   sale_id: string;
+  sale_number: number;
   sold_at: string;
   establishment_name: string;
   net_amount: number;
@@ -915,6 +917,7 @@ export async function vendasComMargemNegativaAction(
 
     negativas.push({
       sale_id: v.id,
+      sale_number: v.number,
       sold_at: v.sold_at.toISOString(),
       establishment_name: v.establishment.name,
       net_amount: reais(liquidoCent),

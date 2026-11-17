@@ -1157,9 +1157,9 @@ export const GROUPS: Group[] = [
         method: "GET",
         path: "/api/v1/emporio/quotes",
         auth: "Sessão · emporio:read · Vendedor para cima (Dono, Gerente geral, Gestor, Vendedor); o Caixa recebe 403",
-        description: "A lista de orçamentos das lojas que o usuário vê, do mais novo para o mais antigo. Filtros: `establishment_id` (loja fora do vínculo: 404), `situacao` (`acompanhamento`, o padrão, traz aberto e vencido; `aberto`, `vencido`, `faturado`, `cancelado`, `todos`, este com os cancelados; outro valor: 422 em `situacao`), `limit` (padrão 200, máximo 500) e `q`. A busca `q`: só dígitos (1 a 6) também casa o número do orçamento (`12` acha `000012`); 3 ou mais dígitos casam o telefone e o documento do cliente só pelos dígitos, com ou sem máscara; texto casa o nome do cliente sem acento nem caixa. Cada linha: `id`, `number`, `numero`, `loja`, `cliente`, `telefone`, `valor`, `criado_em`, `valid_until`, `situacao`, `venda_numero` (a venda ativa que faturou) e `vendedor`.",
+        description: "A lista de orçamentos das lojas que o usuário vê, do mais novo para o mais antigo. Filtros: `establishment_id` (loja fora do vínculo: 404), `situacao` (`acompanhamento`, o padrão, traz aberto e vencido; `aberto`, `vencido`, `faturado`, `cancelado`, `todos`, este com os cancelados; outro valor: 422 em `situacao`), `limit` (padrão 200, máximo 500) e `q`. A busca `q`: só dígitos (1 a 6) também casa o número do orçamento (`12` acha `000012`); 3 ou mais dígitos casam o telefone e o documento do cliente só pelos dígitos, com ou sem máscara; texto casa o nome do cliente sem acento nem caixa. Cada linha: `id`, `number`, `numero`, `loja`, `cliente`, `telefone`, `valor`, `criado_em`, `valid_until`, `situacao`, `venda_numero` (a venda ativa que faturou), `venda_id` (o id dessa venda, ou null), `customer_id` (o id do cliente, ou null) e `vendedor`.",
         response: `200
-{ "data": [{ "id": "cl...", "number": 12, "numero": "000012", "loja": "Loja 1", "cliente": "João Mendes", "telefone": "(34) 99999-0000", "valor": 40, "criado_em": "2026-11-05T14:00:00.000Z", "valid_until": "2026-11-12", "situacao": "aberto", "venda_numero": null, "vendedor": "Ana" }], "meta": {} }`,
+{ "data": [{ "id": "cl...", "number": 12, "numero": "000012", "loja": "Loja 1", "cliente": "João Mendes", "customer_id": "cl...", "telefone": "(34) 99999-0000", "valor": 40, "criado_em": "2026-11-05T14:00:00.000Z", "valid_until": "2026-11-12", "situacao": "aberto", "venda_numero": null, "venda_id": null, "vendedor": "Ana" }], "meta": {} }`,
       },
       {
         method: "PATCH",
@@ -1477,9 +1477,9 @@ export const GROUPS: Group[] = [
         method: "GET",
         path: "/api/v1/emporio/result/negative-sales",
         auth: "Sessão · emporio:read · só OWNER e ADMIN; `establishment_id=all` só sem vínculo (403 `FORBIDDEN`)",
-        description: "Vendas concluídas do mês com margem negativa (F4b, Q105), da pior para a melhor: `net_amount` menos o custo dos itens menos o \"Vendeu, Pagou\" da venda (taxa de cartão inclusive). Query: `establishment_id` (id ou `all`), `month`. `cause`, na primeira que vale: `custo_provisorio`, `preco_abaixo_do_custo`, `desconto`, `taxa_cartao`, `despesas_da_venda`.",
+        description: "Vendas concluídas do mês com margem negativa (F4b, Q105), da pior para a melhor: `net_amount` menos o custo dos itens menos o \"Vendeu, Pagou\" da venda (taxa de cartão inclusive). Query: `establishment_id` (id ou `all`), `month`. Cada linha traz `sale_id` e `sale_number` (o número da venda). `cause`, na primeira que vale: `custo_provisorio`, `preco_abaixo_do_custo`, `desconto`, `taxa_cartao`, `despesas_da_venda`.",
         response: `200
-{ "data": [{ "sale_id": "cl...", "sold_at": "2026-11-05T15:00:00.000Z", "establishment_name": "Loja Centro", "net_amount": 90, "margin": -12.5, "cause": "preco_abaixo_do_custo" }], "meta": {} }`,
+{ "data": [{ "sale_id": "cl...", "sale_number": 123, "sold_at": "2026-11-05T15:00:00.000Z", "establishment_name": "Loja Centro", "net_amount": 90, "margin": -12.5, "cause": "preco_abaixo_do_custo" }], "meta": {} }`,
       },
       {
         method: "GET",
