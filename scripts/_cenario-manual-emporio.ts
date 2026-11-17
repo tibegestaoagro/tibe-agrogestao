@@ -1,6 +1,7 @@
 import "./_env-local";
 import { prisma } from "@/lib/prisma";
 import { exigirBancoLocal } from "./_banco-local";
+import { limparForaDaDemonstracao } from "./_limpar-conta-do-seed";
 
 /**
  * Prepara, no banco LOCAL, as sessoes do roteiro `scripts/navegador/manual-emporio.py`.
@@ -12,6 +13,11 @@ import { exigirBancoLocal } from "./_banco-local";
  * da demonstracao, cujas sessoes o manual usa. Aqui a equipe da demonstracao
  * volta a ser a ativa: o Dono e as quatro pessoas dela ocupam os 5 assentos, e
  * os demais ficam desativados, como aqueles cenarios fazem.
+ *
+ * Tambem tira da conta o que OUTROS cenarios deixaram (lojas e clientes que a
+ * demonstracao nao tem): os cenarios `_cenario-emporio-*` usam a mesma conta do
+ * seed, e as telas do manual cresciam alem da altura das figuras. Ver
+ * `_limpar-conta-do-seed.ts`.
  *
  * Idempotente. So banco local: `exigirBancoLocal()` barra o resto.
  */
@@ -36,6 +42,9 @@ async function main() {
   if (faltam.length > 0) {
     throw new Error(`A demonstracao nao esta montada (faltam ${faltam.join(", ")}): rode npm run cenario:emporio-demo -- --conta ${tenant_id} --confirmar`);
   }
+
+  const limpo = await limparForaDaDemonstracao(tenant_id);
+  console.log(`Sujeira de outros cenarios apagada: ${limpo.lojas} lojas, ${limpo.clientes} clientes, ${limpo.contas} contas bancarias (${limpo.linhas} linhas).`);
 
   const mantidos = [owner.id, ...equipe.map((u) => u.id)];
   await prisma.user.updateMany({ where: { tenant_id, id: { notIn: mantidos } }, data: { active: false } });
