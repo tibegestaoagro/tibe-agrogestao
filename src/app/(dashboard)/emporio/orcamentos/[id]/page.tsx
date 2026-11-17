@@ -17,6 +17,8 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { numeroBr } from "../../_components/formato";
+import { NomeDoCliente } from "../../_components/amarras";
+import { idDoClientePadrao } from "../../_components/cliente-padrao";
 import { CancelarOrcamentoForm } from "../../_components/cancelar-orcamento-form";
 import { PendenciasParaVenda } from "../../_components/pendencias-para-venda";
 
@@ -36,6 +38,7 @@ export default async function OrcamentoPage({ params }: { params: Promise<{ id: 
   const res = await lerOrcamentoAction(db, user, id);
   if (!res.ok) notFound();
   const o = res.data;
+  const padraoId = await idDoClientePadrao(db);
   const podeVender = pode(await papelDoEmporio(db, user), "vendedor_da_loja", o.establishment_id);
   const faturado = o.situacao === "faturado";
   const cancelado = o.situacao === "cancelado";
@@ -59,7 +62,8 @@ export default async function OrcamentoPage({ params }: { params: Promise<{ id: 
             Orçamento nº {o.numero}, {DATA_HORA.format(new Date(o.created_at))}
           </h1>
           <p className="mt-1 text-sm text-texto-secundario">
-            {o.loja}, cliente <span className="font-medium text-texto">{o.customer.name}</span>
+            {o.loja}, cliente{" "}
+            <NomeDoCliente id={o.customer.id} nome={o.customer.name} padraoId={padraoId} />
             {o.customer.phone ? `, ${o.customer.phone}` : ""}
           </p>
           {o.seller_name && (
@@ -80,7 +84,18 @@ export default async function OrcamentoPage({ params }: { params: Promise<{ id: 
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             {o.situacao === "faturado" ? (
-              <Badge variant="green">Faturado{o.sale ? ` (venda nº ${o.sale.numero})` : ""}</Badge>
+              <Badge variant="green">
+                Faturado
+                {o.sale && (
+                  <>
+                    {" ("}
+                    <Link href={`/emporio/vendas/${o.sale.id}`} className="underline">
+                      venda nº {o.sale.numero}
+                    </Link>
+                    {")"}
+                  </>
+                )}
+              </Badge>
             ) : o.situacao === "cancelado" ? (
               <Badge variant="red">Cancelado</Badge>
             ) : o.situacao === "vencido" ? (

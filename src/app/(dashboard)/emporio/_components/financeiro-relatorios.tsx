@@ -6,9 +6,9 @@ import type {
 } from "@/lib/actions/emporio-relatorios-financeiro";
 import { reaisBr } from "@/lib/numero-br";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Input } from "@/components/ui/input";
+import { NomeDoCliente } from "./amarras";
+import { PeriodoFiltro } from "./periodo-filtro";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 
 const ddmm = (iso: string) => iso.slice(0, 10).split("-").reverse().slice(0, 2).join("/");
@@ -17,20 +17,7 @@ const ROTULO_DO_LUGAR = { gaveta: "Gaveta", gerencia: "Com a gerência", conta: 
 /** O período dos relatórios: um formulário de GET. Vazio, cada bloco usa o seu padrão. */
 export function RelatoriosPeriodo({ loja, de, ate }: { loja: string; de: string; ate: string }) {
   return (
-    <form method="get" className="grid gap-3 sm:max-w-xl sm:grid-cols-[1fr_1fr_auto] sm:items-end">
-      {loja && <input type="hidden" name="loja" value={loja} />}
-      <label className="space-y-1 text-sm font-medium text-texto">
-        De
-        <Input type="date" name="de" defaultValue={de} />
-      </label>
-      <label className="space-y-1 text-sm font-medium text-texto">
-        Até
-        <Input type="date" name="ate" defaultValue={ate} />
-      </label>
-      <Button type="submit" variant="outline">
-        Ver relatórios
-      </Button>
-    </form>
+    <PeriodoFiltro caminho="/emporio/financeiro/relatorios" de={de} ate={ate} extras={{ loja }} rotuloVazio="Padrão" />
   );
 }
 
@@ -41,7 +28,7 @@ const FAIXAS = [
   { chave: "30+", rotulo: "Mais de 30" },
 ] as const;
 
-export function AReceberPorIdadeBloco({ r }: { r: AReceberPorIdadeView }) {
+export function AReceberPorIdadeBloco({ r, padraoId = null }: { r: AReceberPorIdadeView; padraoId?: string | null }) {
   return (
     <section className="space-y-3">
       <h2 className="text-lg font-semibold text-texto">A receber por idade</h2>
@@ -62,7 +49,9 @@ export function AReceberPorIdadeBloco({ r }: { r: AReceberPorIdadeView }) {
           <TableBody>
             {r.customers.map((c) => (
               <TableRow key={c.customer_id}>
-                <TableCell>{c.customer_name}</TableCell>
+                <TableCell>
+                  <NomeDoCliente id={c.customer_id} nome={c.customer_name} padraoId={padraoId} />
+                </TableCell>
                 {FAIXAS.map((f) => (
                   <TableCell key={f.chave} className="whitespace-nowrap">
                     {reaisBr(c[f.chave])}

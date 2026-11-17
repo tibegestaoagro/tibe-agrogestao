@@ -27,6 +27,8 @@ import { CancelarVendaForm } from "../../_components/cancelar-venda-form";
 import { MudarPedidoParaEntregaForm } from "../../_components/mudar-pedido-para-entrega-form";
 import { DevolverForm } from "../../_components/devolver-form";
 import { TrocarForm } from "../../_components/trocar-form";
+import { NomeDoCliente } from "../../_components/amarras";
+import { idDoClientePadrao } from "../../_components/cliente-padrao";
 import { carregarCatalogoDeVenda } from "../../_components/catalogo-venda";
 import { MOTIVO_PERDA_ROTULO, numeroBr, pctBr } from "../../_components/formato";
 import { ROTULO_DA_BANDEIRA, type Bandeira } from "@/lib/emporio/cartao";
@@ -55,6 +57,7 @@ export default async function VendaPage({ params }: { params: Promise<{ id: stri
   const venda = res.data;
   // F6b: devolver e trocar são por chave; cancelar a venda é do Gestor da loja (ou da conta).
   const papel = await papelDoEmporio(db, user);
+  const padraoId = await idDoClientePadrao(db);
   const podeEscrever = pode(papel, "chave:devolver_trocar", venda.establishment_id);
   const ehAdmin = pode(papel, "gestor_da_loja", venda.establishment_id);
 
@@ -123,7 +126,11 @@ export default async function VendaPage({ params }: { params: Promise<{ id: stri
           </h1>
           <p className="mt-1 text-sm text-texto-secundario">
             {venda.establishment_name}
-            {venda.customer_name ? `, cliente ${venda.customer_name}` : ""}
+            {venda.customer_name && (
+              <>
+                , cliente <NomeDoCliente id={venda.customer_id} nome={venda.customer_name} padraoId={padraoId} />
+              </>
+            )}
           </p>
           {venda.quote && (
             <p className="text-sm text-texto-secundario">

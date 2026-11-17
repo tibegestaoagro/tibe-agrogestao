@@ -4,7 +4,6 @@ import { dataBr } from "@/lib/emporio/datas";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Input } from "@/components/ui/input";
 import {
   Table,
   TableHeader,
@@ -15,6 +14,8 @@ import {
 } from "@/components/ui/table";
 
 import { CarimboBotao } from "./carimbo-botao";
+import { NomeDoCliente, VendaLink } from "./amarras";
+import { PeriodoFiltro, enderecoComPeriodo } from "./periodo-filtro";
 
 /** O instante do carimbo como "dd/mm" no dia de Brasília (o ISO vem em UTC). */
 function diaMesEmBrasilia(iso: string): string {
@@ -25,7 +26,7 @@ function diaMesEmBrasilia(iso: string): string {
 
 const ROTULO_DO_LUGAR = { gaveta: "Gaveta", gerencia: "Com a gerência", conta: "Conta" } as const;
 
-/** Escolher o período do extrato: um formulário de GET, que a página server relê. */
+/** Escolher o período do extrato (`PeriodoFiltro`, na URL) e, na conta, o filtro "só sem carimbo". */
 export function ExtratoPeriodo({
   loja,
   lugar,
@@ -41,28 +42,22 @@ export function ExtratoPeriodo({
   mostrarFiltroCarimbo?: boolean;
   soSemCarimbo?: boolean;
 }) {
+  const caminho = "/emporio/financeiro/caixa";
+  const base = { loja, lugar, carimbo: soSemCarimbo ? "sem" : undefined };
   return (
-    <form method="get" className="grid gap-3 sm:max-w-xl sm:grid-cols-[1fr_1fr_auto] sm:items-end">
-      {loja && <input type="hidden" name="loja" value={loja} />}
-      <input type="hidden" name="lugar" value={lugar} />
-      <label className="space-y-1 text-sm font-medium text-texto">
-        De
-        <Input type="date" name="de" defaultValue={de} required />
-      </label>
-      <label className="space-y-1 text-sm font-medium text-texto">
-        Até
-        <Input type="date" name="ate" defaultValue={ate} required />
-      </label>
-      <Button type="submit" variant="outline">
-        Ver extrato
-      </Button>
+    <div className="space-y-3">
+      <PeriodoFiltro caminho={caminho} de={de} ate={ate} extras={base} />
       {mostrarFiltroCarimbo && (
-        <label className="flex min-h-11 items-center gap-2 text-sm text-texto sm:col-span-3 sm:min-h-0">
-          <input type="checkbox" name="carimbo" value="sem" defaultChecked={soSemCarimbo} className="size-4" />
-          Só sem carimbo
-        </label>
+        <Button asChild variant={soSemCarimbo ? "default" : "outline"} size="sm">
+          <a
+            href={enderecoComPeriodo(caminho, { ...base, carimbo: soSemCarimbo ? undefined : "sem" }, de, ate)}
+            aria-current={soSemCarimbo ? "true" : undefined}
+          >
+            Só sem carimbo
+          </a>
+        </Button>
       )}
-    </form>
+    </div>
   );
 }
 
@@ -123,10 +118,13 @@ export function ExtratoDoLugar({
   extrato,
   hoje,
   podeCarimbar = false,
+  padraoId = null,
 }: {
   extrato: ExtratoView;
   hoje: string;
   podeCarimbar?: boolean;
+  /** O cliente padrão, que não vira link. */
+  padraoId?: string | null;
 }) {
   const ehConta = extrato.place.kind === "conta";
   const comCarimbo = ehConta && podeCarimbar;
@@ -181,9 +179,9 @@ export function ExtratoDoLugar({
                     )}
                     {(l.customer_name || l.sale_number) && (
                       <div className="text-xs text-texto-secundario">
-                        {[l.customer_name, l.sale_number ? `venda nº ${String(l.sale_number).padStart(6, "0")}` : null]
-                          .filter(Boolean)
-                          .join(", ")}
+                        {l.customer_name && <NomeDoCliente id={l.customer_id} nome={l.customer_name} padraoId={padraoId} />}
+                        {l.customer_name && l.sale_number ? ", " : ""}
+                        {l.sale_number ? <VendaLink id={l.sale_id} numero={l.sale_number} minusculo /> : null}
                       </div>
                     )}
                   </TableCell>

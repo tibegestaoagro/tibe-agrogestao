@@ -18,6 +18,8 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { NomeDoCliente } from "../_components/amarras";
+import { idDoClientePadrao } from "../_components/cliente-padrao";
 import { VendasFiltro } from "../_components/vendas-filtro";
 
 const DATA_HORA = new Intl.DateTimeFormat("pt-BR", {
@@ -38,6 +40,7 @@ export default async function VendasPage({
 
   const db = await getTenantDb();
   const podeVender = pode(await papelDoEmporio(db, user), "vendedor_da_loja");
+  const padraoId = await idDoClientePadrao(db);
   const [lojasRes, vendasRes] = await Promise.all([
     listarEstabelecimentosAction(db, user),
     listarVendasAction(db, user, { establishment_id: loja || undefined, status: filtroSituacao, origin: filtroOrigem }),
@@ -91,10 +94,16 @@ export default async function VendasPage({
               const provisorio = v.items.some((i) => i.cost_provisional);
               return (
                 <TableRow key={v.id}>
-                  <TableCell className="font-medium text-texto">{formatarNumero(v.number)}</TableCell>
+                  <TableCell>
+                    <Link href={`/emporio/vendas/${v.id}`} className="font-medium text-texto-marca hover:underline">
+                      {formatarNumero(v.number)}
+                    </Link>
+                  </TableCell>
                   <TableCell>{DATA_HORA.format(new Date(v.sold_at))}</TableCell>
                   <TableCell className="font-medium text-texto">{v.establishment_name}</TableCell>
-                  <TableCell>{v.customer_name ?? "-"}</TableCell>
+                  <TableCell>
+                    <NomeDoCliente id={v.customer_id} nome={v.customer_name} padraoId={padraoId} />
+                  </TableCell>
                   <TableCell>{v.seller_name ?? "-"}</TableCell>
                   <TableCell>
                     {reaisBr(v.net_amount)}

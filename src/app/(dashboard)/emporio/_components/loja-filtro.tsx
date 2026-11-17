@@ -20,16 +20,23 @@ export function LojaFiltro({
   lojas,
   loja,
   caminho,
+  preservar = {},
 }: {
   lojas: { id: string; name: string }[];
   loja: string;
   /** A rota da tela, sem query: "/emporio/financeiro/pagar". */
   caminho: string;
+  /** O que a troca de loja mantém na URL (o período e o cartão ativo do A receber e do A pagar). */
+  preservar?: Record<string, string | undefined>;
 }) {
   const router = useRouter();
 
   function ir(nova: string) {
-    router.push(nova ? `${caminho}?loja=${encodeURIComponent(nova)}` : caminho);
+    const p = new URLSearchParams();
+    for (const [k, v] of Object.entries(preservar)) if (v) p.set(k, v);
+    if (nova) p.set("loja", nova);
+    const s = p.toString();
+    router.push(s ? `${caminho}?${s}` : caminho);
   }
 
   return (

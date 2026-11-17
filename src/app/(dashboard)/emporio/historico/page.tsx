@@ -8,9 +8,9 @@ import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
 import { listarHistoricoAction, type HistoricoLinha } from "@/lib/actions/emporio-historico";
 import { ACOES_DO_HISTORICO } from "@/lib/emporio/historico";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { EmptyState } from "@/components/ui/empty-state";
+import { PeriodoFiltro } from "../_components/periodo-filtro";
 
 const CAMPO =
   "flex min-h-11 w-full rounded-lg border border-borda-campo bg-superficie px-3 py-1 text-base shadow-sm sm:h-9 sm:min-h-0 sm:text-sm";
@@ -124,6 +124,14 @@ export default async function HistoricoPage({ searchParams }: { searchParams: Pr
         </p>
       </header>
 
+      <PeriodoFiltro
+        caminho="/emporio/historico"
+        de={p.de ?? ""}
+        ate={p.ate ?? ""}
+        extras={{ user_id: p.user_id, establishment_id: p.establishment_id, action: p.action }}
+        rotuloVazio="Todo o período"
+      />
+
       <form method="get" action="/emporio/historico" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <div className="space-y-1">
           <Label htmlFor="hist-user">Pessoa</Label>
@@ -162,14 +170,9 @@ export default async function HistoricoPage({ searchParams }: { searchParams: Pr
             ))}
           </select>
         </div>
-        <div className="space-y-1">
-          <Label htmlFor="hist-de">De</Label>
-          <Input id="hist-de" type="date" name="de" defaultValue={p.de ?? ""} />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="hist-ate">Até</Label>
-          <Input id="hist-ate" type="date" name="ate" defaultValue={p.ate ?? ""} />
-        </div>
+        {/* O período vive no PeriodoFiltro, acima; o formulário o carrega adiante. */}
+        {p.de && <input type="hidden" name="de" value={p.de} />}
+        {p.ate && <input type="hidden" name="ate" value={p.ate} />}
         <div className="flex items-end gap-2">
           <Button type="submit" variant="outline">
             Filtrar
