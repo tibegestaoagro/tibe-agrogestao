@@ -32,7 +32,7 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   **Frente A (informação amarrada, Q345 a Q348) PRONTA na branch
   `emporio-informacao-amarrada`, aguardando merge** (sem migração): spec de
   17/11; rotas novas `payables/summary` e `customers/:id/receipts`.
-  `test:m120` (141), roteiro
+  `test:all` 123/123, `test:m120` (141), roteiro
   `emporio-informacao-amarrada` (133 ok, sabotado falha), juiz 8,5 com os
   achados 3 e 4 corrigidos, manual com as figuras novas. Próxima: frente G1
   (planilha), que espera a exportação do GestãoClick.
