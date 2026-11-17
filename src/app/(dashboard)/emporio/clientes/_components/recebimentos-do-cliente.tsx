@@ -88,11 +88,24 @@ export function RecebimentosDoCliente({
                   )}
                 </TableCell>
                 <TableCell>{r.establishment_name ?? "-"}</TableCell>
-                <TableCell>{reaisBr(r.amount)}</TableCell>
+                <TableCell>
+                  {r.kind === "cheque" && r.check_status !== "compensado" ? (
+                    <span className="text-texto-secundario line-through" title="Não entra no Recebido">
+                      {reaisBr(r.amount)}
+                    </span>
+                  ) : (
+                    reaisBr(r.amount)
+                  )}
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
+      )}
+      {itens.some((r) => r.kind === "cheque" && r.check_status !== "compensado") && (
+        <p className="text-xs text-texto-secundario">
+          Cheque na carteira ou devolvido aparece riscado: só entra no Recebido depois de compensado.
+        </p>
       )}
       {recusa && (
         <p role="alert" className="text-sm text-perigo-tinta">
