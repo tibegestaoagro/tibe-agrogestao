@@ -61,6 +61,12 @@ Os dois primeiros são travados por `exigirBancoLocal()`.
 não reconhece a sessão nesse setup. Rotas `/api/v1/*` funcionam. Para validar
 página autenticada, use `next dev` mais navegador real.
 
+⚠️ **Feche as abas que abrir no Chrome de testes.** Cada aba custa memória da
+estação do usuário. O `npm run navegador` fecha sozinho as abas que a rodada
+abriu (e as que sobraram de uma rodada que caiu). Se você abrir aba fora dele
+(browser-harness direto, `new_tab`, conferência avulsa), feche-a assim que
+terminar de olhar. No fim do trabalho, rode `npm run navegador -- --limpar`.
+
 ⚠️ **Nunca sonde produção em laço com `curl`.** 28 chamadas em poucos minutos
 dispararam a proteção anti-bot da Vercel, e todas as rotas públicas passaram a
 devolver `403`. Não era queda, navegador real resolve sozinho, e a mitigação
