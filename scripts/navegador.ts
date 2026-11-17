@@ -15,6 +15,7 @@ import { emitirCookiePlataforma, emitirCookieTenant, type CookieEmitido } from "
  *   npm run navegador                 # lista os roteiros
  *   npm run navegador -- emporio-f0   # roda um
  *   npm run navegador -- --abrir      # so sobe o Chrome de testes
+ *   npm run navegador -- --limpar     # fecha as abas sobrando (fica uma)
  *
  * O roteiro declara no cabecalho o que precisa, e este script prepara:
  *
@@ -75,6 +76,38 @@ async function subirChrome(): Promise<void> {
   throw new Error(`O Chrome de testes nao respondeu em ${CDP}.`);
 }
 
+// As abas do Chrome de testes: cada uma custa memória da estação de trabalho, e um roteiro que cai
+// no meio (ou um "Imprimir A4", que abre aba própria) deixava aba para trás a cada rodada.
+async function abas(): Promise<string[]> {
+  try {
+    const r = await fetch(`${CDP}/json/list`, { signal: AbortSignal.timeout(3000) });
+    const lista = (await r.json()) as { id: string; type: string }[];
+    return lista.filter((t) => t.type === "page").map((t) => t.id);
+  } catch {
+    return [];
+  }
+}
+
+async function fecharAba(id: string): Promise<void> {
+  for (const method of ["PUT", "GET"]) {
+    try {
+      const r = await fetch(`${CDP}/json/close/${id}`, { method, signal: AbortSignal.timeout(3000) });
+      if (r.ok) return;
+    } catch {
+      // a aba pode já ter fechado sozinha
+    }
+  }
+}
+
+/** Fecha as abas que não estão em `manter`, deixando sempre uma aberta (fechar a última encerra o Chrome). */
+async function fecharAbasExceto(manter: string[]): Promise<number> {
+  const atuais = await abas();
+  let sobrando = atuais.filter((id) => !manter.includes(id));
+  if (sobrando.length === atuais.length) sobrando = sobrando.slice(1);
+  for (const id of sobrando) await fecharAba(id);
+  return sobrando.length;
+}
+
 type Cabecalho = { cenarios: string[]; sessoes: [string, string][]; plataforma: string[] };
 
 function lerCabecalho(codigo: string): Cabecalho {
@@ -108,6 +141,10 @@ async function main() {
     console.log(`Chrome de testes de pe em ${CDP} (perfil ${PERFIL}).`);
     return;
   }
+  if (arg === "--limpar") {
+    console.log(`Fechadas ${await fecharAbasExceto([])} aba(s); ficou uma aberta.`);
+    return;
+  }
 
   const arquivo = join(PASTA, `${arg}.py`);
   if (!existsSync(arquivo)) throw new Error(`Roteiro ${arg} nao existe. Rode sem argumento para listar.`);
@@ -133,6 +170,12 @@ async function main() {
   const lib = readFileSync(join(PASTA, "_lib.py"), "utf8");
   const entrada = `import json\nCTX = json.loads(${JSON.stringify(JSON.stringify(ctx))})\n${lib}\n${roteiro}\nfim()\n`;
 
+  // Um roteiro por vez neste Chrome: o que sobrou de uma rodada anterior que caiu é fechado agora,
+  // e o que esta rodada abrir é fechado no fim, passe ou reprove.
+  const restos = await fecharAbasExceto([]);
+  if (restos > 0) console.log(`Fechadas ${restos} aba(s) que sobraram de rodadas anteriores.`);
+  const antes = await abas();
+
   const r = spawnSync("browser-harness", [], {
     input: entrada,
     encoding: "utf8",
@@ -142,6 +185,8 @@ async function main() {
   });
   const saida = `${r.stdout ?? ""}${r.stderr ?? ""}`;
   process.stdout.write(saida);
+  const fechadas = await fecharAbasExceto(antes);
+  if (fechadas > 0) console.log(`Fechadas ${fechadas} aba(s) abertas pelo roteiro.`);
   const resultado = saida.match(/RESULTADO: (\d+) falha/);
   if (!resultado) {
     console.error("\n❌ O roteiro nao chegou ao fim (sem linha RESULTADO).");

@@ -966,7 +966,7 @@ figura("caixa-gaveta", "vendedor_centro", "/emporio/caixa", [
     (1, LINHA_DO_CAIXA_ABERTO + ".firstElementChild", "a linha de um caixa, com o saldo e a marca Aberto ou Fechado"),
     (2, "Array.from(" + LINHA_DO_CAIXA_ABERTO + ".querySelectorAll('button')).filter(b => ['Sangria', 'Conferir', 'Encerrar'].includes(b.innerText.trim()))", "os botoes Sangria, Conferir e Encerrar"),
     (3, "M.S('Movimentos')", "a secao Movimentos"),
-], limite=4, hd=1060, hc=1500)
+], limite=4, hd=1380, hc=1700)
 
 
 def estado_abrir():
@@ -1045,7 +1045,7 @@ figura("caixa-entregas", "gestor", "/emporio/caixa", [
     (2, "Array.from(" + ENTREGA + ".querySelectorAll('button')).find(b => b.innerText.trim() === 'Confirmar')", "o botao Confirmar"),
     (3, "Array.from(" + ENTREGA + ".querySelectorAll('a')).find(b => b.innerText.trim() === 'Relatório do turno')", "o botao Relatorio do turno"),
     (4, "Array.from(M.H('Loja da Rodovia').closest('div.rounded-lg').querySelectorAll('p')).find(p => p.innerText.startsWith('Com a gerência'))", "a linha Com a gerencia, no cartao da loja"),
-], antes=so_caixas_e_entregas, limite=4, hd=1000, hc=1500)
+], antes=so_caixas_e_entregas, limite=4, hd=1320, hc=1700)
 
 
 def esperado_do_painel():
@@ -1126,7 +1126,7 @@ figura("relatorios-periodo", "gestor", periodo_do_relatorio, [
     (2, "M.L('Loja')", "o campo Loja"),
     (3, "[M.B('Ver relatório'), M.B('Mês atual')]", "os botoes Ver relatorio e Mes atual"),
     (4, "M.S('Vendas por vendedor')", "o bloco Vendas por vendedor"),
-], limite=5, hd=900, hc=1500)
+], limite=5, hd=1720, hc=2080)
 
 
 def estado_historico():
