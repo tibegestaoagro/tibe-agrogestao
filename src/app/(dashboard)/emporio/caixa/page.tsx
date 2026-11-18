@@ -420,9 +420,9 @@ export default async function CaixaPage() {
               {caixa.checks.map((c) => (
                 <TableRow key={c.id}>
                   <TableCell className="font-medium text-texto">
-                    nº {c.number}
+                    nº {c.number ?? "-"}
                     <span className="block text-xs font-normal text-texto-secundario">
-                      {c.bank}, {nomeDaLojaCheque(c.establishment_id)}
+                      {c.bank ?? "-"}, {nomeDaLojaCheque(c.establishment_id)}
                     </span>
                   </TableCell>
                   <TableCell>
@@ -430,19 +430,25 @@ export default async function CaixaPage() {
                     <span className="block text-xs text-texto-secundario">Em nome de {c.holder_name}</span>
                     <VendaLink id={c.sale_id} numero={c.sale_number} className="block text-xs" />
                   </TableCell>
-                  <TableCell>{dataBr(c.good_for)}</TableCell>
+                  <TableCell>{c.good_for ? dataBr(c.good_for) : "-"}</TableCell>
                   <TableCell>{reaisBr(c.amount)}</TableCell>
-                  <TableCell>
+                  <TableCell className="space-y-1">
                     <Badge variant={c.status === "depositado" ? "blue" : "amber"}>
                       {CHEQUE_SITUACAO_ROTULO[c.status] ?? c.status}
                     </Badge>
+                    {c.incomplete && (
+                      <Badge variant="red" className="ml-1">
+                        A completar
+                      </Badge>
+                    )}
                   </TableCell>
                   <TableCell>
                     <ChequeAcoes
                       chequeId={c.id}
-                      numero={c.number}
+                      cheque={c}
                       situacao={c.status}
                       contas={contasDoBanco}
+                      podeCompletar={pode(papel, "dinheiro") || pode(papel, "gestor_da_loja", c.establishment_id)}
                       podeDepositar={pode(papel, "chave:depositar_cheque", c.establishment_id) || pode(papel, "dinheiro")}
                       ehAdmin={pode(papel, "gestor_da_loja", c.establishment_id) || pode(papel, "dinheiro")}
                     />

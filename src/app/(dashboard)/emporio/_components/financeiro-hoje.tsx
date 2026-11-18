@@ -49,7 +49,7 @@ function Linha({ rotulo, valor, destaque = false }: { rotulo: string; valor: str
 
 /** A tela "Hoje" do Financeiro: quatro cartões, cada um levando à aba que resolve. */
 export function FinanceiroHoje({ resumo, loja }: { resumo: HojeView; loja: string }) {
-  const { positions, total_balance, payables_due, receivables_due, overdue_fiado, pending_approvals, unreconciled, cards_to_confirm, cards_overdue } = resumo;
+  const { positions, total_balance, payables_due, receivables_due, overdue_fiado, pending_approvals, unreconciled, cards_to_confirm, cards_overdue, checks_to_complete } = resumo;
   // O A receber filtrado, com a loja preservada.
   const enderecoDoReceber = (ver: "hoje" | "vencido") => {
     const p = new URLSearchParams();
@@ -80,6 +80,17 @@ export function FinanceiroHoje({ resumo, loja }: { resumo: HojeView; loja: strin
           <p className="text-sm text-texto-secundario">
             {plural(unreconciled.count, "linha", "linhas")} da conta sem conferir com o banco, nos últimos 30 dias
           </p>
+        </Cartao>
+      )}
+
+      {checks_to_complete.count > 0 && (
+        <Cartao titulo="Cheques a completar" href={enderecoDaAba("/emporio/financeiro/receber", loja)} verTudo="Ver os cheques">
+          <Linha
+            rotulo={`A completar: ${plural(checks_to_complete.count, "cheque", "cheques")}`}
+            valor={reaisBr(checks_to_complete.total)}
+            destaque
+          />
+          <p className="text-sm text-texto-secundario">Sem o número, o banco ou a data, o cheque não pode ser depositado.</p>
         </Cartao>
       )}
 

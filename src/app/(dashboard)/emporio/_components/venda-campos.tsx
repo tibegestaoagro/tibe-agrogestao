@@ -70,6 +70,78 @@ const PARCELAS =Array.from({ length: 11 }, (_, i) => i + 2);
  * vivem juntos mas os ids passam pelo mesmo `idDe`.
  */
 /**
+ * Número, banco e bom para do cheque (Q354): opcionais no balcão, num bloco
+ * recolhido. Abre sozinho quando algum já tem valor, como ao editar a venda.
+ */
+function DadosDoCheque({
+  v,
+  p,
+  limpar,
+}: {
+  v: EstadoDaVenda;
+  p: EstadoDaVenda["pagamentos"][number];
+  limpar: () => void;
+}) {
+  const [aberto, setAberto] = useState(!!(p.chequeNumero || p.chequeBanco || p.chequeBomPara));
+  if (!aberto) {
+    return (
+      <div className="sm:col-span-2">
+        <Button type="button" variant="ghost" size="sm" onClick={() => setAberto(true)}>
+          Tenho os dados do cheque
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <>
+      <div className="space-y-1">
+        <label htmlFor={`cheque-numero-${p.key}`} className="text-xs text-texto-secundario">
+          Número do cheque
+        </label>
+        <Input
+          id={`cheque-numero-${p.key}`}
+          inputMode="numeric"
+          autoComplete="off"
+          value={p.chequeNumero}
+          onChange={(e) => {
+            v.atualizarPagamento(p.key, { chequeNumero: e.target.value });
+            limpar();
+          }}
+        />
+      </div>
+      <div className="space-y-1">
+        <label htmlFor={`cheque-banco-${p.key}`} className="text-xs text-texto-secundario">
+          Banco
+        </label>
+        <Input
+          id={`cheque-banco-${p.key}`}
+          autoComplete="off"
+          value={p.chequeBanco}
+          onChange={(e) => {
+            v.atualizarPagamento(p.key, { chequeBanco: e.target.value });
+            limpar();
+          }}
+        />
+      </div>
+      <div className="space-y-1 sm:col-span-2">
+        <label htmlFor={`cheque-bom-para-${p.key}`} className="text-xs text-texto-secundario">
+          Bom para (data)
+        </label>
+        <Input
+          id={`cheque-bom-para-${p.key}`}
+          type="date"
+          value={p.chequeBomPara}
+          onChange={(e) => {
+            v.atualizarPagamento(p.key, { chequeBomPara: e.target.value });
+            limpar();
+          }}
+        />
+      </div>
+    </>
+  );
+}
+
+/**
  * O que o cartão rende, antes de enviar (Q89): a taxa da loja, o líquido e o
  * prazo. Sem taxa cadastrada para a forma, avisa agora em vez de esperar a
  * recusa do servidor. Só informa: quem decide o valor é o campo acima.
@@ -940,49 +1012,6 @@ export function VendaCampos({
                   )}
                   {p.kind === "cheque" && (
                     <div className="grid gap-3 sm:grid-cols-2">
-                      <div className="space-y-1">
-                        <label htmlFor={`cheque-numero-${p.key}`} className="text-xs text-texto-secundario">
-                          Número do cheque
-                        </label>
-                        <Input
-                          id={`cheque-numero-${p.key}`}
-                          inputMode="numeric"
-                          autoComplete="off"
-                          value={p.chequeNumero}
-                          onChange={(e) => {
-                            v.atualizarPagamento(p.key, { chequeNumero: e.target.value });
-                            limpar("payments");
-                          }}
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label htmlFor={`cheque-banco-${p.key}`} className="text-xs text-texto-secundario">
-                          Banco
-                        </label>
-                        <Input
-                          id={`cheque-banco-${p.key}`}
-                          autoComplete="off"
-                          value={p.chequeBanco}
-                          onChange={(e) => {
-                            v.atualizarPagamento(p.key, { chequeBanco: e.target.value });
-                            limpar("payments");
-                          }}
-                        />
-                      </div>
-                      <div className="space-y-1 sm:col-span-2">
-                        <label htmlFor={`cheque-bom-para-${p.key}`} className="text-xs text-texto-secundario">
-                          Bom para (data)
-                        </label>
-                        <Input
-                          id={`cheque-bom-para-${p.key}`}
-                          type="date"
-                          value={p.chequeBomPara}
-                          onChange={(e) => {
-                            v.atualizarPagamento(p.key, { chequeBomPara: e.target.value });
-                            limpar("payments");
-                          }}
-                        />
-                      </div>
                       <div className="space-y-1 sm:col-span-2">
                         <label htmlFor={`cheque-titular-${p.key}`} className="text-xs text-texto-secundario">
                           Em nome de
@@ -996,7 +1025,9 @@ export function VendaCampos({
                             limpar("payments");
                           }}
                         />
+                        <p className="text-xs text-texto-secundario">Cheque de terceiros: troque o nome.</p>
                       </div>
+                      <DadosDoCheque v={v} p={p} limpar={() => limpar("payments")} />
                       {!v.cliente && (
                         <p className="text-xs text-atencao-tinta sm:col-span-2">
                           O cheque precisa de um cliente: escolha acima.
