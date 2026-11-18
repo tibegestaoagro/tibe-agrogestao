@@ -390,13 +390,21 @@ async function comBanco() {
       // Sem cliente a venda nem começa; com o Consumidor final o cheque é recusado (design 2026-11-03-emporio-cliente-nome-menu).
       check("sem customer_id: 422 customer_id", recusa(await vender(op, 10, [cheque(100)], { customer_id: null }), "VALIDATION_ERROR", 422, "customer_id"));
       check("cheque para o Consumidor final: 422 customer_id", recusa(await vender(op, 10, [cheque(100)]), "VALIDATION_ERROR", 422, "customer_id"));
-      for (const campo of ["number", "bank", "good_for", "holder_name"]) {
-        const ck = { holder_name: "Titular Teste", number: "1234", bank: "Sicredi", good_for: bomPara(somaDias(hojeStr, 15)) } as Dado;
-        delete ck[campo];
-        check(`cheque sem ${campo}: 422 payments`, recusa(await vender(op, 10, [{ kind: "cheque", amount: 100, check: ck }], { customer_id: C1 }), "VALIDATION_ERROR", 422, "payments"));
-      }
+      const ckCompleto = () => ({ holder_name: "Titular Teste", number: "1234", bank: "Sicredi", good_for: bomPara(somaDias(hojeStr, 15)) }) as Dado;
+      // Frente C (Q354): sem o titular continua recusado; sem número, banco ou data o cheque entra "A completar".
+      const ckSemNome = ckCompleto();
+      delete ckSemNome.holder_name;
+      check("cheque sem holder_name: 422 payments", recusa(await vender(op, 10, [{ kind: "cheque", amount: 100, check: ckSemNome }], { customer_id: C1 }), "VALIDATION_ERROR", 422, "payments"));
       check("cheque sem o objeto check: 422 payments", recusa(await vender(op, 10, [{ kind: "cheque", amount: 100 }], { customer_id: C1 }), "VALIDATION_ERROR", 422, "payments"));
       check("as recusas não gravaram venda", (await db.emporioSale.count()) === v0);
+      for (const campo of ["number", "bank", "good_for"]) {
+        const ck = ckCompleto();
+        delete ck[campo];
+        const rFalta = await vender(op, 10, [{ kind: "cheque", amount: 100, check: ck }], { customer_id: C1 });
+        check(`cheque sem ${campo}: venda aceita, cheque A completar`, rFalta.ok, j(rFalta));
+        const chFalta: Dado = await db.emporioCheck.findFirst({ where: { sale_id: saleId(rFalta) } });
+        check(`o cheque sem ${campo} nasce recebido, com ${campo} nulo e os outros dois dados preenchidos`, !!chFalta && chFalta.status === "recebido" && chFalta[campo] === null && ["number", "bank", "good_for"].filter((o) => o !== campo).every((o) => chFalta[o] !== null), j(chFalta));
+      }
 
       const g0 = await saldoConta(CHQ);
       const rS = await vender(op, 10, [cheque(100)], { customer_id: C1 });
@@ -409,7 +417,7 @@ async function comBanco() {
       check("nada no caixa (sem CashMovement)", (await db.cashMovement.count({ where: { sale_id: S } })) === 0);
       const ch = await db.emporioCheck.findFirst({ where: { sale_id: S } });
       chequeId1 = ch?.id ?? "";
-      check("o cheque nasce recebido, do cliente, com número, banco, bom para e valor", !!ch && ch.status === "recebido" && ch.customer_id === C1 && ch.number === "1234" && ch.bank === "Sicredi" && diaDe(ch.good_for) === somaDias(hojeStr, 15) && perto(n(ch.amount), 100) && ch.financial_payment_id === pgs[0]?.id, j(ch));
+      check("o cheque nasce recebido, do cliente, com número, banco, bom para e valor", !!ch && ch.status === "recebido" && ch.customer_id === C1 && ch.number === "1234" && ch.bank === "Sicredi" && !!ch.good_for && diaDe(ch.good_for) === somaDias(hojeStr, 15) && perto(n(ch.amount), 100) && ch.financial_payment_id === pgs[0]?.id, j(ch));
       const caixa = dados(await xx("lerCaixaAction", admin));
       check("o cheque aparece na carteira do caixa", j(caixa?.checks ?? null).includes(chequeId1), j(caixa?.checks));
       const lc = await xx("listarChequesAction", admin);

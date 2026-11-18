@@ -269,7 +269,7 @@ async function main() {
 
   console.log("Conta do seed:", tenant_id);
   console.log("Lojas:", loja1, loja2, "Conta:", conta);
-  console.log("Parcela de cartao em:", cartao.expected_on.toISOString().slice(0, 10), "Cheque bom para:", cheque.good_for.toISOString().slice(0, 10), "(hoje:", hojeStr + ")");
+  console.log("Parcela de cartao em:", cartao.expected_on.toISOString().slice(0, 10), "Cheque bom para:", (cheque.good_for?.toISOString().slice(0, 10) ?? "sem data"), "(hoje:", hojeStr + ")");
   await prisma.$disconnect();
 }
 
