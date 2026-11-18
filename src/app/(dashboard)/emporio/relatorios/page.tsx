@@ -5,11 +5,12 @@ import { getTenantDb } from "@/lib/tenant-context";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { veAPagina } from "@/lib/emporio/paginas";
 import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
-import { relatorioDeVendasAction } from "@/lib/actions/emporio-relatorios";
+import { curvaAbcAction, relatorioDeVendasAction, type CurvaAbc } from "@/lib/actions/emporio-relatorios";
 import { hojeEmBrasilia } from "@/lib/emporio/cartao";
 import { EmptyState } from "@/components/ui/empty-state";
 import { RelatoriosFiltro } from "../_components/relatorios-filtro";
 import { RelatoriosBlocos } from "../_components/relatorios-blocos";
+import { CurvaAbcSecao } from "./_components/curva-abc";
 
 /**
  * Relatórios do Empório (entrega 3): vendas por vendedor, por produto, produtos
@@ -18,10 +19,16 @@ import { RelatoriosBlocos } from "../_components/relatorios-blocos";
 export default async function RelatoriosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ de?: string; ate?: string; loja?: string }>;
+  searchParams: Promise<{ de?: string; ate?: string; loja?: string; abc?: string; medida?: string }>;
 }) {
   const user = await requireFeaturePage("emporio");
-  const { de: deDaUrl = "", ate: ateDaUrl = "", loja: lojaDaUrl = "" } = await searchParams;
+  const {
+    de: deDaUrl = "",
+    ate: ateDaUrl = "",
+    loja: lojaDaUrl = "",
+    abc: abcDaUrl = "",
+    medida: medidaDaUrl = "",
+  } = await searchParams;
 
   const db = await getTenantDb();
   const papel = await papelDoEmporio(db, user);
@@ -49,6 +56,32 @@ export default async function RelatoriosPage({
     res = await pedir(de, ate);
   }
 
+  // Curva ABC: usa o período e a loja já resolvidos acima. A recusa do lucro (403)
+  // não derruba a página: cai para o faturamento e avisa.
+  const kind = abcDaUrl === "clientes" ? "customers" : "products";
+  let measure: "revenue" | "profit" = medidaDaUrl === "lucro" ? "profit" : "revenue";
+  let mostrarMedida = true;
+  let erroAbc: string | null = null;
+  let curva: CurvaAbc | null = null;
+  if (res && res.ok) {
+    const pedirAbc = (m: "revenue" | "profit") =>
+      curvaAbcAction(db, user, { from: de, to: ate, kind, measure: m, ...(loja ? { establishment_id: loja } : {}) });
+    let abc = await pedirAbc(measure);
+    if (!abc.ok && measure === "profit" && abc.status === 403) {
+      mostrarMedida = false;
+      measure = "revenue";
+      erroAbc = abc.message;
+      abc = await pedirAbc(measure);
+    }
+    if (abc.ok) curva = abc.data;
+    else erroAbc = abc.message;
+  }
+  const hrefAbc = (abc: "produtos" | "clientes", medida: "faturamento" | "lucro") => {
+    const q = new URLSearchParams({ de, ate, abc, medida });
+    if (loja) q.set("loja", loja);
+    return `/emporio/relatorios?${q.toString()}`;
+  };
+
   return (
     <div className="space-y-6">
       <header>
@@ -75,14 +108,24 @@ export default async function RelatoriosPage({
         <EmptyState titulo="Nenhuma loja disponível">Cadastre uma loja em Estabelecimentos para ver os relatórios.</EmptyState>
       ) : (
         <>
-          <RelatoriosFiltro de={de} ate={ate} loja={loja} lojas={lojas} />
+          <RelatoriosFiltro de={de} ate={ate} loja={loja} lojas={lojas} manter={{ abc: abcDaUrl, medida: medidaDaUrl }} />
           {aviso && (
             <p role="status" className="text-sm text-texto-secundario">
               {aviso}
             </p>
           )}
           {res && res.ok ? (
-            <RelatoriosBlocos r={res.data} />
+            <>
+              <CurvaAbcSecao
+                curva={curva}
+                erro={erroAbc}
+                kind={kind}
+                measure={measure}
+                mostrarMedida={mostrarMedida}
+                href={hrefAbc}
+              />
+              <RelatoriosBlocos r={res.data} />
+            </>
           ) : (
             <EmptyState titulo="Não foi possível montar o relatório">{res ? res.message : "Escolha uma loja."}</EmptyState>
           )}
