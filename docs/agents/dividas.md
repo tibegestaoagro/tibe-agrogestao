@@ -91,7 +91,7 @@ redescobertos como defeito.
 | 2.15 | estoque da fazenda e do Empório se cruzarem (milho da fazenda vendido na loja, sal da loja no gado), e compra e venda do Empório como Negociação | Q2, Q42 | transferência entre `Property` e `Establishment` levando custo, sem mexer no resultado do rebanho |
 | 2.16 | Empório pelo WhatsApp | Q10 | estudo próprio de quais intenções entram; as actions já nascem prontas para o agente |
 | 2.17 | Base Rural: sinônimos e nomes regionais editáveis ("saco" e "saca") | Q11 | tabela de sinônimos mantida pela Plataforma |
-| 2.18 | importar produtos e estoque inicial por planilha | Q45 | importação com conferência linha a linha antes de gravar |
+| 2.18 | importar produtos e estoque inicial por planilha. **Planejada em 17/11/2026 como frente G1** (produtos e clientes), no [plano do GestãoClick](../superpowers/specs/2026-11-17-emporio-plano-gestaoclick.md); espera a planilha real exportada do GestãoClick, que o usuário ainda não conseguiu | Q45, Q341 | importação com conferência linha a linha antes de gravar |
 | 2.19 | contas bancárias no Financeiro da fazenda | Q47 | `FinancialPayment` apontando para a conta, nas telas e no WhatsApp |
 | 2.20 | cadastro público e cobrança da conta só de Empório | Q7, Q16 | opção "sou comerciante" no cadastro, plano e preço no Asaas |
 | 2.21 | nota fiscal (NFC-e, NF-e), receituário agronômico, lote e validade obrigatórios | Q9 | projeto à parte (certificado, SEFAZ por estado). **Precisa existir antes de liberar o Empório para quem vende defensivo ou medicamento** |
@@ -107,7 +107,7 @@ redescobertos como defeito.
 | 2.31 | juros e multa no fiado: campo reservado, regra desligada | Q218 | ligar a regra e decidir taxa, carência e texto que não ameace (CDC) |
 | 2.32 | crediário com parcelas na venda e vencimento na safra: o prazo por cliente e o acordo deixam o lugar | Q214, Q223, Q230 | parcelas na venda, limite por safra e vencimento atrelado à colheita; só vale com cliente que use |
 | 2.33 | lembrete automático de cobrança pelo WhatsApp | Q225 | consentimento do cliente, texto padrão que não ameace e chip que não seja o do agente |
-| 2.34 | importação do XML da nota do fornecedor | Q229 | casar item da nota com produto do estoque; vai na frente de nota fiscal |
+| 2.34 | importação do XML da nota do fornecedor. **Planejada em 17/11/2026 como frente G2**; espera um XML real de nota de fornecedor da Agromax | Q229, Q341 | casar item da nota com produto e apresentação, conversão de unidade e custo; vai na frente de nota fiscal |
 | 2.37 | **fechada em 09/11/2026**: a checagem de atraso e de limite do fiado roda de novo dentro da transação serializável de `gravarVenda`, e a suíte m104 reproduz a corrida (duas vendas de 50 com limite 500 e dívida 450: só uma passa) | entrega 2 do financeiro, revisão da task 4 | nada: resolvida |
 | 2.38 | **fechada em 08/11/2026** (decisão do usuário): a liberação pontual é consumida pela PRIMEIRA venda em fiado do cliente naquela loja, mesmo uma que caberia sem ela; o usuário confirmou esse comportamento, e a alternativa (consumir só quando a venda precisaria da liberação) foi descartada | entrega 2 do financeiro, revisão da task 4, Q224 | nada: decidida |
 | 2.36 | "Pedir liberação" sem fila própria: o Caixa e o Vendedor que esbarram em `FIADO_BLOQUEADO` ou `LIMITE_EXCEDIDO` avisam o Gestor fora do sistema, e o Gestor libera na ficha do cliente, logado como ele | entrega 2 do financeiro, Q224 | se a Agromax pedir, a liberação vira um pedido com aviso ao Gestor (tela e WhatsApp do Tibé) |
@@ -130,7 +130,7 @@ redescobertos como defeito.
 | 2.55 | o frete não entra ao editar venda em acordo ou com devolução: Editar recusa essas vendas, e o caminho é cancelar e relançar à mão | ajuste de 09/11/2026, Q249 | deixar Editar tratar a venda com devolução ou acordo, refazendo o frete junto |
 | 2.56 | **fechada em 09/11/2026**: cada parcela do recebível guarda a taxa, o previsto, a data e o líquido efetivos, e a adquirente escolhe entre "Próximo dia útil" (fim de semana e feriado nacional passam para o dia seguinte) e "Dias corridos" (Q259 a Q261) | entrega 1 das taxas de cartão, 09/11/2026 | nada: resolvida (feriado estadual e municipal: dívida 2.60) |
 | 2.57 | **fechada em 09/11/2026**: a antecipação pontual (marcar parcelas, "Antecipar", "Desfazer") e a automática por adquirente (Q262, Q263, Q265), com o custo como despesa "Antecipação de recebíveis" fora da margem | entrega 1 das taxas de cartão, 09/11/2026 | nada: resolvida |
-| 2.58 | o extrato da Stone não é importado: a conferência do que caiu contra o arquivo da adquirente continua manual | entrega 1 das taxas de cartão, 09/11/2026 | importador do extrato da Stone, com casamento por valor, data e NSU (entrega 4) |
+| 2.58 | o extrato da Stone não é importado: a conferência do que caiu contra o arquivo da adquirente continua manual. **A ponte saiu em 17/11/2026** (frente B, Q349 a Q353): a parcela fica A conferir, Atrasada ou Conferida, com o valor que caiu e o ajuste; o importador preencheria esse mesmo estado sozinho | entrega 1 das taxas de cartão, 09/11/2026 | importador do extrato da Stone, com casamento por valor, data e NSU (entrega 4) |
 | 2.59 | **fechada em 09/11/2026**: a sobreposição de taxa é checada em transação serializável; o PATCH da adquirente é uma transação só; o detalhe da venda mostra a taxa fixa à parte; a migração repõe o CHECK da faixa de parcelas; a recusa de `acquirer_id` cai no campo mesmo com uma adquirente só | revisão final da entrega 1 das taxas de cartão, 09/11/2026 | nada: resolvida |
 | 2.60 | o calendário de dia útil só conhece feriado nacional (fixos, Carnaval, Sexta-feira Santa e Corpus Christi): feriado estadual e municipal não adiam a data da parcela do cartão | entregas 2 e 3 do cartão, Q259, 09/11/2026 | tabela de feriados por loja (estado e município), lida por `ehDiaUtil` |
 | 2.61 | **fechada em 09/11/2026**: o Resultado mostra "Custo do cartão: X% das vendas no cartão", (taxa mais antecipação) sobre o vendido no cartão do mês (Q272) | entregas 2 e 3 do cartão, 09/11/2026 | nada: resolvida |
@@ -138,6 +138,11 @@ redescobertos como defeito.
 | 2.63 | **limpeza feita em 09/11/2026**: um tipo só para a regra de dia útil e para a configuração da adquirente, o % efetivo ao mês numa função (`pctEfetivoMes`) usada pela action e pela tela, o cursor `before` dos pedidos decididos com desempate por `id`, a lista de antecipações com cursor e os totais só da loja filtrada, e a checagem de taxa vigente dentro da transação do arquivamento. **Fica aberto só**: o detalhe da venda mostra o líquido efetivo e a antecipação a qualquer papel que lê a venda (confirmar se o vendedor deve ver). (`arquivarAdquirenteAction`/`reativarAdquirenteAction` seguem sem chamador na tela, item da lista original que a rodada não tocou.) | entregas 2 e 3 do cartão, revisão de 09/11/2026 | o item do vendedor é decisão do usuário |
 | 2.64 | **fechada em 10/11/2026** (branch `codex/dividas-264-265`): o CSV do a pagar traz o vencimento de cada conta, os totais das antecipações ficam nas lojas visíveis, o dia de Brasília está num helper só (`src/lib/dia-calendario.ts`) e a recusa do cursor aponta o campo que falta | relatórios e limpeza, revisão de 09/11/2026 | nada |
 | 2.65 | **fechada em 10/11/2026** (branch `codex/dividas-264-265`): a `test:m99` calcula "hoje" pelo dia de Brasília, como o código, e não reprova mais entre 21h e meia-noite | suíte do crédito do fiado, 09/11/2026 | nada |
+| 2.77 | PIX com QR na venda (frente E do plano do GestãoClick): ficou fora do ciclo de 17/11/2026 | Q341 | gerar a cobrança PIX com QR no balcão e baixar sozinho quando o banco confirmar; depende de integração com o banco da loja |
+| 2.76 | comissão por vendedor (frente F): fora até a Agromax definir a regra | Q341, Q344 | regra de comissão por vendedor, por produto ou por margem, no Resultado e no relatório de vendas |
+| 2.75 | **frente H, curva ABC**, aprovada no ciclo de 17/11/2026 e não feita: produtos e clientes por loja e período, no Relatórios | Q341 | relatório novo sobre as vendas que já existem; sem migração |
+| 2.74 | **frente D, balcão rápido**, aprovada no ciclo de 17/11/2026 e não feita: atalhos de teclado com legenda no rodapé do balcão, código de barras por apresentação com leitor e, depois, etiqueta de prateleira | Q341 | migração para o código de barras na apresentação; atalhos e leitor na tela do balcão |
+| 2.73 | **frente C, cheque em duas etapas**, aprovada no ciclo de 17/11/2026 e não feita: na venda só valor e nome (do cliente da venda), com a opção "cheque de terceiros" para digitar outro nome; número, banco e bom para completados depois pelo Financeiro, e o cheque incompleto destacado. A Q343 precisa ser confirmada na spec da frente | Q341, Q343 | migração (campos do cheque opcionais), venda, carteira de cheques e tela de completar |
 | 2.72 | a projeção do financeiro (`src/lib/actions/emporio-projecao.ts`) deu 500 com um modelo de despesa fixa sem rateio entre lojas; visto só depois de apagar lojas direto no banco local com as chaves desligadas, e provavelmente inalcançável pelas telas | manual do Empório, 17/11/2026 | confirmar se alguma tela deixa o modelo sem rateio; se deixar, a projeção pula o modelo em vez de quebrar |
 | 2.71 | a compra não propõe atualizar o preço de venda quando o custo novo muda o preço sugerido: quem lança a compra ajusta o preço à mão na formação de preço (o aviso de 10%, Q295, saiu em 11/11/2026 com a Q299) | dois custos, 10/11/2026 | na tela da compra, por item, "o sugerido passou de R$ X para R$ Y: atualizar?" |
 | 2.70 | **fechada em 10/11/2026** (a causa não era o grupo do menu: desde a Q190 a equipe da loja só abre o Empório e o cliente mora em `/emporio/clientes`; a conferência passou a exigir Clientes, Contatos fora e `/contatos` levando ao Empório; 106 checks, sabotada: 2 falhas): o roteiro `emporio-f6b` reprova em "o menu tem Meu Empório e Contatos": abre só o grupo Operação e o link /contatos fica em outro grupo do menu (a conferência não rodava desde a 2.68; não é efeito do boleto) | roteiros, 10/11/2026 | abrir o grupo onde fica Contatos antes de ler o menu, ou conferir pelo `src/lib/nav.ts` |
@@ -326,6 +331,31 @@ Registrado em 07/11/2026, na branch `emporio-entrega-e-romaneio` (plano 3 de 3).
 - A suíte `m97` não cobre PJ sem documento nem `person_kind` nulo no resolver, e
   a seção 3 confere o `field` mas não a mensagem exata do principal incompleto e
   do "outro" sem bairro.
+
+### 5.23 Empório, conferir o cartão (frente B, Q349 a Q353): o que ficou para depois
+
+Registrado em 17/11/2026, depois do merge `cc8a614` (juiz 8/10, achados
+corrigidos).
+- **Venda cancelada depois de conferida:** o estorno da parcela já caída usa o
+  `effective_net`, não o `confirmed_net`, e o ajuste da conferência fica no
+  saldo. A spec não define o caso; decidir com o usuário se o cancelamento
+  também desfaz a conferência.
+- Cobertura de roteiro que falta: o "Retirar" e o "Carimbar" da linha de cartão
+  no extrato (desfazer e conferir pelo carimbo, Q352), a antecipação pontual
+  nascendo conferida e a venda cancelada depois de conferida. Os três estão só
+  na `m121`.
+- O link "Conferir as parcelas" do Hoje abre `?ver=hoje`, que mostra as de hoje
+  e também as A conferir de dias anteriores, sem a tela dizer isso.
+- O `eh_404()` de `scripts/navegador/_lib.py` procura "404" em qualquer texto
+  (casou com a venda nº 004043). Seis roteiros ainda o chamam; trocar pela
+  frase "could not be found", como o `nao_achada()` do roteiro
+  `emporio-conferir-cartao`, e rodar os seis de novo.
+- O teste da migração Q353 (seção 14c da `m121`) roda os UPDATE do arquivo
+  sobre o banco de dev inteiro, dentro de uma transação desfeita: correto, mas
+  segura as linhas de outras suítes enquanto roda.
+- Feriado móvel fica fora da conta independente do roteiro (só os fixos); hoje
+  não muda nada, mas numa semana de Carnaval ou Corpus Christi o roteiro pode
+  esperar a data errada.
 
 ### 5.18 Empório, manual e cenário de demonstração: o que a revisão deixou para depois
 
