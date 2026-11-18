@@ -4,11 +4,11 @@ import type { OrigemDaVenda } from "@/lib/emporio/frete";
 import { readJson } from "@/lib/api-guard";
 import { withApi } from "@/lib/route";
 import { listarVendasAction, venderAction } from "@/lib/actions/emporio-vendas";
-import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
+import { guardEmporio, paginaDaQuery, respostaPaginada } from "@/lib/emporio/rota";
 import { chaveDeOperacao, corpoDaVendaSchema, dataIso } from "@/lib/emporio/venda-schema";
 
 /**
- * GET  /api/v1/emporio/sales  ?establishment_id= &customer_id= &status=concluida|cancelada &origin=balcao|ecommerce &de= &ate= &limit=
+ * GET  /api/v1/emporio/sales  ?establishment_id= &customer_id= &status=concluida|cancelada &origin=balcao|ecommerce &de= &ate= &page= &per_page= (20, 40, 80, 100) &order= (desc|asc) &limit= (antigo, sem page); meta: total, page, per_page
  * POST /api/v1/emporio/sales  registra a venda (chave de operação): wrapper fino.
  */
 
@@ -31,9 +31,12 @@ async function GETHandler(request: Request) {
   const de = sp.get("de") ? dataIso.safeParse(sp.get("de")) : null;
   const ate = sp.get("ate") ? dataIso.safeParse(sp.get("ate")) : null;
   if ((de && !de.success) || (ate && !ate.success)) return apiErroDeZod((de && !de.success ? de : (ate as { error: z.ZodError })).error);
+  const pagina = paginaDaQuery(sp, "vendas");
+  if (!pagina.success) return apiErroDeZod(pagina.error);
   const limit = Number(sp.get("limit"));
-  return respostaDaAction(
+  return respostaPaginada(
     await listarVendasAction(g.db, g.user, {
+      ...pagina.data,
       establishment_id: sp.get("establishment_id") ?? undefined,
       customer_id: sp.get("customer_id") ?? undefined,
       status: status === "concluida" || status === "cancelada" ? status : undefined,

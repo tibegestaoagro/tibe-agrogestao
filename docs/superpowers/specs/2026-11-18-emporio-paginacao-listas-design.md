@@ -29,7 +29,9 @@ pagamento, Antecipações e Entregas, 0. A 5.27 junta dois acertos da curva ABC.
   Empório). `per_page` fora de 20, 40, 80 e 100: 422 em `per_page`. As rotas
   devolvem as linhas em `data` e `meta: { total, page, per_page }`, como a de
   orçamentos. A ordem é a natural de cada lista (data ou número), invertida
-  pelo `order`.
+  pelo `order`. **Exceção:** as entregas pendentes do caixa seguem com o
+  padrão `asc` (a mais antiga primeiro, a próxima a confirmar), como já eram;
+  o `order` explícito continua valendo.
 - **Lista que já pagina por cursor** (Pedidos de pagamento, com `before` e
   `before_id`): se a tela já mostra "ver mais" sem cortar em silêncio, fica
   como está e a dívida dela fecha só com a conferência; se corta, entra no

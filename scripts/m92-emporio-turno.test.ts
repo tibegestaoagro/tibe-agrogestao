@@ -335,13 +335,13 @@ async function secao2() {
   const doCaixa = await Ven.listarVendasAction(db, caixa, { de: dezDias });
   check(
     "listarVendas do Caixa, pedindo 10 dias: só a venda de hoje da Loja 1",
-    doCaixa.ok && doCaixa.data.length === 1 && dentro.ok && doCaixa.data[0].id === dentro.data.id,
-    j(doCaixa.ok ? doCaixa.data.map((v) => v.id) : doCaixa),
+    doCaixa.ok && doCaixa.data.linhas.length === 1 && dentro.ok && doCaixa.data.linhas[0].id === dentro.data.id,
+    j(doCaixa.ok ? doCaixa.data.linhas.map((v) => v.id) : doCaixa),
   );
   const semPeriodo = await Ven.listarVendasAction(db, caixa);
-  check("listarVendas do Caixa sem período também é só hoje", semPeriodo.ok && semPeriodo.data.length === 1, j(semPeriodo.ok ? semPeriodo.data.length : semPeriodo));
+  check("listarVendas do Caixa sem período também é só hoje", semPeriodo.ok && semPeriodo.data.linhas.length === 1, j(semPeriodo.ok ? semPeriodo.data.linhas.length : semPeriodo));
   const doDono = await Ven.listarVendasAction(db, owner, { de: dezDias });
-  check("o Dono, pedindo 10 dias, vê as 3 vendas feitas", doDono.ok && doDono.data.length === 3, j(doDono.ok ? doDono.data.length : doDono));
+  check("o Dono, pedindo 10 dias, vê as 3 vendas feitas", doDono.ok && doDono.data.linhas.length === 3, j(doDono.ok ? doDono.data.linhas.length : doDono));
   const lerAntiga = await Ven.lerVendaAction(db, caixa, antiga.data.id);
   check("lerVenda de dia anterior: 404 para o Caixa", !lerAntiga.ok && lerAntiga.status === 404, j(lerAntiga));
 
@@ -665,7 +665,7 @@ async function secao3() {
   const spH = (spOk[0] as Dado)?.data?.id;
   check("o Gestor confirma essa sangria (6)", (await Tu.confirmarEntregaAction(db, gestor, spH, { operation_key: k("conf"), received_amount: 6 })).ok);
   const pend = await Tu.listarEntregasAction(db, gestor, { establishment_id: L1, status: "pending" });
-  check("listarEntregas pendentes: só a sangria de 30", pend.ok && pend.data.length === 1 && pend.data[0].amount === 30, j(pend));
+  check("listarEntregas pendentes: só a sangria de 30", pend.ok && pend.data.linhas.length === 1 && pend.data.linhas[0].amount === 30, j(pend));
 
   // --- transferência
   const doCaixa: Dado = await Caixa.transferirCaixaAction(db, gestor, { operation_key: k("tr"), from: { establishment_id: L1 }, to: { bank_account_id: CT }, amount: 10 });

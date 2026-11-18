@@ -539,7 +539,7 @@ async function comBanco() {
         const dobroDias = pctEfetivoMes(900, S, dias * 2) as number;
         check("dobrar o custo dobra o %; dobrar os dias divide por dois", perto(dobroCusto, f * 2, 0.02) && perto(dobroDias, f / 2, 0.02), `${f} ${dobroCusto} ${dobroDias}`);
         const lista = dados(await aa("listarAntecipacoesAction", admin.ator, {}));
-        const item = ((Array.isArray(lista) ? lista : (lista?.items ?? [])) as Dado[]).find((x) => x.id === rAnt.data.id);
+        const item = ((Array.isArray(lista) ? lista : (lista?.linhas ?? lista?.items ?? [])) as Dado[]).find((x) => x.id === rAnt.data.id);
         check("e a lista de antecipações devolve o mesmo % da função", !!item && perto(item.effective_pct_month, f, 0.01), j(item?.effective_pct_month));
       }
     });

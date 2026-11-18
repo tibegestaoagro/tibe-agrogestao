@@ -1,6 +1,7 @@
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { runSerializableTenantTransaction } from "@/lib/financial";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
+import { lerPagina, recortar } from "@/lib/emporio/paginacao";
 import { decToNum, isoOrNull } from "@/lib/serialize";
 import { exigir, papelDoEmporio, pode, recusarCaixa } from "@/lib/emporio/papel";
 import { descreverQuantidade } from "@/lib/stock/units";
@@ -114,11 +115,18 @@ const INCLUDE_TRANSFERENCIA = {
   },
 } as const;
 
-async function buscar(db: TenantPrismaClient, where: Record<string, unknown>, take?: number) {
+async function buscar(
+  db: TenantPrismaClient,
+  where: Record<string, unknown>,
+  take?: number,
+  pag: { skip?: number; order?: "asc" | "desc" } = {},
+) {
+  const o = pag.order ?? "desc";
   return db.stockTransfer.findMany({
     where,
     include: INCLUDE_TRANSFERENCIA,
-    orderBy: [{ sent_at: "desc" }, { created_at: "desc" }],
+    orderBy: [{ sent_at: o }, { created_at: o }],
+    ...(pag.skip ? { skip: pag.skip } : {}),
     ...(take ? { take } : {}),
   });
 }
@@ -189,10 +197,19 @@ export async function lerTransferenciaAction(
 export async function listarTransferenciasAction(
   db: TenantPrismaClient,
   ator: Ator,
-  opts: { establishment_id?: string; status?: StatusDaTransferencia; limit?: number } = {},
-): Promise<ActionResult<TransferView[]>> {
+  opts: {
+    establishment_id?: string;
+    status?: StatusDaTransferencia;
+    limit?: number;
+    page?: number;
+    per_page?: number;
+    order?: "asc" | "desc";
+  } = {},
+): Promise<ActionResult<{ linhas: TransferView[]; total: number; page: number; per_page: number }>> {
   const foraDoCaixa = await recusarCaixa(db, ator, "ver as transferências");
   if (foraDoCaixa) return foraDoCaixa;
+  const pg = lerPagina(opts, "transferências");
+  if (!pg.ok) return pg;
   const visiveis = await lojasDoAtor(db, ator);
   if (opts.establishment_id && visiveis && !visiveis.has(opts.establishment_id)) {
     return NAO_ACHADO("Estabelecimento", "establishment_id");
@@ -222,9 +239,11 @@ export async function listarTransferenciasAction(
   ) {
     e.push({ status: opts.status });
   }
-  const limite = opts.limit && opts.limit > 0 ? Math.min(Math.floor(opts.limit), 500) : 200;
-  const linhas = await buscar(db, e.length ? { AND: e } : {}, limite);
-  return ok(linhas.map(montarView));
+  const where = e.length ? { AND: e } : {};
+  const total = await db.stockTransfer.count({ where });
+  const { page, skip, take } = recortar(total, pg.data);
+  const linhas = await buscar(db, where, take, { skip, order: pg.data.order });
+  return ok({ linhas: linhas.map(montarView), total, page, per_page: pg.data.porPagina });
 }
 
 /**

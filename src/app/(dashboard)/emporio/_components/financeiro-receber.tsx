@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { AntecipacaoView } from "@/lib/actions/emporio-antecipacao";
 import type { AReceberView } from "@/lib/actions/emporio-financeiro";
 import type { FiadoClienteView } from "@/lib/actions/emporio-caixa";
@@ -34,6 +35,7 @@ export function FinanceiroReceber({
   contasDoBanco,
   usuarioId,
   antecipacoes,
+  paginacaoAntecipacoes = null,
   ver = null,
   hoje,
   padraoId = null,
@@ -48,6 +50,8 @@ export function FinanceiroReceber({
   /** O cliente padrão, que não vira link. */
   padraoId?: string | null;
   antecipacoes: AntecipacaoView[];
+  /** A barra de páginas das antecipações (montada na página server, que conhece a URL). */
+  paginacaoAntecipacoes?: ReactNode;
   dados: AReceberView;
   papel: PapelContexto;
   /** As lojas que o recebimento pode escolher (uma só quando a tela está filtrada). */
@@ -246,6 +250,7 @@ export function FinanceiroReceber({
       <CartoesAReceber
         cards={cartoes}
         antecipacoes={antecipacoes}
+        paginacao={paginacaoAntecipacoes}
         lojasQueAntecipam={lojasQueAntecipam}
         padraoId={padraoId}
         semAtrasadoNoFiltro={ver === "vencido"}

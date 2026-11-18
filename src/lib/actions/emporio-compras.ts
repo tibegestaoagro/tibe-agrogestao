@@ -1,5 +1,6 @@
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
+import { lerPagina, recortar } from "@/lib/emporio/paginacao";
 import { dinheiro, itens as frasItens, registrarNoHistorico } from "@/lib/emporio/historico";
 import { decToNum, isoOrNull } from "@/lib/serialize";
 import { exigir, exigirUma, recusarCaixa } from "@/lib/emporio/papel";
@@ -106,11 +107,18 @@ const INCLUDE_COMPRA = {
 
 type CompraRow = Awaited<ReturnType<typeof buscarCompras>>[number];
 
-async function buscarCompras(db: TenantPrismaClient, where: Record<string, unknown>, take?: number) {
+async function buscarCompras(
+  db: TenantPrismaClient,
+  where: Record<string, unknown>,
+  take?: number,
+  pag: { skip?: number; order?: "asc" | "desc" } = {},
+) {
+  const o = pag.order ?? "desc";
   return db.emporioPurchase.findMany({
     where,
     include: INCLUDE_COMPRA,
-    orderBy: [{ purchased_at: "desc" }, { created_at: "desc" }],
+    orderBy: [{ purchased_at: o }, { created_at: o }],
+    ...(pag.skip ? { skip: pag.skip } : {}),
     ...(take ? { take } : {}),
   });
 }
@@ -193,10 +201,20 @@ export async function lerCompraAction(
 export async function listarComprasAction(
   db: TenantPrismaClient,
   ator: Ator,
-  opts: { establishment_id?: string; status?: "pendente" | "recebida" | "cancelada"; supplier_id?: string; limit?: number } = {},
-): Promise<ActionResult<CompraView[]>> {
+  opts: {
+    establishment_id?: string;
+    status?: "pendente" | "recebida" | "cancelada";
+    supplier_id?: string;
+    limit?: number;
+    page?: number;
+    per_page?: number;
+    order?: "asc" | "desc";
+  } = {},
+): Promise<ActionResult<{ linhas: CompraView[]; total: number; page: number; per_page: number }>> {
   const foraDoCaixa = await recusarCaixa(db, ator, "ver as compras");
   if (foraDoCaixa) return foraDoCaixa;
+  const pg = lerPagina(opts, "compras");
+  if (!pg.ok) return pg;
   const visiveis = await lojasDoAtor(db, ator);
   if (opts.establishment_id && visiveis && !visiveis.has(opts.establishment_id)) {
     return NAO_ACHADO("Estabelecimento", "establishment_id");
@@ -216,8 +234,10 @@ export async function listarComprasAction(
           ? { canceled_at: null, received_at: null }
           : {}),
   };
-  const limite = opts.limit && opts.limit > 0 ? Math.min(Math.floor(opts.limit), 500) : 200;
-  return ok(await montarViews(db, await buscarCompras(db, where, limite)));
+  const total = await db.emporioPurchase.count({ where });
+  const { page, skip, take } = recortar(total, pg.data);
+  const linhas = await montarViews(db, await buscarCompras(db, where, take, { skip, order: pg.data.order }));
+  return ok({ linhas, total, page, per_page: pg.data.porPagina });
 }
 
 export type SaldoParaCompra = {

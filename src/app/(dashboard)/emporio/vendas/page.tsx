@@ -20,6 +20,8 @@ import {
 } from "@/components/ui/table";
 import { NomeDoCliente } from "../_components/amarras";
 import { idDoClientePadrao } from "../_components/cliente-padrao";
+import { Paginacao } from "../_components/paginacao";
+import { lerPaginacaoDaUrl } from "../_components/paginacao-opcoes";
 import { VendasFiltro } from "../_components/vendas-filtro";
 
 const DATA_HORA = new Intl.DateTimeFormat("pt-BR", {
@@ -31,10 +33,19 @@ const DATA_HORA = new Intl.DateTimeFormat("pt-BR", {
 export default async function VendasPage({
   searchParams,
 }: {
-  searchParams: Promise<{ loja?: string; situacao?: string; origin?: string }>;
+  searchParams: Promise<{
+    loja?: string;
+    situacao?: string;
+    origin?: string;
+    pagina?: string;
+    por_pagina?: string;
+    ordem?: string;
+  }>;
 }) {
   const user = await requireFeaturePage("emporio");
-  const { loja = "", situacao = "", origin = "" } = await searchParams;
+  const params = await searchParams;
+  const { loja = "", situacao = "", origin = "" } = params;
+  const { pagina, porPagina, ordem } = lerPaginacaoDaUrl(params);
   const filtroOrigem = (ORIGENS_DA_VENDA as readonly string[]).includes(origin) ? (origin as OrigemDaVenda) : undefined;
   const filtroSituacao = situacao === "concluida" || situacao === "cancelada" ? situacao : undefined;
 
@@ -43,10 +54,22 @@ export default async function VendasPage({
   const padraoId = await idDoClientePadrao(db);
   const [lojasRes, vendasRes] = await Promise.all([
     listarEstabelecimentosAction(db, user),
-    listarVendasAction(db, user, { establishment_id: loja || undefined, status: filtroSituacao, origin: filtroOrigem }),
+    listarVendasAction(db, user, { establishment_id: loja || undefined, status: filtroSituacao, origin: filtroOrigem, page: pagina, per_page: porPagina, order: ordem }),
   ]);
   const lojas = lojasRes.ok ? lojasRes.data.map((l) => ({ id: l.id, name: l.name })) : [];
-  const vendas = vendasRes.ok ? vendasRes.data : [];
+  const vendas = vendasRes.ok ? vendasRes.data.linhas : [];
+
+  function hrefDe(n: number): string {
+    const p = new URLSearchParams();
+    if (loja) p.set("loja", loja);
+    if (filtroSituacao) p.set("situacao", filtroSituacao);
+    if (filtroOrigem) p.set("origin", filtroOrigem);
+    if (porPagina !== 20) p.set("por_pagina", String(porPagina));
+    if (ordem !== "desc") p.set("ordem", ordem);
+    if (n > 1) p.set("pagina", String(n));
+    const texto = p.toString();
+    return texto ? `/emporio/vendas?${texto}` : "/emporio/vendas";
+  }
 
   return (
     <div className="space-y-6">
@@ -67,9 +90,11 @@ export default async function VendasPage({
         )}
       </header>
 
-      <VendasFiltro lojas={lojas} loja={loja} situacao={filtroSituacao ?? ""} origem={filtroOrigem ?? ""} />
+      <VendasFiltro lojas={lojas} loja={loja} situacao={filtroSituacao ?? ""} origem={filtroOrigem ?? ""} porPagina={porPagina} ordem={ordem} />
 
-      {vendas.length === 0 ? (
+      {!vendasRes.ok ? (
+        <p className="rounded-lg bg-superficie-afundada px-4 py-3 text-sm text-texto-secundario">{vendasRes.message}</p>
+      ) : vendas.length === 0 ? (
         <EmptyState titulo="Nenhuma venda encontrada">
           {filtroSituacao || filtroOrigem || loja ? "Mude o filtro para ver outras." : "As vendas feitas no balcão aparecem aqui."}
         </EmptyState>
@@ -143,6 +168,10 @@ export default async function VendasPage({
             })}
           </TableBody>
         </Table>
+      )}
+
+      {vendasRes.ok && vendas.length > 0 && (
+        <Paginacao page={vendasRes.data.page} perPage={vendasRes.data.per_page} total={vendasRes.data.total} hrefDe={hrefDe} />
       )}
     </div>
   );

@@ -13,6 +13,7 @@ import { dataBr, hojeEmBrasilia as hojeIsoEmBrasilia } from "@/lib/emporio/datas
 import { periodoDaUrl } from "@/lib/emporio/periodo";
 import { EmptyState } from "@/components/ui/empty-state";
 import { idDoClientePadrao } from "../../_components/cliente-padrao";
+import { Paginacao, paginaDaUrl } from "../../_components/paginacao";
 import { PeriodoFiltro } from "../../_components/periodo-filtro";
 import { RecebidosLista } from "../../_components/recebidos-lista";
 import { verDoReceber } from "../../_components/recorte";
@@ -28,10 +29,10 @@ const CAMINHO = "/emporio/financeiro/receber";
 export default async function FinanceiroReceberPage({
   searchParams,
 }: {
-  searchParams: Promise<{ loja?: string; ver?: string; de?: string; ate?: string }>;
+  searchParams: Promise<{ loja?: string; ver?: string; de?: string; ate?: string; pagina_ant?: string }>;
 }) {
   const user = await requireFeaturePage("emporio");
-  const { loja: lojaDaUrl = "", ver: verDaUrl, de: deDaUrl, ate: ateDaUrl } = await searchParams;
+  const { loja: lojaDaUrl = "", ver: verDaUrl, de: deDaUrl, ate: ateDaUrl, pagina_ant: paginaAntDaUrl } = await searchParams;
   const ver = verDoReceber(verDaUrl);
   // Sem `de` e `ate` válidos, o período é Este mês (o Recebido do cartão abre nele).
   const periodo = periodoDaUrl({ de: deDaUrl, ate: ateDaUrl }, hojeEmBrasilia());
@@ -47,7 +48,11 @@ export default async function FinanceiroReceberPage({
   const [dadosRes, antecipacoesRes, contasDoBanco, padraoId] = await Promise.all([
     listarContasAReceberAction(db, user, { establishment_id: loja || undefined, de: periodo.de, ate: periodo.ate }),
     // Quem não antecipa recebe a recusa de permissão: a lista fica vazia, sem erro na tela.
-    listarAntecipacoesAction(db, user, { establishment_id: loja || undefined }),
+    listarAntecipacoesAction(db, user, {
+      establishment_id: loja || undefined,
+      page: paginaDaUrl(paginaAntDaUrl),
+      per_page: 20,
+    }),
     // Só id e nome, para escolher o destino ao depositar um cheque.
     db.bankAccount.findMany({ where: { archived_at: null }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
     idDoClientePadrao(db),
@@ -55,6 +60,18 @@ export default async function FinanceiroReceberPage({
   // Quem recebe dinheiro em espécie precisa dos caixas abertos; o Financeiro só recebe PIX.
   const caixas = pode(papel, "vendedor_da_loja") ? paraCaixasDaLoja(await viewsDosCaixas(db, lojas.map((l) => l.id))) : [];
   const lojasDoRecebimento = loja ? lojas.filter((l) => l.id === loja) : lojas;
+
+  // Os demais parâmetros da tela seguem como vieram; só a página das antecipações muda.
+  function hrefDaAntecipacao(n: number): string {
+    const p = new URLSearchParams();
+    if (loja) p.set("loja", loja);
+    if (ver) p.set("ver", ver);
+    if (deDaUrl) p.set("de", deDaUrl);
+    if (ateDaUrl) p.set("ate", ateDaUrl);
+    if (n > 1) p.set("pagina_ant", String(n));
+    const texto = p.toString();
+    return texto ? `${CAMINHO}?${texto}` : CAMINHO;
+  }
 
   return (
     <div className="space-y-6">
@@ -118,7 +135,17 @@ export default async function FinanceiroReceberPage({
           caixas={caixas}
           contasDoBanco={contasDoBanco}
           usuarioId={user.id}
-          antecipacoes={antecipacoesRes.ok ? antecipacoesRes.data : []}
+          antecipacoes={antecipacoesRes.ok ? antecipacoesRes.data.linhas : []}
+          paginacaoAntecipacoes={
+            antecipacoesRes.ok ? (
+              <Paginacao
+                page={antecipacoesRes.data.page}
+                perPage={antecipacoesRes.data.per_page}
+                total={antecipacoesRes.data.total}
+                hrefDe={hrefDaAntecipacao}
+              />
+            ) : null
+          }
         />
       )}
     </div>

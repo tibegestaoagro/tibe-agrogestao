@@ -1,6 +1,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
+import { lerPagina, recortar } from "@/lib/emporio/paginacao";
 import { decToNum, isoOrNull } from "@/lib/serialize";
 import { createLinkedEntry, runSerializableTenantTransaction } from "@/lib/financial";
 import { exigirUma } from "@/lib/emporio/papel";
@@ -141,10 +142,17 @@ export async function listarAntecipacoesAction(
     ate?: Date | null;
     establishment_id?: string | null;
     before?: { operated_on: Date; id: string } | null;
+    limit?: number;
+    page?: number;
+    per_page?: number;
+    order?: "asc" | "desc";
   } = {},
-): Promise<ActionResult<AntecipacaoView[]>> {
+): Promise<ActionResult<{ linhas: AntecipacaoView[]; total: number; page: number; per_page: number }>> {
   const neg = await exigirUma(db, ator, PERMISSAO, "ver as antecipações");
   if (neg) return neg;
+  // O cursor `before` (sempre em ordem decrescente) é o caminho antigo: sem `page` nem `limit`, mantém o corte em 200.
+  const pg = lerPagina({ ...filtro, limit: filtro?.limit ?? (filtro?.before ? 200 : undefined) }, "antecipações");
+  if (!pg.ok) return pg;
 
   const visiveis = await lojasDoAtor(db, ator);
   const pedida = typeof filtro?.establishment_id === "string" && filtro.establishment_id ? filtro.establishment_id : null;
@@ -190,13 +198,21 @@ export async function listarAntecipacoesAction(
     where.AND = [corte];
   }
 
+  const total = await db.cardAnticipation.count({ where });
+  const { page, skip, take } = recortar(total, pg.data);
   const rows = await db.cardAnticipation.findMany({
     where,
     include: INCLUDE_OPERACAO,
-    orderBy: [{ operated_on: "desc" }, { id: "desc" }],
-    take: 200,
+    orderBy: [{ operated_on: pg.data.order }, { id: pg.data.order }],
+    skip,
+    take,
   });
-  return ok(rows.map((r) => viewDaOperacao(r, alcance, custosPorOperacao.get(r.id) ?? 0)));
+  return ok({
+    linhas: rows.map((r) => viewDaOperacao(r, alcance, custosPorOperacao.get(r.id) ?? 0)),
+    total,
+    page,
+    per_page: pg.data.porPagina,
+  });
 }
 
 // ---------------------------------------------------------------------------

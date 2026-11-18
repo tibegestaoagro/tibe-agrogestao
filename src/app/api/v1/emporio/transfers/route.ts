@@ -3,10 +3,10 @@ import { apiError, apiErroDeZod, apiOk } from "@/lib/api";
 import { readJson } from "@/lib/api-guard";
 import { withApi } from "@/lib/route";
 import { enviarTransferenciaAction, listarTransferenciasAction } from "@/lib/actions/emporio-transferencias";
-import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
+import { guardEmporio, paginaDaQuery, respostaPaginada } from "@/lib/emporio/rota";
 
 /**
- * GET  /api/v1/emporio/transfers  ?establishment_id= &status=em_transito|aguardando_gestor|recebida|cancelada
+ * GET  /api/v1/emporio/transfers  ?establishment_id= &status=em_transito|aguardando_gestor|recebida|cancelada &page= &per_page= (20, 40, 80, 100) &order= (desc|asc) &limit= (antigo, sem page); meta: total, page, per_page
  * POST /api/v1/emporio/transfers  envia a transferência (chave de operação): wrapper fino.
  */
 
@@ -35,8 +35,13 @@ async function GETHandler(request: Request) {
   if ("error" in g) return g.error;
   const sp = new URL(request.url).searchParams;
   const status = sp.get("status");
-  return respostaDaAction(
+  const pagina = paginaDaQuery(sp, "transferências");
+  if (!pagina.success) return apiErroDeZod(pagina.error);
+  const limit = Number(sp.get("limit"));
+  return respostaPaginada(
     await listarTransferenciasAction(g.db, g.user, {
+      ...pagina.data,
+      limit: Number.isFinite(limit) && limit > 0 ? limit : undefined,
       establishment_id: sp.get("establishment_id") ?? undefined,
       status: status === "em_transito" || status === "aguardando_gestor" || status === "recebida" || status === "cancelada" ? status : undefined,
     }),

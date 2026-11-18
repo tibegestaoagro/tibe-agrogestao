@@ -32,6 +32,7 @@ import { ConferirGavetaForm } from "../_components/conferir-gaveta-form";
 import { AbrirTurnoForm } from "../_components/abrir-turno-form";
 import { SangriaForm } from "../_components/sangria-form";
 import { EncerrarTurnoForm } from "../_components/encerrar-turno-form";
+import { Paginacao, paginaDaUrl } from "../_components/paginacao";
 import { ConfirmarEntregaForm } from "../_components/confirmar-entrega-form";
 import { TransferirCaixaForm, type PontaOpcao } from "../_components/transferir-caixa-form";
 import { CHEQUE_SITUACAO_ROTULO, ORIGEM_CAIXA_ROTULO } from "../_components/venda-rotulos";
@@ -45,8 +46,17 @@ const DATA_HORA = new Intl.DateTimeFormat("pt-BR", {
   timeStyle: "short",
 });
 
-export default async function CaixaPage() {
+const POR_PAGINA_CAIXA = 20;
+
+export default async function CaixaPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ pagina_ent?: string; pagina_mov?: string }>;
+}) {
   const user = await requireFeaturePage("emporio");
+  const { pagina_ent: paginaEntDaUrl, pagina_mov: paginaMovDaUrl } = await searchParams;
+  const paginaEnt = paginaDaUrl(paginaEntDaUrl);
+  const paginaMov = paginaDaUrl(paginaMovDaUrl);
   const db = await getTenantDb();
   // F6b: cada botão decide pelo papel do Empório, a mesma regra que o servidor aplica.
   const papel = await papelDoEmporio(db, user);
@@ -60,7 +70,7 @@ export default async function CaixaPage() {
   const mexeNaConta = ehConta || ehDinheiro;
 
   const [caixaRes, boletosRes, contasRes, contasDoBanco, implantados, comTurno, entregasRes, padraoId] = await Promise.all([
-    lerCaixaAction(db, user),
+    lerCaixaAction(db, user, { mov_page: paginaMov, mov_per_page: POR_PAGINA_CAIXA }),
     listarBoletosAction(db, user, { status: "aberto" }),
     veContas ? listarContasAction(db, user, { incluir_arquivadas: true }) : Promise.resolve(null),
     // Depositar cheque é do Vendedor com a chave, que não lista contas
@@ -76,12 +86,12 @@ export default async function CaixaPage() {
     }),
     // O saldo inicial de um caixa só vale antes do primeiro turno: quem já teve turno não o recebe.
     ehGestor ? db.cashSession.findMany({ select: { cash_register_id: true }, distinct: ["cash_register_id"] }) : Promise.resolve([]),
-    ehGestor ? listarEntregasAction(db, user, { status: "pending" }) : Promise.resolve(null),
+    ehGestor ? listarEntregasAction(db, user, { status: "pending", page: paginaEnt, per_page: POR_PAGINA_CAIXA }) : Promise.resolve(null),
     idDoClientePadrao(db),
   ]);
   const caixa = caixaRes.ok
     ? caixaRes.data
-    : { drawers: [], accounts: [], card_receivables: [], checks: [], movements: [] };
+    : { drawers: [], accounts: [], card_receivables: [], checks: [], movements: [], movimentos_total: 0, movimentos_page: 1, movimentos_per_page: 100 };
   const hojeDoCartao = hojeEmBrasilia();
   const aReceberDaConta = new Map(caixa.accounts.map((a) => [a.bank_account_id, a.to_receive]));
   const totalAReceber = caixa.card_receivables.reduce((s, p) => s + Math.round(p.effective_net * 100), 0) / 100;
@@ -111,7 +121,15 @@ export default async function CaixaPage() {
   const caixaComSaldoInicial = new Set(implantados.flatMap((m) => (m.cash_register_id ? [m.cash_register_id] : [])));
   const gerenciaComSaldoInicial = new Set(implantados.flatMap((m) => (m.manager_establishment_id ? [m.manager_establishment_id] : [])));
   const caixaComTurno = new Set(comTurno.map((s) => s.cash_register_id));
-  const entregas = (entregasRes && entregasRes.ok ? entregasRes.data : []).filter((e) =>
+  // Cada lista tem o próprio parâmetro: mudar a página de uma preserva a da outra.
+  const hrefDoCaixa = (ent: number, mov: number) => {
+    const p = new URLSearchParams();
+    if (ent > 1) p.set("pagina_ent", String(ent));
+    if (mov > 1) p.set("pagina_mov", String(mov));
+    const texto = p.toString();
+    return texto ? `/emporio/caixa?${texto}` : "/emporio/caixa";
+  };
+  const entregas = (entregasRes && entregasRes.ok ? entregasRes.data.linhas : []).filter((e) =>
     pode(papel, "gestor_da_loja", e.establishment_id),
   );
   const contaComSaldoInicial = new Set(implantados.flatMap((m) => (m.bank_account_id ? [m.bank_account_id] : [])));
@@ -534,6 +552,14 @@ export default async function CaixaPage() {
               </TableBody>
             </Table>
           )}
+          {entregasRes && entregasRes.ok && (
+            <Paginacao
+              page={entregasRes.data.page}
+              perPage={entregasRes.data.per_page}
+              total={entregasRes.data.total}
+              hrefDe={(n) => hrefDoCaixa(n, paginaMov)}
+            />
+          )}
         </section>
       )}
 
@@ -600,6 +626,12 @@ export default async function CaixaPage() {
             </TableBody>
           </Table>
         )}
+        <Paginacao
+          page={caixa.movimentos_page}
+          perPage={caixa.movimentos_per_page}
+          total={caixa.movimentos_total}
+          hrefDe={(n) => hrefDoCaixa(paginaEnt, n)}
+        />
       </section>
     </div>
   );

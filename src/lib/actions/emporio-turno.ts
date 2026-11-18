@@ -1,5 +1,6 @@
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
+import { lerPagina, recortar } from "@/lib/emporio/paginacao";
 import { decToNum, isoOrNull } from "@/lib/serialize";
 import { exigir, papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { createLinkedEntry, runSerializableTenantTransaction } from "@/lib/financial";
@@ -802,28 +803,39 @@ async function soTurnosDeHoje(db: TenantPrismaClient, ator: Ator): Promise<Recor
 export async function listarEntregasAction(
   db: TenantPrismaClient,
   ator: Ator,
-  opts: { establishment_id?: string; status?: string } = {},
-): Promise<ActionResult<EntregaView[]>> {
+  opts: { establishment_id?: string; status?: string; limit?: number; page?: number; per_page?: number; order?: "asc" | "desc" } = {},
+): Promise<ActionResult<{ linhas: EntregaView[]; total: number; page: number; per_page: number }>> {
   const neg = await exigir(db, ator, "gestor_da_loja", "ver as entregas do caixa", opts.establishment_id);
   if (neg) return neg;
   const status = opts.status ?? "pending";
   if (status !== "pending" && status !== "confirmed") {
     return fail("VALIDATION_ERROR", "Escolha a situação: pending ou confirmed.", 422, "status");
   }
+  // A ordem natural: as pendentes da mais antiga (a que espera há mais tempo), as confirmadas da mais nova.
+  const pg = lerPagina({ ...opts, order: opts.order ?? (status === "pending" ? "asc" : "desc") }, "entregas");
+  if (!pg.ok) return pg;
   const visiveis = await lojasDoAtor(db, ator);
   if (opts.establishment_id && visiveis && !visiveis.has(opts.establishment_id)) {
     return NAO_ACHADO("Estabelecimento", "establishment_id");
   }
+  // Só as lojas em que o ator é gestor (vê a loja não basta): o filtro vai na consulta, para o
+  // total e as páginas contarem só o que a tela mostra (antes a tela filtrava depois de paginar).
+  const papel = await papelDoEmporio(db, ator);
+  const lojasDoGestor = visiveis ? [...visiveis].filter((id) => pode(papel, "gestor_da_loja", id)) : null;
+  const where = {
+    ...(opts.establishment_id ? { establishment_id: opts.establishment_id } : lojasDoGestor ? { establishment_id: { in: lojasDoGestor } } : {}),
+    confirmed_at: status === "pending" ? null : { not: null },
+  };
+  const total = await db.cashHandover.count({ where });
+  const { page, skip, take } = recortar(total, pg.data);
   const linhas = await db.cashHandover.findMany({
-    where: {
-      ...(opts.establishment_id ? { establishment_id: opts.establishment_id } : visiveis ? { establishment_id: { in: [...visiveis] } } : {}),
-      confirmed_at: status === "pending" ? null : { not: null },
-    },
+    where,
     include: INCLUDE_ENTREGA,
-    orderBy: { created_at: status === "pending" ? "asc" : "desc" },
-    take: 200,
+    orderBy: [{ created_at: pg.data.order }, { id: pg.data.order }],
+    skip,
+    take,
   });
-  return ok(linhas.map(viewDaEntrega));
+  return ok({ linhas: linhas.map(viewDaEntrega), total, page, per_page: pg.data.porPagina });
 }
 
 export async function listarTurnosAction(

@@ -60,7 +60,7 @@ export default async function FornecedorFichaPage({ params }: { params: Promise<
   // O Caixa não vê compras: a ficha mostra o cadastro e deixa o histórico de fora.
   const veCompras = papel.papel !== "caixa";
   const comprasRes = veCompras ? await listarComprasAction(db, user, { supplier_id: id, limit: 20 }) : null;
-  const compras = comprasRes?.ok ? comprasRes.data : [];
+  const compras = comprasRes?.ok ? comprasRes.data.linhas : [];
 
   const endereco = [
     [f.address_street, f.address_number].filter(Boolean).join(", "),

@@ -1073,7 +1073,7 @@ async function secao5() {
     j(lanc),
   );
   const listada = await Cp.listarComprasAction(db, owner, { supplier_id: ext.data.id });
-  check("o filtro supplier_id", listada.ok && listada.data.length === 1 && listada.data[0].id === ce.data.id, j(listada));
+  check("o filtro supplier_id", listada.ok && listada.data.linhas.length === 1 && listada.data.linhas[0].id === ce.data.id, j(listada));
   const semNada = await comprar(owner, {}) as Dado;
   check("sem fornecedor e sem payment: 422 payment", !semNada.ok && semNada.status === 422 && semNada.field === "payment", j(semNada));
   const semForn = await comprar(owner, { payment: { kind: "a_prazo", due_date: venc } });

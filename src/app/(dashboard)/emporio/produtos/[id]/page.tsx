@@ -21,6 +21,7 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { Paginacao, paginaDaUrl } from "../../_components/paginacao";
 import { ArquivarBotao } from "../../_components/arquivar-botao";
 import { NomeProdutoForm } from "../../_components/nome-produto-form";
 import { DadosComerciaisForm } from "../../_components/dados-comerciais-form";
@@ -43,9 +44,18 @@ import {
 
 const DATA = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo" });
 
-export default async function ProdutoEmporioPage({ params }: { params: Promise<{ id: string }> }) {
+const POR_PAGINA_PRODUCOES = 20;
+
+export default async function ProdutoEmporioPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ pagina_prod?: string }>;
+}) {
   const user = await requireFeaturePage("emporio");
   const { id } = await params;
+  const { pagina_prod: paginaProdDaUrl } = await searchParams;
 
   const db = await getTenantDb();
   // O Caixa não abre esta tela: só vende, recebe fiado e opera o caixa.
@@ -108,8 +118,13 @@ export default async function ProdutoEmporioPage({ params }: { params: Promise<{
   // Composição (F2b): a receita, os candidatos a componente e as produções do produto.
   const composicaoRes = await lerComposicaoAction(db, user, id);
   const composicao = composicaoRes.ok ? composicaoRes.data : null;
-  const producoesRes = await listarProducoesAction(db, user, { emporio_product_id: id, limit: 20 });
-  const producoes = producoesRes.ok ? producoesRes.data : [];
+  const producoesRes = await listarProducoesAction(db, user, {
+    emporio_product_id: id,
+    page: paginaDaUrl(paginaProdDaUrl),
+    per_page: POR_PAGINA_PRODUCOES,
+  });
+  const producoes = producoesRes.ok ? producoesRes.data.linhas : [];
+  const hrefDaProducao = (n: number) => (n > 1 ? `/emporio/produtos/${id}?pagina_prod=${n}` : `/emporio/produtos/${id}`);
   const candidatos = ehConta
     ? (
         await db.emporioProduct.findMany({
@@ -445,6 +460,14 @@ export default async function ProdutoEmporioPage({ params }: { params: Promise<{
               ))}
             </TableBody>
           </Table>
+          {producoesRes.ok && (
+            <Paginacao
+              page={producoesRes.data.page}
+              perPage={producoesRes.data.per_page}
+              total={producoesRes.data.total}
+              hrefDe={hrefDaProducao}
+            />
+          )}
         </section>
       )}
 

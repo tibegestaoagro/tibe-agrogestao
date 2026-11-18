@@ -1,5 +1,6 @@
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
+import { lerPagina, recortar } from "@/lib/emporio/paginacao";
 import { decToNum, isoOrNull } from "@/lib/serialize";
 import { exigir, exigirUma, papelDoEmporio, pode, recusaDe } from "@/lib/emporio/papel";
 import { createLinkedEntry, runSerializableTenantTransaction, type TenantTransactionClient } from "@/lib/financial";
@@ -1291,6 +1292,10 @@ export type CaixaView = {
   /** Carteira: cheques recebidos e depositados, das lojas visíveis. */
   checks: ChequeView[];
   movements: MovimentoDeCaixaView[];
+  /** Quantos movimentos existem sob o mesmo filtro; `movements` traz só a página (ou o corte antigo de `limit`). */
+  movimentos_total: number;
+  movimentos_page: number;
+  movimentos_per_page: number;
 };
 
 const dia = (d: Date) => d.toISOString().slice(0, 10);
@@ -1375,8 +1380,22 @@ function viewDoCheque(c: ChequeRow): ChequeView {
 export async function lerCaixaAction(
   db: TenantPrismaClient,
   ator: Ator,
-  opts: { establishment_id?: string; bank_account_id?: string; limit?: number } = {},
+  opts: {
+    establishment_id?: string;
+    bank_account_id?: string;
+    limit?: number;
+    /** Só os movimentos paginam. Sem `mov_page` nem `mov_per_page`, vale o corte antigo de `limit` (100). */
+    mov_page?: number;
+    mov_per_page?: number;
+  } = {},
 ): Promise<ActionResult<CaixaView>> {
+  const modoPaginado = opts.mov_page !== undefined || opts.mov_per_page !== undefined;
+  const pg = lerPagina(
+    { page: opts.mov_page, per_page: opts.mov_per_page, limit: modoPaginado ? undefined : (opts.limit && opts.limit > 0 ? opts.limit : 100) },
+    "movimentos",
+    { page: "mov_page", per_page: "mov_per_page", order: "order" },
+  );
+  if (!pg.ok) return pg;
   const visiveis = await lojasDoAtor(db, ator);
   if (opts.establishment_id && visiveis && !visiveis.has(opts.establishment_id)) {
     return NAO_ACHADO("Estabelecimento", "establishment_id");
@@ -1488,12 +1507,14 @@ export async function lerCaixaAction(
   const onde = opts.bank_account_id
     ? { bank_account_id: opts.bank_account_id }
     : { OR: veContas && !opts.establishment_id ? [...gaveta, { bank_account_id: { not: null } }] : gaveta };
-  const limite = opts.limit && opts.limit > 0 ? Math.min(Math.floor(opts.limit), 500) : 100;
+  const movimentosTotal = await db.cashMovement.count({ where: onde });
+  const recorte = recortar(movimentosTotal, pg.data);
   const movs = await db.cashMovement.findMany({
     where: onde,
     include: { sale: { select: { number: true } } },
-    orderBy: [{ occurred_at: "desc" }, { created_at: "desc" }],
-    take: limite,
+    orderBy: [{ occurred_at: "desc" }, { created_at: "desc" }, { id: "desc" }],
+    skip: recorte.skip,
+    take: recorte.take,
   });
 
   return ok({
@@ -1509,6 +1530,9 @@ export async function lerCaixaAction(
     card_receivables: parcelas,
     checks: carteira.map(viewDoCheque),
     movements: movs.map(viewDoMovimento),
+    movimentos_total: movimentosTotal,
+    movimentos_page: recorte.page,
+    movimentos_per_page: pg.data.porPagina,
   });
 }
 
@@ -2849,18 +2873,24 @@ export async function conferirGavetaAction(
 export async function listarConferenciasAction(
   db: TenantPrismaClient,
   ator: Ator,
-  opts: { establishment_id?: string; limit?: number } = {},
-): Promise<ActionResult<ConferenciaView[]>> {
+  opts: { establishment_id?: string; limit?: number; page?: number; per_page?: number; order?: "asc" | "desc" } = {},
+): Promise<ActionResult<{ linhas: ConferenciaView[]; total: number; page: number; per_page: number }>> {
+  const pg = lerPagina(opts, "conferências");
+  if (!pg.ok) return pg;
   const visiveis = await lojasDoAtor(db, ator);
   if (opts.establishment_id && visiveis && !visiveis.has(opts.establishment_id)) {
     return NAO_ACHADO("Estabelecimento", "establishment_id");
   }
-  const limite = opts.limit && opts.limit > 0 ? Math.min(Math.floor(opts.limit), 500) : 100;
+  const where = opts.establishment_id ? { establishment_id: opts.establishment_id } : filtroDeLojas(visiveis);
+  const total = await db.cashCount.count({ where });
+  const { page, skip, take } = recortar(total, pg.data);
+  const o = pg.data.order;
   const linhas = await db.cashCount.findMany({
-    where: opts.establishment_id ? { establishment_id: opts.establishment_id } : filtroDeLojas(visiveis),
+    where,
     include: { establishment: { select: { name: true } } },
-    orderBy: [{ counted_at: "desc" }, { created_at: "desc" }],
-    take: limite,
+    orderBy: [{ counted_at: o }, { created_at: o }],
+    skip,
+    take,
   });
-  return ok(linhas.map(viewDaConferencia));
+  return ok({ linhas: linhas.map(viewDaConferencia), total, page, per_page: pg.data.porPagina });
 }
