@@ -54,6 +54,10 @@ export function ParteDeGlossario() {
 
 const PERGUNTAS: { pergunta: string; resposta: React.ReactNode }[] = [
   {
+    pergunta: "Uma venda, compra ou orçamento antigo sumiu da lista",
+    resposta: "Não sumiu: as listas vêm em páginas. Embaixo, “Mostrando 1 a 20 de 230” diz quantos há, e os números levam às outras páginas. Em Vendas, Compras, Transferências e Orçamentos dá para escolher 20, 40, 80 ou 100 por página e trocar a ordem para Mais antigos primeiro. A busca e os filtros também acham o antigo. No Caixa, na ficha do produto e no A receber, cada lista tem as próprias páginas.",
+  },
+  {
     pergunta: "Por que a venda de saca fechada foi recusada?",
     resposta: "Porque não há saca lacrada no estoque. O sistema não deixa vender uma embalagem fechada que não existe. Faça a contagem do estoque, lance a compra que faltou, ou venda a granel.",
   },
