@@ -37,7 +37,8 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   corrigidos, manual com "Conferir o cartão". Neon lido em 17/11: a migração não
   toca nenhuma das 18 parcelas; 5 (R$ 31.451,90) ficam a conferir. No Docker
   a migração foi editada depois de aplicada (checksum acertado à mão).
-  Próxima: frente G1 (planilha), que espera a exportação do GestãoClick.
+  O resto do plano virou dívida: G1 (2.18) e G2 (2.34) esperam arquivo do
+  usuário; C, D e H são as 2.73 a 2.75; sobras da B na 5.23.
 - Em produção desde 16/11: orçamento com total, cadastro leve e CEP (Q335 a
   Q340, merge `762854a`, `test:m119`); preço do cadastro, desconto por PIN e
   brinde (Q327 a Q334, merge `c43a130`, m118; os gestores precisam cadastrar o

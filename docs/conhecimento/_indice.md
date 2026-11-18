@@ -100,6 +100,10 @@ grep -rl "^tipo: armadilha" docs/conhecimento/
 | [na Agromax a apresentação é faixa de preço](na-agromax-a-apresentacao-e-faixa-de-preco.md) | decisao | CONSUMIDOR, FRANQUIA e ATACADO no mesmo produto; a regra casa pelo nome |
 | [a suíte que importa a rota de token não encerra sozinha](suite-que-importa-a-rota-de-token-nao-encerra-sozinha.md) | armadilha | o Redis do limitador segura o processo; termine com process.exit |
 | [a conta do seed acumula o que os cenários deixam](a-conta-do-seed-acumula-o-que-os-cenarios-deixam.md) | armadilha | 23 figuras do manual reprovaram com 46 lojas na conta; conte as linhas antes de abrir o código |
+| [a lista que ganha linha que não é pendência contamina a soma da tela](a-lista-que-ganha-linha-que-nao-e-pendencia-contamina-a-soma-da-tela.md) | licao | as conferidas mantidas para o Desfazer entraram no "Total a receber" do rodapé, que a suíte não lia |
+| [o carimbo usado como marca quebra com migração que carimba em massa](carimbo-usado-como-marca-quebra-com-migracao-que-carimba-em-massa.md) | armadilha | o `now()` da Q353 apagaria a igualdade com o `created_at` da antecipação e travaria o desfazer |
+| [o eh_404 dos roteiros casa o número 404 em qualquer texto](o-eh-404-dos-roteiros-casa-o-numero-404-em-qualquer-texto.md) | armadilha | a venda nº 004043 virou "página não encontrada"; procure "could not be found" |
+| [o manual regera toda figura, e a data muda quase todas](o-manual-regera-toda-figura-e-a-data-muda-quase-todas.md) | armadilha | 72 figuras modificadas, 2 com mudança real; devolva as outras e aumente `hd`/`hc` |
 
 ⚠️ **`[[wikilink]]` para nota que não existe reprova o `npm run check`**
 (conferência 13). É o que impede esta pasta de virar um cemitério de links

@@ -361,3 +361,16 @@ valem antes de abrir branch:
   [roteiro-teste-emporio-cliente.md](roteiro-teste-emporio-cliente.md): receber
   o que ele estranhou e separar defeito (branch nova, com roteiro que reprove
   antes) de "faz falta" (conversa de escopo).
+
+### 11.1 Do plano do GestãoClick (registradas em 17/11/2026)
+
+- Exportar do GestãoClick a planilha de produtos e a de clientes: destrava a
+  frente G1 (dívida 2.18).
+- Conseguir um XML real de nota de fornecedor da Agromax: destrava a frente G2
+  (dívida 2.34).
+- A Agromax: cadastrar Stone, Mercado Pago e Cielo com as taxas, e mandar o
+  arquivo do extrato da Stone (dívida 2.58).
+- A Agromax: conferir as 5 parcelas de cartão dos últimos 7 dias que a frente B
+  deixou "A conferir" (R$ 31.451,90 em 17/11/2026).
+- Decidir se cancelar uma venda com parcela já conferida desfaz a conferência
+  (dívida 5.23).
