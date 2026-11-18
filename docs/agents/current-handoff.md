@@ -25,13 +25,12 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-18. **Frente D (balcão rápido, Q357 a Q361) PRONTA
-  NA BRANCH `emporio-balcao-rapido`, fora de produção.** Atalhos configuráveis
-  no balcão, código de barras por apresentação (oficial ou gerado "20...",
-  editável) lido pela busca, etiquetas em folha A4 e rolo com as medidas nas
-  Configurações. Falta, cada um com autorização NA CONVERSA: (a) a migração
-  `20261118150000_emporio_balcao_rapido` no Neon, URL Direct (só colunas com
-  padrão e um índice); (b) merge e push. Provas: `test:all` 126/126 (uma falha
+- Atualizado em: 2026-11-18. **Frente D (balcão rápido, Q357 a Q361) EM
+  PRODUÇÃO**: migração `20261118150000_emporio_balcao_rapido` no Neon e merge
+  da branch `emporio-balcao-rapido`, os dois autorizados na conversa em 18/11.
+  Atalhos configuráveis no balcão, código de barras por apresentação (oficial
+  ou gerado "20...", editável) lido pela busca, etiquetas em folha A4 e rolo
+  com as medidas nas Configurações. Provas: `test:all` 126/126 (uma falha
   da `m123` não repetida, ver 5.25), `test:m123` (226), roteiro
   `emporio-balcao-rapido` (137 ok; reprova nas três sabotagens), juiz sem
   bloqueante, manual. Sem leitor nem impressora reais (usuário lê a imagem das
@@ -195,6 +194,6 @@ relatórios em [agente-whatsapp/](agente-whatsapp/), detalhe em
 ## Últimas rodadas
 
 - 18/11: frente C (cheque em duas etapas) em produção, migração e merge
-  autorizados na conversa; frente D (balcão rápido) pronta na branch.
+  autorizados na conversa; frente D (balcão rápido) também, autorizada.
 - 17/11: frentes A e B (informação amarrada, conferir o cartão) em produção,
   autorizadas na conversa.

@@ -332,7 +332,7 @@ Registrado em 07/11/2026, na branch `emporio-entrega-e-romaneio` (plano 3 de 3).
 
 ### 5.25 Empório, balcão rápido (frente D, Q357 a Q361): o que ficou para depois
 
-Registrado em 18/11/2026, na branch `emporio-balcao-rapido` (juiz sem
+Registrado em 18/11/2026, no merge da branch `emporio-balcao-rapido` (juiz sem
 bloqueante nem importante; três dos quatro menores corrigidos). A 2.74 saiu da
 lista com esta frente.
 - **Barras somem em silêncio na etiqueta baixa:** com menos de 5 mm sobrando
