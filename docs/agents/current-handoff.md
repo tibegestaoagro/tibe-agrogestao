@@ -29,13 +29,15 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   09/11): Q341 a Q344 e a ordem das frentes em
   [../superpowers/specs/2026-11-17-emporio-plano-gestaoclick.md](../superpowers/specs/2026-11-17-emporio-plano-gestaoclick.md).
   Material em `docs/financeiro-reuniao/` (fora do git, só no desktop).
-  **Frente A (informação amarrada, Q345 a Q348) EM PRODUÇÃO** (merge
-  `49fbd47`, autorizado em 17/11, sem migração, deploy confirmado no
-  `/docs/api`): spec de 17/11; rotas novas `payables/summary` e `customers/:id/receipts`.
-  `test:all` 123/123, `test:m120` (141), roteiro
-  `emporio-informacao-amarrada` (133 ok, sabotado falha), juiz 8,5 com os
-  achados 3 e 4 corrigidos, manual com as figuras novas. Próxima: frente G1
-  (planilha), que espera a exportação do GestãoClick.
+  Frente A (Q345 a Q348) em produção desde 17/11 (merge `49fbd47`).
+  **Frente B (conferir o cartão, Q349 a Q353) PRONTA na branch
+  `emporio-conferir-cartao`; falta autorizar a migração no Neon e o merge.**
+  Spec e plano de 17/11. `test:all` 124/124, `test:m121` (246), roteiro
+  `emporio-conferir-cartao` (103 ok, sabotado falha), juiz 8 com os achados
+  corrigidos, manual com "Conferir o cartão". Neon lido em 17/11: a migração não
+  toca nenhuma das 18 parcelas; 5 (R$ 31.451,90) ficam a conferir. No Docker
+  a migração foi editada depois de aplicada (checksum acertado à mão).
+  Próxima: frente G1 (planilha), que espera a exportação do GestãoClick.
 - Em produção desde 16/11: orçamento com total, cadastro leve e CEP (Q335 a
   Q340, merge `762854a`, `test:m119`); preço do cadastro, desconto por PIN e
   brinde (Q327 a Q334, merge `c43a130`, m118; os gestores precisam cadastrar o
@@ -51,9 +53,7 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   Q292), orçamento (Q285 a Q290), boleto e cheque (Q278 a Q284; aberta 2.69),
   acordo, aviso e recálculo (Q275 a Q277; aberta 2.66).
 
-### Granel em qualquer peso e atacado na mesma saca (Q319 a Q324): em produção
-
-Merge `8727de8`, spec de 13/11. Central do Milho: GRANEL da Magnus 15 kg em 1,02 kg.
+### Granel em qualquer peso e atacado na mesma saca (Q319 a Q324): em produção (merge `8727de8`)
 
 ### Contas PIX (Q310 a Q318): em produção desde 13/11 (merge `bd7fd3f`)
 
@@ -190,11 +190,10 @@ relatórios em [agente-whatsapp/](agente-whatsapp/), detalhe em
 
 ## Últimas rodadas
 
-- 11/11: crédito do franqueado (Q300 a Q309) em produção, autorizado na conversa.
+- 17/11: frente B (conferir o cartão) pronta na branch; frente A em produção,
+  autorizada na conversa.
 - 11/11: reunião com a Agromax; custo único (Q298, Q299) em produção, compras
   com a ordem corrigida e as de teste canceladas; tudo autorizado na conversa.
-- 10/11: dívidas 2.64 e 2.65 e conta avulsa na branch do Codex; banco local,
-  sem integração à `main` nem deploy.
 - 10/11: desfazer acordo, aviso por email e recalcular o mês (Q275 a Q277)
   e, por baixo, relatórios e limpeza (Q268 a Q274) em produção, autorizados
   na conversa.
