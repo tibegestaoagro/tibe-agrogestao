@@ -119,7 +119,8 @@ function lerNotas(v: unknown): { notes: string | null } | { erro: ActionResult<n
 /**
  * O ajuste cai na data em que o dinheiro devia ter entrado (o `effective_on` da parcela, ao meio-dia UTC, o mesmo
  * dia de São Paulo), porque é assim que o extrato do banco o mostra: a conta passa a bater linha a linha. Nasce
- * sem carimbo, como qualquer linha de movimento da conta. A loja não vai no movimento (a conta bancária não é de loja, CHECK
+ * carimbada por quem conferiu: ela é o próprio resultado de uma conferência, e sem carimbo viraria uma pendência
+ * falsa no "sem carimbo" do extrato. A loja não vai no movimento (a conta bancária não é de loja, CHECK
  * `CashMovement_exactly_one_place`): ela vem da parcela ligada.
  */
 function ajusteDoMovimento(
@@ -140,6 +141,8 @@ function ajusteDoMovimento(
     card_receivable_id: parcela.id,
     notes,
     created_by_user_id: ator.id,
+    reconciled_at: agora,
+    reconciled_by_user_id: ator.id,
   });
 }
 
@@ -220,7 +223,15 @@ export type ConferenciaDoDia = {
 export async function conferirDiaAction(
   db: TenantPrismaClient,
   ator: Ator,
-  input: { bank_account_id: string; acquirer_id: string; effective_on: string; received_total: number; notes?: string },
+  input: {
+    bank_account_id: string;
+    acquirer_id: string;
+    effective_on: string;
+    received_total: number;
+    /** Só as parcelas desta loja: a tela filtrada por loja confere exatamente o que mostra. */
+    establishment_id?: string;
+    notes?: string;
+  },
 ): Promise<ActionResult<ConferenciaDoDia>> {
   const neg = await exigir(db, ator, "dinheiro", "conferir o cartão");
   if (neg) return neg;
@@ -245,7 +256,12 @@ export async function conferirDiaAction(
   if (!conta) return fail("NOT_FOUND", "Conta não encontrada.", 404, "bank_account_id");
   const adquirente = await db.cardAcquirer.findFirst({ where: { id: adquirenteId }, select: { id: true, name: true } });
   if (!adquirente) return fail("NOT_FOUND", "Adquirente não encontrada.", 404, "acquirer_id");
+  const lojaTxt = input?.establishment_id == null ? "" : String(input.establishment_id).trim();
   const visiveis = await lojasDoAtor(db, ator);
+  if (lojaTxt) {
+    const loja = await db.establishment.findFirst({ where: { id: lojaTxt }, select: { id: true } });
+    if (!loja || (visiveis && !visiveis.has(loja.id))) return fail("NOT_FOUND", "Loja não encontrada.", 404, "establishment_id");
+  }
   const agora = new Date();
 
   try {
@@ -259,7 +275,7 @@ export async function conferirDiaAction(
           canceled_at: null,
           reconciled_at: null,
           sale: { status: { not: "cancelada" } },
-          ...(visiveis ? { establishment_id: { in: [...visiveis] } } : {}),
+          ...(lojaTxt ? { establishment_id: lojaTxt } : visiveis ? { establishment_id: { in: [...visiveis] } } : {}),
         },
         orderBy: [{ installment: "asc" }, { id: "asc" }],
       });

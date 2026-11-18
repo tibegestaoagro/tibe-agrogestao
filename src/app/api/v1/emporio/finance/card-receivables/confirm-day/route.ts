@@ -7,8 +7,9 @@ import { diaEmTexto, guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
 
 /**
  * POST /api/v1/emporio/finance/card-receivables/confirm-day
- * { bank_account_id, acquirer_id, effective_on, received_total, notes? }: confere as parcelas não conferidas
- * de uma conta, uma adquirente e uma data, repartindo a diferença entre elas (frente B, Q350).
+ * { bank_account_id, acquirer_id, effective_on, received_total, establishment_id?, notes? }: confere as parcelas
+ * não conferidas de uma conta, uma adquirente e uma data, repartindo a diferença entre elas (frente B, Q350).
+ * Com `establishment_id`, só as parcelas daquela loja (a tela filtrada por loja confere o que mostra).
  */
 
 const schema = z.object({
@@ -18,6 +19,7 @@ const schema = z.object({
   received_total: z
     .number({ error: "Informe o total que caiu, zero ou mais." })
     .min(0, "Informe o total que caiu, zero ou mais."),
+  establishment_id: z.string({ error: "A loja deve ser um texto." }).trim().min(1, "Escolha a loja.").optional(),
   notes: z.string({ error: "A observação deve ser um texto." }).trim().max(500, "A observação tem até 500 caracteres.").optional(),
 });
 

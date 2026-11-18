@@ -254,7 +254,11 @@ for valor, dia in esperadas:
     confere(valor + ": selo '" + est + "' = o esperado pela conta independente (" + estado_esperado(dia, hoje_iso) + ") e a data " + br(dia), est == estado_esperado(dia, hoje_iso) and br(dia) in linha_cartao(valor), linha_cartao(valor))
 confere("os selos do cenario cobrem Prevista, A conferir e Atrasada", {estado_da_linha(v) for v, _ in esperadas} == {"prevista", "a conferir", "atrasada"}, [estado_da_linha(v) for v, _ in esperadas])
 confere("a data de hoje (" + HOJE_BR + ") e a das parcelas que 'caem hoje' esta na linha de R$ 80,00", HOJE_BR in linha_cartao("R$ 80,00"), linha_cartao("R$ 80,00"))
-confere("a parcela passada ja conferida (R$ 50,00, de " + br(D3) + ") nao polui a lista de cartoes a receber (so entram as nao conferidas)", linha_cartao("R$ 50,00") == "", linha_cartao("R$ 50,00"))
+# A conferida com data nos ultimos 7 dias fica na lista, com Desfazer; a mais antiga sai (achado 5 do juiz).
+if D3 and D3 >= (datetime.date.fromisoformat(hoje_iso) - datetime.timedelta(days=7)).isoformat():
+    confere("a parcela ja conferida (R$ 50,00, de " + br(D3) + ", ate 7 dias atras) fica na lista como Conferida, com Desfazer", "conferida" in linha_cartao("R$ 50,00").lower() and botoes_da_linha("R$ 50,00") == ["Desfazer"], [linha_cartao("R$ 50,00"), botoes_da_linha("R$ 50,00")])
+else:
+    confere("a parcela ja conferida (R$ 50,00, de " + br(D3) + ", mais de 7 dias atras) sai da lista", linha_cartao("R$ 50,00") == "", linha_cartao("R$ 50,00"))
 confere("a Atrasada e a A conferir trazem o botao Conferir", botoes_da_linha("R$ 100,00") == ["Conferir"] and botoes_da_linha("R$ 80,00") == ["Conferir"], [botoes_da_linha("R$ 100,00"), botoes_da_linha("R$ 80,00")])
 confere("a Prevista nao tem botao de conferir", "Conferir" not in (botoes_da_linha("R$ 70,00") or []), botoes_da_linha("R$ 70,00"))
 conferir_dia_d1 = itens_do_dia(D1_BR)
@@ -312,13 +316,11 @@ time.sleep(0.5)
 enviar_painel()
 confere("diferenca de 6,7% (menos de 10%) confere direto, sem aviso: o painel fecha", bool(esperar(lambda: not painel_aberto(), 60)), aviso_do_painel())
 time.sleep(2.5)
-# A lista do A receber so mantem a parcela conferida de HOJE em diante (a query pede `effective_on >= hoje OU
-# nao conferida`): uma conferida de dia passado sai da tela. O valor conferido e o ajuste dela se leem no extrato
-# (passo 3). Aqui, se a linha ainda estiver na lista, ela tem de estar certa.
+# A conferida dos ultimos 7 dias fica no A receber, com o valor conferido, o ajuste e o Desfazer (achado 5 do juiz).
 l100 = linha_cartao("R$ 100,00")
 l200 = linha_cartao("R$ 200,00")
-confere("R$ 100,00 nao esta mais como pendente: ou saiu da lista ou virou Conferida (conferido 93,34, ajuste - 6,66)", l100 == "" or ("conferida" in l100.lower() and "conferido R$ 93,34" in l100 and "ajuste - R$ 6,66" in l100), l100)
-confere("R$ 200,00 nao esta mais como pendente: ou saiu da lista ou virou Conferida (conferido 186,66, ajuste - 13,34)", l200 == "" or ("conferida" in l200.lower() and "conferido R$ 186,66" in l200 and "ajuste - R$ 13,34" in l200), l200)
+confere("R$ 100,00 fica na lista como Conferida, com Desfazer (conferido 93,34, ajuste - 6,66)", "conferida" in l100.lower() and "conferido R$ 93,34" in l100 and "ajuste - R$ 6,66" in l100 and "Desfazer" in l100, l100)
+confere("R$ 200,00 fica na lista como Conferida, com Desfazer (conferido 186,66, ajuste - 13,34)", "conferida" in l200.lower() and "conferido R$ 186,66" in l200 and "ajuste - R$ 13,34" in l200 and "Desfazer" in l200, l200)
 confere("o item 'Conferir o dia' do D1 saiu da lista", itens_do_dia(D1_BR) == "", itens_do_dia(D1_BR))
 
 confere("abre o painel 'Conferir o dia' do D2 (previsto R$ 100,00)", abrir_painel(lambda: conferir_o_dia_de(D2_BR)))
@@ -336,8 +338,8 @@ confere("confirmado: o painel fecha", bool(esperar(lambda: not painel_aberto(), 
 time.sleep(2.5)
 l60 = linha_cartao("R$ 60,00")
 l40 = linha_cartao("R$ 40,00")
-confere("R$ 60,00 nao esta mais como pendente: saiu da lista ou virou Conferida (conferido 30,00, ajuste - 30,00, proporcional ao liquido)", l60 == "" or ("conferida" in l60.lower() and "conferido R$ 30,00" in l60 and "ajuste - R$ 30,00" in l60), l60)
-confere("R$ 40,00 nao esta mais como pendente: saiu da lista ou virou Conferida (conferido 20,00, ajuste - 20,00)", l40 == "" or ("conferida" in l40.lower() and "conferido R$ 20,00" in l40 and "ajuste - R$ 20,00" in l40), l40)
+confere("R$ 60,00 fica na lista como Conferida, com Desfazer (conferido 30,00, ajuste - 30,00, proporcional ao liquido)", "conferida" in l60.lower() and "conferido R$ 30,00" in l60 and "ajuste - R$ 30,00" in l60 and "Desfazer" in l60, l60)
+confere("R$ 40,00 fica na lista como Conferida, com Desfazer (conferido 20,00, ajuste - 20,00)", "conferida" in l40.lower() and "conferido R$ 20,00" in l40 and "ajuste - R$ 20,00" in l40 and "Desfazer" in l40, l40)
 confere("nenhum 'Conferir o dia' do D1 nem do D2 sobrou", itens_do_dia(D1_BR) == "" and itens_do_dia(D2_BR) == "")
 
 # --- 3 -----------------------------------------------------------------------------------------

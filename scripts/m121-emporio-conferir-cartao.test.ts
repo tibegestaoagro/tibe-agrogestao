@@ -25,6 +25,7 @@ exigirBancoLocal();
  * Seção 11: 403 para quem não tem `dinheiro`.
  * Seção 12: isolamento entre contas bancárias, adquirentes, lojas e tenants.
  * Seção 13: recusas 422 com field.
+ * Seção 14: Conferir o dia de uma loja, conferidas dos últimos 7 dias no A receber e a migração Q353.
  *
  * Leituras adotadas onde a spec era ambígua (ver o relato):
  * - o limite da Atrasada é `proximoDiaUtil(effective_on + 1 dia)`: a parcela só fica Atrasada depois do
@@ -901,10 +902,12 @@ async function secao10() {
   check("a linha do ajuste leva o rótulo 'Ajuste da conferência do cartão'", !!la && j(la).includes("Ajuste da conferência do cartão"), j(la));
   check("a linha do ajuste fica logo abaixo da linha de cartão", iCart >= 0 && iAj >= 0 && Math.abs(iAj - iCart) === 1, `cartão na posição ${iCart}, ajuste na ${iAj}`);
 
-  console.log("  (d) a linha de movimento segue com o carimbo de hoje, sem valor");
+  console.log("  (d) a linha do ajuste nasce carimbada por quem conferiu (não vira pendência no extrato)");
+  check("a linha do ajuste vem com o carimbo preenchido no extrato", !!la?.reconciled_at, j(la));
+  const mov = await (await prismaCru()).cashMovement.findUnique({ where: { id: a2[0]?.id ?? "x" } });
+  check("o movimento do ajuste tem reconciled_at e quem carimbou é quem conferiu", !!mov?.reconciled_at && mov?.reconciled_by_user_id === A.fin.id, j([mov?.reconciled_at, mov?.reconciled_by_user_id]));
   const rm = await carimbar(A.tok.fin, "movimento", a2[0]?.id ?? "x");
-  check("carimbar a linha do ajuste (movimento): 2xx", ok2xx(rm), `${rm.status} ${j(rm.corpo).slice(0, 200)}`);
-  check("o movimento ganha reconciled_at e a parcela segue como estava", !!(await (await prismaCru()).cashMovement.findUnique({ where: { id: a2[0]?.id ?? "x" } }))?.reconciled_at && perto(n((await lerParcela(p2.id)).confirmed_net), 70));
+  check("carimbar de novo a linha do ajuste: 409, e a parcela segue como estava", recusou(rm, 409) && perto(n((await lerParcela(p2.id)).confirmed_net), 70), `${rm.status} ${j(rm.corpo).slice(0, 200)}`);
   const rm2 = await descarimbar(A.tok.fin, "movimento", a2[0]?.id ?? "x");
   check("tirar o carimbo do movimento: 2xx, sem desfazer a conferência da parcela", ok2xx(rm2) && !!(await lerParcela(p2.id)).reconciled_at && (await ajustesDe([p2.id])).length === 1, `${rm2.status}`);
   const x2 = await descarimbar(A.tok.fin, "cartao", p2.id);
@@ -1037,6 +1040,83 @@ async function secao13() {
 }
 
 // ---------------------------------------------------------------------------
+// Seção 14: correções do juiz (loja no Conferir o dia, conferidas recentes na lista, migração Q353)
+// ---------------------------------------------------------------------------
+
+async function secao14() {
+  secaoAtual = "14";
+  console.log("\n14. Conferir o dia de uma loja, conferidas recentes no A receber e a migração Q353");
+  const [L1, L2] = A.lojas;
+
+  console.log("  (a) com establishment_id, o dia confere só as parcelas daquela loja");
+  const c = await cen(A, "loja do dia", [L1, L2], 1);
+  const D = emDias(-2);
+  const p1 = await parcela(A, c, { net: 100, on: D, loja: L1 });
+  const p2 = await parcela(A, c, { net: 100, on: D, loja: L2 });
+  const s0 = await saldo(A, c.conta);
+  const r = await confDia(A.tok.fin, { conta: c.conta, aq: c.aq[0] }, D, 90, { establishment_id: L1 });
+  check("conferir o dia da loja 1: 2xx, previsto 100,00 (só a parcela da loja 1)", ok2xx(r) && perto(dados(r)?.expected_total, 100) && dados(r)?.receivables?.length === 1, `${r.status} ${j(r.corpo).slice(0, 240)}`);
+  check("a parcela da loja 1 fica conferida com 90,00", perto(n((await lerParcela(p1.id)).confirmed_net), 90));
+  check("a parcela da loja 2, no mesmo recorte, não é tocada", !(await lerParcela(p2.id)).reconciled_at && (await ajustesDe([p2.id])).length === 0);
+  check("o saldo cai só os 10,00 da loja 1", (await saldo(A, c.conta)) - s0 === -1000);
+  const outra = await confDia(A.tok.fin, { conta: c.conta, aq: c.aq[0] }, D, 100, { establishment_id: B.lojas[0] });
+  check("loja de outra conta do sistema: 404 em establishment_id, nada gravado", recusou(outra, 404, "establishment_id") && !(await lerParcela(p2.id)).reconciled_at, `${outra.status} ${j(outra.corpo).slice(0, 200)}`);
+  const vazia = await confDia(A.tok.fin, { conta: c.conta, aq: c.aq[0] }, D, 100, { establishment_id: L1 });
+  check("a loja 1 de novo: 409 (nada a conferir), a loja 2 segue aberta", vazia.status === 409 && !(await lerParcela(p2.id)).reconciled_at, `${vazia.status}`);
+  const resto = await confDia(A.tok.fin, { conta: c.conta, aq: c.aq[0] }, D, 100);
+  check("sem establishment_id, confere o resto do recorte (a loja 2)", ok2xx(resto) && !!(await lerParcela(p2.id)).reconciled_at, `${resto.status}`);
+
+  console.log("  (b) a conferida dos últimos 7 dias segue no A receber, para o Desfazer");
+  const c2 = await cen(A, "lista", [L1], 1);
+  const recente = await parcela(A, c2, { net: 50, on: emDias(-3) });
+  const antiga = await parcela(A, c2, { net: 50, on: emDias(-9) });
+  const r1 = await conf(A, A.tok.fin, recente.id, 50);
+  const r2 = await conf(A, A.tok.fin, antiga.id, 50);
+  check("preparação: as duas conferidas", ok2xx(r1) && ok2xx(r2), `${r1.status} ${r2.status}`);
+  const lista = cartoesDe(await aReceber(A.tok.fin));
+  const lr = lista.find((x) => x.id === recente.id);
+  check("a conferida de 3 dias atrás aparece, com o estado Conferida", lr?.status === "conferida", j(lr));
+  check("a conferida de 9 dias atrás não aparece", !lista.some((x) => x.id === antiga.id));
+
+  console.log("  (c) a migração Q353, numa transação desfeita no fim");
+  const c3 = await cen(A, "migracao", [L1], 1);
+  const m8 = await parcela(A, c3, { net: 30, on: emDias(-8) });
+  const m7 = await parcela(A, c3, { net: 30, on: emDias(-7) });
+  const m6 = await parcela(A, c3, { net: 30, on: emDias(-6) });
+  const mc = await parcela(A, c3, { net: 30, on: emDias(-20), canceled: true });
+  const ms = await parcela(A, c3, { net: 30, on: emDias(-4) });
+  const P = await prismaCru();
+  await P.cardReceivable.update({ where: { id: ms.id }, data: { reconciled_at: new Date(), reconciled_by_user_id: A.fin.id } });
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const sql = fs.readFileSync(path.join(process.cwd(), "prisma/migrations/20261117200000_emporio_conferir_cartao/migration.sql"), "utf8");
+  const updates = sql
+    .split(";")
+    .map((s: string) => s.split("\n").filter((l: string) => !l.trim().startsWith("--")).join("\n").trim())
+    .filter((s: string) => s.startsWith("UPDATE"));
+  check("a migração tem os dois UPDATE da Q353", updates.length === 2, String(updates.length));
+  const ids = [m8.id, m7.id, m6.id, mc.id, ms.id];
+  let lidas: Dado[] = [];
+  const DESFAZ = "m121-desfaz-a-migracao";
+  try {
+    await P.$transaction(async (tx: Dado) => {
+      for (const u of updates) await tx.$executeRawUnsafe(u);
+      lidas = await tx.cardReceivable.findMany({ where: { id: { in: ids } } });
+      throw new Error(DESFAZ);
+    });
+  } catch (e) {
+    if (!String(e).includes(DESFAZ)) throw e;
+  }
+  const de = (id: string) => lidas.find((x) => x.id === id);
+  check("8 dias atrás: nasce conferida pelo previsto, sem autor", !!de(m8.id)?.reconciled_at && de(m8.id)?.reconciled_by_user_id === null && perto(n(de(m8.id)?.confirmed_net), 30), j(de(m8.id)));
+  check("7 dias atrás: fica para conferir", de(m7.id)?.reconciled_at === null && de(m7.id)?.confirmed_net === null, j(de(m7.id)));
+  check("6 dias atrás: fica para conferir", de(m6.id)?.reconciled_at === null, j(de(m6.id)));
+  check("a cancelada fica fora", de(mc.id)?.reconciled_at === null && de(mc.id)?.confirmed_net === null, j(de(mc.id)));
+  check("a já carimbada ganha confirmed_net = previsto e segue com o autor", perto(n(de(ms.id)?.confirmed_net), 30) && de(ms.id)?.reconciled_by_user_id === A.fin.id, j(de(ms.id)));
+  check("a transação foi desfeita: a de 8 dias segue sem carimbo no banco", (await lerParcela(m8.id)).reconciled_at === null);
+}
+
+// ---------------------------------------------------------------------------
 // Limpeza e main
 // ---------------------------------------------------------------------------
 
@@ -1096,6 +1176,7 @@ async function main() {
       await rodar("11", secao11);
       await rodar("12", secao12);
       await rodar("13", secao13);
+      await rodar("14", secao14);
     });
   } finally {
     await limpar();

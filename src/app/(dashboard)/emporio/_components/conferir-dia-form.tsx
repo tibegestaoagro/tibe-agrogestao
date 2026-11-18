@@ -32,7 +32,7 @@ export type GrupoDoDia = {
 };
 
 /** Conferir o dia: as parcelas não conferidas de uma data, adquirente e conta, com o total que caiu. */
-export function ConferirDiaForm({ grupo }: { grupo: GrupoDoDia }) {
+export function ConferirDiaForm({ grupo, loja = "" }: { grupo: GrupoDoDia; loja?: string }) {
   const router = useRouter();
   const aviso = useAviso();
   const err = useErrosDeFormulario(ORDEM, `dia-${grupo.chave}`);
@@ -68,6 +68,7 @@ export function ConferirDiaForm({ grupo }: { grupo: GrupoDoDia }) {
       acquirer_id: grupo.acquirer_id,
       effective_on: grupo.effective_on,
       received_total: n,
+      ...(loja ? { establishment_id: loja } : {}),
       ...(notas.trim() ? { notes: notas.trim() } : {}),
     });
     setLoading(false);

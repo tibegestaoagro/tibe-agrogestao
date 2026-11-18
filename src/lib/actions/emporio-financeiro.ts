@@ -374,11 +374,17 @@ export async function listarContasAReceberAction(
   const visiveis = await lojasDoAtor(db, ator);
   const lojas = lojaId ? { establishment_id: lojaId } : visiveis ? { establishment_id: { in: [...visiveis] } } : {};
   const parcelas = await db.cardReceivable.findMany({
-    // Frente B: as que ainda vão cair e as passadas que seguem sem conferência (venda cancelada fica fora).
+    // Frente B: as que ainda vão cair, as passadas que seguem sem conferência e as conferidas dos últimos 7 dias,
+    // que ficam à vista para o Desfazer (venda cancelada fica fora). As conferidas não entram em soma nenhuma:
+    // a data delas é passada e o estado não é Atrasada.
     where: {
       canceled_at: null,
       sale: { status: { not: "cancelada" } },
-      OR: [{ effective_on: { gte: hoje } }, { reconciled_at: null }],
+      OR: [
+        { effective_on: { gte: hoje } },
+        { reconciled_at: null },
+        { effective_on: { gte: new Date(hoje.getTime() - 7 * DIA_MS) } },
+      ],
       ...lojas,
     },
     include: INCLUDE_CARTAO,

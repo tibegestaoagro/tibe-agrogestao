@@ -109,6 +109,7 @@ export default async function FinanceiroReceberPage({
       ) : (
         <FinanceiroReceber
           ver={ver}
+          loja={loja}
           hoje={hoje}
           padraoId={padraoId}
           dados={dadosRes.data}

@@ -37,7 +37,10 @@ export function FinanceiroReceber({
   ver = null,
   hoje,
   padraoId = null,
+  loja = "",
 }: {
+  /** A loja do filtro da tela (vazia: todas). */
+  loja?: string;
   /** Frente A: o cartão ativo da faixa (`?ver=`), sem o "recebido", que troca a tela por outra lista. */
   ver?: "vencido" | "hoje" | "a_vencer" | null;
   /** Hoje em Brasília (AAAA-MM-DD), a régua do recorte. */
@@ -241,6 +244,7 @@ export function FinanceiroReceber({
         padraoId={padraoId}
         semAtrasadoNoFiltro={ver === "vencido"}
         podeConferir={pode(papel, "dinheiro")}
+        loja={loja}
       />
     </div>
   );

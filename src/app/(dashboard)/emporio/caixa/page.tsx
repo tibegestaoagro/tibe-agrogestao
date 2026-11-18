@@ -83,7 +83,7 @@ export default async function CaixaPage() {
     ? caixaRes.data
     : { drawers: [], accounts: [], card_receivables: [], checks: [], movements: [] };
   const hojeDoCartao = hojeEmBrasilia();
-  const aReceberDaConta =new Map(caixa.accounts.map((a) => [a.bank_account_id, a.to_receive]));
+  const aReceberDaConta = new Map(caixa.accounts.map((a) => [a.bank_account_id, a.to_receive]));
   const totalAReceber = caixa.card_receivables.reduce((s, p) => s + Math.round(p.effective_net * 100), 0) / 100;
   const nomeDaLojaCheque = (id: string) => caixa.drawers.find((d) => d.establishment_id === id)?.name ?? "Loja";
 

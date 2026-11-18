@@ -46,7 +46,10 @@ export function CartoesAReceber({
   padraoId = null,
   semAtrasadoNoFiltro = false,
   podeConferir = false,
+  loja = "",
 }: {
+  /** A loja do filtro da tela (vazia: todas). O "Conferir o dia" confere só as parcelas dela, as que a tela mostra. */
+  loja?: string;
   /** O cliente padrão, que não vira link. */
   padraoId?: string | null;
   /** O filtro Vencido: a seção diz que nada está atrasado em vez da frase de "nada a receber". */
@@ -135,7 +138,7 @@ export function CartoesAReceber({
                         {reaisBr(g.parcelas.reduce((s, p) => s + cent(p.effective_net), 0) / 100)} previsto
                       </span>
                     </span>
-                    <ConferirDiaForm grupo={g} />
+                    <ConferirDiaForm grupo={g} loja={loja} />
                   </li>
                 ))}
               </ul>
