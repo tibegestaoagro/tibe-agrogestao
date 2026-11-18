@@ -30,8 +30,8 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   [../superpowers/specs/2026-11-17-emporio-plano-gestaoclick.md](../superpowers/specs/2026-11-17-emporio-plano-gestaoclick.md).
   Material em `docs/financeiro-reuniao/` (fora do git, só no desktop).
   Frente A (Q345 a Q348) em produção desde 17/11 (merge `49fbd47`).
-  **Frente B (conferir o cartão, Q349 a Q353) PRONTA na branch
-  `emporio-conferir-cartao`; falta autorizar a migração no Neon e o merge.**
+  **Frente B (conferir o cartão, Q349 a Q353) EM PRODUÇÃO** (migração no Neon
+  e merge `cc8a614` autorizados em 17/11, deploy confirmado no `/docs/api`).
   Spec e plano de 17/11. `test:all` 124/124, `test:m121` (246), roteiro
   `emporio-conferir-cartao` (103 ok, sabotado falha), juiz 8 com os achados
   corrigidos, manual com "Conferir o cartão". Neon lido em 17/11: a migração não
@@ -190,8 +190,8 @@ relatórios em [agente-whatsapp/](agente-whatsapp/), detalhe em
 
 ## Últimas rodadas
 
-- 17/11: frente B (conferir o cartão) pronta na branch; frente A em produção,
-  autorizada na conversa.
+- 17/11: frentes A e B (informação amarrada, conferir o cartão) em produção,
+  autorizadas na conversa.
 - 11/11: reunião com a Agromax; custo único (Q298, Q299) em produção, compras
   com a ordem corrigida e as de teste canceladas; tudo autorizado na conversa.
 - 10/11: desfazer acordo, aviso por email e recalcular o mês (Q275 a Q277)
