@@ -40,6 +40,10 @@ jobs:
     # cobre; aqui nao ha `.env`, e foi o que reprovou as seis primeiras
     # execucoes do CI. Valores de fachada, nunca segredo real.
     env:
+      # 18/11/2026: o tsc e o next build passaram do limite padrao de memoria do
+      # Node (~2 GB) no runner ("heap out of memory") com o crescimento do
+      # projeto; 6 GB cabem no runner. Vale para todos os passos deste job.
+      NODE_OPTIONS: --max-old-space-size=6144
       DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci?schema=public
       NEXTAUTH_SECRET: ci-nextauth-secret-nao-usar-em-lugar-nenhum
       NEXTAUTH_URL: http://localhost:3000
