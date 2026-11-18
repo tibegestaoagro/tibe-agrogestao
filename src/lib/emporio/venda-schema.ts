@@ -49,7 +49,7 @@ export const pagamentoDeVendaSchema = z.object({
   /** Cartão (Q254): sem a adquirente vale a única com taxa vigente; sem a bandeira, só a linha `qualquer`. */
   acquirer_id: z.string().nullish(),
   brand: z.enum(BANDEIRAS, { error: "Escolha uma bandeira válida." }).nullish(),
-  /** Cheque: número, banco, "bom para" e o titular (Q284). Os quatro são exigidos pela action (422 `payments`). */
+  /** Cheque: titular (Q284, obrigatório na action) e número, banco e "bom para" opcionais (Q354: o Financeiro completa depois). */
   check: z
     .object({
       number: z.string().nullish(),

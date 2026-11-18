@@ -3,6 +3,7 @@ import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { dinheiro, itens as frasItens, registrarNoHistorico } from "@/lib/emporio/historico";
 import { CATEGORIA_ACORDO } from "@/lib/emporio/acordo";
+import { chequeIncompleto } from "@/lib/emporio/cheque";
 import { contaPixDisponivelParaLoja } from "@/lib/emporio/conta-pix";
 import { pesoDoItemKg, pesoTotal } from "@/lib/emporio/peso";
 import { CATEGORIA_FRETE, ORIGENS_DA_VENDA, type OrigemDaVenda } from "@/lib/emporio/frete";
@@ -210,7 +211,15 @@ export type VendaPagamentoView = {
   brand: string | null;
   fee_fixed_amount: number | null;
   fee_rate_id: string | null;
-  check: { id: string; number: string; holder_name: string; bank: string; good_for: string; status: string } | null;
+  check: {
+    id: string;
+    number: string | null;
+    holder_name: string;
+    bank: string | null;
+    good_for: string | null;
+    status: string;
+    incomplete: boolean;
+  } | null;
   /** Boleto (Q278): o vencimento é data de calendário (ISO à meia-noite UTC), como o `good_for` do cheque. */
   boleto: { id: string; number: string | null; due_on: string; status: string; paid_on: string | null } | null;
   /** Parcelas vivas do cartão (Q261), com o previsto e o efetivo (a antecipação muda o efetivo). */
@@ -506,8 +515,9 @@ async function montarVendas(db: TenantPrismaClient, linhas: VendaRow[]): Promise
               number: p.check.number,
               holder_name: p.check.holder_name,
               bank: p.check.bank,
-              good_for: p.check.good_for.toISOString(),
+              good_for: p.check.good_for ? p.check.good_for.toISOString() : null,
               status: p.check.status,
+              incomplete: chequeIncompleto(p.check),
             }
           : null,
         boleto: p.boleto
@@ -825,7 +835,7 @@ type PagamentoPreparado = {
     /** A antecipação automática da adquirente que vale para esta venda (crédito, ligada, com taxa e já em vigor); senão nulo. */
     auto: { pct_mes: number; dias_uteis: number } | null;
   } | null;
-  cheque: { number: string; bank: string; good_for: Date; holder_name: string } | null;
+  cheque: { number: string | null; bank: string | null; good_for: Date | null; holder_name: string } | null;
   boleto: { number: string | null; due_on: Date } | null;
 };
 
@@ -1290,11 +1300,18 @@ async function prepararVenda(
     }
     if (kind === "cheque") {
       const c = p.check;
-      const numeroDoCheque = typeof c?.number === "string" ? c.number.trim() : "";
-      const banco = typeof c?.bank === "string" ? c.bank.trim() : "";
+      // Q354: número, banco e bom para são opcionais (o Financeiro completa depois); vazio vira null.
+      const numeroDoCheque = typeof c?.number === "string" && c.number.trim() ? c.number.trim() : null;
+      const banco = typeof c?.bank === "string" && c.bank.trim() ? c.bank.trim() : null;
       const titular = typeof c?.holder_name === "string" ? c.holder_name.trim() : "";
-      if (!numeroDoCheque || !banco || !dataValida(c?.good_for)) {
-        return fail("VALIDATION_ERROR", "Informe o número, o banco e a data do cheque (bom para).", 422, "payments");
+      if (c?.good_for !== null && c?.good_for !== undefined && !dataValida(c.good_for)) {
+        return fail("VALIDATION_ERROR", "Informe uma data válida para o bom para do cheque.", 422, "payments");
+      }
+      if (numeroDoCheque !== null && numeroDoCheque.length > 30) {
+        return fail("VALIDATION_ERROR", "O número do cheque aceita até 30 caracteres.", 422, "payments");
+      }
+      if (banco !== null && banco.length > 60) {
+        return fail("VALIDATION_ERROR", "O banco do cheque aceita até 60 caracteres.", 422, "payments");
       }
       if (!titular) {
         return fail("VALIDATION_ERROR", "Informe em nome de quem é o cheque.", 422, "payments");
@@ -1305,7 +1322,7 @@ async function prepararVenda(
       if (ehConsumidorFinal) {
         return fail("VALIDATION_ERROR", "Cheque precisa do cliente de verdade, não do Consumidor final.", 422, "customer_id");
       }
-      cheque = { number: numeroDoCheque, bank: banco, good_for: c?.good_for as Date, holder_name: titular };
+      cheque = { number: numeroDoCheque, bank: banco, good_for: dataValida(c?.good_for) ? c.good_for : null, holder_name: titular };
     }
     if (kind === "boleto") {
       const b = p.boleto;
