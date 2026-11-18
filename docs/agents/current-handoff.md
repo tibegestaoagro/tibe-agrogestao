@@ -30,7 +30,8 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   da branch `emporio-balcao-rapido`, os dois autorizados na conversa em 18/11.
   Atalhos configuráveis no balcão, código de barras por apresentação (oficial
   ou gerado "20...", editável) lido pela busca, etiquetas em folha A4 e rolo
-  com as medidas nas Configurações. Provas: `test:all` 126/126 (uma falha
+  com as medidas nas Configurações. **Próxima frente: H (curva ABC, 2.75)**,
+  depois da investigação dos orçamentos que a Agromax não vê (18/11). Provas: `test:all` 126/126 (uma falha
   da `m123` não repetida, ver 5.25), `test:m123` (226), roteiro
   `emporio-balcao-rapido` (137 ok; reprova nas três sabotagens), juiz sem
   bloqueante, manual. Sem leitor nem impressora reais (usuário lê a imagem das
