@@ -32,6 +32,8 @@ import {
   type ModoDoBalcao,
 } from "./balcao-orcamento";
 import { CaixaDaOperacao } from "./caixa-da-operacao";
+import { LegendaDosAtalhos, useAtalhosDoBalcao } from "./atalhos-do-balcao";
+import type { AcaoDeAtalho } from "@/lib/emporio/atalhos";
 import {
   AVISO_SEM_ESCOLHA,
   corpoDoPedidoParaEntrega,
@@ -143,7 +145,12 @@ export function Balcao({
   refazer = null,
   franqueados,
   limitesPorLoja,
+  atalhos,
+  legendaDosAtalhos,
 }: {
+  /** A tecla de cada atalho e se a legenda aparece (Configurações do Empório, Q361): lidas no servidor. */
+  atalhos: Record<AcaoDeAtalho, string>;
+  legendaDosAtalhos: boolean;
   /** O limite de desconto de cada loja e se quem vende é gestor dela (resolvido no servidor, desce por prop). */
   limitesPorLoja: Record<string, LimiteDaLoja>;
   /** Os franqueados ativos (lidos no servidor): vazio quando o perfil não os enxerga, e os campos somem. */
@@ -173,6 +180,7 @@ export function Balcao({
   ehCaixa: boolean;
 }) {
   const err = useErrosDeFormulario(ORDEM);
+  useAtalhosDoBalcao({ teclas: atalhos, idDoVendedor: err.idDe("seller_user_id") });
   const [daRefeita] = useState(() =>
     refazer ? cargaParaRefazer(refazer.orcamento, consumidorFinal, produtos, precos) : null,
   );
@@ -315,6 +323,15 @@ export function Balcao({
     modo === "venda" && loja !== "" && caixasDaLoja !== null && (abertos.length !== 1 || !!err.erros.cash_register_id);
   // Faturando um orçamento, o vendedor é o dele (o servidor o herda): a tela mostra e não pergunta.
   const vendedorTravado = modo === "venda" && orcamento !== null;
+  // O botão principal do rodapé, parado: o que o atalho de fechar aciona e a legenda nomeia.
+  const rotuloDoFechar =
+    modo === "orcamento"
+      ? refazer?.tipo === "editar"
+        ? "Salvar alterações"
+        : "Salvar orçamento"
+      : edicao
+        ? "Salvar a venda nova"
+        : "Fechar a venda";
 
   // O mesmo efeito do FormSheet: leva o foco ao primeiro campo recusado.
   useEffect(() => {
@@ -982,12 +999,18 @@ export function Balcao({
                     Faturar
                   </Button>
                 )}
-                <Button type="submit" size="lg" disabled={enviando} className="min-w-40">
-                  {enviando ? "Salvando..." : refazer?.tipo === "editar" ? "Salvar alterações" : "Salvar orçamento"}
+                <Button type="submit" data-atalho="fechar" size="lg" disabled={enviando} className="min-w-40">
+                  {enviando ? "Salvando..." : rotuloDoFechar}
                 </Button>
               </div>
             ) : (
-              <Button type="submit" size="lg" disabled={enviando || v.cartaoIncompleto} className="min-w-40">
+              <Button
+                type="submit"
+                data-atalho="fechar"
+                size="lg"
+                disabled={enviando || v.cartaoIncompleto}
+                className="min-w-40"
+              >
                 {enviando
                   ? edicao
                     ? "Salvando..."
@@ -998,6 +1021,7 @@ export function Balcao({
               </Button>
             )}
           </div>
+          {legendaDosAtalhos && <LegendaDosAtalhos teclas={atalhos} fechar={rotuloDoFechar} />}
         </div>
       </form>
     </div>

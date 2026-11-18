@@ -169,7 +169,26 @@ export function normalizar(texto: string): string {
  * a mesma conta).
  */
 export function produtoCasaBusca(p: ProdutoVenda, termo: string): boolean {
-  return [p.name, p.brand, p.manufacturer, p.internal_code].some((campo) => !!campo && normalizar(campo).includes(termo));
+  return (
+    [p.name, p.brand, p.manufacturer, p.internal_code].some((campo) => !!campo && normalizar(campo).includes(termo)) ||
+    // Digitar parte do código de barras também acha o produto (balcão rápido, Q358).
+    p.apresentacoes.some((a) => !!a.barcode && a.barcode.includes(termo))
+  );
+}
+
+/**
+ * A leitura do código de barras (Enter na busca): o produto e a apresentação cujo `barcode` é
+ * EXATAMENTE o texto lido. `codigo` já vem de `codigoParaBusca` (12 dígitos viram 13, como o gravado).
+ */
+export function apresentacaoDoCodigo(
+  produtos: ProdutoVenda[],
+  codigo: string,
+): { produto: ProdutoVenda; apresentacao: ApresentacaoVenda } | null {
+  for (const produto of produtos) {
+    const apresentacao = produto.apresentacoes.find((a) => a.barcode === codigo);
+    if (apresentacao) return { produto, apresentacao };
+  }
+  return null;
 }
 
 const CARTAO_NOME: Record<string, string> = {
@@ -483,9 +502,10 @@ export function useVenda({
   }
 
   /** Falso quando nenhuma apresentação do produto tem preço na loja: não entra no carrinho (Q328). */
-  function adicionarProduto(p: ProdutoVenda): boolean {
+  function adicionarProduto(p: ProdutoVenda, escolhida?: ApresentacaoVenda): boolean {
     if (p.apresentacoes.length === 0) return false;
-    const ap = apresentacaoPadrao(p);
+    // A leitura do código entra na apresentação lida, não na padrão; sem preço na loja, não entra.
+    const ap = escolhida ? (temPreco(escolhida.id) ? escolhida : null) : apresentacaoPadrao(p);
     if (!ap) return false;
     setItens((lista) => {
       const mesmo = lista.find((i) => i.produtoId === p.id && i.apresentacaoId === ap.id);

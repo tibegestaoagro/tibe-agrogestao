@@ -6,6 +6,8 @@ import { vendedoresDaLoja } from "@/lib/emporio/vendedores";
 import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
 import { lerOrcamentoAction, type OrcamentoView } from "@/lib/actions/emporio-orcamentos";
 import { lerVendaAction, type VendaView } from "@/lib/actions/emporio-vendas";
+import { lerConfiguracoesAction } from "@/lib/actions/emporio-configuracoes";
+import { ATALHOS_PADRAO } from "@/lib/emporio/atalhos";
 import { listarFranqueadosAction } from "@/lib/actions/emporio-franqueados";
 import { buscarClientesAction } from "@/lib/actions/emporio-clientes";
 import { consumidorFinalEscolhido, type ClienteEscolhido } from "@/lib/emporio/cliente-escolhido";
@@ -76,6 +78,11 @@ export default async function VenderPage({
   // Os franqueados ativos para o crédito da venda. O perfil que não os enxerga recebe a lista vazia: os campos somem.
   const franqueadosRes = podeVender ? await listarFranqueadosAction(db, user) : null;
   const franqueados = franqueadosRes?.ok ? franqueadosRes.data.map((f) => ({ id: f.id, name: f.name })) : [];
+
+  // As teclas dos atalhos e a legenda: leitura livre a quem vende (a escrita é da conta). Sem leitura, os padrões.
+  const configuracoes = podeVender ? await lerConfiguracoesAction(db, user) : null;
+  const atalhos = configuracoes?.ok ? configuracoes.data.shortcuts : ATALHOS_PADRAO;
+  const legendaDosAtalhos = configuracoes?.ok ? configuracoes.data.show_shortcut_legend : true;
 
   const lido = podeVender && orcamentoId ? await lerOrcamentoAction(db, user, orcamentoId) : null;
   const orcamentoCancelado = lido?.ok && lido.data.situacao === "cancelado";
@@ -190,6 +197,8 @@ export default async function VenderPage({
           ehCaixa={ehCaixa}
           franqueados={franqueados}
           limitesPorLoja={limitesPorLoja}
+          atalhos={atalhos}
+          legendaDosAtalhos={legendaDosAtalhos}
           orcamentoInicial={orcamentoInicial}
           edicao={edicao}
         />
