@@ -967,7 +967,7 @@ figura("caixa-gaveta", "vendedor_centro", "/emporio/caixa", [
     (1, LINHA_DO_CAIXA_ABERTO + ".firstElementChild", "a linha de um caixa, com o saldo e a marca Aberto ou Fechado"),
     (2, "Array.from(" + LINHA_DO_CAIXA_ABERTO + ".querySelectorAll('button')).filter(b => ['Sangria', 'Conferir', 'Encerrar'].includes(b.innerText.trim()))", "os botoes Sangria, Conferir e Encerrar"),
     (3, "M.S('Movimentos')", "a secao Movimentos"),
-], limite=4, hd=1380, hc=1700)
+], limite=4, hd=1480, hc=1880)  # 18/11: a secao Movimentos ganhou a barra de paginas embaixo
 
 
 def estado_abrir():
