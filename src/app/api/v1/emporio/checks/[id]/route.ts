@@ -14,7 +14,8 @@ import { dataIso } from "@/lib/emporio/venda-schema";
 const schema = z.object({
   number: z.string({ error: "O número do cheque é inválido." }).nullish(),
   bank: z.string({ error: "O banco do cheque é inválido." }).nullish(),
-  good_for: dataIso.nullish(),
+  // A tela manda "" ao esvaziar a data: vira null, e a action responde "Não dá para apagar" como nos outros campos.
+  good_for: z.preprocess((v) => (v === "" ? null : v), dataIso.nullish()),
   holder_name: z.string({ error: "O nome do titular é inválido." }).nullish(),
 });
 

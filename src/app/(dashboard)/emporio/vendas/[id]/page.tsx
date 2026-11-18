@@ -420,7 +420,8 @@ export default async function VendaPage({ params }: { params: Promise<{ id: stri
                   )}
                   {p.check && (
                     <>
-                      {p.check.incomplete ? "Cheque a completar" : `Cheque nº ${p.check.number}, ${p.check.bank}`}
+                      {/* Fora da carteira (cancelado, voltou) o cheque não é "a completar", mas pode seguir sem número ou banco. */}
+                      {p.check.incomplete ? "Cheque a completar" : `Cheque nº ${p.check.number ?? "-"}, ${p.check.bank ?? "-"}`}
                       {p.check.incomplete && (p.check.number || p.check.bank) && (
                         <span className="block text-xs text-texto-secundario">
                           {[p.check.number ? `nº ${p.check.number}` : null, p.check.bank].filter(Boolean).join(", ")}

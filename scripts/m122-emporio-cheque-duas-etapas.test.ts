@@ -519,6 +519,10 @@ async function secao4() {
     check(`apagar ${campo} já preenchido (null): 422 em ${campo}`, recusou(rn2, 422, campo), resumo(rn2));
     check(`a mensagem de ${campo} manda trocar por outro valor`, String(rn2.corpo?.error?.message ?? "").includes("Não dá para apagar: troque por outro valor."), String(rn2.corpo?.error?.message));
   }
+  // A tela manda "" ao esvaziar o campo da data (achado do juiz, 18/11): a recusa é a mesma dos outros campos.
+  const rDataVazia = await patch(A.tok.owner, c.id, { good_for: "" });
+  check("apagar good_for já preenchido (texto vazio): 422 em good_for", recusou(rDataVazia, 422, "good_for"), resumo(rDataVazia));
+  check("e a mensagem manda trocar por outro valor", String(rDataVazia.corpo?.error?.message ?? "").includes("Não dá para apagar: troque por outro valor."), String(rDataVazia.corpo?.error?.message));
   const rEsp = await patch(A.tok.owner, c.id, { number: "   " });
   check("apagar o número com espaços em branco: 422 em number", recusou(rEsp, 422, "number"), resumo(rEsp));
   const rNomeVazio = await patch(A.tok.owner, c.id, { holder_name: "" });

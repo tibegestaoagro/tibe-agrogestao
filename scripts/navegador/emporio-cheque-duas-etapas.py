@@ -441,6 +441,12 @@ if nova:
     confere("o incompleto segue incompleto (sem numero, banco e data), no nome de Ch Terceiro Dois", c30.get("number") is None and c30.get("bank") is None and c30.get("good_for") is None and c30.get("incomplete") is True and c30.get("holder_name") == "Ch Terceiro Dois", c30)
     pagina = texto_da_pagina()
     confere("a venda nova mostra 'Cheque a completar' uma vez e o cheque completo com Sicoob", pagina.count("Cheque a completar") == 1 and "Sicoob" in pagina and "1970" not in pagina, pagina[:700])
+    # A venda antiga ficou substituida: o cheque sem dados saiu da carteira (nao e mais "a completar") e seguia
+    # mostrando "Cheque nº null, null" (achado do juiz, 18/11). Agora sai "-" no que falta.
+    ir("/emporio/vendas/" + VENDA_E_ID)
+    antiga = texto_da_pagina()
+    confere("a venda antiga abre", not nao_achada() and "/emporio/vendas/" + VENDA_E_ID == caminho(), caminho())
+    confere("a venda antiga nao mostra 'null' e mostra o cheque sem dados com '-' (Cheque nº -, -)", "null" not in antiga and "Cheque nº -, -" in antiga, antiga[:900])
 entrar("financeiro")
 ir(RECEBER)
 confere("no A receber o R$ 50,00 segue completo (000222) e o R$ 30,00 segue 'A completar', uma linha de cada", valores_dos_cheques().count("R$ 50,00") == 1 and valores_dos_cheques().count("R$ 30,00") == 1 and "000222" in linha_cheque("R$ 50,00") and not a_completar("R$ 50,00") and a_completar("R$ 30,00"), valores_dos_cheques())
