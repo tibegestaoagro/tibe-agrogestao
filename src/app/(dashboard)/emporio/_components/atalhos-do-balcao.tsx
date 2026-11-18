@@ -6,7 +6,8 @@ import { ACOES_DE_ATALHO, teclaDoEvento, type AcaoDeAtalho } from "@/lib/emporio
 /**
  * Os atalhos do balcão (Q361): um `keydown` no documento enquanto o balcão está montado.
  * Cada ação procura o alvo na tela na hora de agir (o Caixa não tem "Vendedor", o modo
- * Orçamento não tem pagamento): alvo ausente não faz nada, e a tecla fica livre para o navegador.
+ * Orçamento não tem pagamento): alvo ausente não faz nada, mas a tecla de uma ação é retida
+ * mesmo assim (o `preventDefault` vem antes de procurar o alvo).
  */
 
 const ROTULO_DA_ACAO: Record<AcaoDeAtalho, string> = {

@@ -13,6 +13,8 @@ import type { ItemDeEtiqueta, LojaDeEtiqueta } from "../_dados";
 type Formato = "a4" | "rolo";
 
 const COPIAS_MAXIMAS = 999;
+/** O mesmo teto da página de impressão: acima dele a tela não manda, em vez de a página cortar em silêncio. */
+const ETIQUETAS_MAXIMAS = 2000;
 
 const CAMPO_SELECT =
   "flex min-h-11 w-full rounded-lg border border-borda-campo bg-superficie px-3 py-1 text-base shadow-sm sm:h-9 sm:min-h-0 sm:text-sm";
@@ -212,7 +214,7 @@ export function EtiquetasEscolha({
           )}
 
           <div className="flex flex-wrap items-center gap-3">
-            {validos.length === 0 ? (
+            {validos.length === 0 || totalEtiquetas > ETIQUETAS_MAXIMAS ? (
               <Button type="button" disabled>
                 <Printer className="mr-2 h-4 w-4" aria-hidden="true" />
                 Imprimir etiquetas
@@ -228,7 +230,9 @@ export function EtiquetasEscolha({
             <span className="text-sm text-texto-secundario">
               {totalEtiquetas === 0
                 ? "Marque as apresentações que quer imprimir."
-                : `${totalEtiquetas} ${totalEtiquetas === 1 ? "etiqueta" : "etiquetas"}`}
+                : totalEtiquetas > ETIQUETAS_MAXIMAS
+                  ? `${totalEtiquetas} etiquetas: imprima até ${ETIQUETAS_MAXIMAS} de cada vez.`
+                  : `${totalEtiquetas} ${totalEtiquetas === 1 ? "etiqueta" : "etiquetas"}`}
             </span>
           </div>
         </>
