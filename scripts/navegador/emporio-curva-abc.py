@@ -210,6 +210,14 @@ s = secao_abc()
 confere("depois de 'Ver relatorio' a URL tem o periodo novo E mantem abc=clientes e medida=lucro", "de=2026-03-09" in caminho() and "abc=clientes" in caminho() and "medida=lucro" in caminho() and "loja=" + LOJA1 in caminho(), caminho())
 confere("e a tela segue na aba Clientes com a medida Lucro ativa", s is not None and ["Clientes", True] in s["abas"] and ["Lucro (venda menos custo)", True] in s["abas"], s and s["abas"])
 
+# Achado do juiz (18/11): no dia so com a Soja vendida e devolvida inteira (Loja 2, 2026-03-12), a lista sai sem
+# classes: aviso "Sem vendas positivas no periodo" e nenhum selo A, B ou C na coluna Classe.
+ir_relatorio("produtos", "faturamento", LOJA2, "2026-03-12", "2026-03-12")
+esperar(lambda: secao_abc() is not None, 60)
+s = secao_abc()
+confere("dia sem vendas positivas: aviso 'Sem vendas positivas no período'", s is not None and "Sem vendas positivas no período" in s["texto"], s and s["texto"][:300])
+confere("a Soja aparece com R$ 0,00 e a coluna Classe mostra '-', sem selo A, B ou C", s is not None and len(s["linhas"]) == 1 and s["linhas"][0][1] == "Abc Soja" and br(s["linhas"][0][3]) == 0 and s["linhas"][0][6] == "-", s and s["linhas"])
+
 # --- 5 ------------------------------------------------------------------------------------------------------------------
 passo("5. Relatorios a 390 px")
 tela(390, 844, 1, True)

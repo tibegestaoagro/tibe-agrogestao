@@ -137,7 +137,12 @@ export function CurvaAbcSecao({
                       <TableCell className="text-right">{pctBr(i.share_pct)}</TableCell>
                       <TableCell className="text-right">{pctBr(i.cumulative_pct)}</TableCell>
                       <TableCell>
-                        <Badge variant={VARIANTE[i.classe]}>{i.classe}</Badge>
+                        {/* Sem vendas positivas a lista sai sem classes (spec): o "C" do servidor é só o padrão. */}
+                        {curva.classes.length === 0 ? (
+                          <span className="text-texto-secundario">-</span>
+                        ) : (
+                          <Badge variant={VARIANTE[i.classe]}>{i.classe}</Badge>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}

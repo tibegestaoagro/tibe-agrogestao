@@ -28,6 +28,8 @@ exigirBancoLocal();
 
 const PREFIXO = "Abc ";
 const DIA_ISO = "2026-03-10";
+/** Um dia só com venda devolvida inteira, na Loja 2: a curva sem vendas positivas. */
+const DIA_ZERO_ISO = "2026-03-12";
 const VENDIDA_EM = new Date(`${DIA_ISO}T15:00:00Z`);
 
 async function limpar(tenant_id: string) {
@@ -151,7 +153,7 @@ async function main() {
   const agora = Date.now();
   let seq = 0;
   type Linha = { p: Prod; qty: number; preco: number };
-  const vender = async (lojaId: string, caixa: string, cliente_id: string, linhas: Linha[]) => {
+  const vender = async (lojaId: string, caixa: string, cliente_id: string, linhas: Linha[], quando: Date = VENDIDA_EM) => {
     const total = linhas.reduce((s, l) => s + l.qty * l.preco, 0);
     const v = exigir(
       await vendas.venderAction(db, dono, {
@@ -165,7 +167,7 @@ async function main() {
       "venda",
     ) as { id: string };
     // Para nada de outras suites entrar no recorte: todas no mesmo dia passado.
-    await prisma.emporioSale.update({ where: { id: v.id }, data: { sold_at: VENDIDA_EM } });
+    await prisma.emporioSale.update({ where: { id: v.id }, data: { sold_at: quando } });
     return v.id;
   };
 
@@ -205,6 +207,21 @@ async function main() {
     "devolucao",
   ) as { id: string };
   await prisma.emporioSaleReturn.update({ where: { id: dev.id }, data: { returned_at: new Date(`${DIA_ISO}T17:00:00Z`) } });
+
+  // Dia sem vendas positivas (achado do juiz, 18/11): na Loja 2, em DIA_ZERO_ISO, 1 Soja vendida e devolvida
+  // inteira no mesmo dia. A curva desse dia lista a Soja com R$ 0,00 e sai sem classes (sem o selo C).
+  const vendaZero = await vender(loja2, caixa2, joao, [{ p: soja, qty: 1, preco: 3000 }], new Date(`${DIA_ZERO_ISO}T15:00:00Z`));
+  const itemZero = await itemDe(vendaZero, soja.id);
+  const devZero = exigir(
+    await vendas.devolverAction(db, dono, vendaZero, {
+      operation_key: `cenario-abc-dev-zero-${agora}`,
+      refund_kind: "dinheiro",
+      cash_register_id: caixa2,
+      items: [{ sale_item_id: itemZero.id, quantity: 1 }],
+    } as never),
+    "devolucao do dia zero",
+  ) as { id: string };
+  await prisma.emporioSaleReturn.update({ where: { id: devZero.id }, data: { returned_at: new Date(`${DIA_ZERO_ISO}T17:00:00Z`) } });
 
   // 45 orcamentos numa loja so deles.
   const clienteOrc = await cliente("Cliente Orcamento");
