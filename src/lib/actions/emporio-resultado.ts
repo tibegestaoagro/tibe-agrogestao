@@ -376,7 +376,9 @@ async function apurarLoja(db: TenantPrismaClient, lojaId: string, mes: MesCivil,
         });
   const cartaoCent = noCartao.reduce((s, p) => s + centavos(decToNum(p.amount) ?? 0), 0);
 
-  // Frente B: o ajuste da conferência do cartão no mês (a data é a da conferência). A saída soma, a entrada abate;
+  // Frente B: o ajuste da conferência do cartão no mês. A data é a da PARCELA (o movimento nasce no `effective_on`),
+  // não a do dia em que se conferiu: conferir em dezembro uma parcela de novembro mexe no Resultado de novembro.
+  // A saída soma, a entrada abate;
   // o da venda cancelada fica de fora, porque a taxa dela também sai e a venda deixa a base do custo.
   const ajustes = await db.cashMovement.findMany({
     where: {
