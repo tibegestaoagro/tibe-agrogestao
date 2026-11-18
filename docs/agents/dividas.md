@@ -329,6 +329,22 @@ Registrado em 07/11/2026, na branch `emporio-entrega-e-romaneio` (plano 3 de 3).
   a seção 3 confere o `field` mas não a mensagem exata do principal incompleto e
   do "outro" sem bairro.
 
+### 5.27 Empório, curva ABC (frente H, Q362 a Q364): o que ficou para depois
+
+Registrado em 18/11/2026, no merge da branch `emporio-curva-abc` (juiz 8/10,
+sem bloqueante; o selo de classe na lista sem vendas positivas foi corrigido).
+- **Percentuais arredondados um a um:** três itens de 33,33% somam 99,99 ou
+  100,01 nos resumos (`pct()` em `emporio-relatorios.ts`). Só visual; a
+  classificação usa inteiros e está certa.
+- **O seletor "Lucro" aparece para todos** e só some depois de um 403. Hoje a
+  permissão do Relatórios e a do Resultado são a mesma, então ninguém o vê sem
+  poder; se elas se separarem, decidir no servidor e passar à tela.
+- **O lucro da curva não é o do Resultado** (decisão do usuário: venda menos
+  custo, sem despesa variável nem taxa do cartão); a tela e o manual dizem
+  isso. Pode diferir 1 centavo por arredondamento do custo por linha.
+- **Fora do roteiro (só na `m124`):** o 403 do lucro, a troca, o frete, outro
+  tenant e o período inválido.
+
 ### 5.26 Empório, listas que cortam em silêncio (achado de 18/11/2026)
 
 A lista de Orçamentos cortava nos 200 mais recentes sem avisar, e a Agromax
