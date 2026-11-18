@@ -13,36 +13,47 @@ import {
 } from "@/components/ui/select";
 
 import { SITUACOES_DO_ORCAMENTO } from "./situacoes";
+import { ORDENS_DO_ORCAMENTO, TAMANHOS_DE_PAGINA } from "./paginacao-opcoes";
 
 const TODAS = "__todas__";
 
-/** Filtro da lista de orçamentos: vive na URL, e a página server relê. */
+type Estado = { loja: string; situacao: string; q: string; porPagina: number; ordem: string };
+
+/** Filtro da lista de orçamentos: vive na URL, e a página server relê. Mudar qualquer coisa volta à página 1. */
 export function OrcamentosFiltro({
   lojas,
   loja,
   situacao,
   q,
+  porPagina,
+  ordem,
 }: {
   lojas: { id: string; name: string }[];
   loja: string;
   situacao: string;
   q: string;
+  porPagina: number;
+  ordem: string;
 }) {
   const router = useRouter();
   const [busca, setBusca] = useState(q);
+  const atual: Estado = { loja, situacao, q: busca, porPagina, ordem };
 
-  function ir(novaLoja: string, novaSituacao: string, novaBusca: string) {
+  function ir(mudanca: Partial<Estado>) {
+    const e = { ...atual, ...mudanca };
     const p = new URLSearchParams();
-    if (novaLoja) p.set("loja", novaLoja);
-    if (novaSituacao !== "acompanhamento") p.set("situacao", novaSituacao);
-    if (novaBusca.trim()) p.set("q", novaBusca.trim());
+    if (e.loja) p.set("loja", e.loja);
+    if (e.situacao !== "acompanhamento") p.set("situacao", e.situacao);
+    if (e.q.trim()) p.set("q", e.q.trim());
+    if (e.porPagina !== 20) p.set("por_pagina", String(e.porPagina));
+    if (e.ordem !== "desc") p.set("ordem", e.ordem);
     const texto = p.toString();
     router.push(texto ? `/emporio/orcamentos?${texto}` : "/emporio/orcamentos");
   }
 
   return (
-    <div className="grid gap-3 sm:max-w-3xl sm:grid-cols-3">
-      <Select value={loja || TODAS} onValueChange={(v) => ir(v === TODAS ? "" : v, situacao, busca)}>
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <Select value={loja || TODAS} onValueChange={(v) => ir({ loja: v === TODAS ? "" : v })}>
         <SelectTrigger aria-label="Filtrar por loja">
           <SelectValue />
         </SelectTrigger>
@@ -56,7 +67,7 @@ export function OrcamentosFiltro({
         </SelectContent>
       </Select>
 
-      <Select value={situacao} onValueChange={(v) => ir(loja, v, busca)}>
+      <Select value={situacao} onValueChange={(v) => ir({ situacao: v })}>
         <SelectTrigger aria-label="Filtrar por situação">
           <SelectValue />
         </SelectTrigger>
@@ -73,7 +84,7 @@ export function OrcamentosFiltro({
         className="flex gap-2"
         onSubmit={(e) => {
           e.preventDefault();
-          ir(loja, situacao, busca);
+          ir({});
         }}
       >
         <Input
@@ -86,6 +97,32 @@ export function OrcamentosFiltro({
           Buscar
         </Button>
       </form>
+
+      <Select value={ordem} onValueChange={(v) => ir({ ordem: v })}>
+        <SelectTrigger aria-label="Ordem">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {ORDENS_DO_ORCAMENTO.map((o) => (
+            <SelectItem key={o.valor} value={o.valor}>
+              {o.rotulo}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <Select value={String(porPagina)} onValueChange={(v) => ir({ porPagina: Number(v) })}>
+        <SelectTrigger aria-label="Por página">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {TAMANHOS_DE_PAGINA.map((n) => (
+            <SelectItem key={n} value={String(n)}>
+              {n} por página
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 }

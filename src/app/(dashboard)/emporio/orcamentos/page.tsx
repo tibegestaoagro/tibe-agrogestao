@@ -19,7 +19,9 @@ import {
 } from "@/components/ui/table";
 import { NomeDoCliente, VendaLink } from "../_components/amarras";
 import { idDoClientePadrao } from "../_components/cliente-padrao";
+import { Paginacao } from "../_components/paginacao";
 import { OrcamentosFiltro } from "./_components/orcamentos-filtro";
+import { TAMANHOS_DE_PAGINA } from "./_components/paginacao-opcoes";
 import { SITUACOES_DO_ORCAMENTO } from "./_components/situacoes";
 
 const DATA_HORA = new Intl.DateTimeFormat("pt-BR", {
@@ -35,10 +37,20 @@ type Situacao = "acompanhamento" | "aberto" | "vencido" | "faturado" | "cancelad
 export default async function OrcamentosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ loja?: string; situacao?: string; q?: string }>;
+  searchParams: Promise<{
+    loja?: string;
+    situacao?: string;
+    q?: string;
+    pagina?: string;
+    por_pagina?: string;
+    ordem?: string;
+  }>;
 }) {
   const user = await requireFeaturePage("emporio");
-  const { loja = "", situacao = "", q = "" } = await searchParams;
+  const { loja = "", situacao = "", q = "", pagina = "", por_pagina = "", ordem: ordemUrl = "" } = await searchParams;
+  const porPagina = TAMANHOS_DE_PAGINA.find((n) => String(n) === por_pagina) ?? 20;
+  const ordem: "asc" | "desc" = ordemUrl === "asc" ? "asc" : "desc";
+  const paginaPedida = /^\d+$/.test(pagina) && Number(pagina) >= 1 ? Math.min(Number(pagina), 1_000_000) : 1;
   const filtro: Situacao = SITUACOES_DO_ORCAMENTO.some((s) => s.valor === situacao)
     ? (situacao as Situacao)
     : "acompanhamento";
@@ -55,11 +67,26 @@ export default async function OrcamentosPage({
       establishment_id: loja || undefined,
       q: q.trim() || undefined,
       situacao: filtro,
+      page: paginaPedida,
+      per_page: porPagina,
+      order: ordem,
     }),
   ]);
   const lojas = lojasRes.ok ? lojasRes.data.map((l) => ({ id: l.id, name: l.name })) : [];
   const orcamentos = res.ok ? res.data.linhas : [];
   const filtrado = filtro !== "acompanhamento" || !!loja || !!q.trim();
+
+  function hrefDe(n: number): string {
+    const p = new URLSearchParams();
+    if (loja) p.set("loja", loja);
+    if (filtro !== "acompanhamento") p.set("situacao", filtro);
+    if (q.trim()) p.set("q", q.trim());
+    if (porPagina !== 20) p.set("por_pagina", String(porPagina));
+    if (ordem !== "desc") p.set("ordem", ordem);
+    if (n > 1) p.set("pagina", String(n));
+    const texto = p.toString();
+    return texto ? `/emporio/orcamentos?${texto}` : "/emporio/orcamentos";
+  }
 
   return (
     <div className="space-y-6">
@@ -80,7 +107,7 @@ export default async function OrcamentosPage({
         )}
       </header>
 
-      <OrcamentosFiltro lojas={lojas} loja={loja} situacao={filtro} q={q} />
+      <OrcamentosFiltro lojas={lojas} loja={loja} situacao={filtro} q={q} porPagina={porPagina} ordem={ordem} />
 
       {!res.ok ? (
         <p className="rounded-lg bg-superficie-afundada px-4 py-3 text-sm text-texto-secundario">{res.message}</p>
@@ -130,6 +157,10 @@ export default async function OrcamentosPage({
             ))}
           </TableBody>
         </Table>
+      )}
+
+      {res.ok && orcamentos.length > 0 && (
+        <Paginacao page={res.data.page} perPage={res.data.per_page} total={res.data.total} hrefDe={hrefDe} />
       )}
     </div>
   );
