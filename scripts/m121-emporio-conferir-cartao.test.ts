@@ -1087,6 +1087,14 @@ async function secao14() {
   const ms = await parcela(A, c3, { net: 30, on: emDias(-4) });
   const P = await prismaCru();
   await P.cardReceivable.update({ where: { id: ms.id }, data: { reconciled_at: new Date(), reconciled_by_user_id: A.fin.id } });
+  // Uma antecipação pontual de antes da frente B: a parcela sem carimbo, com data de 10 dias atrás.
+  const An = await import("@/lib/actions/emporio-antecipacao");
+  const ma = await parcela(A, c3, { net: 30, on: emDias(3) });
+  const op = await An.anteciparAction(A.db, A.owner, { receivable_ids: [ma.id], operated_on: meioDia(hojeStr), received_net: 29 });
+  check("preparação: a antecipação pontual", op.ok, j(op).slice(0, 200));
+  const opId = op.ok ? ((op.data as Dado).id as string) : "x";
+  await P.cardReceivable.update({ where: { id: ma.id }, data: { reconciled_at: null, reconciled_by_user_id: null, confirmed_net: null, effective_on: dUTC(emDias(-10)) } });
+  const opRow = await P.cardAnticipation.findUnique({ where: { id: opId } });
   const fs = await import("node:fs");
   const path = await import("node:path");
   const sql = fs.readFileSync(path.join(process.cwd(), "prisma/migrations/20261117200000_emporio_conferir_cartao/migration.sql"), "utf8");
@@ -1094,8 +1102,8 @@ async function secao14() {
     .split(";")
     .map((s: string) => s.split("\n").filter((l: string) => !l.trim().startsWith("--")).join("\n").trim())
     .filter((s: string) => s.startsWith("UPDATE"));
-  check("a migração tem os dois UPDATE da Q353", updates.length === 2, String(updates.length));
-  const ids = [m8.id, m7.id, m6.id, mc.id, ms.id];
+  check("a migração tem os três UPDATE da Q353", updates.length === 3, String(updates.length));
+  const ids = [m8.id, m7.id, m6.id, mc.id, ms.id, ma.id];
   let lidas: Dado[] = [];
   const DESFAZ = "m121-desfaz-a-migracao";
   try {
@@ -1113,7 +1121,13 @@ async function secao14() {
   check("6 dias atrás: fica para conferir", de(m6.id)?.reconciled_at === null, j(de(m6.id)));
   check("a cancelada fica fora", de(mc.id)?.reconciled_at === null && de(mc.id)?.confirmed_net === null, j(de(mc.id)));
   check("a já carimbada ganha confirmed_net = previsto e segue com o autor", perto(n(de(ms.id)?.confirmed_net), 30) && de(ms.id)?.reconciled_by_user_id === A.fin.id, j(de(ms.id)));
+  const da = de(ma.id);
+  check("a antecipação pontual antiga ganha o carimbo da operação (created_at) e o autor dela, não o now() da migração", !!da?.reconciled_at && !!opRow && new Date(da.reconciled_at).getTime() === new Date(opRow.created_at).getTime() && da.reconciled_by_user_id === opRow.created_by_user_id && perto(n(da.confirmed_net), n(da.effective_net)), j([da?.reconciled_at, opRow?.created_at, da?.reconciled_by_user_id]));
   check("a transação foi desfeita: a de 8 dias segue sem carimbo no banco", (await lerParcela(m8.id)).reconciled_at === null);
+  // Com o carimbo da operação, o desfazer da antecipação reconhece a conferência como dela.
+  await P.cardReceivable.update({ where: { id: ma.id }, data: { reconciled_at: opRow?.created_at ?? new Date(), reconciled_by_user_id: opRow?.created_by_user_id ?? null } });
+  const rx = await An.desfazerAntecipacaoAction(A.db, A.owner, opId);
+  check("e a antecipação com o carimbo que a migração dá se desfaz", rx.ok, j(rx).slice(0, 200));
 }
 
 // ---------------------------------------------------------------------------

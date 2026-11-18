@@ -259,6 +259,9 @@ if D3 and D3 >= (datetime.date.fromisoformat(hoje_iso) - datetime.timedelta(days
     confere("a parcela ja conferida (R$ 50,00, de " + br(D3) + ", ate 7 dias atras) fica na lista como Conferida, com Desfazer", "conferida" in linha_cartao("R$ 50,00").lower() and botoes_da_linha("R$ 50,00") == ["Desfazer"], [linha_cartao("R$ 50,00"), botoes_da_linha("R$ 50,00")])
 else:
     confere("a parcela ja conferida (R$ 50,00, de " + br(D3) + ", mais de 7 dias atras) sai da lista", linha_cartao("R$ 50,00") == "", linha_cartao("R$ 50,00"))
+# O rodape soma so a Prevista como a receber; o que ja caiu (A conferir e Atrasada) vem separado; a Conferida fica fora.
+rodape = texto_do_main()
+confere("o rodape dos cartoes: 'Total a receber: R$ 70,00' (so a Prevista) e 'Ja caiu, a conferir: R$ 570,00' (80 + 90 + 100 + 200 + 60 + 40)", "Total a receber: R$ 70,00. Já caiu, a conferir: R$ 570,00" in rodape, re.findall(r"Total a receber[^\n]*", rodape))
 confere("a Atrasada e a A conferir trazem o botao Conferir", botoes_da_linha("R$ 100,00") == ["Conferir"] and botoes_da_linha("R$ 80,00") == ["Conferir"], [botoes_da_linha("R$ 100,00"), botoes_da_linha("R$ 80,00")])
 confere("a Prevista nao tem botao de conferir", "Conferir" not in (botoes_da_linha("R$ 70,00") or []), botoes_da_linha("R$ 70,00"))
 conferir_dia_d1 = itens_do_dia(D1_BR)

@@ -62,7 +62,10 @@ export function CartoesAReceber({
   lojasQueAntecipam: string[];
 }) {
   const [marcadas, setMarcadas] = useState<string[]>([]);
-  const totalCartoes = cards.reduce((s, p) => s + Math.round(p.effective_net * 100), 0) / 100;
+  // O rodapé separa o que ainda vai cair do que já caiu e espera conferência; a conferida fica de fora (já está na conta).
+  const somaDe = (xs: CartaoAReceberView[]) => xs.reduce((s, p) => s + Math.round(p.effective_net * 100), 0) / 100;
+  const totalCartoes = somaDe(cards.filter((p) => p.status === "prevista"));
+  const totalAConferir = somaDe(cards.filter((p) => p.status === "a_conferir" || p.status === "atrasada"));
   const podeMarcar = (p: CartaoAReceberView) =>
     !p.anticipated && !p.received && lojasQueAntecipam.includes(p.establishment_id);
   const selecionadas = cards.filter((p) => marcadas.includes(p.id));
@@ -237,6 +240,12 @@ export function CartoesAReceber({
             </Table>
             <p className="text-sm text-texto">
               Total a receber: <strong>{reaisBr(totalCartoes)}</strong>
+              {totalAConferir > 0 && (
+                <>
+                  {". Já caiu, a conferir: "}
+                  <strong>{reaisBr(totalAConferir)}</strong>
+                </>
+              )}
             </p>
           </>
         )}
