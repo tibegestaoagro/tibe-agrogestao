@@ -117,6 +117,7 @@ export async function lerFluxoProjetadoAction(
     select: { good_for: true, amount: true },
   });
   for (const c of cheques) {
+    if (!c.good_for) continue; // o filtro já exclui o nulo (A completar, Q354); o tipo pede a guarda
     const i = semanaDoDia(dia(c.good_for));
     if (i >= 0) acc[i].checks += centavos(decToNum(c.amount) ?? 0);
   }

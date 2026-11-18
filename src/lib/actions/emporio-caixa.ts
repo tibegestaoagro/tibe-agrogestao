@@ -16,6 +16,7 @@ import {
 } from "@/lib/actions/emporio-cartoes";
 import { lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
 import { diferencas, dinheiro, registrarNoHistorico } from "@/lib/emporio/historico";
+import { chequeIncompleto } from "@/lib/emporio/cheque";
 import { diaUtc, vencimentoEfetivo } from "@/lib/emporio/fiado";
 import { acharLojaParaEscrita } from "@/lib/actions/emporio-estoque";
 import { CATEGORIA_VENDAS } from "@/lib/actions/emporio-vendas";
@@ -1138,12 +1139,15 @@ export type ChequeView = {
   customer_id: string;
   customer_name: string;
   establishment_id: string;
-  number: string;
+  /** Q354: nulo enquanto o Financeiro não completa. */
+  number: string | null;
   /** Q284: em nome de quem é o cheque. */
   holder_name: string;
-  bank: string;
-  /** Data de calendário (AAAA-MM-DD). */
-  good_for: string;
+  bank: string | null;
+  /** Data de calendário (AAAA-MM-DD); nulo enquanto o cheque está "A completar". */
+  good_for: string | null;
+  /** "A completar": recebido e com número, banco ou bom para faltando. */
+  incomplete: boolean;
   amount: number;
   status: string;
   bank_account_id: string | null;
@@ -1329,10 +1333,10 @@ type ChequeRow = {
   sale_payment_id: string;
   customer_id: string | null;
   establishment_id: string;
-  number: string;
+  number: string | null;
   holder_name: string;
-  bank: string;
-  good_for: Date;
+  bank: string | null;
+  good_for: Date | null;
   amount: unknown;
   status: string;
   bank_account_id: string | null;
@@ -1356,7 +1360,8 @@ function viewDoCheque(c: ChequeRow): ChequeView {
     number: c.number,
     holder_name: c.holder_name,
     bank: c.bank,
-    good_for: dia(c.good_for),
+    good_for: c.good_for ? dia(c.good_for) : null,
+    incomplete: chequeIncompleto(c),
     amount: decToNum(c.amount as never) ?? 0,
     status: c.status,
     bank_account_id: c.bank_account_id,
@@ -1470,7 +1475,8 @@ export async function lerCaixaAction(
       establishment_id: opts.establishment_id ? opts.establishment_id : { in: lojas.map((l) => l.id) },
     },
     include: { customer: { select: { name: true } }, sale: { select: { number: true } } },
-    orderBy: [{ good_for: "asc" }, { created_at: "asc" }],
+    // O "A completar" (sem data) vai ao topo, destacado, em vez de sumir no fim.
+    orderBy: [{ good_for: { sort: "asc", nulls: "first" } }, { created_at: "asc" }],
   });
 
   const lojaIds = opts.establishment_id ? [opts.establishment_id] : lojas.map((l) => l.id);
@@ -1839,6 +1845,16 @@ const NOME_DO_STATUS: Record<string, string> = {
 const FORA_DE_ORDEM = (status: string) =>
   fail("CHECK_STATUS", `Esse cheque está ${NOME_DO_STATUS[status] ?? status} e não pode seguir para essa etapa.`, 409);
 
+/** "cheque 123", ou "cheque sem número" enquanto o número não foi completado (Q354). */
+const nomeDoCheque = (numero: string | null) => (numero ? `cheque ${numero}` : "cheque sem número");
+
+const FORA_DA_CARTEIRA = (status: string) =>
+  fail(
+    "CHEQUE_FORA_DA_CARTEIRA",
+    `Esse cheque está ${NOME_DO_STATUS[status] ?? status}: só dá para completar ou corrigir cheque recebido.`,
+    409,
+  );
+
 const STATUS_DE_CHEQUE = ["recebido", "depositado", "compensado", "devolvido", "devolvido_ao_cliente"] as const;
 
 export async function listarChequesAction(
@@ -1860,7 +1876,7 @@ export async function listarChequesAction(
       ...(opts.status ? { status: opts.status as (typeof STATUS_DE_CHEQUE)[number] } : {}),
     },
     include: { customer: { select: { name: true } }, sale: { select: { number: true } } },
-    orderBy: [{ good_for: "asc" }, { created_at: "asc" }],
+    orderBy: [{ good_for: { sort: "asc", nulls: "first" } }, { created_at: "asc" }],
   });
   return ok(cheques.map(viewDoCheque));
 }
@@ -1890,6 +1906,9 @@ export async function depositarChequeAction(
   const cheque = await acharCheque(db, ator, id);
   if (!cheque) return NAO_ACHADO("Cheque");
   if (cheque.status !== "recebido") return FORA_DE_ORDEM(cheque.status);
+  if (chequeIncompleto(cheque)) {
+    return fail("CHEQUE_INCOMPLETO", "Complete o número, o banco e o bom para antes de depositar.", 409);
+  }
   const conta =
     typeof input?.bank_account_id === "string" && input.bank_account_id
       ? await db.bankAccount.findFirst({ where: { id: input.bank_account_id }, select: { id: true, archived_at: true } })
@@ -1909,11 +1928,118 @@ export async function depositarChequeAction(
         establishment_id: cheque.establishment_id,
         target_type: "cheque",
         target_id: id,
-        summary: `Depositou o cheque ${cheque.number} de ${dinheiro(decToNum(cheque.amount) ?? 0)}`,
+        summary: `Depositou o ${nomeDoCheque(cheque.number)} de ${dinheiro(decToNum(cheque.amount) ?? 0)}`,
       });
     });
   } catch (err) {
     if (err instanceof RecusaCaixa) return FORA_DE_ORDEM((await acharCheque(db, ator, id))?.status ?? "recebido");
+    throw err;
+  }
+  return chequePorId(db, id);
+}
+
+const NAO_APAGA = "Não dá para apagar: troque por outro valor.";
+
+/**
+ * Completar ou corrigir (Q354, Q355): só em `recebido`. Pode deixar vazio o que
+ * ainda falta; não apaga o que já tem nem esvazia o nome.
+ */
+export async function completarChequeAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  id: string,
+  input: { number?: string | null; bank?: string | null; good_for?: Date | null; holder_name?: string | null },
+): Promise<ActionResult<ChequeView>> {
+  const achado = await db.emporioCheck.findFirst({ where: { id }, select: { establishment_id: true } });
+  if (!achado) return NAO_ACHADO("Cheque");
+  const neg = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "completar o cheque", achado.establishment_id);
+  if (neg) return neg;
+
+  const dado = input ?? {};
+  const informou = (v: unknown) => v !== undefined;
+  if (![dado.number, dado.bank, dado.good_for, dado.holder_name].some(informou)) {
+    return fail("VALIDATION_ERROR", "Informe ao menos um dado do cheque.", 422, "number");
+  }
+  const limpo = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
+  const numero = limpo(dado.number);
+  const banco = limpo(dado.bank);
+  const titular = limpo(dado.holder_name);
+  if (informou(dado.holder_name) && titular === null) return fail("VALIDATION_ERROR", NAO_APAGA, 422, "holder_name");
+  if (numero !== null && numero.length > 30) {
+    return fail("VALIDATION_ERROR", "O número do cheque aceita até 30 caracteres.", 422, "number");
+  }
+  if (banco !== null && banco.length > 60) {
+    return fail("VALIDATION_ERROR", "O banco do cheque aceita até 60 caracteres.", 422, "bank");
+  }
+  if (titular !== null && titular.length > 120) {
+    return fail("VALIDATION_ERROR", "O nome do titular do cheque aceita até 120 letras.", 422, "holder_name");
+  }
+  const dataInformada = dado.good_for !== null && dado.good_for !== undefined;
+  if (dataInformada && !(dado.good_for instanceof Date && !Number.isNaN(dado.good_for.getTime()))) {
+    return fail("VALIDATION_ERROR", "Informe uma data válida.", 422, "good_for");
+  }
+
+  try {
+    await runSerializableTenantTransaction(db, async (tx) => {
+      const c = await tx.emporioCheck.findFirst({ where: { id } });
+      if (!c) throw new RecusaCaixa(NAO_ACHADO("Cheque"));
+      if (c.status !== "recebido") throw new RecusaCaixa(FORA_DA_CARTEIRA(c.status));
+      // Esvaziar o que já tem é recusado; esvaziar o que falta é só não completar.
+      if (informou(dado.number) && numero === null && c.number !== null) {
+        throw new RecusaCaixa(fail("VALIDATION_ERROR", NAO_APAGA, 422, "number"));
+      }
+      if (informou(dado.bank) && banco === null && c.bank !== null) {
+        throw new RecusaCaixa(fail("VALIDATION_ERROR", NAO_APAGA, 422, "bank"));
+      }
+      if (informou(dado.good_for) && !dataInformada && c.good_for !== null) {
+        throw new RecusaCaixa(fail("VALIDATION_ERROR", NAO_APAGA, 422, "good_for"));
+      }
+      if (numero === null && banco === null && titular === null && !dataInformada) {
+        throw new RecusaCaixa(fail("VALIDATION_ERROR", "Informe ao menos um dado do cheque.", 422, "number"));
+      }
+
+      const novo = {
+        number: numero ?? c.number,
+        bank: banco ?? c.bank,
+        good_for: dataInformada ? (dado.good_for as Date) : c.good_for,
+        holder_name: titular ?? c.holder_name,
+      };
+      const foto = (o: { number: string | null; bank: string | null; good_for: Date | null; holder_name: string }) => ({
+        number: o.number,
+        bank: o.bank,
+        good_for: o.good_for ? dia(o.good_for) : null,
+        holder_name: o.holder_name,
+      });
+      const mudancas = diferencas(
+        foto(c),
+        foto(novo),
+        { number: "Número", bank: "Banco", good_for: "Bom para", holder_name: "Em nome de" },
+      );
+      const r = await tx.emporioCheck.updateMany({
+        where: { id, status: "recebido" },
+        data: { ...novo, updated_by_user_id: ator.id },
+      });
+      if (r.count === 0) throw new RecusaCaixa(FORA_DA_CARTEIRA("depositado"));
+      if (mudancas.length === 0) return;
+      const eraIncompleto = chequeIncompleto(c);
+      await registrarNoHistorico(tx, ator, {
+        action: "cheque.completar",
+        establishment_id: c.establishment_id,
+        target_type: "cheque",
+        target_id: id,
+        summary: `${eraIncompleto ? "Completou" : "Corrigiu"} o ${nomeDoCheque(novo.number)} de ${dinheiro(decToNum(c.amount) ?? 0)}`,
+        changes: mudancas,
+      });
+    });
+  } catch (err) {
+    if (err instanceof RecusaCaixa) {
+      // O status pode ter mudado entre a leitura e a gravação: diga o de agora.
+      if (err.recusa.ok === false && err.recusa.code === "CHEQUE_FORA_DA_CARTEIRA") {
+        const agora = await db.emporioCheck.findFirst({ where: { id }, select: { status: true } });
+        if (agora) return FORA_DA_CARTEIRA(agora.status);
+      }
+      return err.recusa;
+    }
     throw err;
   }
   return chequePorId(db, id);
@@ -1956,7 +2082,7 @@ export async function compensarChequeAction(
         establishment_id: cheque.establishment_id,
         target_type: "cheque",
         target_id: id,
-        summary: `Compensou o cheque ${cheque.number} de ${dinheiro(decToNum(cheque.amount) ?? 0)}`,
+        summary: `Compensou o ${nomeDoCheque(cheque.number)} de ${dinheiro(decToNum(cheque.amount) ?? 0)}`,
       });
     });
   } catch (err) {
@@ -1999,7 +2125,7 @@ export async function chequeVoltouAction(
         establishment_id: cheque.establishment_id,
         target_type: "cheque",
         target_id: id,
-        summary: `Marcou o cheque ${cheque.number} de ${dinheiro(decToNum(cheque.amount) ?? 0)} como devolvido: ${motivo}`,
+        summary: `Marcou o ${nomeDoCheque(cheque.number)} de ${dinheiro(decToNum(cheque.amount) ?? 0)} como devolvido: ${motivo}`,
       });
       if (!cheque.financial_payment_id) return;
 
@@ -2038,7 +2164,7 @@ export async function chequeVoltouAction(
           establishment_id: cheque.establishment_id,
           target_type: "cheque",
           target_id: id,
-          summary: `O valor do cheque ${cheque.number} (${dinheiro(valor)}) virou parcela extra do acordo de fiado do cliente`,
+          summary: `O valor do ${nomeDoCheque(cheque.number)} (${dinheiro(valor)}) virou parcela extra do acordo de fiado do cliente`,
         });
         return;
       }

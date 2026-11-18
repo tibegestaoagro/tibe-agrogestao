@@ -420,10 +420,18 @@ export default async function VendaPage({ params }: { params: Promise<{ id: stri
                   )}
                   {p.check && (
                     <>
-                      Cheque nº {p.check.number}, {p.check.bank}
-                      <span className="block text-xs text-texto-secundario">
-                        bom para {DATA.format(new Date(p.check.good_for))}
-                      </span>
+                      {/* Fora da carteira (cancelado, voltou) o cheque não é "a completar", mas pode seguir sem número ou banco. */}
+                      {p.check.incomplete ? "Cheque a completar" : `Cheque nº ${p.check.number ?? "-"}, ${p.check.bank ?? "-"}`}
+                      {p.check.incomplete && (p.check.number || p.check.bank) && (
+                        <span className="block text-xs text-texto-secundario">
+                          {[p.check.number ? `nº ${p.check.number}` : null, p.check.bank].filter(Boolean).join(", ")}
+                        </span>
+                      )}
+                      {p.check.good_for && (
+                        <span className="block text-xs text-texto-secundario">
+                          bom para {DATA.format(new Date(p.check.good_for))}
+                        </span>
+                      )}
                       <span className="block text-xs text-texto-secundario">Em nome de {p.check.holder_name}</span>
                       <Badge variant={p.check.status === "compensado" ? "green" : p.check.status.startsWith("devolvido") ? "red" : "amber"}>
                         {CHEQUE_SITUACAO_ROTULO[p.check.status] ?? p.check.status}

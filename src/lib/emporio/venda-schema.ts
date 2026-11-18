@@ -8,9 +8,15 @@ import { BANDEIRAS } from "@/lib/emporio/cartao";
  * a regra de negócio é da action, que revalida em TypeScript puro.
  */
 
+// Data só de dia (AAAA-MM-DD) tem de existir no calendário: `Date.parse("2026-02-31")` é aceito e o
+// `new Date` rola para 03/03, gravando outra data em silêncio (achado da m122, 18/11/2026).
+const DIA_SO = /^\d{4}-\d{2}-\d{2}$/;
 export const dataIso = z
   .string({ error: "Informe uma data válida." })
-  .refine((v) => !Number.isNaN(Date.parse(v)), "Informe uma data válida.")
+  .refine(
+    (v) => !Number.isNaN(Date.parse(v)) && (!DIA_SO.test(v) || new Date(`${v}T00:00:00.000Z`).toISOString().slice(0, 10) === v),
+    "Informe uma data válida.",
+  )
   .transform((v) => new Date(v));
 
 /** O caixa (`cash_register_id`) opcional das operações de dinheiro da gaveta. */
@@ -49,7 +55,7 @@ export const pagamentoDeVendaSchema = z.object({
   /** Cartão (Q254): sem a adquirente vale a única com taxa vigente; sem a bandeira, só a linha `qualquer`. */
   acquirer_id: z.string().nullish(),
   brand: z.enum(BANDEIRAS, { error: "Escolha uma bandeira válida." }).nullish(),
-  /** Cheque: número, banco, "bom para" e o titular (Q284). Os quatro são exigidos pela action (422 `payments`). */
+  /** Cheque: titular (Q284, obrigatório na action) e número, banco e "bom para" opcionais (Q354: o Financeiro completa depois). */
   check: z
     .object({
       number: z.string().nullish(),

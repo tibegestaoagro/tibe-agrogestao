@@ -74,6 +74,8 @@ export type HojeView = {
   /** Frente B: parcelas de cartão a conferir (já caíram, dentro do prazo) e atrasadas (passou 1 dia útil sem conferência). */
   cards_to_confirm: { count: number; total: number };
   cards_overdue: { count: number; total: number };
+  /** Frente C: cheques "A completar" (recebidos, com número, banco ou bom para faltando), nas lojas visíveis ou na do filtro. */
+  checks_to_complete: { count: number; total: number };
 };
 
 export type CartaoAReceberView = {
@@ -280,6 +282,14 @@ export async function lerResumoHojeAction(
     where: { status: { in: ["recebido", "depositado"] }, good_for: { lte: hoje }, ...lojasDoFiltro },
     select: { amount: true },
   });
+  const aCompletar = await db.emporioCheck.findMany({
+    where: {
+      status: "recebido",
+      OR: [{ number: null }, { bank: null }, { good_for: null }],
+      ...(lojaId ? { establishment_id: lojaId } : visiveis ? { establishment_id: { in: [...visiveis] } } : {}),
+    },
+    select: { amount: true },
+  });
   const boletos = await db.emporioBoleto.findMany({
     where: { status: "aberto", due_on: { lte: hoje }, ...lojasDoFiltro },
     select: { amount: true },
@@ -345,6 +355,10 @@ export async function lerResumoHojeAction(
     unreconciled: { count: semCarimbo.length, total: semCarimbo.reduce((s, v) => s + centavos(Math.abs(decToNum(v) ?? 0)), 0) / 100 },
     cards_to_confirm: doEstado("a_conferir"),
     cards_overdue: doEstado("atrasada"),
+    checks_to_complete: {
+      count: aCompletar.length,
+      total: aCompletar.reduce((s, c) => s + centavos(decToNum(c.amount) ?? 0), 0) / 100,
+    },
   });
 }
 
@@ -401,10 +415,11 @@ export async function listarContasAReceberAction(
     return com.map((c) => ({ cent: centavos(c[campo]) }));
   };
   const doCheque = (c: ChequeView) => ({ cent: centavos(c.amount), em: c.good_for });
-  const doBoleto = (b: BoletoView) => ({ cent: centavos(b.amount), em: b.due_on });
+  const doBoleto = (b: BoletoView) => ({ cent: centavos(b.amount), em: b.due_on as string | null });
+  // O cheque sem data (A completar, Q354) não tem vencimento: fica fora de todas as faixas.
   const recorte = (f: (em: string) => boolean) => [
-    ...cheques.map(doCheque).filter((x) => f(x.em)),
-    ...boletos.data.map(doBoleto).filter((x) => f(x.em)),
+    ...cheques.map(doCheque).filter((x) => x.em !== null && f(x.em)),
+    ...boletos.data.map(doBoleto).filter((x) => x.em !== null && f(x.em)),
   ];
   const doCartao = (f: (em: string) => boolean) =>
     parcelas.filter((p) => f(dia(p.effective_on))).map((p) => ({ cent: centavos(decToNum(p.effective_net) ?? 0) }));

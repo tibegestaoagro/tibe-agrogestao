@@ -142,7 +142,6 @@ redescobertos como defeito.
 | 2.76 | comissão por vendedor (frente F): fora até a Agromax definir a regra | Q341, Q344 | regra de comissão por vendedor, por produto ou por margem, no Resultado e no relatório de vendas |
 | 2.75 | **frente H, curva ABC**, aprovada no ciclo de 17/11/2026 e não feita: produtos e clientes por loja e período, no Relatórios | Q341 | relatório novo sobre as vendas que já existem; sem migração |
 | 2.74 | **frente D, balcão rápido**, aprovada no ciclo de 17/11/2026 e não feita: atalhos de teclado com legenda no rodapé do balcão, código de barras por apresentação com leitor e, depois, etiqueta de prateleira | Q341 | migração para o código de barras na apresentação; atalhos e leitor na tela do balcão |
-| 2.73 | **frente C, cheque em duas etapas**, aprovada no ciclo de 17/11/2026 e não feita: na venda só valor e nome (do cliente da venda), com a opção "cheque de terceiros" para digitar outro nome; número, banco e bom para completados depois pelo Financeiro, e o cheque incompleto destacado. A Q343 precisa ser confirmada na spec da frente | Q341, Q343 | migração (campos do cheque opcionais), venda, carteira de cheques e tela de completar |
 | 2.72 | a projeção do financeiro (`src/lib/actions/emporio-projecao.ts`) deu 500 com um modelo de despesa fixa sem rateio entre lojas; visto só depois de apagar lojas direto no banco local com as chaves desligadas, e provavelmente inalcançável pelas telas | manual do Empório, 17/11/2026 | confirmar se alguma tela deixa o modelo sem rateio; se deixar, a projeção pula o modelo em vez de quebrar |
 | 2.71 | a compra não propõe atualizar o preço de venda quando o custo novo muda o preço sugerido: quem lança a compra ajusta o preço à mão na formação de preço (o aviso de 10%, Q295, saiu em 11/11/2026 com a Q299) | dois custos, 10/11/2026 | na tela da compra, por item, "o sugerido passou de R$ X para R$ Y: atualizar?" |
 | 2.70 | **fechada em 10/11/2026** (a causa não era o grupo do menu: desde a Q190 a equipe da loja só abre o Empório e o cliente mora em `/emporio/clientes`; a conferência passou a exigir Clientes, Contatos fora e `/contatos` levando ao Empório; 106 checks, sabotada: 2 falhas): o roteiro `emporio-f6b` reprova em "o menu tem Meu Empório e Contatos": abre só o grupo Operação e o link /contatos fica em outro grupo do menu (a conferência não rodava desde a 2.68; não é efeito do boleto) | roteiros, 10/11/2026 | abrir o grupo onde fica Contatos antes de ler o menu, ou conferir pelo `src/lib/nav.ts` |
@@ -331,6 +330,23 @@ Registrado em 07/11/2026, na branch `emporio-entrega-e-romaneio` (plano 3 de 3).
 - A suíte `m97` não cobre PJ sem documento nem `person_kind` nulo no resolver, e
   a seção 3 confere o `field` mas não a mensagem exata do principal incompleto e
   do "outro" sem bairro.
+
+### 5.24 Empório, cheque em duas etapas (frente C, Q354 a Q356): o que ficou para depois
+
+Registrado em 18/11/2026, na branch `emporio-cheque-duas-etapas` (juiz com
+os achados importantes corrigidos). A 2.73 saiu da lista com esta frente.
+- **"No topo da lista":** só o cheque sem bom para vai ao topo da carteira.
+  O que tem data e falta número ou banco ordena pela data, com o selo. A spec
+  diz as duas coisas (linhas 92 e 148); confirmar com o usuário.
+- **O link do cartão "A completar" no Hoje** abre o A receber da loja inteiro,
+  sem filtro de "A completar" (a spec diz "carteira filtrada"). Um
+  `?ver=a_completar` mexe na faixa de recortes, no fiado e no cartão.
+- **A corrida completar contra depositar** está protegida (transação
+  serializável e `updateMany` com `status: "recebido"`), mas nenhuma suíte
+  dispara os dois em paralelo.
+- **Turbopack em laço no `/emporio/vender`** (Next 16.4.3, nesta máquina): a
+  página recarregava sem parar e não hidratava. O roteiro rodou com
+  `npx next dev --webpack`. Não investigado.
 
 ### 5.23 Empório, conferir o cartão (frente B, Q349 a Q353): o que ficou para depois
 

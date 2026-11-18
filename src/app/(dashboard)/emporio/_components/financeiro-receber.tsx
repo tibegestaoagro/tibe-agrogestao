@@ -72,7 +72,7 @@ export function FinanceiroReceber({
     return datas[0] ?? c.oldest_due_date;
   };
   const fiado = ver ? dados.fiado.filter((c) => doRecorte(c) > 0) : dados.fiado;
-  const cheques = ver ? dados.checks.filter((c) => noRecorte(ver, hoje, c.good_for)) : dados.checks;
+  const cheques = ver ? dados.checks.filter((c) => c.good_for !== null && noRecorte(ver, hoje, c.good_for)) : dados.checks;
   // Vencido do cartão é a parcela atrasada; Hoje inclui o que já caiu e espera conferência.
   const cartoes = ver
     ? dados.cards.filter((p) =>
@@ -193,9 +193,9 @@ export function FinanceiroReceber({
               {cheques.map((c) => (
                 <TableRow key={c.id}>
                   <TableCell className="font-medium text-texto">
-                    nº {c.number}
+                    nº {c.number ?? "-"}
                     <span className="block text-xs font-normal text-texto-secundario">
-                      {c.bank}, {nomeDaLoja.get(c.establishment_id) ?? "Loja"}
+                      {c.bank ?? "-"}, {nomeDaLoja.get(c.establishment_id) ?? "Loja"}
                     </span>
                   </TableCell>
                   <TableCell>
@@ -203,19 +203,25 @@ export function FinanceiroReceber({
                     <span className="block text-xs text-texto-secundario">Em nome de {c.holder_name}</span>
                     <VendaLink id={c.sale_id} numero={c.sale_number} className="block text-xs" />
                   </TableCell>
-                  <TableCell>{dataBr(c.good_for)}</TableCell>
+                  <TableCell>{c.good_for ? dataBr(c.good_for) : "-"}</TableCell>
                   <TableCell>{reaisBr(c.amount)}</TableCell>
-                  <TableCell>
+                  <TableCell className="space-y-1">
                     <Badge variant={c.status === "depositado" ? "blue" : "amber"}>
                       {CHEQUE_SITUACAO_ROTULO[c.status] ?? c.status}
                     </Badge>
+                    {c.incomplete && (
+                      <Badge variant="red" className="ml-1">
+                        A completar
+                      </Badge>
+                    )}
                   </TableCell>
                   <TableCell>
                     <ChequeAcoes
                       chequeId={c.id}
-                      numero={c.number}
+                      cheque={c}
                       situacao={c.status}
                       contas={contasDoBanco}
+                      podeCompletar={pode(papel, "dinheiro") || pode(papel, "gestor_da_loja", c.establishment_id)}
                       podeDepositar={pode(papel, "chave:depositar_cheque", c.establishment_id) || pode(papel, "dinheiro")}
                       ehAdmin={pode(papel, "gestor_da_loja", c.establishment_id) || pode(papel, "dinheiro")}
                     />

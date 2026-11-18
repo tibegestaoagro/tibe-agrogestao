@@ -206,7 +206,7 @@ export type CorpoDaVenda = {
     brand?: Bandeira;
     /** PIX: a conta que recebe. Omitida sem conta liberada: o servidor recusa. */
     bank_account_id?: string;
-    check?: { number: string; bank: string; good_for: string; holder_name: string };
+    check?: { number?: string; bank?: string; good_for?: string; holder_name: string };
     boleto?: { due_on: string; number?: string };
   }[];
   /** Frete cobrado do cliente (Q244). O balcão manda sempre, zero inclusive (Q326). */
@@ -307,7 +307,7 @@ export function inicialDaVenda(
         parcelas: String(p.installments ?? 2),
         chequeNumero: p.check?.number ?? "",
         chequeBanco: p.check?.bank ?? "",
-        chequeBomPara: p.check ? p.check.good_for.slice(0, 10) : "",
+        chequeBomPara: p.check?.good_for ? p.check.good_for.slice(0, 10) : "",
         chequeTitular: p.check?.holder_name ?? "",
         chequeTitularEditado: !!p.check && p.check.holder_name !== cliente?.name,
         // O pagamento antigo sem adquirente e bandeira vem vazio: quem edita escolhe de novo.
@@ -895,9 +895,6 @@ export function useVenda({
     if (semAdquirente) novos.acquirer_id = "Escolha a adquirente do cartão.";
     const semBandeira = cartoes.find((p) => p.bandeira === "");
     const semTaxa = cartoes.find((p) => p.bandeira !== "" && adquirenteDe(p) !== "" && taxaDe(p) === null);
-    const chequeIncompleto = pagamentos.some(
-      (p) => p.kind === "cheque" && (!p.chequeNumero.trim() || !p.chequeBanco.trim() || !p.chequeBomPara),
-    );
     const chequeSemTitular = pagamentos.some((p) => p.kind === "cheque" && !p.chequeTitular.trim());
     const boletoSemVencimento = pagamentos.some((p) => p.kind === "boleto" && !p.vencimento);
     const boletoAntesDoDia = pagamentos.some((p) => p.kind === "boleto" && p.vencimento && p.vencimento < diaDeHoje());
@@ -913,8 +910,6 @@ export function useVenda({
       novos.payments = "Esta loja não tem taxa de cartão cadastrada. Cadastre em Configurações, Cartões.";
     } else if (semTaxa) {
       novos.payments = `Sem taxa para ${semTaxa.bandeira === "" ? "" : ROTULO_DA_BANDEIRA[semTaxa.bandeira]}, ${CARTAO_NOME[semTaxa.kind] ?? "cartão"}: cadastre em Configurações.`;
-    } else if (chequeIncompleto) {
-      novos.payments = "Informe o número, o banco e a data do cheque (bom para).";
     } else if (chequeSemTitular) {
       novos.payments = "Informe em nome de quem é o cheque.";
     } else if (boletoSemVencimento) {
@@ -956,9 +951,9 @@ export function useVenda({
               ...(p.kind === "cheque"
                 ? {
                     check: {
-                      number: p.chequeNumero.trim(),
-                      bank: p.chequeBanco.trim(),
-                      good_for: p.chequeBomPara,
+                      ...(p.chequeNumero.trim() ? { number: p.chequeNumero.trim() } : {}),
+                      ...(p.chequeBanco.trim() ? { bank: p.chequeBanco.trim() } : {}),
+                      ...(p.chequeBomPara ? { good_for: p.chequeBomPara } : {}),
                       holder_name: p.chequeTitular.trim(),
                     },
                   }

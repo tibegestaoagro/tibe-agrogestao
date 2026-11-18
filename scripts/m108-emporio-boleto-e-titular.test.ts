@@ -246,10 +246,15 @@ async function main() {
     // -------------------------------------------------------------------- 3
     await rodar("titular do cheque", async () => {
       console.log("\n3. Cheque com titular (Q284)");
-      const v0 = await A.db.emporioSale.count();
       const ck = { number: "1234", bank: "Sicredi", good_for: somaDias(hojeStr, 15) };
       const rSem = await vender(A, C1, 10, [{ kind: "cheque", amount: 100, check: ck }]);
       check("cheque sem holder_name: 422 em payments", erro(rSem, 422, "payments"), `${rSem.status} ${j(rSem.corpo)}`);
+      // Frente C (Q354): sem número, banco ou data o cheque entra "A completar", só o nome segue obrigatório.
+      const faltas = await vender(A, C1, 10, [{ kind: "cheque", amount: 100, check: { holder_name: "Titular Teste" } }]);
+      check("cheque só com holder_name (sem número, banco e data): 201", faltas.status === 201, `${faltas.status} ${j(faltas.corpo)}`);
+      const chFaltas = await A.db.emporioCheck.findFirst({ where: { sale_id: idVenda(faltas) } });
+      check("o cheque nasce A completar: número, banco e bom para nulos", !!chFaltas && chFaltas.number === null && chFaltas.bank === null && chFaltas.good_for === null, j(chFaltas));
+      const v0 = await A.db.emporioSale.count();
       const rVazio = await vender(A, C1, 10, [{ kind: "cheque", amount: 100, check: { ...ck, holder_name: "   " } }]);
       check("cheque com holder_name em branco: 422 em payments", erro(rVazio, 422, "payments"), `${rVazio.status} ${j(rVazio.corpo)}`);
       const rLongo = await vender(A, C1, 10, [{ kind: "cheque", amount: 100, check: { ...ck, holder_name: "x".repeat(121) } }]);

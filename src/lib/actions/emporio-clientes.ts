@@ -624,7 +624,7 @@ async function leituraFinanceiraDoCliente(
     abertos.reduce((s, b) => s + centavos(Number(b.amount)), 0);
   const vencidoCent =
     centavos(doFiado?.overdue_amount ?? 0) +
-    carteira.filter((c) => diaIso(c.good_for) < hojeIso).reduce((s, c) => s + centavos(Number(c.amount)), 0) +
+    carteira.filter((c) => c.good_for !== null && diaIso(c.good_for) < hojeIso).reduce((s, c) => s + centavos(Number(c.amount)), 0) +
     abertos.filter((b) => diaIso(b.due_on) < hojeIso).reduce((s, b) => s + centavos(Number(b.amount)), 0);
   return { emAbertoCent, vencidoCent, recebidoCent, itens };
 }

@@ -17,12 +17,15 @@ import {
 import { useErrosDeFormulario } from "@/components/ui/use-erros-de-formulario";
 import { useAviso } from "@/components/ui/toast";
 import { apiPost } from "@/lib/client-api";
+import { CompletarChequeForm, type ChequeParaCompletar } from "./completar-cheque-form";
 
 /**
  * As ações de um cheque da carteira, só as que valem para a situação dele:
  *
  * - na carteira (`recebido`): Depositar (OPERADOR para cima) e Voltou (dono ou administrador);
- * - depositado: Compensou e Voltou (dono ou administrador).
+ * - depositado: Compensou e Voltou (dono ou administrador);
+ * - incompleto: Completar no lugar de Depositar; completo na carteira: Corrigir
+ *   (para quem pode completar).
  *
  * Quem decide o que cada perfil vê é a página de servidor (`podeDepositar`,
  * `ehAdmin`), porque este componente não pode importar as permissões. O
@@ -30,27 +33,33 @@ import { apiPost } from "@/lib/client-api";
  */
 export function ChequeAcoes({
   chequeId,
-  numero,
+  cheque,
   situacao,
   contas,
   podeDepositar,
+  podeCompletar,
   ehAdmin,
 }: {
   chequeId: string;
-  numero: string;
+  cheque: ChequeParaCompletar;
   situacao: string;
   contas: { id: string; name: string }[];
   podeDepositar: boolean;
+  podeCompletar: boolean;
   ehAdmin: boolean;
 }) {
+  const numero = cheque.number ?? "sem número";
   const naCarteira = situacao === "recebido";
   const depositado = situacao === "depositado";
-  const acoes = (naCarteira && podeDepositar) || (ehAdmin && (naCarteira || depositado));
+  const deposita = naCarteira && podeDepositar && !cheque.incomplete;
+  const completa = naCarteira && podeCompletar;
+  const acoes = deposita || completa || (ehAdmin && (naCarteira || depositado));
   if (!acoes) return <span className="text-sm text-texto-secundario">-</span>;
 
   return (
     <div className="flex flex-wrap gap-2">
-      {naCarteira && podeDepositar && <DepositarCheque chequeId={chequeId} numero={numero} contas={contas} />}
+      {completa && <CompletarChequeForm cheque={cheque} />}
+      {deposita && <DepositarCheque chequeId={chequeId} numero={numero} contas={contas} />}
       {depositado && ehAdmin && <CompensouCheque chequeId={chequeId} numero={numero} />}
       {ehAdmin && (naCarteira || depositado) && <VoltouCheque chequeId={chequeId} numero={numero} />}
     </div>
