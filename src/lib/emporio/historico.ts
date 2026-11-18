@@ -22,6 +22,7 @@ export const ACOES_DO_HISTORICO = {
   "apresentacao.editar": "Editou uma apresentação",
   "apresentacao.arquivar": "Arquivou uma apresentação",
   "preco.definir": "Mudou um preço",
+  "configuracoes.balcao": "Mudou os atalhos do balcão ou as etiquetas",
   "compra.criar": "Lançou uma compra",
   "compra.receber": "Recebeu uma compra",
   "compra.cancelar": "Cancelou uma compra",

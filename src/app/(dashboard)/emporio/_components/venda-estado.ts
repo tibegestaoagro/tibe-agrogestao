@@ -29,7 +29,7 @@ import type { VendaView } from "@/lib/actions/emporio-vendas";
  * (`prepararVenda`), para o total da tela ser o que o servidor vai gravar.
  */
 
-export type ApresentacaoVenda = { id: string; name: string; base_qty: number; lacrada: boolean };
+export type ApresentacaoVenda = { id: string; name: string; base_qty: number; lacrada: boolean; barcode: string | null };
 export type ProdutoVenda = {
   id: string;
   name: string;

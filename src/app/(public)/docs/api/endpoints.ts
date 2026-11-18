@@ -360,9 +360,18 @@ export const GROUPS: Group[] = [
         method: "GET",
         path: "/api/v1/emporio/settings",
         auth: "Sessão · emporio:read · qualquer papel no Empório",
-        description: "Configurações da conta: validade e rodapé do orçamento, rodapé da venda, largura da bobina e se há logo, mais as do fiado: `fiado_due_days` (prazo padrão), `fiado_block_after_days` (dias de atraso que bloqueiam o fiado), `fiado_default_limit` (limite padrão em reais, `null` = sem limite), `fiado_collection_message` (o modelo gravado, `null` = o padrão) e `fiado_collection_message_effective` (o texto que vale, com os marcadores `{nome}`, `{loja}`, `{valor}` e `{dias}`, este por extenso, como `20 dias`). `payment_approval_limit` (desde 08/11/2026): o teto de pagamento sem aprovação, em reais; `null` = sem teto. Sem nada gravado, devolve os padrões (7 dias, bobina de 80 mm, fiado de 30 dias, bloqueio após 15, sem teto) sem criar a linha.",
+        description: "Configurações da conta: validade e rodapé do orçamento, rodapé da venda, largura da bobina e se há logo, mais as do fiado: `fiado_due_days` (prazo padrão), `fiado_block_after_days` (dias de atraso que bloqueiam o fiado), `fiado_default_limit` (limite padrão em reais, `null` = sem limite), `fiado_collection_message` (o modelo gravado, `null` = o padrão) e `fiado_collection_message_effective` (o texto que vale, com os marcadores `{nome}`, `{loja}`, `{valor}` e `{dias}`, este por extenso, como `20 dias`). `payment_approval_limit` (desde 08/11/2026): o teto de pagamento sem aprovação, em reais; `null` = sem teto. Sem nada gravado, devolve os padrões (7 dias, bobina de 80 mm, fiado de 30 dias, bloqueio após 15, sem teto) sem criar a linha. Balcão rápido (Q361): `shortcuts` (`produto` F2, `cliente` F4, `vendedor` F8, `pagamento` F9, `fechar` Ctrl+Enter), `show_shortcut_legend`, `label_default_format` (`a4` ou `rolo`), `label_a4` (3 x 7 etiquetas de 63,5 x 38,1 mm, margens 15,15 e 7,2, espaços 2,5 e 0) e `label_roll` (40 x 25 mm, 1 coluna, espaço 2), tudo em mm.",
         response: `200
 { "data": { "quote_validity_days": 7, "quote_footer": null, "sale_footer": null, "receipt_width": 80, "has_logo": false, "logo_updated_at": null, "fiado_due_days": 30, "fiado_block_after_days": 15, "fiado_default_limit": null, "fiado_collection_message": null, "fiado_collection_message_effective": "Olá, {nome}! Aqui é da {loja}. Consta um fiado de {valor} vencido há {dias}. Pode nos ajudar a acertar? Obrigado!", "payment_approval_limit": null }, "meta": {} }`,
+      },
+      {
+        method: "PATCH",
+        path: "/api/v1/emporio/settings/balcao",
+        auth: "Sessão · emporio:write · só o Gerente geral e o Dono (os outros papéis: 403 `FORBIDDEN`)",
+        description: "Balcão rápido (Q361). Teclas dos atalhos (`shortcut_product`, `shortcut_customer`, `shortcut_seller`, `shortcut_payment`, `shortcut_close`), da lista `F2`, `F4`, `F8`, `F9`, `Ctrl+Enter`, `Alt+1` a `Alt+9`; tecla repetida entre ações: 422 no campo da segunda. `show_shortcut_legend`; `label_default_format` (`a4` ou `rolo`); medidas em mm da folha A4 (`label_a4_columns`, `label_a4_rows`, `label_a4_width`, `label_a4_height`, `label_a4_margin_top`, `label_a4_margin_left`, `label_a4_gap_x`, `label_a4_gap_y`) e do rolo (`label_roll_width`, `label_roll_height`, `label_roll_columns` de 1 a 3, `label_roll_gap_x`). Todos opcionais, recusa 422 no próprio campo: medida zero ou negativa, e grade da folha que não cabe em 210 x 297 mm (em `label_a4_width` ou `label_a4_height`). Devolve as configurações inteiras, como o GET. Entra no Histórico como `configuracoes.balcao`, com o antes e o depois.",
+        request: `{ "shortcut_product": "Alt+1", "label_roll_width": 50 }`,
+        response: `200
+{ "data": { "shortcuts": { "produto": "Alt+1", "cliente": "F4", "vendedor": "F8", "pagamento": "F9", "fechar": "Ctrl+Enter" }, "show_shortcut_legend": true, "label_default_format": "a4", "label_a4": { "columns": 3, "rows": 7, "width": 63.5, "height": 38.1, "margin_top": 15.15, "margin_left": 7.2, "gap_x": 2.5, "gap_y": 0 }, "label_roll": { "width": 50, "height": 25, "columns": 1, "gap_x": 2 }, "quote_validity_days": 7, "receipt_width": 80 }, "meta": {} }`,
       },
       {
         method: "PATCH",
@@ -489,24 +498,32 @@ export const GROUPS: Group[] = [
         path: "/api/v1/emporio/products/:id/presentations",
         auth: "Sessão · emporio:write · OWNER, ADMIN e OPERADOR",
         description: "Cria uma apresentação (forma de venda). `base_qty` é quanto ela vale na unidade-base: maior que zero, e inteira quando a unidade-base é `unidade`. Em produto com conteúdo, pode-se mandar `content_qty` (quanto cabe, na unidade do conteúdo) no lugar de `base_qty`: `base_qty = content_qty / conteúdo`. Os dois juntos, ou `content_qty` em produto sem conteúdo, é 422 no campo `content_qty`; também é 422 quando a divisão não fecha em 3 casas (\"1 kg não divide a saca de 30 kg em partes exatas\"). `content_equivalent` é `base_qty` vezes o conteúdo, nulo sem conteúdo. Nome repetido no produto: 409 `DUPLICATE_NAME`.",
-        request: `{ "name": "Meio saco", "content_qty": 5, "is_sealed_package": false }`,
+        request: `{ "name": "Meio saco", "content_qty": 5, "is_sealed_package": false, "barcode": null }`,
         response: `201
-{ "data": { "id": "cl...", "name": "Meio saco", "base_qty": 0.5, "content_equivalent": 5, "is_sealed_package": false, "archived_at": null }, "meta": {} }`,
+{ "data": { "id": "cl...", "name": "Meio saco", "base_qty": 0.5, "content_equivalent": 5, "is_sealed_package": false, "barcode": null, "archived_at": null }, "meta": {} }`,
       },
       {
         method: "PATCH",
         path: "/api/v1/emporio/presentations/:id",
         auth: "Sessão · emporio:write · OWNER, ADMIN e OPERADOR",
-        description: "Edita nome, `base_qty` (ou `content_qty`, com as mesmas regras da criação) e `is_sealed_package` da apresentação.",
-        request: `{ "base_qty": 25 }`,
+        description: "Edita nome, `base_qty` (ou `content_qty`, com as mesmas regras da criação), `is_sealed_package` e `barcode` da apresentação. `barcode`: só dígitos, 8, 12 ou 13, com o dígito verificador conferido (422 em `barcode`: \"O código de barras tem 8 ou 13 números.\" ou \"O código de barras não confere: verifique os números.\"); vazio ou `null` tira o código; o de 12 (UPC-A) é gravado com \"0\" na frente. Código já em outra apresentação ativa (apresentação e produto sem arquivar): 409 `BARCODE_IN_USE` em `barcode`, nomeando produto e apresentação. Entra no Histórico com o antes e o depois.",
+        request: `{ "base_qty": 25, "barcode": "4006381333931" }`,
         response: `200
-{ "data": { "id": "cl...", "name": "Saca 10 kg", "base_qty": 25, "content_equivalent": null, "is_sealed_package": true, "archived_at": null }, "meta": {} }`,
+{ "data": { "id": "cl...", "name": "Saca 10 kg", "base_qty": 25, "content_equivalent": null, "is_sealed_package": true, "barcode": "4006381333931", "archived_at": null }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/presentations/barcode",
+        auth: "Sessão · emporio:write · quem tem a chave `cadastrar_produto` (os outros: 403 `FORBIDDEN`)",
+        description: "Devolve o próximo código de barras interno, sem gravar em apresentação: EAN-13 que começa com \"20\", 10 dígitos de sequência da conta e o dígito verificador. Pula o código que já estiver em apresentação ativa. O painel só preenche o campo; quem grava é o salvar da apresentação.",
+        response: `200
+{ "data": { "barcode": "2000000000017" }, "meta": {} }`,
       },
       {
         method: "POST",
         path: "/api/v1/emporio/presentations/:id/archive",
         auth: "Sessão · emporio:write · OWNER, ADMIN e OPERADOR",
-        description: "Arquiva (`archived: true`) ou desarquiva (`false`) a apresentação.",
+        description: "Arquiva (`archived: true`) ou desarquiva (`false`) a apresentação. Desarquivar com o código de barras já em outra apresentação ativa: 409 `BARCODE_IN_USE`, e nada muda. O mesmo vale ao desarquivar o produto (`POST /api/v1/emporio/products/:id/archive`).",
         request: `{ "archived": true }`,
         response: `200
 { "data": { "id": "cl...", "archived_at": "2026-10-27T12:00:00.000Z" }, "meta": {} }`,

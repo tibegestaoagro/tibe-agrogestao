@@ -1375,6 +1375,8 @@ const PREFIXOS_DE_LEITURA = [
   "transferenciasParadas",
   "relatorio",
   "buscarOrcamento",
+  // Frente D: só reserva o próximo número do contador; a apresentação grava (e registra) ao salvar.
+  "gerarCodigo",
 ];
 
 export function acoesDeEscritaSemHistorico(fonte: string): string[] {

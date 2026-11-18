@@ -13,6 +13,7 @@ const schema = z.object({
   base_qty: z.number({ error: "Informe a quantidade na unidade-base." }).gt(0, "A quantidade deve ser maior que zero.").optional(),
   content_qty: z.number({ error: "Informe a quantidade do conteúdo." }).gt(0, "A quantidade deve ser maior que zero.").optional(),
   is_sealed_package: z.boolean().optional(),
+  barcode: z.string({ error: "O código de barras tem 8 ou 13 números." }).nullable().optional(),
 });
 
 type Props = { params: Promise<{ id: string }> };
