@@ -26,9 +26,9 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 ## Estado atual
 
 - Atualizado em: 2026-11-18. **Paginação das listas e acertos da curva ABC
-  (dívidas 5.26 e 5.27, Q366 e Q367) PRONTOS NA BRANCH
-  `emporio-paginacao-listas`, fora de produção; falta o merge com push,
-  autorizado NA CONVERSA (sem migração).** Vendas, Compras, Transferências,
+  (dívidas 5.26 e 5.27, Q366 e Q367) EM PRODUÇÃO** (merge da branch
+  `emporio-paginacao-listas`, autorizado pelo usuário na conversa em 18/11;
+  sem migração). Vendas, Compras, Transferências,
   produções, antecipações, entregas, movimentos do caixa, conferências e os
   pendentes das Aprovações paginam sem corte silencioso; a curva fecha em
   100%; o seletor de lucro é decidido no servidor. Provas: `test:all` 128/128,
@@ -40,8 +40,8 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   Em produção: A (`49fbd47`), B (`cc8a614`; sobras 5.23), C (`76a61ba`; 5.24),
   D (balcão rápido, `b24776a`, sem leitor nem impressora reais; 5.25) e H
   (curva ABC e orçamentos paginados, `77cf2ca`). G1 (2.18) e G2 (2.34) esperam a
-  planilha do GestãoClick e o XML de nota. **Próximo passo:** o merge da
-  paginação das listas; depois G1 e G2.
+  planilha do GestãoClick e o XML de nota. **Próximo passo:** G1 e G2 quando
+  os arquivos chegarem.
 - Em produção desde 16/11: orçamento com total, cadastro leve e CEP (Q335 a
   Q340, merge `762854a`, `test:m119`); preço do cadastro, desconto por PIN e
   brinde (Q327 a Q334, merge `c43a130`, m118; os gestores precisam cadastrar o
@@ -195,4 +195,5 @@ relatórios em [agente-whatsapp/](agente-whatsapp/), detalhe em
 ## Últimas rodadas
 
 - 18/11: frentes C, D e H (cheque em duas etapas, balcão rápido, curva ABC e
-  paginação dos orçamentos) em produção, autorizadas na conversa.
+  paginação dos orçamentos) e a paginação das listas (5.26, 5.27) em produção,
+  autorizadas na conversa.

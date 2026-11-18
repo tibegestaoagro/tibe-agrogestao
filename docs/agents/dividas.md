@@ -331,7 +331,7 @@ Registrado em 07/11/2026, na branch `emporio-entrega-e-romaneio` (plano 3 de 3).
 
 ### 5.28 Empório, paginação das listas e curva ABC (Q366, Q367): o que ficou para depois
 
-Registrado em 18/11/2026, na branch `emporio-paginacao-listas`, que fechou as
+Registrado em 18/11/2026, no merge da branch `emporio-paginacao-listas`, que fechou as
 dívidas 5.26 (listas que cortavam em silêncio) e 5.27 (percentuais da curva e
 seletor de lucro). Juiz sem bloqueante; os dois importantes (desempate por id e
 pendentes das Aprovações) corrigidos.
