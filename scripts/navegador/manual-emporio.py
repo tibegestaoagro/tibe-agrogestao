@@ -641,7 +641,7 @@ figura("financeiro-hoje", "dono", lambda: "/emporio/financeiro?loja=" + id_da_lo
     (1, "document.querySelector('nav[aria-label=\"Telas do Financeiro\"]')", "as quatro abas"),
     (2, "M.S('Posição de caixa')", "o cartao Posição de caixa"),
     (3, "M.S('Vence hoje a pagar')", "o cartao Vence hoje a pagar"),
-], hd=900, hc=1700)
+], hd=1200, hc=2100)
 
 figura("financeiro-pagar", "dono", "/emporio/financeiro/pagar", [
     (1, "M.TH('Conta')", "a lista de contas a pagar"),

@@ -196,6 +196,9 @@ export function ResultadoMes({ r }: { r: ResultadoDaLojaView }) {
               <Item rotulo="Vendas no cartão" valor={reaisBr(r.card_cost.card_sales)} />
               <Item rotulo="Taxa do cartão" valor={reaisBr(r.card_cost.mdr)} />
               <Item rotulo="Antecipação" valor={reaisBr(r.card_cost.anticipation)} />
+              {r.card_cost.adjustments !== 0 && (
+                <Item rotulo="Ajustes da conferência" valor={reaisBr(r.card_cost.adjustments)} />
+              )}
             </div>
           </>
         )}

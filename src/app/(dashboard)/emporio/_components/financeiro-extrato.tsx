@@ -170,7 +170,7 @@ export function ExtratoDoLugar({
               return (
                 <TableRow key={`${l.kind}-${l.id}`}>
                   <TableCell>{dataBr(l.occurred_on)}</TableCell>
-                  <TableCell className="text-sm">
+                  <TableCell className={l.origin === "ajuste_cartao" ? "pl-6 text-sm text-texto-secundario" : "text-sm"}>
                     {l.description}
                     {l.kind === "cartao" && l.occurred_on > hoje && (
                       <Badge variant="gray" className="ml-2">
@@ -188,6 +188,11 @@ export function ExtratoDoLugar({
                   <TableCell>{l.establishment_name ?? "-"}</TableCell>
                   <TableCell className={entrada ? "text-sucesso-tinta" : "text-perigo-tinta"}>
                     {entrada ? "+" : "-"} {reaisBr(l.amount)}
+                    {l.kind === "cartao" && l.confirmed_net != null && (
+                      <span className="block text-xs font-normal text-texto-secundario">
+                        conferido {reaisBr(l.confirmed_net)}
+                      </span>
+                    )}
                   </TableCell>
                   {comCarimbo && (
                     <TableCell>

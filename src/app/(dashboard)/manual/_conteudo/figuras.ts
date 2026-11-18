@@ -149,7 +149,7 @@ export const FIGURAS: Figura[] = [
     pagina: "/emporio/financeiro",
     papel: "dono",
     legenda: "A casa do Financeiro: o dinheiro das lojas hoje",
-    alt: "Tela Hoje do Financeiro com as quatro abas, o filtro de loja e os cartões de posição de caixa, contas a pagar e a receber",
+    alt: "Tela Hoje do Financeiro com as abas, o filtro de loja e os cartões de cartão a conferir, posição de caixa, contas a pagar e a receber",
     marcas: [
       { numero: 1, alvo: "as quatro abas", texto: "Hoje, A pagar, A receber e Posição de caixa. Cada uma é uma tela." },
       { numero: 2, alvo: "o cartão Posição de caixa", texto: "Onde está o dinheiro: cada gaveta, a gerência de cada loja e cada conta bancária." },
@@ -415,7 +415,7 @@ export const FIGURAS: Figura[] = [
     legenda: "Cartão a receber e cheques na carteira",
     alt: "Seções A receber do cartão e Cheques da tela Caixa",
     marcas: [
-      { numero: 1, alvo: "a seção A receber do cartão", texto: "Parcelas que ainda não caíram na conta, com data e valor líquido." },
+      { numero: 1, alvo: "a seção A receber do cartão", texto: "Parcelas que ainda não caíram na conta, com data, valor líquido e o estado (Prevista). Quem confere é o Financeiro." },
       { numero: 2, alvo: "a seção Cheques", texto: "Cheques recebidos, depositados, compensados e devolvidos." },
       { numero: 3, alvo: "o botão Transferir dinheiro", texto: "Leva o dinheiro que está com a gerência para o banco." },
     ],

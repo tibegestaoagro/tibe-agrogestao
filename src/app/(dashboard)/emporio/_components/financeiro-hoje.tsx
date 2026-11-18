@@ -49,7 +49,14 @@ function Linha({ rotulo, valor, destaque = false }: { rotulo: string; valor: str
 
 /** A tela "Hoje" do Financeiro: quatro cartões, cada um levando à aba que resolve. */
 export function FinanceiroHoje({ resumo, loja }: { resumo: HojeView; loja: string }) {
-  const { positions, total_balance, payables_due, receivables_due, overdue_fiado, pending_approvals, unreconciled } = resumo;
+  const { positions, total_balance, payables_due, receivables_due, overdue_fiado, pending_approvals, unreconciled, cards_to_confirm, cards_overdue } = resumo;
+  // O A receber filtrado, com a loja preservada.
+  const enderecoDoReceber = (ver: "hoje" | "vencido") => {
+    const p = new URLSearchParams();
+    if (loja) p.set("loja", loja);
+    p.set("ver", ver);
+    return `/emporio/financeiro/receber?${p.toString()}`;
+  };
   const conta = positions.find((p) => p.kind === "conta");
   const enderecoSemCarimbo = conta
     ? `${enderecoDaAba("/emporio/financeiro/caixa", loja)}${loja ? "&" : "?"}lugar=conta:${conta.id}&carimbo=sem`
@@ -73,6 +80,33 @@ export function FinanceiroHoje({ resumo, loja }: { resumo: HojeView; loja: strin
           <p className="text-sm text-texto-secundario">
             {plural(unreconciled.count, "linha", "linhas")} da conta sem conferir com o banco, nos últimos 30 dias
           </p>
+        </Cartao>
+      )}
+
+      {(cards_to_confirm.count > 0 || cards_overdue.count > 0) && (
+        <Cartao titulo="Cartão a conferir" href={enderecoDoReceber("hoje")} verTudo="Conferir as parcelas">
+          {cards_to_confirm.count > 0 && (
+            <Linha
+              rotulo={`A conferir: ${plural(cards_to_confirm.count, "parcela", "parcelas")}`}
+              valor={reaisBr(cards_to_confirm.total)}
+              destaque
+            />
+          )}
+          {cards_overdue.count > 0 && (
+            <>
+              <Linha
+                rotulo={`Atrasadas: ${plural(cards_overdue.count, "parcela", "parcelas")}`}
+                valor={reaisBr(cards_overdue.total)}
+                destaque
+              />
+              <Link
+                href={enderecoDoReceber("vencido")}
+                className="inline-flex min-h-11 items-center text-sm font-medium text-perigo-tinta hover:underline sm:min-h-0"
+              >
+                Ver as atrasadas
+              </Link>
+            </>
+          )}
         </Cartao>
       )}
 

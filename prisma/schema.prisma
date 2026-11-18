@@ -297,6 +297,8 @@ enum CashMovementOrigin {
   pagamento_compra
   /// Q279: o boleto da venda pago no banco.
   boleto_pago
+  /// Q349: a diferença entre o líquido calculado da parcela de cartão e o que caiu, na conferência.
+  ajuste_cartao
 }
 
 /// Entrega 2: o motivo da contagem de um caixa.
@@ -1652,9 +1654,13 @@ model CardReceivable {
   anticipation_fee      Decimal?   @db.Decimal(14, 2)
   anticipation_id       String?
   canceled_at           DateTime?
-  /// Entrega 3: carimbo de conciliação com o extrato (não mexe no saldo).
+  /// Entrega 3: carimbo de conciliação com o extrato. Na frente B (Q352), na
+  /// parcela de cartão, o carimbo É a conferência: preenchido = Conferida.
   reconciled_at         DateTime?
   reconciled_by_user_id String?
+  /// Q349: o valor que caiu de fato, informado na conferência. A diferença para
+  /// o `effective_net` vira um `CashMovement` `ajuste_cartao` ligado à parcela.
+  confirmed_net         Decimal?   @db.Decimal(14, 2)
   /// Q254: cópia da adquirente e da bandeira da venda, para listar sem join.
   acquirer_id           String?
   brand                 CardBrand?

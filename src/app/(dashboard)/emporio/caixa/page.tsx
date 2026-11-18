@@ -4,6 +4,9 @@ import { getTenantDb } from "@/lib/tenant-context";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { listarContasAction, lerCaixaAction, listarBoletosAction } from "@/lib/actions/emporio-caixa";
 import { listarEntregasAction } from "@/lib/actions/emporio-turno";
+import { estadoDaParcela } from "@/lib/actions/emporio-conferencia-cartao";
+import { hojeEmBrasilia } from "@/lib/emporio/cartao";
+import { SeloDoEstado } from "../_components/selo-do-estado";
 import { reaisBr } from "@/lib/numero-br";
 import { formatarDocumento } from "@/lib/contatos/cadastro";
 import { Badge } from "@/components/ui/badge";
@@ -79,6 +82,7 @@ export default async function CaixaPage() {
   const caixa = caixaRes.ok
     ? caixaRes.data
     : { drawers: [], accounts: [], card_receivables: [], checks: [], movements: [] };
+  const hojeDoCartao = hojeEmBrasilia();
   const aReceberDaConta = new Map(caixa.accounts.map((a) => [a.bank_account_id, a.to_receive]));
   const totalAReceber = caixa.card_receivables.reduce((s, p) => s + Math.round(p.effective_net * 100), 0) / 100;
   const nomeDaLojaCheque = (id: string) => caixa.drawers.find((d) => d.establishment_id === id)?.name ?? "Loja";
@@ -345,6 +349,7 @@ export default async function CaixaPage() {
                     <TableHead>Conta</TableHead>
                     <TableHead>Parcela</TableHead>
                     <TableHead>Líquido</TableHead>
+                    <TableHead>Estado</TableHead>
                     <TableHead>Venda</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -364,6 +369,15 @@ export default async function CaixaPage() {
                         {p.installment}/{p.installments}
                       </TableCell>
                       <TableCell>{reaisBr(p.effective_net)}</TableCell>
+                      <TableCell>
+                        {/* A view do Caixa só traz parcelas futuras e sem `reconciled_at`: o estado sai da data. */}
+                        <SeloDoEstado
+                          estado={estadoDaParcela(
+                            { effective_on: new Date(`${p.effective_on.slice(0, 10)}T00:00:00Z`), reconciled_at: null },
+                            hojeDoCartao,
+                          )}
+                        />
+                      </TableCell>
                       <TableCell>
                         <VendaLink id={p.sale_id} numero={p.sale_number} parcela={`${p.installment}/${p.installments}`} />
                         {p.customer_name && (
