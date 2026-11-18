@@ -1377,6 +1377,8 @@ const PREFIXOS_DE_LEITURA = [
   "buscarOrcamento",
   // Frente D: só reserva o próximo número do contador; a apresentação grava (e registra) ao salvar.
   "gerarCodigo",
+  // Frente H: a curva ABC é relatório, calculado na leitura.
+  "curva",
 ];
 
 export function acoesDeEscritaSemHistorico(fonte: string): string[] {

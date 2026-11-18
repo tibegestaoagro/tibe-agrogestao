@@ -140,7 +140,6 @@ redescobertos como defeito.
 | 2.65 | **fechada em 10/11/2026** (branch `codex/dividas-264-265`): a `test:m99` calcula "hoje" pelo dia de Brasília, como o código, e não reprova mais entre 21h e meia-noite | suíte do crédito do fiado, 09/11/2026 | nada |
 | 2.77 | PIX com QR na venda (frente E do plano do GestãoClick): ficou fora do ciclo de 17/11/2026 | Q341 | gerar a cobrança PIX com QR no balcão e baixar sozinho quando o banco confirmar; depende de integração com o banco da loja |
 | 2.76 | comissão por vendedor (frente F): fora até a Agromax definir a regra | Q341, Q344 | regra de comissão por vendedor, por produto ou por margem, no Resultado e no relatório de vendas |
-| 2.75 | **frente H, curva ABC**, aprovada no ciclo de 17/11/2026 e não feita: produtos e clientes por loja e período, no Relatórios | Q341 | relatório novo sobre as vendas que já existem; sem migração |
 | 2.72 | a projeção do financeiro (`src/lib/actions/emporio-projecao.ts`) deu 500 com um modelo de despesa fixa sem rateio entre lojas; visto só depois de apagar lojas direto no banco local com as chaves desligadas, e provavelmente inalcançável pelas telas | manual do Empório, 17/11/2026 | confirmar se alguma tela deixa o modelo sem rateio; se deixar, a projeção pula o modelo em vez de quebrar |
 | 2.71 | a compra não propõe atualizar o preço de venda quando o custo novo muda o preço sugerido: quem lança a compra ajusta o preço à mão na formação de preço (o aviso de 10%, Q295, saiu em 11/11/2026 com a Q299) | dois custos, 10/11/2026 | na tela da compra, por item, "o sugerido passou de R$ X para R$ Y: atualizar?" |
 | 2.70 | **fechada em 10/11/2026** (a causa não era o grupo do menu: desde a Q190 a equipe da loja só abre o Empório e o cliente mora em `/emporio/clientes`; a conferência passou a exigir Clientes, Contatos fora e `/contatos` levando ao Empório; 106 checks, sabotada: 2 falhas): o roteiro `emporio-f6b` reprova em "o menu tem Meu Empório e Contatos": abre só o grupo Operação e o link /contatos fica em outro grupo do menu (a conferência não rodava desde a 2.68; não é efeito do boleto) | roteiros, 10/11/2026 | abrir o grupo onde fica Contatos antes de ler o menu, ou conferir pelo `src/lib/nav.ts` |
@@ -329,6 +328,39 @@ Registrado em 07/11/2026, na branch `emporio-entrega-e-romaneio` (plano 3 de 3).
 - A suíte `m97` não cobre PJ sem documento nem `person_kind` nulo no resolver, e
   a seção 3 confere o `field` mas não a mensagem exata do principal incompleto e
   do "outro" sem bairro.
+
+### 5.27 Empório, curva ABC (frente H, Q362 a Q364): o que ficou para depois
+
+Registrado em 18/11/2026, no merge da branch `emporio-curva-abc` (juiz 8/10,
+sem bloqueante; o selo de classe na lista sem vendas positivas foi corrigido).
+- **Percentuais arredondados um a um:** três itens de 33,33% somam 99,99 ou
+  100,01 nos resumos (`pct()` em `emporio-relatorios.ts`). Só visual; a
+  classificação usa inteiros e está certa.
+- **O seletor "Lucro" aparece para todos** e só some depois de um 403. Hoje a
+  permissão do Relatórios e a do Resultado são a mesma, então ninguém o vê sem
+  poder; se elas se separarem, decidir no servidor e passar à tela.
+- **O lucro da curva não é o do Resultado** (decisão do usuário: venda menos
+  custo, sem despesa variável nem taxa do cartão); a tela e o manual dizem
+  isso. Pode diferir 1 centavo por arredondamento do custo por linha.
+- **Fora do roteiro (só na `m124`):** o 403 do lucro, a troca, o frete, outro
+  tenant e o período inválido.
+
+### 5.26 Empório, listas que cortam em silêncio (achado de 18/11/2026)
+
+A lista de Orçamentos cortava nos 200 mais recentes sem avisar, e a Agromax
+achou que os antigos tinham sumido (os 247 estavam no Neon). A frente H
+(Q365) paginou os Orçamentos com o componente
+`src/app/(dashboard)/emporio/_components/paginacao.tsx`. As outras listas com
+o mesmo corte por `take` sem total nem aviso (levantado por grep em 18/11):
+- `listarVendasAction` (`emporio-vendas.ts`, 200): a mais provável de
+  bater no teto, junto da dos orçamentos.
+- `listarComprasAction` (200), `listarTransferenciasAction` (200),
+  `listarProducoesAction` (200), `listarPedidosDePagamentoAction` (200),
+  `listarAntecipacoesAction` (200), `listarEntregasAction` (`emporio-turno.ts`,
+  200), `lerCaixaAction` e `listarConferenciasAction` (`emporio-caixa.ts`, 100).
+
+Caminho: o mesmo da Q365 (`page`, `per_page`, `order`, `count` sob o mesmo
+filtro, `meta.total`) e o componente de paginação, começando pelas Vendas.
 
 ### 5.25 Empório, balcão rápido (frente D, Q357 a Q361): o que ficou para depois
 

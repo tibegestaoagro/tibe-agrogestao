@@ -103,11 +103,14 @@ function lerDia(texto: unknown): number | null {
 type Soma = { count: number; cent: number };
 const ticket = (s: Soma) => (s.count > 0 ? reais(Math.round(s.cent / s.count)) : null);
 
-export async function relatorioDeVendasAction(
-  db: TenantPrismaClient,
-  ator: Ator,
-  input: RelatorioDeVendasInput,
-): Promise<ActionResult<RelatorioDeVendas>> {
+/**
+ * O miolo comum do relatório de vendas e da curva ABC: a permissão, o período de
+ * Brasília (até 366 dias), as lojas que o ator vê, as vendas concluídas do período
+ * (a nova da troca inclusa) e as devoluções do período (que pertencem à venda
+ * ORIGINAL). As duas actions somam em cima disto, para o mesmo período e a mesma
+ * loja darem o mesmo total.
+ */
+async function carregarVendasDoPeriodo(db: TenantPrismaClient, ator: Ator, input: RelatorioDeVendasInput) {
   const neg = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "ver os relatórios");
   if (neg) return neg;
 
@@ -138,37 +141,59 @@ export async function relatorioDeVendasAction(
   }
   const lojaIds = lojas.map((l) => l.id);
   const periodo = { from: String(input.from).trim(), to: String(input.to).trim() };
-  if (lojaIds.length === 0) {
-    return ok({ periodo, lojas, por_vendedor: [], por_produto: [], parados: [], por_loja: [], by_origin: viewDeOrigens(somaVazia()), pix_by_account: [] });
-  }
-
   const vendas = await db.emporioSale.findMany({
     where: { establishment_id: { in: lojaIds }, status: "concluida", sold_at: janela },
     select: {
       establishment_id: true,
       seller_user_id: true,
+      customer_id: true,
       origin: true,
       freight_amount: true,
       franchisee_credit: true,
       net_amount: true,
       exchange_return_id: true,
-      items: { select: { emporio_product_id: true, base_qty: true, total: true } },
+      items: {
+        select: {
+          emporio_product_id: true,
+          base_qty: true,
+          total: true,
+          unit_cost: true,
+          cost_estimated: true,
+          cost_provisional: true,
+        },
+      },
       payments: { where: { kind: "pix" }, select: { bank_account_id: true, amount: true } },
     },
   });
   const devolucoes = await db.emporioSaleReturn.findMany({
     where: { returned_at: janela, sale: { establishment_id: { in: lojaIds }, status: "concluida" } },
     select: {
-      sale: { select: { establishment_id: true, seller_user_id: true, origin: true } },
+      sale: { select: { establishment_id: true, seller_user_id: true, customer_id: true, origin: true } },
       items: {
         select: {
           quantity: true,
           base_qty: true,
-          sale_item: { select: { emporio_product_id: true, quantity: true, total: true } },
+          sale_item: {
+            select: { emporio_product_id: true, quantity: true, total: true, unit_cost: true },
+          },
         },
       },
     },
   });
+  return ok({ periodo, lojas, lojaIds, vendas, devolucoes });
+}
+
+export async function relatorioDeVendasAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  input: RelatorioDeVendasInput,
+): Promise<ActionResult<RelatorioDeVendas>> {
+  const carga = await carregarVendasDoPeriodo(db, ator, input);
+  if (!carga.ok) return carga;
+  const { periodo, lojas, lojaIds, vendas, devolucoes } = carga.data;
+  if (lojaIds.length === 0) {
+    return ok({ periodo, lojas, por_vendedor: [], por_produto: [], parados: [], por_loja: [], by_origin: viewDeOrigens(somaVazia()), pix_by_account: [] });
+  }
 
   const porVendedor = new Map<string | null, Soma>();
   const porLoja = new Map<string, Soma>(lojaIds.map((id) => [id, { count: 0, cent: 0 }]));
@@ -338,5 +363,203 @@ export async function relatorioDeVendasAction(
     por_loja,
     by_origin: viewDeOrigens(origemTotal),
     pix_by_account: viewDoPix(pixTotal),
+  });
+}
+
+export type CurvaAbcInput = {
+  from: string;
+  to: string;
+  establishment_id?: string;
+  kind: "products" | "customers";
+  measure: "revenue" | "profit";
+};
+
+export type CurvaAbcClasse = "A" | "B" | "C";
+
+export type CurvaAbc = {
+  periodo: { from: string; to: string };
+  kind: "products" | "customers";
+  measure: "revenue" | "profit";
+  /** A medida somada do período, a mesma base do `por_produto` (faturamento) ou ela menos o custo (lucro). Em clientes, inclui `fora_da_curva`. */
+  total: number;
+  classes: { classe: CurvaAbcClasse; count: number; amount: number; share_pct: number }[];
+  itens: {
+    posicao: number;
+    id: string;
+    name: string;
+    quantity?: number;
+    base_unit?: string;
+    sales_count?: number;
+    amount: number;
+    share_pct: number;
+    cumulative_pct: number;
+    classe: CurvaAbcClasse;
+    cost_estimated: boolean;
+    cost_missing: boolean;
+  }[];
+  fora_da_curva?: { label: string; amount: number; sales_count: number };
+};
+
+const ROTULO_FORA_DA_CURVA = "Consumidor final e vendas sem cliente";
+const CONSUMIDOR_FINAL_KEY = "consumidor_final";
+
+type Acumulado = {
+  cent: number;
+  qty: number;
+  vendas: number;
+  estimado: boolean;
+  semCusto: boolean;
+};
+
+/**
+ * A curva ABC de produtos ou de clientes, na mesma conta do relatório de vendas
+ * (`carregarVendasDoPeriodo`): o faturamento é a soma do `total` das linhas, menos
+ * o devolvido no período (que vai ao produto e ao cliente da venda ORIGINAL). O
+ * lucro é esse faturamento menos `unit_cost` x `base_qty`, com o custo devolvido
+ * saindo junto. Calculada na leitura, nada é gravado.
+ */
+export async function curvaAbcAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  input: CurvaAbcInput,
+): Promise<ActionResult<CurvaAbc>> {
+  if (input?.kind !== "products" && input?.kind !== "customers") {
+    return fail("VALIDATION_ERROR", "Escolha a curva: produtos ou clientes.", 422, "kind");
+  }
+  if (input.measure !== "revenue" && input.measure !== "profit") {
+    return fail("VALIDATION_ERROR", "Escolha a medida: faturamento ou lucro.", 422, "measure");
+  }
+  const { kind, measure } = input;
+  if (measure === "profit") {
+    // A mesma permissão do Resultado (`lerVisao`).
+    const neg = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "ver o lucro");
+    if (neg && !neg.ok) return fail(neg.code, neg.message, neg.status, "measure");
+  }
+
+  const carga = await carregarVendasDoPeriodo(db, ator, input);
+  if (!carga.ok) return carga;
+  const { periodo, vendas, devolucoes } = carga.data;
+  const comLucro = measure === "profit";
+
+  const mapa = new Map<string, Acumulado>();
+  const fora: Acumulado = { cent: 0, qty: 0, vendas: 0, estimado: false, semCusto: false };
+  let consumidorFinalId: string | null = null;
+  if (kind === "customers") {
+    const cf = await db.emporioCustomer.findFirst({ where: { system_key: CONSUMIDOR_FINAL_KEY }, select: { id: true } });
+    consumidorFinalId = cf?.id ?? null;
+  }
+  const alvo = (produtoId: string, clienteId: string | null): Acumulado => {
+    if (kind === "products") {
+      let a = mapa.get(produtoId);
+      if (!a) mapa.set(produtoId, (a = { cent: 0, qty: 0, vendas: 0, estimado: false, semCusto: false }));
+      return a;
+    }
+    if (clienteId === null || clienteId === consumidorFinalId) return fora;
+    let a = mapa.get(clienteId);
+    if (!a) mapa.set(clienteId, (a = { cent: 0, qty: 0, vendas: 0, estimado: false, semCusto: false }));
+    return a;
+  };
+  const custoCent = (unitCost: unknown, baseQty: unknown) =>
+    Math.round((decToNum(unitCost as never) ?? 0) * (decToNum(baseQty as never) ?? 0) * 100);
+
+  for (const v of vendas) {
+    if (kind === "customers" && !v.exchange_return_id) alvo("", v.customer_id).vendas += 1;
+    for (const i of v.items) {
+      const a = alvo(i.emporio_product_id, v.customer_id);
+      a.cent += centavos(decToNum(i.total) ?? 0);
+      a.qty += decToNum(i.base_qty) ?? 0;
+      if (comLucro) {
+        a.cent -= custoCent(i.unit_cost, i.base_qty);
+        if (i.unit_cost === null) a.semCusto = true;
+        if (i.cost_estimated || i.cost_provisional) a.estimado = true;
+      }
+    }
+  }
+  for (const d of devolucoes) {
+    for (const i of d.items) {
+      const a = alvo(i.sale_item.emporio_product_id, d.sale.customer_id);
+      a.cent -= valorDevolvidoDoItemCent(i);
+      a.qty -= decToNum(i.base_qty) ?? 0;
+      if (comLucro) a.cent += custoCent(i.sale_item.unit_cost, i.base_qty);
+    }
+  }
+
+  // Nomes
+  const ids = [...mapa.keys()];
+  const nomes = new Map<string, { name: string; base_unit?: string }>();
+  if (ids.length > 0) {
+    if (kind === "products") {
+      const ps = await db.emporioProduct.findMany({
+        where: { id: { in: ids } },
+        select: { id: true, base_unit: true, product: { select: { name: true } } },
+      });
+      for (const p of ps) nomes.set(p.id, { name: p.product.name, base_unit: p.base_unit });
+    } else {
+      const cs = await db.emporioCustomer.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } });
+      for (const c of cs) nomes.set(c.id, { name: c.name });
+    }
+  }
+
+  const lista = ids
+    .map((id) => ({ id, name: nomes.get(id)?.name ?? "", base_unit: nomes.get(id)?.base_unit, a: mapa.get(id) as Acumulado }))
+    .sort((x, y) => y.a.cent - x.a.cent || x.name.localeCompare(y.name, "pt-BR"));
+
+  const baseCent = lista.reduce((s, x) => s + (x.a.cent > 0 ? x.a.cent : 0), 0);
+  const totalCent = lista.reduce((s, x) => s + x.a.cent, 0) + (kind === "customers" ? fora.cent : 0);
+  const comClasses = totalCent > 0 && baseCent > 0;
+  const pct = (cent: number) => (baseCent > 0 ? Math.round((cent * 10000) / baseCent) / 100 : 0);
+
+  let acumulado = 0;
+  const somaClasse: Record<CurvaAbcClasse, { count: number; cent: number }> = {
+    A: { count: 0, cent: 0 },
+    B: { count: 0, cent: 0 },
+    C: { count: 0, cent: 0 },
+  };
+  const itens: CurvaAbc["itens"] = lista.map((x, idx) => {
+    let classe: CurvaAbcClasse = "C";
+    if (comClasses && x.a.cent > 0) {
+      // O acumulado ANTES do item decide: quem cruza o corte fica na classe de cima.
+      classe = acumulado * 100 < 80 * baseCent ? "A" : acumulado * 100 < 95 * baseCent ? "B" : "C";
+      acumulado += x.a.cent;
+    }
+    if (comClasses) {
+      somaClasse[classe].count += 1;
+      somaClasse[classe].cent += x.a.cent;
+    }
+    return {
+      posicao: idx + 1,
+      id: x.id,
+      name: x.name,
+      ...(kind === "products"
+        ? { quantity: Math.round(x.a.qty * 1000) / 1000, base_unit: x.base_unit }
+        : { sales_count: x.a.vendas }),
+      amount: reais(x.a.cent),
+      share_pct: comClasses ? pct(x.a.cent) : 0,
+      cumulative_pct: comClasses ? pct(acumulado) : 0,
+      classe,
+      cost_estimated: x.a.estimado,
+      cost_missing: x.a.semCusto,
+    };
+  });
+
+  const classes: CurvaAbc["classes"] = comClasses
+    ? (["A", "B", "C"] as const).map((c) => ({
+        classe: c,
+        count: somaClasse[c].count,
+        amount: reais(somaClasse[c].cent),
+        share_pct: pct(somaClasse[c].cent),
+      }))
+    : [];
+
+  return ok({
+    periodo,
+    kind,
+    measure,
+    total: reais(totalCent),
+    classes,
+    itens,
+    ...(kind === "customers"
+      ? { fora_da_curva: { label: ROTULO_FORA_DA_CURVA, amount: reais(fora.cent), sales_count: fora.vendas } }
+      : {}),
   });
 }

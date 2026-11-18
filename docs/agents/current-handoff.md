@@ -25,22 +25,25 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-18. **Frente D (balcão rápido, Q357 a Q361) EM
-  PRODUÇÃO**: migração `20261118150000_emporio_balcao_rapido` no Neon e merge
-  da branch `emporio-balcao-rapido`, os dois autorizados na conversa em 18/11.
-  Atalhos configuráveis no balcão, código de barras por apresentação (oficial
-  ou gerado "20...", editável) lido pela busca, etiquetas em folha A4 e rolo
-  com as medidas nas Configurações. Provas: `test:all` 126/126 (uma falha
-  da `m123` não repetida, ver 5.25), `test:m123` (226), roteiro
-  `emporio-balcao-rapido` (137 ok; reprova nas três sabotagens), juiz sem
-  bloqueante, manual. Sem leitor nem impressora reais (usuário lê a imagem das
-  barras no celular). Sobras na 5.25.
+- Atualizado em: 2026-11-18. **Frente H (curva ABC, Q362 a Q364) e
+  paginação dos Orçamentos (Q365) EM PRODUÇÃO** (merge da branch
+  `emporio-curva-abc`, autorizado pelo usuário na conversa em 18/11; sem
+  migração). Origem da paginação: a Agromax achou que os orçamentos do nº 37
+  para baixo tinham sumido; o Neon tinha os 247, a lista cortava em 200. Provas:
+  `test:all` 127/127, `test:m124` (111), roteiro `emporio-curva-abc` (0 falhas;
+  reprova nas quatro sabotagens), juiz 8/10, manual e a figura
+  `orcamentos-lista`. Sobras na 5.27; outras listas que cortam em silêncio na
+  5.26 (Vendas primeiro).
+- **Frente D (balcão rápido, Q357 a Q361) em produção** (migração no Neon e
+  merge `b24776a`, 18/11): atalhos, código de barras por apresentação e
+  etiquetas A4 e rolo. `test:m123` (226), roteiro `emporio-balcao-rapido`.
+  Sem leitor nem impressora reais. Sobras na 5.25.
 - Plano do GestãoClick (Q341 a Q344):
   [../superpowers/specs/2026-11-17-emporio-plano-gestaoclick.md](../superpowers/specs/2026-11-17-emporio-plano-gestaoclick.md).
-  Em produção: A (merge `49fbd47`), B (conferir o cartão, `cc8a614`) e C
-  (cheque em duas etapas, `76a61ba`, 18/11; `test:m122`, roteiro
-  `emporio-cheque-duas-etapas`; sobras na 5.24). Falta: G1 (2.18) e G2 (2.34)
-  esperam arquivo do usuário; H é a 2.75; sobras da B na 5.23.
+  Em produção: A (`49fbd47`), B (conferir o cartão, `cc8a614`), C (cheque em
+  duas etapas, `76a61ba`; sobras na 5.24), D e H. Falta: G1 (2.18) e G2 (2.34)
+  esperam arquivo do usuário (planilha do GestãoClick e XML de nota); sobras
+  da B na 5.23. **Próximo passo sugerido:** paginar as Vendas (5.26).
 - Em produção desde 16/11: orçamento com total, cadastro leve e CEP (Q335 a
   Q340, merge `762854a`, `test:m119`); preço do cadastro, desconto por PIN e
   brinde (Q327 a Q334, merge `c43a130`, m118; os gestores precisam cadastrar o
@@ -193,7 +196,5 @@ relatórios em [agente-whatsapp/](agente-whatsapp/), detalhe em
 
 ## Últimas rodadas
 
-- 18/11: frente C (cheque em duas etapas) em produção, migração e merge
-  autorizados na conversa; frente D (balcão rápido) também, autorizada.
-- 17/11: frentes A e B (informação amarrada, conferir o cartão) em produção,
-  autorizadas na conversa.
+- 18/11: frentes C, D e H (cheque em duas etapas, balcão rápido, curva ABC e
+  paginação dos orçamentos) em produção, autorizadas na conversa.

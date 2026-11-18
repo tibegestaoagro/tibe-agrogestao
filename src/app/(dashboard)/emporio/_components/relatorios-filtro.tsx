@@ -15,14 +15,22 @@ export function RelatoriosFiltro({
   ate,
   loja,
   lojas,
+  manter = {},
 }: {
   de: string;
   ate: string;
   loja: string;
   lojas: { id: string; name: string }[];
+  /** Outros parâmetros da URL que o "Ver relatório" não pode perder (a aba e a medida da curva ABC). */
+  manter?: Record<string, string>;
 }) {
   return (
     <form method="get" action="/emporio/relatorios" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {Object.entries(manter)
+        .filter(([, valor]) => valor !== "")
+        .map(([nome, valor]) => (
+          <input key={nome} type="hidden" name={nome} value={valor} />
+        ))}
       <div className="space-y-1">
         <Label htmlFor="rel-de">De</Label>
         <Input id="rel-de" type="date" name="de" defaultValue={de} required />

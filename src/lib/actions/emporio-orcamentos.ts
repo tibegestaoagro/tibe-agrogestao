@@ -382,6 +382,9 @@ export type OrcamentoLinha = {
   vendedor: string | null;
 };
 
+/** Tamanhos de página aceitos na lista de orçamentos. */
+const POR_PAGINA = [20, 40, 80, 100];
+
 const soDigitos = (s: string | null | undefined) => (s ?? "").replace(/\D/g, "");
 
 /**
@@ -397,12 +400,33 @@ const soDigitos = (s: string | null | undefined) => (s ?? "").replace(/\D/g, "")
 export async function listarOrcamentosAction(
   db: TenantPrismaClient,
   ator: Ator,
-  f: { establishment_id?: string; q?: string; situacao?: OrcamentoSituacaoFiltro; limit?: number } = {},
-): Promise<ActionResult<OrcamentoLinha[]>> {
+  f: {
+    establishment_id?: string;
+    q?: string;
+    situacao?: OrcamentoSituacaoFiltro;
+    limit?: number;
+    page?: number;
+    per_page?: number;
+    order?: "asc" | "desc";
+  } = {},
+): Promise<ActionResult<{ linhas: OrcamentoLinha[]; total: number; page: number; per_page: number }>> {
   const neg = await exigir(db, ator, "fora_do_caixa", "ver os orçamentos");
   if (neg) return neg;
 
   const situacao = f.situacao ?? "acompanhamento";
+  const order = f.order ?? "desc";
+  if (order !== "asc" && order !== "desc") {
+    return fail("VALIDATION_ERROR", "Escolha a ordem: crescente ou decrescente.", 422, "order");
+  }
+  // Com `page`, vale `per_page` (padrão 20); sem `page` nem `per_page`, o `limit` antigo continua valendo.
+  const modoAntigo = f.page === undefined && f.per_page === undefined && !!f.limit && f.limit > 0;
+  const porPagina = modoAntigo ? Math.min(Math.floor(f.limit as number), 500) : (f.per_page ?? 20);
+  if (!modoAntigo && !POR_PAGINA.includes(porPagina)) {
+    return fail("VALIDATION_ERROR", "Escolha 20, 40, 80 ou 100 orçamentos por página.", 422, "per_page");
+  }
+  if (f.page !== undefined && (!Number.isInteger(f.page) || f.page < 1)) {
+    return fail("VALIDATION_ERROR", "A página começa em 1.", 422, "page");
+  }
   if (!SITUACOES_DO_FILTRO.includes(situacao)) {
     return fail("VALIDATION_ERROR", "Escolha a situação: acompanhamento, aberto, vencido, faturado, cancelado ou todos.", 422, "situacao");
   }
@@ -412,6 +436,7 @@ export async function listarOrcamentosAction(
     return fail("NOT_FOUND", "Estabelecimento não encontrado.", 404, "establishment_id");
   }
 
+  const vazia = () => ({ linhas: [] as OrcamentoLinha[], total: 0, page: 1, per_page: porPagina });
   const hoje = hojeEmBrasilia();
   const base: Record<string, unknown>[] = [];
   if (lojaPedida) base.push({ establishment_id: lojaPedida });
@@ -440,28 +465,32 @@ export async function listarOrcamentosAction(
           .map((c) => c.id);
         if (ids.length > 0) ou.push({ customer_id: { in: ids } });
       }
-      if (ou.length === 0) return ok([]);
+      if (ou.length === 0) return ok(vazia());
       filtros.push({ OR: ou });
     } else {
       const termo = normalizarTermo(q);
-      if (!termo) return ok([]);
+      if (!termo) return ok(vazia());
       filtros.push({ customer: { name_busca: { contains: termo } } });
     }
   }
 
-  const limite = f.limit && f.limit > 0 ? Math.min(Math.floor(f.limit), 500) : 200;
+  const where = filtros.length > 0 ? { AND: filtros } : {};
+  const total = await db.emporioQuote.count({ where });
+  const ultima = Math.max(1, Math.ceil(total / porPagina));
+  const page = Math.min(f.page ?? 1, ultima);
   // Poucas consultas para a lista inteira, nunca uma por orçamento: as linhas com loja,
   // cliente e a venda, e os nomes dos vendedores de uma vez. Sem itens, preço de hoje
   // nem saldo: a lista não precisa deles.
   const linhas = await db.emporioQuote.findMany({
-    where: filtros.length > 0 ? { AND: filtros } : {},
+    where,
     include: {
       establishment: { select: { name: true } },
       customer: { select: { name: true, phone: true } },
       sale: { select: { id: true, number: true } },
     },
-    orderBy: { created_at: "desc" },
-    take: limite,
+    orderBy: { number: order },
+    skip: (page - 1) * porPagina,
+    take: porPagina,
   });
   const idsDeVendedor = [...new Set(linhas.map((l) => l.seller_user_id).filter((x): x is string => !!x))];
   const usuarios =
@@ -470,8 +499,11 @@ export async function listarOrcamentosAction(
       : [];
   const nomeDoUsuario = new Map(usuarios.map((u) => [u.id, u.name]));
   const hojeMs = hoje.getTime();
-  return ok(
-    linhas.map((l) => ({
+  return ok({
+    total,
+    page,
+    per_page: porPagina,
+    linhas: linhas.map((l) => ({
       id: l.id,
       number: l.number,
       numero: formatarNumero(l.number),
@@ -487,7 +519,7 @@ export async function listarOrcamentosAction(
       venda_id: l.sale?.id ?? null,
       vendedor: l.seller_user_id ? (nomeDoUsuario.get(l.seller_user_id) ?? null) : null,
     })),
-  );
+  });
 }
 
 // ---------------------------------------------------------------------------

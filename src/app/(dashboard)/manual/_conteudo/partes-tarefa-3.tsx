@@ -289,12 +289,17 @@ export function ParteDeOrcamento() {
           <>Abra <strong>Orçamentos</strong> no menu. O Dono, o Gerente geral, o Gestor e o Vendedor veem essa lista. O Caixa não: ele fatura pelo número do papel.</>,
           <>A lista começa em <strong>Em acompanhamento</strong>: os abertos e os vencidos, que ainda podem virar venda. Para ver outros, escolha <strong>Em aberto</strong>, <strong>Vencidos</strong>, <strong>Faturados</strong> ou <strong>Todos</strong>.</>,
           <>Na busca, digite o telefone, o CPF, o CNPJ, o nome ou o número e clique em <strong>Buscar</strong>. Do telefone e do documento, bastam 3 números.</>,
+          <>A lista vem em páginas. Em <strong>Por página</strong>, escolha 20, 40, 80 ou 100. Em <strong>Ordem</strong>, escolha <strong>Mais recentes primeiro</strong> ou <strong>Mais antigos primeiro</strong>. Embaixo, “Mostrando 1 a 20 de 230” diz quantos há, e os números levam às outras páginas.</>,
           <>Clique em <strong>Ver</strong> para abrir. O orçamento mostra os itens, a Observação, <strong>Imprimir A4</strong>, <strong>Imprimir cupom</strong> e, se ainda não foi faturado, <strong>Faturar</strong>.</>,
         ]}
         problemas={[
           {
             quando: "“Nenhum orçamento encontrado”",
             fazer: "Mude o filtro de situação para Todos, ou busque por outro dado do cliente.",
+          },
+          {
+            quando: "Um orçamento antigo não aparece na lista",
+            fazer: "Ele está numa página mais adiante. Vá às últimas páginas, escolha Mais antigos primeiro, ou digite o número dele na busca. Faturado e cancelado só aparecem com a situação Faturados ou Todos.",
           },
         ]}
       >
@@ -502,10 +507,41 @@ export function ParteDeRelatorios() {
       </Chamada>
       <Chamada tipo="dica">
         <p>
-          Relatórios conta vendas, não lucro. Para saber se a loja deu lucro, abra o{" "}
-          <Link className="underline" href={`${B}/resultado`}>Resultado</Link>.
+          Os blocos acima contam vendas, não lucro. Para saber se a loja deu lucro, abra o{" "}
+          <Link className="underline" href={`${B}/resultado`}>Resultado</Link>. A Curva ABC, abaixo, mostra também o lucro
+          de cada produto e cliente (a venda menos o custo).
         </p>
       </Chamada>
+
+      <Subtitulo>Curva ABC</Subtitulo>
+      <Tarefa
+        paraQueServe="Ver os poucos produtos e clientes que fazem a maior parte das vendas, para cuidar do estoque, da promoção e do relacionamento."
+        passos={[
+          <>Em <strong>Relatórios</strong>, escolha o período e a loja e desça até <strong>Curva ABC</strong>.</>,
+          <>Escolha <strong>Produtos</strong> ou <strong>Clientes</strong>, e a medida: <strong>Faturamento</strong> ou <strong>Lucro (venda menos custo)</strong>.</>,
+          <>A lista vem do maior para o menor. <strong>A</strong> são os que, somados, chegam a 80% do total; <strong>B</strong>, os que levam de 80% a 95%; <strong>C</strong>, o resto.</>,
+          <>No alto, o resumo diz quantos itens tem cada classe e quanto eles somam. A coluna <strong>Acumulado</strong> mostra até onde a soma chegou em cada linha.</>,
+        ]}
+        problemas={[
+          {
+            quando: "Aparece “Sem vendas positivas no período”",
+            fazer: "No período e na loja escolhidos não houve venda, ou tudo foi devolvido. Mude o período ou a loja.",
+          },
+          {
+            quando: "Um produto aparece com “sem custo” ou “custo estimado”",
+            fazer: "No Lucro, a venda saiu sem a compra lançada ou com o custo provisório. Lance a compra para o custo ficar certo.",
+          },
+        ]}
+      >
+        <Chamada tipo="saiba">
+          <p>
+            Nos Clientes, o Consumidor final e as vendas sem cliente ficam fora da curva, numa linha à parte: eles juntam
+            todo mundo que não se identificou. O Lucro da curva é a venda menos o custo da mercadoria. O{" "}
+            <Link className="underline" href={`${B}/resultado`}>Resultado</Link> também desconta as despesas variáveis e a
+            taxa do cartão, então os dois números não são iguais.
+          </p>
+        </Chamada>
+      </Tarefa>
     </div>
   );
 }
