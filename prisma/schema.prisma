@@ -1726,11 +1726,14 @@ model EmporioCheck {
   /// Frente 1 do Empório: o cliente próprio (`EmporioCustomer`), obrigatório.
   customer_id          String
   establishment_id     String
-  number               String
+  /// Frente C (Q354, Q356): número, banco e bom para podem ficar para depois. Cheque `recebido` com algum
+  /// dos três nulo é "A completar" (calculado em `src/lib/emporio/cheque.ts`): não se deposita e, sem
+  /// `good_for`, fica fora das datas (vencido, a vencer, Projeção).
+  number               String?
   /// Q284: em nome de quem é o cheque (o cliente da venda, ou o terceiro que o emitiu).
   holder_name          String
-  bank                 String
-  good_for             DateTime           @db.Date
+  bank                 String?
+  good_for             DateTime?          @db.Date
   amount               Decimal            @db.Decimal(14, 2)
   status               EmporioCheckStatus @default(recebido)
   financial_payment_id String?
