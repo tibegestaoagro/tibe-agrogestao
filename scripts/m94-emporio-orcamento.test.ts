@@ -348,7 +348,9 @@ async function secao2(c: Dado) {
   await db.emporioQuote.update({ where: { id: qV.data.id }, data: { valid_until: ontem } });
   await db.emporioQuote.update({ where: { id: qF.data.id }, data: { sale_id: vendaId } });
 
-  const lista = (ator: Dado, f: Dado = {}) => Orc.listarOrcamentosAction(db, ator, f);
+  // Frente H (Q365): a lista devolve `{ linhas, total, page, per_page }`; aqui só as linhas importam.
+  const soLinhas = (r: Dado): Dado => (r.ok ? { ...r, data: r.data.linhas } : r);
+  const lista = async (ator: Dado, f: Dado = {}) => soLinhas(await Orc.listarOrcamentosAction(db, ator, f));
   const ids = (r: Dado): string[] => (r.ok ? r.data.map((x: Dado) => x.id) : []);
   const soEste = (r: Dado, id: string) => r.ok && r.data.length === 1 && r.data[0].id === id;
 
@@ -405,9 +407,9 @@ async function secao2(c: Dado) {
   check("o Dono, sem loja, vê as duas lojas", ids(doDono).includes(qJ.data.id) && ids(doDono).includes(qL2.data.id), j(ids(doDono)));
   const donoL2 = await lista(owner, { establishment_id: L2, situacao: "todos" });
   check("o Dono, com a Loja 2: só os da Loja 2", donoL2.ok && donoL2.data.length > 0 && donoL2.data.every((x: Dado) => x.loja === "M94 Loja 2"), j(donoL2));
-  const outraConta = await Orc.listarOrcamentosAction(B.db, ownerB, { situacao: "todos" });
+  const outraConta = soLinhas(await Orc.listarOrcamentosAction(B.db, ownerB, { situacao: "todos" }));
   check("outro tenant: lista vazia", outraConta.ok && outraConta.data.length === 0, j(outraConta));
-  const buscaTenant = await Orc.listarOrcamentosAction(B.db, ownerB, { q: "34999990000" });
+  const buscaTenant = soLinhas(await Orc.listarOrcamentosAction(B.db, ownerB, { q: "34999990000" }));
   check("outro tenant buscando o telefone do João: vazio", buscaTenant.ok && buscaTenant.data.length === 0, j(buscaTenant));
 
   // --- o Caixa

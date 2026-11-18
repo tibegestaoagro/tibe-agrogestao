@@ -58,7 +58,7 @@ export default async function OrcamentosPage({
     }),
   ]);
   const lojas = lojasRes.ok ? lojasRes.data.map((l) => ({ id: l.id, name: l.name })) : [];
-  const orcamentos = res.ok ? res.data : [];
+  const orcamentos = res.ok ? res.data.linhas : [];
   const filtrado = filtro !== "acompanhamento" || !!loja || !!q.trim();
 
   return (
