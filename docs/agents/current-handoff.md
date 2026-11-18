@@ -198,5 +198,3 @@ relatórios em [agente-whatsapp/](agente-whatsapp/), detalhe em
   autorizados na conversa; frente D (balcão rápido) pronta na branch.
 - 17/11: frentes A e B (informação amarrada, conferir o cartão) em produção,
   autorizadas na conversa.
-- 11/11: reunião com a Agromax; custo único (Q298, Q299) em produção, compras
-  com a ordem corrigida e as de teste canceladas; tudo autorizado na conversa.
