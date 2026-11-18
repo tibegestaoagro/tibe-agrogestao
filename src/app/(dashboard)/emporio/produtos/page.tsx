@@ -89,6 +89,9 @@ export default async function ProdutosEmporioPage({
         </div>
         {podeEscrever && (
           <div className="flex flex-wrap gap-2">
+            <Button asChild variant="outline">
+              <Link href="/emporio/produtos/etiquetas">Etiquetas</Link>
+            </Button>
             <ProdutoDaFazendaForm
               candidatos={candidatos.map((c) => ({ id: c.id, name: c.name, category_name: c.category_name }))}
             />
