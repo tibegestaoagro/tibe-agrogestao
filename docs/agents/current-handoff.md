@@ -25,20 +25,20 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-17. **Plano das ideias do GestãoClick** (reunião de
-  09/11): Q341 a Q344 e a ordem das frentes em
+- Atualizado em: 2026-11-18. **Frente C (cheque em duas etapas, Q354 a Q356)
+  PRONTA NA BRANCH `emporio-cheque-duas-etapas`, fora de produção.** Spec e
+  plano de 18/11. Falta, cada um com autorização NA CONVERSA: (a) a migração
+  `20261118120000_emporio_cheque_duas_etapas` no Neon, URL Direct (só
+  `DROP NOT NULL` em number, bank e good_for); (b) merge e push na `main`.
+  Provas: `test:all` 125/125, `test:m122` (155), roteiro
+  `emporio-cheque-duas-etapas` (0 falhas; reprova com o 409 desligado, com
+  Depositar no incompleto e sem o "-" da venda cancelada), juiz com os achados
+  corrigidos, manual com o cheque em duas etapas (nenhuma figura mudou).
+  Sobras na 5.24. Plano do GestãoClick (Q341 a Q344):
   [../superpowers/specs/2026-11-17-emporio-plano-gestaoclick.md](../superpowers/specs/2026-11-17-emporio-plano-gestaoclick.md).
-  Material em `docs/financeiro-reuniao/` (fora do git, só no desktop).
-  Frente A (Q345 a Q348) em produção desde 17/11 (merge `49fbd47`).
-  **Frente B (conferir o cartão, Q349 a Q353) EM PRODUÇÃO** (migração no Neon
-  e merge `cc8a614` autorizados em 17/11, deploy confirmado no `/docs/api`).
-  Spec e plano de 17/11. `test:all` 124/124, `test:m121` (246), roteiro
-  `emporio-conferir-cartao` (103 ok, sabotado falha), juiz 8 com os achados
-  corrigidos, manual com "Conferir o cartão". Neon lido em 17/11: a migração não
-  toca nenhuma das 18 parcelas; 5 (R$ 31.451,90) ficam a conferir. No Docker
-  a migração foi editada depois de aplicada (checksum acertado à mão).
-  O resto do plano virou dívida: G1 (2.18) e G2 (2.34) esperam arquivo do
-  usuário; C, D e H são as 2.73 a 2.75; sobras da B na 5.23.
+  Frentes A (merge `49fbd47`) e B (conferir o cartão, merge `cc8a614`) em
+  produção desde 17/11. Dívida: G1 (2.18) e G2 (2.34) esperam arquivo do
+  usuário; D e H são as 2.74 e 2.75; sobras da B na 5.23.
 - Em produção desde 16/11: orçamento com total, cadastro leve e CEP (Q335 a
   Q340, merge `762854a`, `test:m119`); preço do cadastro, desconto por PIN e
   brinde (Q327 a Q334, merge `c43a130`, m118; os gestores precisam cadastrar o
@@ -191,10 +191,9 @@ relatórios em [agente-whatsapp/](agente-whatsapp/), detalhe em
 
 ## Últimas rodadas
 
+- 18/11: frente C (cheque em duas etapas) pronta na branch; migração no Neon
+  e merge aguardam autorização.
 - 17/11: frentes A e B (informação amarrada, conferir o cartão) em produção,
   autorizadas na conversa.
 - 11/11: reunião com a Agromax; custo único (Q298, Q299) em produção, compras
   com a ordem corrigida e as de teste canceladas; tudo autorizado na conversa.
-- 10/11: desfazer acordo, aviso por email e recalcular o mês (Q275 a Q277)
-  e, por baixo, relatórios e limpeza (Q268 a Q274) em produção, autorizados
-  na conversa.
