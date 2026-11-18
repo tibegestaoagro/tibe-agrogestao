@@ -104,6 +104,9 @@ grep -rl "^tipo: armadilha" docs/conhecimento/
 | [o carimbo usado como marca quebra com migração que carimba em massa](carimbo-usado-como-marca-quebra-com-migracao-que-carimba-em-massa.md) | armadilha | o `now()` da Q353 apagaria a igualdade com o `created_at` da antecipação e travaria o desfazer |
 | [o eh_404 dos roteiros casa o número 404 em qualquer texto](o-eh-404-dos-roteiros-casa-o-numero-404-em-qualquer-texto.md) | armadilha | a venda nº 004043 virou "página não encontrada"; procure "could not be found" |
 | [o manual regera toda figura, e a data muda quase todas](o-manual-regera-toda-figura-e-a-data-muda-quase-todas.md) | armadilha | 72 figuras modificadas, 2 com mudança real; devolva as outras e aumente `hd`/`hc` |
+| [a lista que corta em silêncio faz o cliente achar que o dado sumiu](a-lista-que-corta-em-silencio-faz-o-cliente-achar-que-o-dado-sumiu.md) | licao | os 247 orçamentos estavam no Neon e a lista parava no 38; pagine com total, `count` no mesmo `where` e desempate por `id` |
+| [o Turbopack entra em laço no balcão, e o --webpack não](o-turbopack-entra-em-laco-no-balcao-e-o-webpack-nao.md) | armadilha | 2.692 recargas e nenhuma hidratação no `/emporio/vender`; roteiro com `npx next dev --webpack` |
+| [o CI estourou a memória do Node com o projeto maior](o-ci-estourou-a-memoria-do-node-com-o-projeto-maior.md) | armadilha | "heap out of memory" no Type-check e no Build com o tsc local limpo; `NODE_OPTIONS` no job |
 
 ⚠️ **`[[wikilink]]` para nota que não existe reprova o `npm run check`**
 (conferência 13). É o que impede esta pasta de virar um cemitério de links
