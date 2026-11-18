@@ -680,8 +680,8 @@ export function ParteDeFinanceiroDasLojas() {
             fazer: "O extrato vai até 92 dias. Escolha datas mais próximas.",
           },
           {
-            quando: "A coluna dos cheques mostra só um traço",
-            fazer: "É de propósito. Depositar, compensar e devolver cheque é do Gestor da loja. O Financeiro só acompanha.",
+            quando: "O cheque aparece com o selo A completar",
+            fazer: "Ele foi registrado na venda sem número, banco ou bom para. Clique em Completar e preencha o que tiver. Enquanto falta algum dado, o cheque não se deposita.",
           },
         ]}
       >
