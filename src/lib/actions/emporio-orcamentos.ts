@@ -31,6 +31,7 @@ import { acharLojaParaEscrita, lerMovimentos } from "@/lib/actions/emporio-estoq
 import { resolverFranqueadoDoCredito } from "@/lib/actions/emporio-vendas";
 import { normalizarTermo } from "@/lib/actions/whatsapp-handlers/shared";
 import { pesoDoItemKg } from "@/lib/emporio/peso";
+import { lerPagina, recortar } from "@/lib/emporio/paginacao";
 
 /**
  * Meu Empório, entrega 4: o orçamento. Salvar não mexe em estoque, caixa nem
@@ -382,9 +383,6 @@ export type OrcamentoLinha = {
   vendedor: string | null;
 };
 
-/** Tamanhos de página aceitos na lista de orçamentos. */
-const POR_PAGINA = [20, 40, 80, 100];
-
 const soDigitos = (s: string | null | undefined) => (s ?? "").replace(/\D/g, "");
 
 /**
@@ -414,19 +412,9 @@ export async function listarOrcamentosAction(
   if (neg) return neg;
 
   const situacao = f.situacao ?? "acompanhamento";
-  const order = f.order ?? "desc";
-  if (order !== "asc" && order !== "desc") {
-    return fail("VALIDATION_ERROR", "Escolha a ordem: crescente ou decrescente.", 422, "order");
-  }
-  // Com `page`, vale `per_page` (padrão 20); sem `page` nem `per_page`, o `limit` antigo continua valendo.
-  const modoAntigo = f.page === undefined && f.per_page === undefined && !!f.limit && f.limit > 0;
-  const porPagina = modoAntigo ? Math.min(Math.floor(f.limit as number), 500) : (f.per_page ?? 20);
-  if (!modoAntigo && !POR_PAGINA.includes(porPagina)) {
-    return fail("VALIDATION_ERROR", "Escolha 20, 40, 80 ou 100 orçamentos por página.", 422, "per_page");
-  }
-  if (f.page !== undefined && (!Number.isInteger(f.page) || f.page < 1)) {
-    return fail("VALIDATION_ERROR", "A página começa em 1.", 422, "page");
-  }
+  const pg = lerPagina(f, "orçamentos");
+  if (!pg.ok) return pg;
+  const { order, porPagina } = pg.data;
   if (!SITUACOES_DO_FILTRO.includes(situacao)) {
     return fail("VALIDATION_ERROR", "Escolha a situação: acompanhamento, aberto, vencido, faturado, cancelado ou todos.", 422, "situacao");
   }
@@ -476,8 +464,7 @@ export async function listarOrcamentosAction(
 
   const where = filtros.length > 0 ? { AND: filtros } : {};
   const total = await db.emporioQuote.count({ where });
-  const ultima = Math.max(1, Math.ceil(total / porPagina));
-  const page = Math.min(f.page ?? 1, ultima);
+  const { page } = recortar(total, pg.data);
   // Poucas consultas para a lista inteira, nunca uma por orçamento: as linhas com loja,
   // cliente e a venda, e os nomes dos vendedores de uma vez. Sem itens, preço de hoje
   // nem saldo: a lista não precisa deles.

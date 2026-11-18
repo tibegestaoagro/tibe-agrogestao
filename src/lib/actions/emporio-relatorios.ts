@@ -400,6 +400,27 @@ export type CurvaAbc = {
   fora_da_curva?: { label: string; amount: number; sales_count: number };
 };
 
+/**
+ * A parte de cada valor positivo em `base`, em centésimos de ponto percentual (10000 = 100,00%), pelo método do maior
+ * resto: a soma fecha exatamente em 10000. Valor zero ou negativo não participa (fica 0). Empate de resto: o mais antigo da lista.
+ */
+function repartirEmCentesimos(centavosPorItem: number[], base: number): number[] {
+  if (base <= 0) return centavosPorItem.map(() => 0);
+  const partes = centavosPorItem.map((c) => {
+    const v = c > 0 ? c * 10000 : 0;
+    return { inteiro: Math.floor(v / base), resto: v % base };
+  });
+  let sobra = 10000 - partes.reduce((s, p) => s + p.inteiro, 0);
+  const porResto = partes.map((p, i) => ({ i, resto: p.resto })).sort((a, b) => b.resto - a.resto || a.i - b.i);
+  const saida = partes.map((p) => p.inteiro);
+  for (const { i, resto } of porResto) {
+    if (sobra <= 0 || resto <= 0) break;
+    saida[i] += 1;
+    sobra -= 1;
+  }
+  return saida;
+}
+
 const ROTULO_FORA_DA_CURVA = "Consumidor final e vendas sem cliente";
 const CONSUMIDOR_FINAL_KEY = "consumidor_final";
 
@@ -410,6 +431,15 @@ type Acumulado = {
   estimado: boolean;
   semCusto: boolean;
 };
+
+/** A mesma permissão do Resultado (`lerVisao`). */
+const PERMISSOES_DO_LUCRO: ["gestor_da_loja", "dinheiro"] = ["gestor_da_loja", "dinheiro"];
+
+/** Se o ator pode ver o lucro (a mesma checagem do `measure=profit` da curva): a página decide o seletor por ela. */
+export async function podeVerLucroAction(db: TenantPrismaClient, ator: Ator): Promise<boolean> {
+  const neg = await exigirUma(db, ator, PERMISSOES_DO_LUCRO, "ver o lucro");
+  return !neg;
+}
 
 /**
  * A curva ABC de produtos ou de clientes, na mesma conta do relatório de vendas
@@ -431,8 +461,7 @@ export async function curvaAbcAction(
   }
   const { kind, measure } = input;
   if (measure === "profit") {
-    // A mesma permissão do Resultado (`lerVisao`).
-    const neg = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "ver o lucro");
+    const neg = await exigirUma(db, ator, PERMISSOES_DO_LUCRO, "ver o lucro");
     if (neg && !neg.ok) return fail(neg.code, neg.message, neg.status, "measure");
   }
 
@@ -507,13 +536,14 @@ export async function curvaAbcAction(
   const baseCent = lista.reduce((s, x) => s + (x.a.cent > 0 ? x.a.cent : 0), 0);
   const totalCent = lista.reduce((s, x) => s + x.a.cent, 0) + (kind === "customers" ? fora.cent : 0);
   const comClasses = totalCent > 0 && baseCent > 0;
-  const pct = (cent: number) => (baseCent > 0 ? Math.round((cent * 10000) / baseCent) / 100 : 0);
-
+  // Participações pelo maior resto, em centésimos de ponto: só quem tem valor positivo participa, e a soma fecha em 100,00.
+  const partItens = comClasses ? repartirEmCentesimos(lista.map((x) => x.a.cent), baseCent) : lista.map(() => 0);
+  let acumuladoCentesimos = 0;
   let acumulado = 0;
-  const somaClasse: Record<CurvaAbcClasse, { count: number; cent: number }> = {
-    A: { count: 0, cent: 0 },
-    B: { count: 0, cent: 0 },
-    C: { count: 0, cent: 0 },
+  const somaClasse: Record<CurvaAbcClasse, { count: number; cent: number; positivo: number }> = {
+    A: { count: 0, cent: 0, positivo: 0 },
+    B: { count: 0, cent: 0, positivo: 0 },
+    C: { count: 0, cent: 0, positivo: 0 },
   };
   const itens: CurvaAbc["itens"] = lista.map((x, idx) => {
     let classe: CurvaAbcClasse = "C";
@@ -525,7 +555,9 @@ export async function curvaAbcAction(
     if (comClasses) {
       somaClasse[classe].count += 1;
       somaClasse[classe].cent += x.a.cent;
+      somaClasse[classe].positivo += x.a.cent > 0 ? x.a.cent : 0;
     }
+    acumuladoCentesimos += partItens[idx];
     return {
       posicao: idx + 1,
       id: x.id,
@@ -534,20 +566,22 @@ export async function curvaAbcAction(
         ? { quantity: Math.round(x.a.qty * 1000) / 1000, base_unit: x.base_unit }
         : { sales_count: x.a.vendas }),
       amount: reais(x.a.cent),
-      share_pct: comClasses ? pct(x.a.cent) : 0,
-      cumulative_pct: comClasses ? pct(acumulado) : 0,
+      share_pct: partItens[idx] / 100,
+      cumulative_pct: acumuladoCentesimos / 100,
       classe,
       cost_estimated: x.a.estimado,
       cost_missing: x.a.semCusto,
     };
   });
 
+  const ordemDasClasses = ["A", "B", "C"] as const;
+  const partClasses = comClasses ? repartirEmCentesimos(ordemDasClasses.map((c) => somaClasse[c].positivo), baseCent) : [];
   const classes: CurvaAbc["classes"] = comClasses
-    ? (["A", "B", "C"] as const).map((c) => ({
+    ? ordemDasClasses.map((c, k) => ({
         classe: c,
         count: somaClasse[c].count,
         amount: reais(somaClasse[c].cent),
-        share_pct: pct(somaClasse[c].cent),
+        share_pct: partClasses[k] / 100,
       }))
     : [];
 

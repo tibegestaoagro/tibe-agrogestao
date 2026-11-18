@@ -18,6 +18,8 @@ import { TransferenciaForm } from "../_components/transferencia-form";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { ReceberTransferenciaForm, CancelarTransferenciaForm, ResolverDiferencaForm } from "../_components/transferencia-acoes";
 import { TransferenciasFiltro } from "../_components/transferencias-filtro";
+import { Paginacao } from "../_components/paginacao";
+import { lerPaginacaoDaUrl } from "../_components/paginacao-opcoes";
 import { UNIDADE_BASE_SUFIXO, numeroBr } from "../_components/formato";
 
 const SITUACAO: Record<string, { rotulo: string; variante: "amber" | "green" | "gray" }> = {
@@ -44,10 +46,12 @@ function textoDias(dias: number): string {
 export default async function TransferenciasPage({
   searchParams,
 }: {
-  searchParams: Promise<{ loja?: string; situacao?: string }>;
+  searchParams: Promise<{ loja?: string; situacao?: string; pagina?: string; por_pagina?: string; ordem?: string }>;
 }) {
   const user = await requireFeaturePage("emporio");
-  const { loja = "", situacao = "" } = await searchParams;
+  const params = await searchParams;
+  const { loja = "", situacao = "" } = params;
+  const { pagina, porPagina, ordem } = lerPaginacaoDaUrl(params);
   const db = await getTenantDb();
   // O Caixa não abre esta tela: só vende, recebe fiado e opera o caixa.
   if ((await papelDoEmporio(db, user)).papel === "caixa") redirect("/emporio");
@@ -60,7 +64,7 @@ export default async function TransferenciasPage({
 
   const [lojasRes, transfRes, todasLojas, produtos] = await Promise.all([
     listarEstabelecimentosAction(db, user),
-    listarTransferenciasAction(db, user, { establishment_id: loja || undefined, status: filtroSituacao }),
+    listarTransferenciasAction(db, user, { establishment_id: loja || undefined, status: filtroSituacao, page: pagina, per_page: porPagina, order: ordem }),
     // O destino é qualquer loja da conta, mesmo as que o usuário não enxerga.
     podeEnviar
       ? db.establishment.findMany({
@@ -89,7 +93,18 @@ export default async function TransferenciasPage({
   const lojas = lojasRes.ok ? lojasRes.data.map((l) => ({ id: l.id, name: l.name })) : [];
   const idsVisiveis = new Set(lojas.map((l) => l.id));
   const origensDoEnvio = podeEnviar ? lojas.filter((l) => pode(papel, "gestor_da_loja", l.id)) : [];
-  const transferencias = transfRes.ok ? transfRes.data : [];
+  const transferencias = transfRes.ok ? transfRes.data.linhas : [];
+
+  function hrefDe(n: number): string {
+    const p = new URLSearchParams();
+    if (loja) p.set("loja", loja);
+    if (filtroSituacao) p.set("situacao", filtroSituacao);
+    if (porPagina !== 20) p.set("por_pagina", String(porPagina));
+    if (ordem !== "desc") p.set("ordem", ordem);
+    if (n > 1) p.set("pagina", String(n));
+    const texto = p.toString();
+    return texto ? `/emporio/transferencias?${texto}` : "/emporio/transferencias";
+  }
 
   // Q323: uma linha por TAMANHO (Saca 40 kg e ATACADO são a mesma saca). O id é o da mais antiga.
   function tamanhosFechados(
@@ -133,7 +148,7 @@ export default async function TransferenciasPage({
         )}
       </header>
 
-      <TransferenciasFiltro lojas={lojas} loja={loja} situacao={filtroSituacao ?? ""} />
+      <TransferenciasFiltro lojas={lojas} loja={loja} situacao={filtroSituacao ?? ""} porPagina={porPagina} ordem={ordem} />
 
       {lojas.length === 0 ? (
         <EmptyState
@@ -146,6 +161,8 @@ export default async function TransferenciasPage({
         >
           Cadastre as lojas para transferir mercadoria entre elas.
         </EmptyState>
+      ) : !transfRes.ok ? (
+        <p className="rounded-lg bg-superficie-afundada px-4 py-3 text-sm text-texto-secundario">{transfRes.message}</p>
       ) : transferencias.length === 0 ? (
         <EmptyState titulo="Nenhuma transferência encontrada">
           {filtroSituacao || loja ? "Mude o filtro para ver outras." : "Envie a primeira transferência entre lojas."}
@@ -258,6 +275,10 @@ export default async function TransferenciasPage({
             })}
           </TableBody>
         </Table>
+      )}
+
+      {transfRes.ok && transferencias.length > 0 && (
+        <Paginacao page={transfRes.data.page} perPage={transfRes.data.per_page} total={transfRes.data.total} hrefDe={hrefDe} />
       )}
     </div>
   );

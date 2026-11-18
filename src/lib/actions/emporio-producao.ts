@@ -1,6 +1,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
+import { lerPagina, recortar } from "@/lib/emporio/paginacao";
 import { decToNum, isoOrNull } from "@/lib/serialize";
 import { exigir } from "@/lib/emporio/papel";
 import { registrarNoHistorico } from "@/lib/emporio/historico";
@@ -353,11 +354,17 @@ const INCLUDE_PRODUCAO = {
 
 type ProducaoRow = Awaited<ReturnType<typeof buscarProducoes>>[number];
 
-async function buscarProducoes(db: TenantPrismaClient, where: Record<string, unknown>, take?: number) {
+async function buscarProducoes(
+  db: TenantPrismaClient,
+  where: Record<string, unknown>,
+  take?: number,
+  pag: { skip?: number; order?: "asc" | "desc" } = {},
+) {
   return db.productionEntry.findMany({
     where,
     include: INCLUDE_PRODUCAO,
-    orderBy: [{ created_at: "desc" }],
+    orderBy: [{ created_at: pag.order ?? "desc" }, { id: pag.order ?? "desc" }],
+    ...(pag.skip ? { skip: pag.skip } : {}),
     ...(take ? { take } : {}),
   });
 }
@@ -403,8 +410,13 @@ export async function listarProducoesAction(
     emporio_product_id?: string;
     status?: "ativa" | "cancelada";
     limit?: number;
+    page?: number;
+    per_page?: number;
+    order?: "asc" | "desc";
   } = {},
-): Promise<ActionResult<ProducaoView[]>> {
+): Promise<ActionResult<{ linhas: ProducaoView[]; total: number; page: number; per_page: number }>> {
+  const pg = lerPagina(opts, "produções");
+  if (!pg.ok) return pg;
   const visiveis = await lojasDoAtor(db, ator);
   if (opts.establishment_id && visiveis && !visiveis.has(opts.establishment_id)) {
     return NAO_ACHADO("Estabelecimento", "establishment_id");
@@ -422,8 +434,10 @@ export async function listarProducoesAction(
         ? { canceled_at: null }
         : {}),
   };
-  const limite = opts.limit && opts.limit > 0 ? Math.min(Math.floor(opts.limit), 500) : 200;
-  return ok((await buscarProducoes(db, where, limite)).map(viewDaProducao));
+  const total = await db.productionEntry.count({ where });
+  const { page, skip, take } = recortar(total, pg.data);
+  const linhas = (await buscarProducoes(db, where, take, { skip, order: pg.data.order })).map(viewDaProducao);
+  return ok({ linhas, total, page, per_page: pg.data.porPagina });
 }
 
 // ---------------------------------------------------------------------------

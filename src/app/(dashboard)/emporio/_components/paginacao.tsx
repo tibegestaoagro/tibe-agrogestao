@@ -17,6 +17,12 @@ export function numerosDaPaginacao(atual: number, ultima: number): (number | nul
   return saida;
 }
 
+/** A página pedida na URL: inteiro a partir de 1; qualquer outra coisa vale 1 (o servidor limita à última). */
+export function paginaDaUrl(valor: string | undefined): number {
+  const n = Number(valor);
+  return Number.isInteger(n) && n >= 1 ? n : 1;
+}
+
 const ITEM =
   "inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border border-borda px-3 text-sm font-medium";
 

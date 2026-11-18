@@ -4,6 +4,7 @@ import type { TenantPrismaClient } from "@/lib/prisma";
 import { runSerializableTenantTransaction } from "@/lib/financial";
 import { decToNum } from "@/lib/serialize";
 import { exigir } from "@/lib/emporio/papel";
+import { lerPagina, recortar } from "@/lib/emporio/paginacao";
 import { dinheiro, registrarNoHistorico } from "@/lib/emporio/historico";
 import type { Ator } from "@/lib/actions/emporio-catalogo";
 import { executarPagamentoDeContas, RecusaDespesa } from "@/lib/actions/emporio-despesas";
@@ -32,8 +33,8 @@ const NAO_PENDENTE = () => fail("PEDIDO_NAO_PENDENTE", "Este pedido já foi deci
 export async function listarPedidosDePagamentoAction(
   db: TenantPrismaClient,
   ator: Ator,
-  opts: { status?: StatusDoPedido | "decididos"; before?: string; before_id?: string } = {},
-): Promise<ActionResult<PedidoDePagamentoView[]>> {
+  opts: { status?: StatusDoPedido | "decididos"; before?: string; before_id?: string; page?: number; per_page?: number; order?: "asc" | "desc" } = {},
+): Promise<ActionResult<{ linhas: PedidoDePagamentoView[]; total: number; page: number; per_page: number }>> {
   const neg = await exigir(db, ator, "dinheiro", "ver os pedidos de pagamento");
   if (neg) return neg;
   const status = opts?.status;
@@ -60,18 +61,31 @@ export async function listarPedidosDePagamentoAction(
       where: { status: { in: ["aprovado", "recusado"] }, ...corte },
       include: INCLUDE_PEDIDO,
       orderBy: [{ decided_at: "desc" }, { id: "desc" }],
-      take: 200,
+      take: DECIDIDOS_POR_VEZ,
     });
-    return ok(await viewsDosPedidos(db, decididos));
+    // Os decididos seguem pelo cursor ("Ver mais antigos"); `total` conta todos, `page` e `per_page` dizem o recorte.
+    const total = await db.emporioPaymentRequest.count({ where: { status: { in: ["aprovado", "recusado"] } } });
+    return ok({ linhas: await viewsDosPedidos(db, decididos), total, page: 1, per_page: DECIDIDOS_POR_VEZ });
   }
+  // Q366 (achado do juiz, 18/11): os pendentes e os de um estado paginam como as outras listas, sem o corte
+  // silencioso em 200. Os pendentes vêm do mais antigo (a fila de quem aprova); os outros, do mais novo.
+  const pg = lerPagina({ page: opts.page, per_page: opts.per_page, order: opts.order ?? (status === "pendente" ? "asc" : "desc") }, "pedidos");
+  if (!pg.ok) return pg;
+  const where: Prisma.EmporioPaymentRequestWhereInput = status ? { status } : {};
+  const total = await db.emporioPaymentRequest.count({ where });
+  const { page, skip, take } = recortar(total, pg.data);
   const linhas = await db.emporioPaymentRequest.findMany({
-    where: status ? { status } : {},
+    where,
     include: INCLUDE_PEDIDO,
-    orderBy: { created_at: status === "pendente" ? "asc" : "desc" },
-    take: 200,
+    orderBy: [{ created_at: pg.data.order }, { id: pg.data.order }],
+    skip,
+    take,
   });
-  return ok(await viewsDosPedidos(db, linhas));
+  return ok({ linhas: await viewsDosPedidos(db, linhas), total, page, per_page: pg.data.porPagina });
 }
+
+/** Quantos decididos cada "Ver mais antigos" traz. */
+const DECIDIDOS_POR_VEZ = 200;
 
 export async function aprovarPedidoDePagamentoAction(
   db: TenantPrismaClient,

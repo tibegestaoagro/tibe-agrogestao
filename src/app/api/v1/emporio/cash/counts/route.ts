@@ -3,10 +3,10 @@ import { apiErroDeZod } from "@/lib/api";
 import { readJson } from "@/lib/api-guard";
 import { withApi } from "@/lib/route";
 import { conferirGavetaAction, listarConferenciasAction } from "@/lib/actions/emporio-caixa";
-import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
+import { guardEmporio, paginaDaQuery, respostaDaAction, respostaPaginada } from "@/lib/emporio/rota";
 
 /**
- * GET  /api/v1/emporio/cash/counts  ?establishment_id= &limit=  o histórico de conferências da gaveta.
+ * GET  /api/v1/emporio/cash/counts  ?establishment_id= &page= &per_page= (20, 40, 80, 100) &order= (desc|asc) &limit= (antigo, sem page)  o histórico de conferências da gaveta; meta: total, page, per_page.
  * POST /api/v1/emporio/cash/counts  confere um caixa no turno aberto: a diferença vira ajuste de caixa e "Diferença de caixa".
  */
 
@@ -20,9 +20,12 @@ async function GETHandler(request: Request) {
   const g = await guardEmporio("read");
   if ("error" in g) return g.error;
   const sp = new URL(request.url).searchParams;
+  const pagina = paginaDaQuery(sp, "conferências");
+  if (!pagina.success) return apiErroDeZod(pagina.error);
   const limit = Number(sp.get("limit"));
-  return respostaDaAction(
+  return respostaPaginada(
     await listarConferenciasAction(g.db, g.user, {
+      ...pagina.data,
       establishment_id: sp.get("establishment_id") ?? undefined,
       limit: Number.isFinite(limit) && limit > 0 ? limit : undefined,
     }),

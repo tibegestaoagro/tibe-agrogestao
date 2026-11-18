@@ -3,10 +3,11 @@ import { apiError, apiErroDeZod } from "@/lib/api";
 import { readJson } from "@/lib/api-guard";
 import { withApi } from "@/lib/route";
 import { anteciparAction, listarAntecipacoesAction } from "@/lib/actions/emporio-antecipacao";
-import { diaComMensagem, diaIso, guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
+import { diaComMensagem, diaIso, guardEmporio, paginaSchema, respostaDaAction, respostaPaginada } from "@/lib/emporio/rota";
 
 /**
- * GET /api/v1/emporio/card-anticipations  ?de=AAAA-MM-DD&ate=AAAA-MM-DD&establishment_id=  as antecipações de cartão.
+ * GET /api/v1/emporio/card-anticipations  ?de=AAAA-MM-DD&ate=AAAA-MM-DD&establishment_id= &page= &per_page= (20, 40, 80, 100) &order= (desc|asc)  as antecipações de cartão; meta: total, page, per_page.
+ * O cursor antigo (before + before_id, só decrescente) segue valendo e, sem page, mantém o corte em 200.
  * POST /api/v1/emporio/card-anticipations  { receivable_ids, operated_on, received_net, notes? }: antecipa parcelas
  * (pontual); só quem gere a loja das parcelas ou cuida do dinheiro.
  */
@@ -23,7 +24,7 @@ const querySchema = z.object({
   ate: diaIso("ate").optional(),
   before: diaIso("before").optional(),
   before_id: z.string({ error: "Informe o id do cursor." }).min(1).optional(),
-});
+}).merge(paginaSchema("antecipações"));
 
 async function GETHandler(request: Request) {
   const g = await guardEmporio("read");
@@ -34,6 +35,9 @@ async function GETHandler(request: Request) {
     ate: sp.get("ate") ?? undefined,
     before: sp.get("before") ?? undefined,
     before_id: sp.get("before_id") ?? undefined,
+    page: sp.get("page") ?? undefined,
+    per_page: sp.get("per_page") ?? undefined,
+    order: sp.get("order") ?? undefined,
   });
   if (!q.success) return apiErroDeZod(q.error);
   if ((q.data.before === undefined) !== (q.data.before_id === undefined)) {
@@ -44,8 +48,11 @@ async function GETHandler(request: Request) {
       q.data.before !== undefined ? "before_id" : "before",
     );
   }
-  return respostaDaAction(
+  return respostaPaginada(
     await listarAntecipacoesAction(g.db, g.user, {
+      page: q.data.page,
+      per_page: q.data.per_page,
+      order: q.data.order,
       de: q.data.de,
       ate: q.data.ate,
       before: q.data.before && q.data.before_id ? { operated_on: q.data.before, id: q.data.before_id } : undefined,

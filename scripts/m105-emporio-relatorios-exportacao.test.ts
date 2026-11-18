@@ -539,7 +539,7 @@ async function comBanco() {
         const dobroDias = pctEfetivoMes(900, S, dias * 2) as number;
         check("dobrar o custo dobra o %; dobrar os dias divide por dois", perto(dobroCusto, f * 2, 0.02) && perto(dobroDias, f / 2, 0.02), `${f} ${dobroCusto} ${dobroDias}`);
         const lista = dados(await aa("listarAntecipacoesAction", admin.ator, {}));
-        const item = ((Array.isArray(lista) ? lista : (lista?.items ?? [])) as Dado[]).find((x) => x.id === rAnt.data.id);
+        const item = ((Array.isArray(lista) ? lista : (lista?.linhas ?? lista?.items ?? [])) as Dado[]).find((x) => x.id === rAnt.data.id);
         check("e a lista de antecipações devolve o mesmo % da função", !!item && perto(item.effective_pct_month, f, 0.01), j(item?.effective_pct_month));
       }
     });
@@ -559,14 +559,14 @@ async function comBanco() {
       const empate = criados.filter((c) => new Date(c.decided_at).getTime() === base + 2000);
       check("(fixture) dois pedidos decididos no mesmo decided_at", empate.length === 2, String(empate.length));
       const p1 = await ap("listarPedidosDePagamentoAction", fin.ator, { status: "decididos" });
-      const d1: Dado[] = p1.ok ? p1.data : [];
+      const d1: Dado[] = p1.ok ? (p1.data.linhas ?? p1.data) : [];
       check("a primeira página traz 200 decididos, do mais novo ao mais antigo", d1.length === 200 && d1.every((p, i) => i === 0 || new Date(d1[i - 1].decided_at).getTime() >= new Date(p.decided_at).getTime()), j([p1.ok, d1.length]));
       const vistos: string[] = d1.map((p) => p.id);
       let pag = d1;
       for (let i = 0; i < 5 && pag.length === 200; i++) {
         const ult = pag[pag.length - 1];
         const pn = await ap("listarPedidosDePagamentoAction", fin.ator, { status: "decididos", before: ult.decided_at, before_id: ult.id });
-        pag = pn.ok ? pn.data : [];
+        pag = pn.ok ? (pn.data.linhas ?? pn.data) : [];
         vistos.push(...pag.map((p) => p.id));
       }
       const meus = vistos.filter((id) => ids.has(id));

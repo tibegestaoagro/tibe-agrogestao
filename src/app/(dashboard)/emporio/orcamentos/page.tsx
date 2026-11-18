@@ -21,7 +21,7 @@ import { NomeDoCliente, VendaLink } from "../_components/amarras";
 import { idDoClientePadrao } from "../_components/cliente-padrao";
 import { Paginacao } from "../_components/paginacao";
 import { OrcamentosFiltro } from "./_components/orcamentos-filtro";
-import { TAMANHOS_DE_PAGINA } from "./_components/paginacao-opcoes";
+import { TAMANHOS_DE_PAGINA } from "../_components/paginacao-opcoes";
 import { SITUACOES_DO_ORCAMENTO } from "./_components/situacoes";
 
 const DATA_HORA = new Intl.DateTimeFormat("pt-BR", {

@@ -234,7 +234,7 @@ async function comBanco() {
       return Promise.resolve(ausente(nome));
     };
     const dados = (r: R): Dado => (r.ok ? r.data : undefined);
-    const lista = (d: Dado): Dado[] => (Array.isArray(d) ? d : (d?.items ?? []));
+    const lista = (d: Dado): Dado[] => (Array.isArray(d) ? d : (d?.linhas ?? d?.items ?? []));
     const cc = (nome: string, ...a: unknown[]) => chamar([C], db, nome, ...a);
     const ee = (nome: string, ...a: unknown[]) => chamar([E], db, nome, ...a);
     const vv = (nome: string, ...a: unknown[]) => chamar([V], db, nome, ...a);

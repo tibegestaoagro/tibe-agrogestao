@@ -19,6 +19,8 @@ import {
 import { CompraForm } from "../_components/compra-form";
 import { ReceberCompraBotao, CancelarCompraForm } from "../_components/compra-acoes";
 import { ComprasFiltro } from "../_components/compras-filtro";
+import { Paginacao } from "../_components/paginacao";
+import { lerPaginacaoDaUrl } from "../_components/paginacao-opcoes";
 import { UNIDADE_BASE_SUFIXO, numeroBr } from "../_components/formato";
 
 const FORMA: Record<string, string> = {
@@ -38,10 +40,12 @@ const DATA = new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC" });
 export default async function ComprasPage({
   searchParams,
 }: {
-  searchParams: Promise<{ loja?: string; situacao?: string }>;
+  searchParams: Promise<{ loja?: string; situacao?: string; pagina?: string; por_pagina?: string; ordem?: string }>;
 }) {
   const user = await requireFeaturePage("emporio");
-  const { loja = "", situacao = "" } = await searchParams;
+  const params = await searchParams;
+  const { loja = "", situacao = "" } = params;
+  const { pagina, porPagina, ordem } = lerPaginacaoDaUrl(params);
   const db = await getTenantDb();
   // O Caixa não abre esta tela: só vende, recebe fiado e opera o caixa.
   if ((await papelDoEmporio(db, user)).papel === "caixa") redirect("/emporio");
@@ -54,7 +58,7 @@ export default async function ComprasPage({
 
   const [lojasRes, comprasRes, produtos] = await Promise.all([
     listarEstabelecimentosAction(db, user),
-    listarComprasAction(db, user, { establishment_id: loja || undefined, status: filtroSituacao }),
+    listarComprasAction(db, user, { establishment_id: loja || undefined, status: filtroSituacao, page: pagina, per_page: porPagina, order: ordem }),
     podeLancar
       ? db.emporioProduct.findMany({
           where: { archived_at: null },
@@ -73,7 +77,18 @@ export default async function ComprasPage({
   ]);
   const lojas = lojasRes.ok ? lojasRes.data.map((l) => ({ id: l.id, name: l.name })) : [];
   const lojasDoLancamento = lojas.filter((l) => pode(papel, "chave:lancar_compra", l.id));
-  const compras = comprasRes.ok ? comprasRes.data : [];
+  const compras = comprasRes.ok ? comprasRes.data.linhas : [];
+
+  function hrefDe(n: number): string {
+    const p = new URLSearchParams();
+    if (loja) p.set("loja", loja);
+    if (filtroSituacao) p.set("situacao", filtroSituacao);
+    if (porPagina !== 20) p.set("por_pagina", String(porPagina));
+    if (ordem !== "desc") p.set("ordem", ordem);
+    if (n > 1) p.set("pagina", String(n));
+    const texto = p.toString();
+    return texto ? `/emporio/compras?${texto}` : "/emporio/compras";
+  }
 
   // Q296: o saldo e o custo médio de hoje, por loja, para a tela avisar antes de lançar.
   const saldosRes = podeLancar ? await lerSaldosParaCompraAction(db, user) : null;
@@ -111,7 +126,7 @@ export default async function ComprasPage({
         )}
       </header>
 
-      <ComprasFiltro lojas={lojas} loja={loja} situacao={filtroSituacao ?? ""} />
+      <ComprasFiltro lojas={lojas} loja={loja} situacao={filtroSituacao ?? ""} porPagina={porPagina} ordem={ordem} />
 
       {lojas.length === 0 ? (
         <EmptyState
@@ -124,6 +139,8 @@ export default async function ComprasPage({
         >
           Cadastre uma loja para registrar compras.
         </EmptyState>
+      ) : !comprasRes.ok ? (
+        <p className="rounded-lg bg-superficie-afundada px-4 py-3 text-sm text-texto-secundario">{comprasRes.message}</p>
       ) : compras.length === 0 ? (
         <EmptyState titulo="Nenhuma compra encontrada">
           {filtroSituacao || loja ? "Mude o filtro para ver outras." : "Registre a primeira compra de uma loja."}
@@ -194,6 +211,10 @@ export default async function ComprasPage({
             })}
           </TableBody>
         </Table>
+      )}
+
+      {comprasRes.ok && compras.length > 0 && (
+        <Paginacao page={comprasRes.data.page} perPage={comprasRes.data.per_page} total={comprasRes.data.total} hrefDe={hrefDe} />
       )}
     </div>
   );

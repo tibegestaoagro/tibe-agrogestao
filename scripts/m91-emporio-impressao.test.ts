@@ -135,7 +135,7 @@ async function secao1() {
     check("lerVendaAction devolve number", lida.ok && lida.data.number === 1, j(lida));
 
     const lista = await V.listarVendasAction(A.db, A.owner, {});
-    check("a lista de vendas traz number", lista.ok && lista.data.length === 7 && lista.data.every((v) => typeof v.number === "number"), j(lista));
+    check("a lista de vendas traz number", lista.ok && lista.data.linhas.length === 7 && lista.data.linhas.every((v) => typeof v.number === "number"), j(lista));
 
     const contador = await A.db.emporioCounter.findFirst({ where: { key: "venda" } });
     check("o contador da conta A parou em 7", contador?.value === 7, j(contador));

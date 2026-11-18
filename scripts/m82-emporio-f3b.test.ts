@@ -118,7 +118,7 @@ async function comBanco() {
     const cat = await db.productCategory.create({ data: scoped({ name: "M82 categoria" }) });
 
     const dados = (r: R): Dado => (r.ok ? r.data : undefined);
-    const lista = (d: Dado): Dado[] => (Array.isArray(d) ? d : (d?.items ?? []));
+    const lista = (d: Dado): Dado[] => (Array.isArray(d) ? d : (d?.linhas ?? d?.items ?? []));
     const ausente = (nome: string): R => ({ ok: false, code: "ACTION_AUSENTE", message: `action ausente: ${nome}`, status: 0 });
     const chamarEm = async (mods: Record<string, Acao>[], cliente: Dado, nome: string, ...args: unknown[]): Promise<R> => {
       for (const m of mods) {

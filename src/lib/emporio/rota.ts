@@ -22,6 +22,35 @@ export function respostaDaAction<T>(res: ActionResult<T>, status = 200) {
   return apiOk(res.data, {}, status === 200 ? undefined : { status });
 }
 
+/** A resposta de uma lista paginada: as linhas em `data` e `meta: { total, page, per_page }` (o padrão da Q365). */
+export function respostaPaginada<T>(res: ActionResult<{ linhas: T[]; total: number; page: number; per_page: number }>) {
+  if (!res.ok) return apiError(res.code, res.message, res.status, res.field);
+  const { linhas, total, page, per_page } = res.data;
+  return apiOk(linhas, { total, page, per_page });
+}
+
+/** Os três parâmetros de página de uma lista. */
+export function paginaSchema(rotulo: string) {
+  const msg = `Escolha 20, 40, 80 ou 100 ${rotulo} por página.`;
+  return z.object({
+    page: z.coerce.number({ error: "A página deve ser um número." }).int({ error: "A página deve ser um número inteiro." }).min(1, "A página começa em 1.").optional(),
+    per_page: z.coerce
+      .number({ error: msg })
+      .refine((n) => [20, 40, 80, 100].includes(n), { error: msg })
+      .optional(),
+    order: z.enum(["asc", "desc"], { error: "Escolha a ordem: crescente (asc) ou decrescente (desc)." }).optional(),
+  });
+}
+
+/** Lê `page`, `per_page` e `order` da query. */
+export function paginaDaQuery(sp: URLSearchParams, rotulo: string) {
+  return paginaSchema(rotulo).safeParse({
+    page: sp.get("page") ?? undefined,
+    per_page: sp.get("per_page") ?? undefined,
+    order: sp.get("order") ?? undefined,
+  });
+}
+
 /** `?incluir_arquivados=1` (ou `true`). */
 export function incluirArquivados(request: Request): boolean {
   const v = new URL(request.url).searchParams.get("incluir_arquivados");

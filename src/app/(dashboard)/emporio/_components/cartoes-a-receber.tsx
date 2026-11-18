@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import type { AntecipacaoView } from "@/lib/actions/emporio-antecipacao";
 import type { CartaoAReceberView } from "@/lib/actions/emporio-financeiro";
@@ -42,6 +42,7 @@ const cent = (n: number) => Math.round(Number((n * 100).toPrecision(12)));
 export function CartoesAReceber({
   cards,
   antecipacoes,
+  paginacao = null,
   lojasQueAntecipam,
   padraoId = null,
   semAtrasadoNoFiltro = false,
@@ -58,6 +59,8 @@ export function CartoesAReceber({
   podeConferir?: boolean;
   cards: CartaoAReceberView[];
   antecipacoes: AntecipacaoView[];
+  /** A barra de páginas das antecipações, vinda da página server. */
+  paginacao?: ReactNode;
   /** As lojas em que quem lê pode antecipar (a conta toda traz todas). */
   lojasQueAntecipam: string[];
 }) {
@@ -305,6 +308,7 @@ export function CartoesAReceber({
             </TableBody>
           </Table>
         )}
+        {paginacao}
       </section>
     </>
   );

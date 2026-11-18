@@ -3,10 +3,10 @@ import { apiError, apiErroDeZod, apiOk } from "@/lib/api";
 import { readJson } from "@/lib/api-guard";
 import { withApi } from "@/lib/route";
 import { listarProducoesAction, produzirAction } from "@/lib/actions/emporio-producao";
-import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
+import { guardEmporio, paginaDaQuery, respostaPaginada } from "@/lib/emporio/rota";
 
 /**
- * GET  /api/v1/emporio/production  ?establishment_id= &emporio_product_id= &status=ativa|cancelada
+ * GET  /api/v1/emporio/production  ?establishment_id= &emporio_product_id= &status=ativa|cancelada &page= &per_page= (20, 40, 80, 100) &order= (desc|asc) &limit= (antigo, sem page); meta: total, page, per_page
  * POST /api/v1/emporio/production  registra a produção na loja (chave de operação, Q70): wrapper fino.
  */
 
@@ -31,8 +31,13 @@ async function GETHandler(request: Request) {
   if ("error" in g) return g.error;
   const sp = new URL(request.url).searchParams;
   const status = sp.get("status");
-  return respostaDaAction(
+  const pagina = paginaDaQuery(sp, "produções");
+  if (!pagina.success) return apiErroDeZod(pagina.error);
+  const limit = Number(sp.get("limit"));
+  return respostaPaginada(
     await listarProducoesAction(g.db, g.user, {
+      ...pagina.data,
+      limit: Number.isFinite(limit) && limit > 0 ? limit : undefined,
       establishment_id: sp.get("establishment_id") ?? undefined,
       emporio_product_id: sp.get("emporio_product_id") ?? undefined,
       status: status === "ativa" || status === "cancelada" ? status : undefined,

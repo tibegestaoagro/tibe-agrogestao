@@ -1379,6 +1379,8 @@ const PREFIXOS_DE_LEITURA = [
   "gerarCodigo",
   // Frente H: a curva ABC é relatório, calculado na leitura.
   "curva",
+  // 5.27: só responde se o ator pode ver o lucro.
+  "podeVer",
 ];
 
 export function acoesDeEscritaSemHistorico(fonte: string): string[] {

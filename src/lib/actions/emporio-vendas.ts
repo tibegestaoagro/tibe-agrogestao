@@ -3,6 +3,7 @@ import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { dinheiro, itens as frasItens, registrarNoHistorico } from "@/lib/emporio/historico";
 import { CATEGORIA_ACORDO } from "@/lib/emporio/acordo";
+import { lerPagina, recortar } from "@/lib/emporio/paginacao";
 import { chequeIncompleto } from "@/lib/emporio/cheque";
 import { contaPixDisponivelParaLoja } from "@/lib/emporio/conta-pix";
 import { pesoDoItemKg, pesoTotal } from "@/lib/emporio/peso";
@@ -344,11 +345,18 @@ const INCLUDE_VENDA = {
 
 type VendaRow = Awaited<ReturnType<typeof buscarVendas>>[number];
 
-async function buscarVendas(db: TenantPrismaClient, where: Record<string, unknown>, take?: number) {
+async function buscarVendas(
+  db: TenantPrismaClient,
+  where: Record<string, unknown>,
+  take?: number,
+  pag: { skip?: number; order?: "asc" | "desc" } = {},
+) {
+  const o = pag.order ?? "desc";
   return db.emporioSale.findMany({
     where,
     include: INCLUDE_VENDA,
-    orderBy: [{ sold_at: "desc" }, { created_at: "desc" }],
+    orderBy: [{ sold_at: o }, { created_at: o }, { id: o }],
+    ...(pag.skip ? { skip: pag.skip } : {}),
     ...(take ? { take } : {}),
   });
 }
@@ -567,8 +575,13 @@ export async function listarVendasAction(
     de?: Date;
     ate?: Date;
     limit?: number;
+    page?: number;
+    per_page?: number;
+    order?: "asc" | "desc";
   } = {},
-): Promise<ActionResult<VendaView[]>> {
+): Promise<ActionResult<{ linhas: VendaView[]; total: number; page: number; per_page: number }>> {
+  const pg = lerPagina(opts, "vendas");
+  if (!pg.ok) return pg;
   const visiveis = await lojasDoAtor(db, ator);
   if (opts.establishment_id && visiveis && !visiveis.has(opts.establishment_id)) {
     return NAO_ACHADO("Estabelecimento", "establishment_id");
@@ -595,8 +608,10 @@ export async function listarVendasAction(
     ...(opts.origin ? { origin: opts.origin } : {}),
     ...(Object.keys(periodo).length > 0 ? { sold_at: periodo } : {}),
   };
-  const limite = opts.limit && opts.limit > 0 ? Math.min(Math.floor(opts.limit), 500) : 200;
-  return ok(await montarVendas(db, await buscarVendas(db, where, limite)));
+  const total = await db.emporioSale.count({ where });
+  const { page, skip, take } = recortar(total, pg.data);
+  const linhas = await montarVendas(db, await buscarVendas(db, where, take, { skip, order: pg.data.order }));
+  return ok({ linhas, total, page, per_page: pg.data.porPagina });
 }
 
 /**

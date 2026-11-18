@@ -329,38 +329,23 @@ Registrado em 07/11/2026, na branch `emporio-entrega-e-romaneio` (plano 3 de 3).
   a seção 3 confere o `field` mas não a mensagem exata do principal incompleto e
   do "outro" sem bairro.
 
-### 5.27 Empório, curva ABC (frente H, Q362 a Q364): o que ficou para depois
+### 5.28 Empório, paginação das listas e curva ABC (Q366, Q367): o que ficou para depois
 
-Registrado em 18/11/2026, no merge da branch `emporio-curva-abc` (juiz 8/10,
-sem bloqueante; o selo de classe na lista sem vendas positivas foi corrigido).
-- **Percentuais arredondados um a um:** três itens de 33,33% somam 99,99 ou
-  100,01 nos resumos (`pct()` em `emporio-relatorios.ts`). Só visual; a
-  classificação usa inteiros e está certa.
-- **O seletor "Lucro" aparece para todos** e só some depois de um 403. Hoje a
-  permissão do Relatórios e a do Resultado são a mesma, então ninguém o vê sem
-  poder; se elas se separarem, decidir no servidor e passar à tela.
-- **O lucro da curva não é o do Resultado** (decisão do usuário: venda menos
-  custo, sem despesa variável nem taxa do cartão); a tela e o manual dizem
-  isso. Pode diferir 1 centavo por arredondamento do custo por linha.
-- **Fora do roteiro (só na `m124`):** o 403 do lucro, a troca, o frete, outro
-  tenant e o período inválido.
-
-### 5.26 Empório, listas que cortam em silêncio (achado de 18/11/2026)
-
-A lista de Orçamentos cortava nos 200 mais recentes sem avisar, e a Agromax
-achou que os antigos tinham sumido (os 247 estavam no Neon). A frente H
-(Q365) paginou os Orçamentos com o componente
-`src/app/(dashboard)/emporio/_components/paginacao.tsx`. As outras listas com
-o mesmo corte por `take` sem total nem aviso (levantado por grep em 18/11):
-- `listarVendasAction` (`emporio-vendas.ts`, 200): a mais provável de
-  bater no teto, junto da dos orçamentos.
-- `listarComprasAction` (200), `listarTransferenciasAction` (200),
-  `listarProducoesAction` (200), `listarPedidosDePagamentoAction` (200),
-  `listarAntecipacoesAction` (200), `listarEntregasAction` (`emporio-turno.ts`,
-  200), `lerCaixaAction` e `listarConferenciasAction` (`emporio-caixa.ts`, 100).
-
-Caminho: o mesmo da Q365 (`page`, `per_page`, `order`, `count` sob o mesmo
-filtro, `meta.total`) e o componente de paginação, começando pelas Vendas.
+Registrado em 18/11/2026, no merge da branch `emporio-paginacao-listas`, que fechou as
+dívidas 5.26 (listas que cortavam em silêncio) e 5.27 (percentuais da curva e
+seletor de lucro). Juiz sem bloqueante; os dois importantes (desempate por id e
+pendentes das Aprovações) corrigidos.
+- **Lucro da curva diferente do Resultado** é decisão do usuário (venda menos
+  custo), não defeito; a tela e o manual dizem isso.
+- **Movimentos do caixa** paginam sem troca de ordem, e os pendentes das
+  Aprovações vão de 20 em 20 sem seletor de tamanho.
+- **API:** quem chama as listas sem `page` nem `limit` recebe 20 linhas (antes,
+  até 200); o `meta.total` diz quantos há.
+- **Fora do navegador (só na `m125`):** antecipações, conferências e 80 e 100
+  por página em Compras e Transferências; o 403 do lucro (Vendedor e Caixa
+  nem abrem o Relatórios).
+- A tela do Caixa ainda refiltra as entregas por loja do gestor depois da
+  consulta (redundante desde que o filtro foi para a action).
 
 ### 5.25 Empório, balcão rápido (frente D, Q357 a Q361): o que ficou para depois
 

@@ -937,7 +937,7 @@ async function secao3() {
   const criados = await (prisma as Dado).emporioPaymentRequest.createManyAndReturn({ data: dados, select: { id: true } });
   try {
     const p1 = await Apr.listarPedidosDePagamentoAction(A.db, A.owner, { status: "decididos" });
-    const d1: Dado[] = p1.ok ? p1.data : [];
+    const d1: Dado[] = p1.ok ? p1.data.linhas : [];
     check("decididos: a primeira página traz 200, sem pendente, do mais novo ao mais antigo",
       d1.length === 200 && d1.every((p) => p.status !== "pendente" && p.decided_at), j(d1.length));
     // Outros pedidos decididos do tenant (seções anteriores) podem preceder os 205: segue o cursor até esgotar.
@@ -945,7 +945,7 @@ async function secao3() {
     let pag = d1;
     for (let i = 0; i < 10 && pag.length === 200; i++) {
       const pn = await Apr.listarPedidosDePagamentoAction(A.db, A.owner, { status: "decididos", before: pag[199].decided_at });
-      pag = pn.ok ? pn.data : [];
+      pag = pn.ok ? pn.data.linhas : [];
       pag.forEach((p) => vistos.add(p.id));
     }
     check("decididos: o cursor `before` alcança os 205 pedidos, inclusive o mais antigo",

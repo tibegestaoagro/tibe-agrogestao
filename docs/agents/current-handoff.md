@@ -25,25 +25,23 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-18. **Frente H (curva ABC, Q362 a Q364) e
-  paginação dos Orçamentos (Q365) EM PRODUÇÃO** (merge da branch
-  `emporio-curva-abc`, autorizado pelo usuário na conversa em 18/11; sem
-  migração). Origem da paginação: a Agromax achou que os orçamentos do nº 37
-  para baixo tinham sumido; o Neon tinha os 247, a lista cortava em 200. Provas:
-  `test:all` 127/127, `test:m124` (111), roteiro `emporio-curva-abc` (0 falhas;
-  reprova nas quatro sabotagens), juiz 8/10, manual e a figura
-  `orcamentos-lista`. Sobras na 5.27; outras listas que cortam em silêncio na
-  5.26 (Vendas primeiro).
-- **Frente D (balcão rápido, Q357 a Q361) em produção** (migração no Neon e
-  merge `b24776a`, 18/11): atalhos, código de barras por apresentação e
-  etiquetas A4 e rolo. `test:m123` (226), roteiro `emporio-balcao-rapido`.
-  Sem leitor nem impressora reais. Sobras na 5.25.
+- Atualizado em: 2026-11-18. **Paginação das listas e acertos da curva ABC
+  (dívidas 5.26 e 5.27, Q366 e Q367) EM PRODUÇÃO** (merge da branch
+  `emporio-paginacao-listas`, autorizado pelo usuário na conversa em 18/11;
+  sem migração). Vendas, Compras, Transferências,
+  produções, antecipações, entregas, movimentos do caixa, conferências e os
+  pendentes das Aprovações paginam sem corte silencioso; a curva fecha em
+  100%; o seletor de lucro é decidido no servidor. Provas: `test:all` 128/128,
+  `test:m125` (com os pendentes), roteiro `emporio-paginacao-listas` (0
+  falhas; reprova nas sabotagens), juiz sem bloqueante com os dois importantes
+  corrigidos, manual e figuras. Sobras na 5.28.
 - Plano do GestãoClick (Q341 a Q344):
   [../superpowers/specs/2026-11-17-emporio-plano-gestaoclick.md](../superpowers/specs/2026-11-17-emporio-plano-gestaoclick.md).
-  Em produção: A (`49fbd47`), B (conferir o cartão, `cc8a614`), C (cheque em
-  duas etapas, `76a61ba`; sobras na 5.24), D e H. Falta: G1 (2.18) e G2 (2.34)
-  esperam arquivo do usuário (planilha do GestãoClick e XML de nota); sobras
-  da B na 5.23. **Próximo passo sugerido:** paginar as Vendas (5.26).
+  Em produção: A (`49fbd47`), B (`cc8a614`; sobras 5.23), C (`76a61ba`; 5.24),
+  D (balcão rápido, `b24776a`, sem leitor nem impressora reais; 5.25) e H
+  (curva ABC e orçamentos paginados, `77cf2ca`). G1 (2.18) e G2 (2.34) esperam a
+  planilha do GestãoClick e o XML de nota. **Próximo passo:** G1 e G2 quando
+  os arquivos chegarem.
 - Em produção desde 16/11: orçamento com total, cadastro leve e CEP (Q335 a
   Q340, merge `762854a`, `test:m119`); preço do cadastro, desconto por PIN e
   brinde (Q327 a Q334, merge `c43a130`, m118; os gestores precisam cadastrar o
@@ -197,4 +195,5 @@ relatórios em [agente-whatsapp/](agente-whatsapp/), detalhe em
 ## Últimas rodadas
 
 - 18/11: frentes C, D e H (cheque em duas etapas, balcão rápido, curva ABC e
-  paginação dos orçamentos) em produção, autorizadas na conversa.
+  paginação dos orçamentos) e a paginação das listas (5.26, 5.27) em produção,
+  autorizadas na conversa.

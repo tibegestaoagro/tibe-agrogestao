@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/select";
 
 import { SITUACOES_DO_ORCAMENTO } from "./situacoes";
-import { ORDENS_DO_ORCAMENTO, TAMANHOS_DE_PAGINA } from "./paginacao-opcoes";
+import { ORDENS_DO_ORCAMENTO, TAMANHOS_DE_PAGINA } from "../../_components/paginacao-opcoes";
 
 const TODAS = "__todas__";
 

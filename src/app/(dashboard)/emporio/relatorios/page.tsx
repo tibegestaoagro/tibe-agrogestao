@@ -5,7 +5,7 @@ import { getTenantDb } from "@/lib/tenant-context";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { veAPagina } from "@/lib/emporio/paginas";
 import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
-import { curvaAbcAction, relatorioDeVendasAction, type CurvaAbc } from "@/lib/actions/emporio-relatorios";
+import { curvaAbcAction, podeVerLucroAction, relatorioDeVendasAction, type CurvaAbc } from "@/lib/actions/emporio-relatorios";
 import { hojeEmBrasilia } from "@/lib/emporio/cartao";
 import { EmptyState } from "@/components/ui/empty-state";
 import { RelatoriosFiltro } from "../_components/relatorios-filtro";
@@ -57,10 +57,11 @@ export default async function RelatoriosPage({
   }
 
   // Curva ABC: usa o período e a loja já resolvidos acima. A recusa do lucro (403)
-  // não derruba a página: cai para o faturamento e avisa.
+  // fica como reserva: não derruba a página, cai para o faturamento e avisa.
   const kind = abcDaUrl === "clientes" ? "customers" : "products";
-  let measure: "revenue" | "profit" = medidaDaUrl === "lucro" ? "profit" : "revenue";
-  let mostrarMedida = true;
+  // Quem não vê o lucro nem recebe o seletor: decidido aqui, antes de renderizar.
+  const mostrarMedida = await podeVerLucroAction(db, user);
+  let measure: "revenue" | "profit" = mostrarMedida && medidaDaUrl === "lucro" ? "profit" : "revenue";
   let erroAbc: string | null = null;
   let curva: CurvaAbc | null = null;
   if (res && res.ok) {
@@ -68,7 +69,6 @@ export default async function RelatoriosPage({
       curvaAbcAction(db, user, { from: de, to: ate, kind, measure: m, ...(loja ? { establishment_id: loja } : {}) });
     let abc = await pedirAbc(measure);
     if (!abc.ok && measure === "profit" && abc.status === 403) {
-      mostrarMedida = false;
       measure = "revenue";
       erroAbc = abc.message;
       abc = await pedirAbc(measure);

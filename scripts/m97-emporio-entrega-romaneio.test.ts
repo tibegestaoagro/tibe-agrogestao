@@ -719,9 +719,9 @@ async function secao4() {
   const lista = await V.listarVendasAction(db, owner, { establishment_id: L });
   check(
     "listarVendasAction traz for_delivery de cada venda",
-    lista.ok && lista.data.length >= 8 && lista.data.every((v) => typeof v.for_delivery === "boolean" && "delivery_address" in v && "delivery_address_kind" in v)
-      && lista.data.some((v) => v.for_delivery) && lista.data.some((v) => !v.for_delivery),
-    j(lista.ok ? lista.data.map((v) => v.for_delivery) : lista),
+    lista.ok && lista.data.linhas.length >= 8 && lista.data.linhas.every((v) => typeof v.for_delivery === "boolean" && "delivery_address" in v && "delivery_address_kind" in v)
+      && lista.data.linhas.some((v) => v.for_delivery) && lista.data.linhas.some((v) => !v.for_delivery),
+    j(lista.ok ? lista.data.linhas.map((v) => v.for_delivery) : lista),
   );
 }
 

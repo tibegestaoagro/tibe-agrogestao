@@ -105,6 +105,7 @@
     "test:m122": "tsx scripts/m122-emporio-cheque-duas-etapas.test.ts",
     "test:m123": "tsx scripts/m123-emporio-balcao-rapido.test.ts",
     "test:m124": "tsx scripts/m124-emporio-curva-abc.test.ts",
+    "test:m125": "tsx scripts/m125-emporio-paginacao-listas.test.ts",
     "test:isolation": "tsx scripts/tenant-isolation.test.ts",
     "test:docs-api": "tsx scripts/docs-api-completeness.test.ts",
     "test:nav": "tsx scripts/nav-build.test.ts",

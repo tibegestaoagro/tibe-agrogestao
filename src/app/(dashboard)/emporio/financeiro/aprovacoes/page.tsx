@@ -8,6 +8,7 @@ import { listarPedidosDePagamentoAction } from "@/lib/actions/emporio-aprovacoes
 import { EmptyState } from "@/components/ui/empty-state";
 import { FinanceiroAbas } from "../../_components/financeiro-abas";
 import { FinanceiroAprovacoes } from "../../_components/financeiro-aprovacoes";
+import { Paginacao, paginaDaUrl } from "../../_components/paginacao";
 import { cn } from "@/lib/utils";
 
 const FILTROS = [
@@ -19,18 +20,26 @@ const FILTROS = [
 export default async function FinanceiroAprovacoesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; before?: string }>;
+  searchParams: Promise<{ status?: string; before?: string; before_id?: string; pagina?: string }>;
 }) {
   const user = await requireFeaturePage("emporio");
-  const { status: statusDaUrl = "", before = "" } = await searchParams;
+  const { status: statusDaUrl = "", before = "", before_id: beforeId = "", pagina } = await searchParams;
   const db = await getTenantDb();
   const papel = await papelDoEmporio(db, user);
   if (!veAPagina(papel, "/emporio/financeiro")) notFound();
 
   const status = statusDaUrl === "decididos" ? "decididos" : "pendente";
-  const res = await listarPedidosDePagamentoAction(db, user, status === "pendente" ? { status: "pendente" } : { status: "decididos", before: before || undefined });
-  const pedidos = res.ok ? res.data : [];
-  const ultimo = pedidos.length === 200 ? pedidos[pedidos.length - 1]?.decided_at : null;
+  const res = await listarPedidosDePagamentoAction(
+    db,
+    user,
+    status === "pendente"
+      ? { status: "pendente", page: paginaDaUrl(pagina), per_page: 20 }
+      : { status: "decididos", before: before || undefined, before_id: (before && beforeId) || undefined },
+  );
+  const pedidos = res.ok ? res.data.linhas : [];
+  // O cursor leva a data e o id do último: dois decididos no mesmo instante não se perdem na emenda.
+  const ultimoPedido = res.ok && pedidos.length === res.data.per_page ? pedidos[pedidos.length - 1] : null;
+  const ultimo = ultimoPedido?.decided_at ?? null;
 
   return (
     <div className="space-y-6">
@@ -68,9 +77,17 @@ export default async function FinanceiroAprovacoesPage({
       ) : (
         <EmptyState titulo="Não foi possível ler os pedidos">{res.message}</EmptyState>
       )}
-      {status === "decididos" && ultimo ? (
+      {status === "pendente" && res.ok && (
+        <Paginacao
+          page={res.data.page}
+          perPage={res.data.per_page}
+          total={res.data.total}
+          hrefDe={(n) => (n > 1 ? `/emporio/financeiro/aprovacoes?status=pendente&pagina=${n}` : "/emporio/financeiro/aprovacoes?status=pendente")}
+        />
+      )}
+      {status === "decididos" && ultimo && ultimoPedido ? (
         <Link
-          href={`/emporio/financeiro/aprovacoes?status=decididos&before=${encodeURIComponent(ultimo)}`}
+          href={`/emporio/financeiro/aprovacoes?status=decididos&before=${encodeURIComponent(ultimo)}&before_id=${encodeURIComponent(ultimoPedido.id)}`}
           className="inline-flex min-h-11 items-center text-sm font-medium text-primaria hover:underline"
         >
           Ver mais antigos
