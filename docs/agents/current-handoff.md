@@ -26,10 +26,10 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 ## Estado atual
 
 - Atualizado em: 2026-11-18. **Frente C (cheque em duas etapas, Q354 a Q356)
-  PRONTA NA BRANCH `emporio-cheque-duas-etapas`, fora de produção.** Spec e
-  plano de 18/11. Falta, cada um com autorização NA CONVERSA: (a) a migração
-  `20261118120000_emporio_cheque_duas_etapas` no Neon, URL Direct (só
-  `DROP NOT NULL` em number, bank e good_for); (b) merge e push na `main`.
+  EM PRODUÇÃO**: migração `20261118120000_emporio_cheque_duas_etapas` no Neon
+  (só `DROP NOT NULL`; `migrate status` em dia) e merge `76a61ba`, os dois
+  autorizados na conversa em 18/11. Spec e plano de 18/11. A Agromax pode
+  vender no cheque só com valor e nome; o Financeiro e o Gestor completam.
   Provas: `test:all` 125/125, `test:m122` (155), roteiro
   `emporio-cheque-duas-etapas` (0 falhas; reprova com o 409 desligado, com
   Depositar no incompleto e sem o "-" da venda cancelada), juiz com os achados
@@ -191,8 +191,8 @@ relatórios em [agente-whatsapp/](agente-whatsapp/), detalhe em
 
 ## Últimas rodadas
 
-- 18/11: frente C (cheque em duas etapas) pronta na branch; migração no Neon
-  e merge aguardam autorização.
+- 18/11: frente C (cheque em duas etapas) em produção, migração e merge
+  autorizados na conversa.
 - 17/11: frentes A e B (informação amarrada, conferir o cartão) em produção,
   autorizadas na conversa.
 - 11/11: reunião com a Agromax; custo único (Q298, Q299) em produção, compras

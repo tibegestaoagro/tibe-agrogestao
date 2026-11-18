@@ -333,7 +333,7 @@ Registrado em 07/11/2026, na branch `emporio-entrega-e-romaneio` (plano 3 de 3).
 
 ### 5.24 Empório, cheque em duas etapas (frente C, Q354 a Q356): o que ficou para depois
 
-Registrado em 18/11/2026, na branch `emporio-cheque-duas-etapas` (juiz com
+Registrado em 18/11/2026, depois do merge `76a61ba` (juiz com
 os achados importantes corrigidos). A 2.73 saiu da lista com esta frente.
 - **"No topo da lista":** só o cheque sem bom para vai ao topo da carteira.
   O que tem data e falta número ou banco ordena pela data, com o selo. A spec
