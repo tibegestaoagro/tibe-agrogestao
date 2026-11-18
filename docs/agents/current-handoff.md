@@ -25,20 +25,23 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-18. **Frente C (cheque em duas etapas, Q354 a Q356)
-  EM PRODUÇÃO**: migração `20261118120000_emporio_cheque_duas_etapas` no Neon
-  (só `DROP NOT NULL`; `migrate status` em dia) e merge `76a61ba`, os dois
-  autorizados na conversa em 18/11. Spec e plano de 18/11. A Agromax pode
-  vender no cheque só com valor e nome; o Financeiro e o Gestor completam.
-  Provas: `test:all` 125/125, `test:m122` (155), roteiro
-  `emporio-cheque-duas-etapas` (0 falhas; reprova com o 409 desligado, com
-  Depositar no incompleto e sem o "-" da venda cancelada), juiz com os achados
-  corrigidos, manual com o cheque em duas etapas (nenhuma figura mudou).
-  Sobras na 5.24. Plano do GestãoClick (Q341 a Q344):
+- Atualizado em: 2026-11-18. **Frente D (balcão rápido, Q357 a Q361) PRONTA
+  NA BRANCH `emporio-balcao-rapido`, fora de produção.** Atalhos configuráveis
+  no balcão, código de barras por apresentação (oficial ou gerado "20...",
+  editável) lido pela busca, etiquetas em folha A4 e rolo com as medidas nas
+  Configurações. Falta, cada um com autorização NA CONVERSA: (a) a migração
+  `20261118150000_emporio_balcao_rapido` no Neon, URL Direct (só colunas com
+  padrão e um índice); (b) merge e push. Provas: `test:all` 126/126 (uma falha
+  da `m123` não repetida, ver 5.25), `test:m123` (226), roteiro
+  `emporio-balcao-rapido` (137 ok; reprova nas três sabotagens), juiz sem
+  bloqueante, manual. Sem leitor nem impressora reais (usuário lê a imagem das
+  barras no celular). Sobras na 5.25.
+- Plano do GestãoClick (Q341 a Q344):
   [../superpowers/specs/2026-11-17-emporio-plano-gestaoclick.md](../superpowers/specs/2026-11-17-emporio-plano-gestaoclick.md).
-  Frentes A (merge `49fbd47`) e B (conferir o cartão, merge `cc8a614`) em
-  produção desde 17/11. Dívida: G1 (2.18) e G2 (2.34) esperam arquivo do
-  usuário; D e H são as 2.74 e 2.75; sobras da B na 5.23.
+  Em produção: A (merge `49fbd47`), B (conferir o cartão, `cc8a614`) e C
+  (cheque em duas etapas, `76a61ba`, 18/11; `test:m122`, roteiro
+  `emporio-cheque-duas-etapas`; sobras na 5.24). Falta: G1 (2.18) e G2 (2.34)
+  esperam arquivo do usuário; H é a 2.75; sobras da B na 5.23.
 - Em produção desde 16/11: orçamento com total, cadastro leve e CEP (Q335 a
   Q340, merge `762854a`, `test:m119`); preço do cadastro, desconto por PIN e
   brinde (Q327 a Q334, merge `c43a130`, m118; os gestores precisam cadastrar o
@@ -192,7 +195,7 @@ relatórios em [agente-whatsapp/](agente-whatsapp/), detalhe em
 ## Últimas rodadas
 
 - 18/11: frente C (cheque em duas etapas) em produção, migração e merge
-  autorizados na conversa.
+  autorizados na conversa; frente D (balcão rápido) pronta na branch.
 - 17/11: frentes A e B (informação amarrada, conferir o cartão) em produção,
   autorizadas na conversa.
 - 11/11: reunião com a Agromax; custo único (Q298, Q299) em produção, compras

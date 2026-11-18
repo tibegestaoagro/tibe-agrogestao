@@ -141,7 +141,6 @@ redescobertos como defeito.
 | 2.77 | PIX com QR na venda (frente E do plano do GestãoClick): ficou fora do ciclo de 17/11/2026 | Q341 | gerar a cobrança PIX com QR no balcão e baixar sozinho quando o banco confirmar; depende de integração com o banco da loja |
 | 2.76 | comissão por vendedor (frente F): fora até a Agromax definir a regra | Q341, Q344 | regra de comissão por vendedor, por produto ou por margem, no Resultado e no relatório de vendas |
 | 2.75 | **frente H, curva ABC**, aprovada no ciclo de 17/11/2026 e não feita: produtos e clientes por loja e período, no Relatórios | Q341 | relatório novo sobre as vendas que já existem; sem migração |
-| 2.74 | **frente D, balcão rápido**, aprovada no ciclo de 17/11/2026 e não feita: atalhos de teclado com legenda no rodapé do balcão, código de barras por apresentação com leitor e, depois, etiqueta de prateleira | Q341 | migração para o código de barras na apresentação; atalhos e leitor na tela do balcão |
 | 2.72 | a projeção do financeiro (`src/lib/actions/emporio-projecao.ts`) deu 500 com um modelo de despesa fixa sem rateio entre lojas; visto só depois de apagar lojas direto no banco local com as chaves desligadas, e provavelmente inalcançável pelas telas | manual do Empório, 17/11/2026 | confirmar se alguma tela deixa o modelo sem rateio; se deixar, a projeção pula o modelo em vez de quebrar |
 | 2.71 | a compra não propõe atualizar o preço de venda quando o custo novo muda o preço sugerido: quem lança a compra ajusta o preço à mão na formação de preço (o aviso de 10%, Q295, saiu em 11/11/2026 com a Q299) | dois custos, 10/11/2026 | na tela da compra, por item, "o sugerido passou de R$ X para R$ Y: atualizar?" |
 | 2.70 | **fechada em 10/11/2026** (a causa não era o grupo do menu: desde a Q190 a equipe da loja só abre o Empório e o cliente mora em `/emporio/clientes`; a conferência passou a exigir Clientes, Contatos fora e `/contatos` levando ao Empório; 106 checks, sabotada: 2 falhas): o roteiro `emporio-f6b` reprova em "o menu tem Meu Empório e Contatos": abre só o grupo Operação e o link /contatos fica em outro grupo do menu (a conferência não rodava desde a 2.68; não é efeito do boleto) | roteiros, 10/11/2026 | abrir o grupo onde fica Contatos antes de ler o menu, ou conferir pelo `src/lib/nav.ts` |
@@ -330,6 +329,34 @@ Registrado em 07/11/2026, na branch `emporio-entrega-e-romaneio` (plano 3 de 3).
 - A suíte `m97` não cobre PJ sem documento nem `person_kind` nulo no resolver, e
   a seção 3 confere o `field` mas não a mensagem exata do principal incompleto e
   do "outro" sem bairro.
+
+### 5.25 Empório, balcão rápido (frente D, Q357 a Q361): o que ficou para depois
+
+Registrado em 18/11/2026, na branch `emporio-balcao-rapido` (juiz sem
+bloqueante nem importante; três dos quatro menores corrigidos). A 2.74 saiu da
+lista com esta frente.
+- **Barras somem em silêncio na etiqueta baixa:** com menos de 5 mm sobrando
+  para as barras (rolo de 40 x 15 mm, por exemplo), a etiqueta sai sem barras e
+  a tela não avisa (`etiquetas-papel.tsx`, `comBarras`). Avisar na tela de
+  etiquetas ou encolher o texto.
+- **Nunca validado com equipamento:** leitor USB de verdade, impressora térmica
+  e folha adesiva real (escala 100% no diálogo, margem física da impressora).
+  O roteiro simula o leitor pela busca e mede a página em mm; as barras foram
+  conferidas contra um codificador EAN independente, e o usuário recebeu a
+  imagem para ler com o celular.
+- **Fora do roteiro (só na `m123`):** corrida de dois cadastros, desarquivar
+  com código tomado, editar o código pelo botão Editar, F8 sem Vendedor (Caixa)
+  e o Gestor na tela de etiquetas.
+- **O teto de 2000 etiquetas** passou a ser avisado na tela, sem roteiro que o
+  exercite.
+- **A `m123` falhou uma vez dentro do `test:all`** (18/11, 125/126) e passou
+  nas sete rodadas seguintes (cinco sozinha, uma depois da `m122`, e o
+  `test:all` de novo, 126/126). O `test:all` não guarda a saída, então o
+  motivo não foi visto; suspeita: a seção da corrida (transação serializável)
+  sob carga. Se repetir, rodar `npm run test:m123` logo em seguida e guardar a
+  saída.
+- Os padrões do "Voltar ao padrão" estão copiados no cliente
+  (`balcao-etiquetas-form.tsx`); mudar o padrão no servidor pede mudar lá também.
 
 ### 5.24 Empório, cheque em duas etapas (frente C, Q354 a Q356): o que ficou para depois
 
