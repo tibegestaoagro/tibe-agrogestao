@@ -87,7 +87,7 @@ export function FinanceiroHoje({ resumo, loja }: { resumo: HojeView; loja: strin
         <Cartao titulo="Cartão a conferir" href={enderecoDoReceber("hoje")} verTudo="Conferir as parcelas">
           {cards_to_confirm.count > 0 && (
             <Linha
-              rotulo={`Cartão a conferir: ${plural(cards_to_confirm.count, "parcela", "parcelas")}`}
+              rotulo={`A conferir: ${plural(cards_to_confirm.count, "parcela", "parcelas")}`}
               valor={reaisBr(cards_to_confirm.total)}
               destaque
             />

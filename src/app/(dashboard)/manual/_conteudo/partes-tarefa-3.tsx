@@ -771,6 +771,35 @@ export function ParteDeFinanceiroDasLojas() {
         <Figura id="financeiro-extrato" />
       </Tarefa>
 
+      <Subtitulo>Conferir o cartão</Subtitulo>
+      <Tarefa
+        paraQueServe="Dizer quanto do cartão caiu de fato na conta, para o saldo, o custo do cartão e o resultado baterem com o extrato da adquirente."
+        passos={[
+          <>Em <strong>A receber</strong>, cada parcela de cartão tem um estado: <strong>Prevista</strong> (ainda não caiu), <strong>A conferir</strong> (caiu ou cai hoje), <strong>Atrasada</strong> (passou um dia útil depois da data e ninguém conferiu) e <strong>Conferida</strong>. O saldo já conta a parcela na data; a conferência só corrige a diferença.</>,
+          <>Para conferir tudo o que caiu num dia, clique em <strong>Conferir o dia</strong> na data, adquirente e conta. O painel soma o previsto e já vem preenchido com ele: digite o total que o extrato mostra e clique em <strong>Conferir</strong>. Com a tela filtrada por loja, confere só as parcelas daquela loja.</>,
+          <>Para conferir uma parcela só, clique em <strong>Conferir</strong> na linha e digite o valor que caiu.</>,
+          <>Se a diferença passar de 10% do previsto, o painel pergunta antes: confira o valor e clique em <strong>Confirmar e conferir</strong>.</>,
+          <>A diferença vira a linha <strong>Ajuste da conferência do cartão</strong> no extrato da conta, logo abaixo do cartão e já carimbada. O saldo da conta muda por ela, e no Resultado ela entra em <strong>Ajustes da conferência</strong>, no custo do cartão.</>,
+          <>Carimbar a linha de cartão no extrato também confere a parcela, pelo valor previsto.</>,
+          <>Se conferiu errado, clique em <strong>Desfazer</strong> na parcela e diga o motivo: o ajuste some e a parcela volta ao estado de antes. A conferida fica à vista em A receber por 7 dias depois da data.</>,
+          <>Em <strong>Hoje</strong>, o cartão <strong>Cartão a conferir</strong> mostra as parcelas a conferir e as atrasadas, com os links para elas.</>,
+        ]}
+        problemas={[
+          {
+            quando: "O Gestor da loja não vê o botão Conferir",
+            fazer: "É de propósito. Conferem o Dono, o Gerente geral e o Financeiro. O Gestor vê o estado das parcelas no Caixa.",
+          },
+          {
+            quando: "“Esta parcela foi conferida pela antecipação”, ao tentar desfazer",
+            fazer: "A parcela antecipada nasce conferida. Para voltar atrás, desfaça a antecipação em A receber.",
+          },
+          {
+            quando: "Parcelas antigas já aparecem como conferidas",
+            fazer: "Quando a conferência chegou, as parcelas com data de mais de 7 dias antes foram conferidas pelo valor previsto, sem ajuste. As dos últimos 7 dias ficaram para conferir.",
+          },
+        ]}
+      />
+
       <Subtitulo>Ver o fluxo projetado</Subtitulo>
       <Tarefa
         paraQueServe="Saber, semana a semana, se o dinheiro vai dar para pagar o que vem pela frente."
