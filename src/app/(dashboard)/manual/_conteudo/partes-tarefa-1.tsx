@@ -237,6 +237,60 @@ export function ParteDeProdutos() {
         da mesma conta, e a contagem pede um campo por tamanho. Veja em{" "}
         <Link className="underline" href={`${B}/estoque`}>Estoque</Link>.
       </p>
+
+      <Subtitulo>Código de barras</Subtitulo>
+      <Tarefa
+        paraQueServe="Deixar cada apresentação pronta para o leitor de código de barras no balcão e para a etiqueta da prateleira."
+        passos={[
+          <>Abra o produto e, em <strong>Apresentações</strong>, clique em <strong>Editar</strong> na apresentação (ou crie uma nova).</>,
+          <>Em <strong>Código de barras</strong>, digite o número que vem na embalagem (8 ou 13 números). Com o leitor ligado, basta ler a embalagem com o cursor no campo.</>,
+          <>Se o produto não tem código de fábrica (granel, ensacado na loja), clique em <strong>Gerar código</strong>. O sistema preenche um número que começa com 20, só da sua loja.</>,
+          <>Clique em <strong>Salvar</strong>. Para trocar um código provisório pelo correto, edite de novo e troque o número. Para tirar o código, apague o campo e salve.</>,
+        ]}
+        problemas={[
+          {
+            quando: "“O código de barras não confere: verifique os números.”",
+            fazer: "Algum número foi digitado errado: o último número do código confere os outros. Copie de novo da embalagem.",
+          },
+          {
+            quando: "“Este código já está em ...”",
+            fazer: "Outra apresentação já usa esse código; a frase diz qual. Um código vale para uma apresentação só, para o leitor não ficar em dúvida. Tire o código da outra ou confira a embalagem.",
+          },
+        ]}
+      >
+        <Chamada tipo="saiba">
+          <p>
+            Cada apresentação tem o seu código: a Saca 25 kg e o Quilo do mesmo produto têm códigos diferentes, e o leitor
+            põe na venda exatamente a que foi lida.
+          </p>
+        </Chamada>
+      </Tarefa>
+
+      <Subtitulo>Etiquetas da prateleira</Subtitulo>
+      <Tarefa
+        paraQueServe="Imprimir etiquetas com nome, apresentação, preço da loja e código de barras, na folha A4 de etiquetas adesivas ou na impressora térmica de rolo."
+        passos={[
+          <>Abra <strong>Produtos</strong> e clique em <strong>Etiquetas</strong>.</>,
+          <>Escolha a <strong>Loja</strong> (o preço é o dela) e o <strong>Formato</strong>: <strong>Folha A4</strong> ou <strong>Rolo</strong>.</>,
+          <>Marque as apresentações e diga quantas <strong>cópias</strong> de cada uma. <strong>Selecionar todas</strong> marca a lista inteira.</>,
+          <>Na folha A4 já usada pela metade, diga em <strong>Começar na etiqueta nº</strong> qual é a primeira livre.</>,
+          <>Clique em <strong>Imprimir etiquetas</strong>. Na janela de impressão, escolha a impressora e deixe a escala em 100%.</>,
+        ]}
+        problemas={[
+          {
+            quando: "A apresentação aparece com “sem preço” e não dá para marcar",
+            fazer: <>Ela não tem preço nesta loja. Cadastre o preço em <Link className="underline" href={`${B}/preco`}>Preço por loja</Link>.</>,
+          },
+          {
+            quando: "A etiqueta sai sem as barras",
+            fazer: "A apresentação está “sem código”. Cadastre ou gere o código dela, como na seção acima.",
+          },
+          {
+            quando: "A impressão não bate com a folha ou com o rolo",
+            fazer: <>Ajuste as medidas em <Link className="underline" href={`${B}/configuracoes`}>Configurações</Link>, seção Balcão e etiquetas, e confira se a escala da impressão está em 100%.</>,
+          },
+        ]}
+      />
     </div>
   );
 }

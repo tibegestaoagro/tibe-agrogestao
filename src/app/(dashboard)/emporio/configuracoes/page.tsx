@@ -16,6 +16,7 @@ import { ConfiguracoesForm } from "./_components/configuracoes-form";
 import { LogoForm } from "./_components/logo-form";
 import { FiadoForm } from "./_components/fiado-form";
 import { AlcadaForm } from "./_components/alcada-form";
+import { BalcaoEtiquetasForm } from "./_components/balcao-etiquetas-form";
 import { CartoesSecao } from "./_components/cartoes-secao";
 import { reaisBr } from "@/lib/numero-br";
 
@@ -24,6 +25,8 @@ function enderecoDaLoja(l: EstablishmentView): string {
   const cep = l.zip && l.zip.length === 8 ? `${l.zip.slice(0, 5)}-${l.zip.slice(5)}` : l.zip;
   return [l.address, cidade, cep].filter(Boolean).join(", ");
 }
+
+const medidaMm = (n: number) => String(n).replace(".", ",");
 
 function Linha({ rotulo, valor }: { rotulo: string; valor: string | null }) {
   return (
@@ -208,6 +211,31 @@ export default async function ConfiguracoesPage() {
           <EmptyState titulo="Não consegui ler as configurações">Recarregue a página.</EmptyState>
         )}
       </section>
+
+      {podeEditarConta && cfg && (
+        <section className="space-y-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <h2 className="text-lg font-semibold text-texto">Balcão e etiquetas</h2>
+            <BalcaoEtiquetasForm balcao={cfg} />
+          </div>
+          <dl className="grid gap-3 sm:grid-cols-2">
+            <Linha
+              rotulo="Atalhos"
+              valor={`Produto ${cfg.shortcuts.produto}, cliente ${cfg.shortcuts.cliente}, vendedor ${cfg.shortcuts.vendedor}, pagamento ${cfg.shortcuts.pagamento}, fechar ${cfg.shortcuts.fechar}`}
+            />
+            <Linha rotulo="Legenda dos atalhos" valor={cfg.show_shortcut_legend ? "Ligada" : "Desligada"} />
+            <Linha rotulo="Formato padrão da etiqueta" valor={cfg.label_default_format === "rolo" ? "Rolo" : "Folha A4"} />
+            <Linha
+              rotulo="Folha A4"
+              valor={`${cfg.label_a4.columns} x ${cfg.label_a4.rows}, etiqueta de ${medidaMm(cfg.label_a4.width)} x ${medidaMm(cfg.label_a4.height)} mm`}
+            />
+            <Linha
+              rotulo="Rolo"
+              valor={`${cfg.label_roll.columns} ${cfg.label_roll.columns === 1 ? "coluna" : "colunas"}, etiqueta de ${medidaMm(cfg.label_roll.width)} x ${medidaMm(cfg.label_roll.height)} mm`}
+            />
+          </dl>
+        </section>
+      )}
 
       <CartoesSecao
         adquirentes={adquirentes}

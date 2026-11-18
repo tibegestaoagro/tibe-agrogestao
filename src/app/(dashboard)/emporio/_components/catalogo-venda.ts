@@ -27,7 +27,7 @@ export async function carregarCatalogoDeVenda(
         product: { select: { name: true, brand: true } },
         presentations: {
           where: { archived_at: null },
-          select: { id: true, name: true, base_qty: true, is_sealed_package: true },
+          select: { id: true, name: true, base_qty: true, is_sealed_package: true, barcode: true },
           orderBy: { name: "asc" },
         },
       },
@@ -51,6 +51,7 @@ export async function carregarCatalogoDeVenda(
         name: a.name,
         base_qty: decToNum(a.base_qty) ?? 0,
         lacrada: a.is_sealed_package,
+        barcode: a.barcode,
       })),
     }))
     .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));

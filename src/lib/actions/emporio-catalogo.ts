@@ -7,6 +7,9 @@ import { camposDeCusto, lerCustosDasLojas, chaveLojaProduto, SEM_MOVIMENTO, type
 import { findUnit } from "@/lib/stock/units";
 import { diferencas, dinheiro, registrarNoHistorico } from "@/lib/emporio/historico";
 import { cnpjValido, normalizarCnpj, UFS } from "@/lib/contatos/cadastro";
+import { runSerializableTenantTransaction, type TenantTransactionClient } from "@/lib/financial";
+import { proximoNumero } from "@/lib/emporio/numeracao";
+import { digitoVerificadorEan, normalizarCodigoDeBarras } from "@/lib/emporio/codigo-de-barras";
 import type { AppUserRole } from "@/types/next-auth";
 
 /**
@@ -567,6 +570,8 @@ export type PresentationView = {
   /** `base_qty` vezes o conteúdo do produto (3 casas); nulo em produto sem conteúdo. */
   content_equivalent: number | null;
   is_sealed_package: boolean;
+  /** Q358: EAN-8 ou EAN-13 (o UPC-A de 12 fica com o "0" na frente); nulo sem código. */
+  barcode: string | null;
   archived_at: string | null;
 };
 
@@ -634,7 +639,14 @@ export type ProdutoRow = {
   profit_pct: unknown;
   archived_at: Date | null;
   product: { name: string; brand: string | null; category_id: string; category: { name: string } };
-  presentations: { id: string; name: string; base_qty: unknown; is_sealed_package: boolean; archived_at: Date | null }[];
+  presentations: {
+    id: string;
+    name: string;
+    base_qty: unknown;
+    is_sealed_package: boolean;
+    barcode: string | null;
+    archived_at: Date | null;
+  }[];
 };
 
 export const INCLUDE_PRODUTO = {
@@ -643,7 +655,10 @@ export const INCLUDE_PRODUTO = {
 } as const;
 
 /** Q57: escolha explícita vale; senão, ligado quando há fechada E não fechada ativas. */
-export function lacradoEfetivo(p: Pick<ProdutoRow, "track_sealed" | "presentations">): boolean {
+export function lacradoEfetivo(p: {
+  track_sealed: boolean | null;
+  presentations: { is_sealed_package: boolean; archived_at: Date | null }[];
+}): boolean {
   if (p.track_sealed != null) return p.track_sealed;
   const ativas = p.presentations.filter((x) => !x.archived_at);
   return ativas.some((x) => x.is_sealed_package) && ativas.some((x) => !x.is_sealed_package);
@@ -819,6 +834,7 @@ function viewApresentacao(a: ProdutoRow["presentations"][number], conteudo: unkn
     base_qty: base,
     content_equivalent: c == null ? null : Math.round(base * c * 1000) / 1000,
     is_sealed_package: a.is_sealed_package,
+    barcode: a.barcode,
     archived_at: isoOrNull(a.archived_at),
   };
 }
@@ -1299,7 +1315,19 @@ export async function arquivarProdutoEmporioAction(
   }
   const atual = await db.emporioProduct.findFirst({ where: { id }, include: { product: { select: { name: true } } } });
   if (!atual) return NAO_ACHADO("Produto");
-  await db.$transaction(async (tx) => {
+  const conflito = await runSerializableTenantTransaction(db, async (tx) => {
+    // Desarquivar solta de volta os códigos das apresentações ativas dele: se algum foi para
+    // outra apresentação enquanto o produto estava arquivado, recusa sem mudar nada.
+    if (!archived && atual.archived_at) {
+      const comCodigo = await tx.productPresentation.findMany({
+        where: { emporio_product_id: id, archived_at: null, barcode: { not: null } },
+        select: { barcode: true },
+      });
+      for (const a of comCodigo) {
+        const dono = await donoDoCodigo(tx, a.barcode as string, { produtoIgnorado: id });
+        if (dono) return recusaCodigoEmUso(dono);
+      }
+    }
     await tx.emporioProduct.update({
       where: { id },
       data: { archived_at: archived ? (atual.archived_at ?? new Date()) : null, updated_by_user_id: ator.id },
@@ -1310,7 +1338,9 @@ export async function arquivarProdutoEmporioAction(
       target_id: id,
       summary: `${archived ? "Arquivou" : "Reativou"} o produto ${atual.product.name}`,
     });
+    return null;
   });
+  if (conflito) return conflito;
   return lerProdutoEmporioAction(db, ator, id);
 }
 
@@ -1318,8 +1348,79 @@ export async function arquivarProdutoEmporioAction(
 // Apresentações
 // ---------------------------------------------------------------------------
 
+const ROTULOS_APRESENTACAO: Record<string, string> = {
+  name: "Nome",
+  base_qty: "Quantidade na unidade-base",
+  is_sealed_package: "Embalagem fechada",
+  barcode: "Código de barras",
+};
+
+/**
+ * Q358: quem já tem este código entre as apresentações ATIVAS (apresentação e
+ * produto sem arquivar). Devolve "Produto · Apresentação", ou nulo se está livre.
+ * Chamar dentro da transação serializável que grava.
+ */
+async function donoDoCodigo(
+  tx: TenantTransactionClient,
+  codigo: string,
+  ignorar: { apresentacaoIgnorada?: string; produtoIgnorado?: string } = {},
+): Promise<string | null> {
+  const dono = await tx.productPresentation.findFirst({
+    where: {
+      barcode: codigo,
+      archived_at: null,
+      emporio_product: { archived_at: null },
+      ...(ignorar.apresentacaoIgnorada ? { NOT: { id: ignorar.apresentacaoIgnorada } } : {}),
+      ...(ignorar.produtoIgnorado ? { emporio_product_id: { not: ignorar.produtoIgnorado } } : {}),
+    },
+    select: { name: true, emporio_product: { select: { product: { select: { name: true } } } } },
+  });
+  return dono ? `${dono.emporio_product.product.name} · ${dono.name}` : null;
+}
+
+const recusaCodigoEmUso = (dono: string) =>
+  fail("BARCODE_IN_USE", `Este código já está em ${dono}.`, 409, "barcode");
+
+/** `barcode` vindo no input: undefined não mexe; vazio vira nulo; senão confere (422 em `barcode`). */
+function lerCodigoDeBarras(
+  input: { barcode?: string | null },
+): { ok: true; codigo: string | null | undefined } | { ok: false; resposta: ReturnType<typeof fail> } {
+  if (input.barcode === undefined) return { ok: true, codigo: undefined };
+  if (input.barcode !== null && typeof input.barcode !== "string") {
+    return { ok: false, resposta: fail("VALIDATION_ERROR", "O código de barras tem 8 ou 13 números.", 422, "barcode") };
+  }
+  const n = normalizarCodigoDeBarras(input.barcode);
+  if (!n.ok) return { ok: false, resposta: fail("VALIDATION_ERROR", n.mensagem, 422, "barcode") };
+  return { ok: true, codigo: n.codigo };
+}
+
+/**
+ * Q358: o próximo código interno ("20" + 10 dígitos da sequência + verificador).
+ * Não grava na apresentação: o painel só preenche o campo, e quem grava é o salvar.
+ */
+export async function gerarCodigoDeBarrasAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+): Promise<ActionResult<{ barcode: string }>> {
+  const neg = await exigir(db, ator, "chave:cadastrar_produto", "gerar código de barras");
+  if (neg) return neg;
+  const codigo = await runSerializableTenantTransaction(db, async (tx) => {
+    for (let tentativa = 0; tentativa < 100; tentativa++) {
+      const n = await proximoNumero(tx, "codigo_de_barras");
+      const corpo = `20${String(n).padStart(10, "0")}`;
+      const candidato = `${corpo}${digitoVerificadorEan(corpo)}`;
+      if (!(await donoDoCodigo(tx, candidato))) return candidato;
+    }
+    return null;
+  });
+  if (!codigo) return fail("INTERNAL_ERROR", "Não consegui gerar um código livre. Tente de novo.", 500);
+  return ok({ barcode: codigo });
+}
+
 export type ApresentacaoInput = {
   name?: string;
+  /** Q358: digitado ou gerado; vazio ou nulo tira o código. */
+  barcode?: string | null;
   base_qty?: number;
   /** Em produto com conteúdo, no lugar de `base_qty`: quanto cabe (kg, L ou un). */
   content_qty?: number;
@@ -1381,6 +1482,9 @@ export async function criarApresentacaoAction(
   if (!nome) return fail("VALIDATION_ERROR", "Informe o nome da apresentação.", 422, "name");
   const rb = resolverBaseQty(p, input, true);
   if ("field" in rb) return fail("VALIDATION_ERROR", rb.message, 422, rb.field);
+  const cb = lerCodigoDeBarras(input);
+  if (!cb.ok) return cb.resposta;
+  const codigo = cb.codigo ?? null;
 
   const igual = await db.productPresentation.findFirst({
     where: { emporio_product_id, name: { equals: nome, mode: "insensitive" } },
@@ -1389,13 +1493,18 @@ export async function criarApresentacaoAction(
 
   try {
     const nomeProduto = (await db.product.findFirst({ where: { id: p.product_id }, select: { name: true } }))?.name;
-    const a = await db.$transaction(async (tx) => {
+    const r = await runSerializableTenantTransaction(db, async (tx) => {
+      if (codigo && !p.archived_at) {
+        const dono = await donoDoCodigo(tx, codigo);
+        if (dono) return { conflito: dono };
+      }
       const criada = await tx.productPresentation.create({
         data: scoped({
           emporio_product_id,
           name: nome,
           base_qty: rb.base as number,
           is_sealed_package: input.is_sealed_package ?? false,
+          barcode: codigo,
           created_by_user_id: ator.id,
           updated_by_user_id: ator.id,
         }),
@@ -1405,10 +1514,12 @@ export async function criarApresentacaoAction(
         target_type: "produto",
         target_id: emporio_product_id,
         summary: `Criou a apresentação ${nome} de ${nomeProduto ?? "um produto"}`,
+        changes: codigo ? diferencas({ barcode: null }, { barcode: codigo }, ROTULOS_APRESENTACAO) : undefined,
       });
-      return criada;
+      return { criada };
     });
-    return ok(viewApresentacao(a, p.content_qty));
+    if (r.conflito !== undefined) return recusaCodigoEmUso(r.conflito);
+    return ok(viewApresentacao(r.criada, p.content_qty));
   } catch (err) {
     if (ehErroUnico(err)) return fail("DUPLICATE_NAME", `Esse produto já tem a apresentação "${nome}".`, 409, "name");
     throw err;
@@ -1437,9 +1548,17 @@ export async function editarApresentacaoAction(
   }
   const rb = resolverBaseQty(atual.emporio_product, input, false);
   if ("field" in rb) return fail("VALIDATION_ERROR", rb.message, 422, rb.field);
+  const cb = lerCodigoDeBarras(input);
+  if (!cb.ok) return cb.resposta;
+  const codigo = cb.codigo;
 
   try {
-    const a = await db.$transaction(async (tx) => {
+    const r = await runSerializableTenantTransaction(db, async (tx) => {
+      // Só a apresentação ativa segura o código: a arquivada (ou de produto arquivado) guarda sem disputar.
+      if (codigo && !atual.archived_at && !atual.emporio_product.archived_at) {
+        const dono = await donoDoCodigo(tx, codigo, { apresentacaoIgnorada: id });
+        if (dono) return { conflito: dono };
+      }
       const nova = await tx.productPresentation.update({
         where: { id },
         data: {
@@ -1447,6 +1566,7 @@ export async function editarApresentacaoAction(
           ...(nome !== undefined ? { name: nome } : {}),
           ...(rb.base !== undefined ? { base_qty: rb.base } : {}),
           ...(input.is_sealed_package !== undefined ? { is_sealed_package: input.is_sealed_package } : {}),
+          ...(codigo !== undefined ? { barcode: codigo } : {}),
         },
       });
       await registrarNoHistorico(tx, ator, {
@@ -1455,15 +1575,26 @@ export async function editarApresentacaoAction(
         target_id: atual.emporio_product_id,
         summary: `Editou a apresentação ${atual.name}`,
         changes: diferencas(
-          { name: atual.name, base_qty: decToNum(atual.base_qty), is_sealed_package: atual.is_sealed_package },
-          { name: nova.name, base_qty: decToNum(nova.base_qty), is_sealed_package: nova.is_sealed_package },
-          { name: "Nome", base_qty: "Quantidade na unidade-base", is_sealed_package: "Embalagem fechada" },
+          {
+            name: atual.name,
+            base_qty: decToNum(atual.base_qty),
+            is_sealed_package: atual.is_sealed_package,
+            barcode: atual.barcode,
+          },
+          {
+            name: nova.name,
+            base_qty: decToNum(nova.base_qty),
+            is_sealed_package: nova.is_sealed_package,
+            barcode: nova.barcode,
+          },
+          ROTULOS_APRESENTACAO,
           { is_sealed_package: (v) => (v ? "Sim" : "Não") },
         ),
       });
-      return nova;
+      return { nova };
     });
-    return ok(viewApresentacao(a, atual.emporio_product.content_qty));
+    if (r.conflito !== undefined) return recusaCodigoEmUso(r.conflito);
+    return ok(viewApresentacao(r.nova, atual.emporio_product.content_qty));
   } catch (err) {
     if (ehErroUnico(err)) return fail("DUPLICATE_NAME", "Esse produto já tem uma apresentação com esse nome.", 409, "name");
     throw err;
@@ -1483,7 +1614,11 @@ export async function arquivarApresentacaoAction(
   }
   const atual = await db.productPresentation.findFirst({ where: { id }, include: { emporio_product: true } });
   if (!atual) return NAO_ACHADO("Apresentação");
-  const a = await db.$transaction(async (tx) => {
+  const r = await runSerializableTenantTransaction(db, async (tx) => {
+    if (!archived && atual.archived_at && atual.barcode && !atual.emporio_product.archived_at) {
+      const dono = await donoDoCodigo(tx, atual.barcode, { apresentacaoIgnorada: id });
+      if (dono) return { conflito: dono };
+    }
     const nova = await tx.productPresentation.update({
       where: { id },
       data: { archived_at: archived ? (atual.archived_at ?? new Date()) : null, updated_by_user_id: ator.id },
@@ -1494,9 +1629,10 @@ export async function arquivarApresentacaoAction(
       target_id: atual.emporio_product_id,
       summary: `${archived ? "Arquivou" : "Reativou"} a apresentação ${atual.name}`,
     });
-    return nova;
+    return { nova };
   });
-  return ok(viewApresentacao(a, atual.emporio_product.content_qty));
+  if (r.conflito !== undefined) return recusaCodigoEmUso(r.conflito);
+  return ok(viewApresentacao(r.nova, atual.emporio_product.content_qty));
 }
 
 // ---------------------------------------------------------------------------

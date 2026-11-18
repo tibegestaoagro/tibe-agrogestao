@@ -23,12 +23,13 @@ export type ApresentacaoParaForm = {
   base_qty: number;
   content_equivalent: number | null;
   is_sealed_package: boolean;
+  barcode?: string | null;
 };
 
 /** O conteúdo do produto (Q123): quando existe, a apresentação é informada nele (Q125). */
 export type ConteudoDoProduto = { qty: number; unit: string };
 
-const ORDEM = ["name", "base_qty", "content_qty", "is_sealed_package"] as const;
+const ORDEM = ["name", "base_qty", "content_qty", "is_sealed_package", "barcode"] as const;
 type Campo = (typeof ORDEM)[number];
 
 /** Criar (sem `apresentacao`) e editar (com) no mesmo painel. */
@@ -55,12 +56,29 @@ export function ApresentacaoForm({
   const [qtd, setQtd] = useState(paraCampo(apresentacao?.base_qty));
   const [qtdConteudo, setQtdConteudo] = useState(paraCampo(apresentacao?.content_equivalent));
   const [fechada, setFechada] = useState(apresentacao?.is_sealed_package ?? false);
+  const [codigo, setCodigo] = useState(apresentacao?.barcode ?? "");
+  const [gerando, setGerando] = useState(false);
+
+  // O botão só preenche o campo: o código grava ao salvar o painel, como os outros campos.
+  async function gerarCodigo() {
+    setGerando(true);
+    const res = await apiPost<{ barcode: string }>("/api/v1/emporio/presentations/barcode");
+    setGerando(false);
+    if (!res.ok) {
+      err.setGlobal(null);
+      err.reprovar({ barcode: res.message });
+      return;
+    }
+    setCodigo(res.data.barcode);
+    err.limparCampo("barcode");
+  }
 
   function reiniciar() {
     setName(apresentacao?.name ?? "");
     setQtd(paraCampo(apresentacao?.base_qty));
     setQtdConteudo(paraCampo(apresentacao?.content_equivalent));
     setFechada(apresentacao?.is_sealed_package ?? false);
+    setCodigo(apresentacao?.barcode ?? "");
     err.limparTudo();
   }
 
@@ -92,6 +110,8 @@ export function ApresentacaoForm({
       name: name.trim(),
       ...(conteudo ? { content_qty: q as number } : { base_qty: q as number }),
       is_sealed_package: fechada,
+      // Vazio ao editar limpa o código (null); ao criar, sem código nenhum, o campo nem vai.
+      ...(editando ? { barcode: codigo.trim() === "" ? null : codigo.trim() } : codigo.trim() !== "" ? { barcode: codigo.trim() } : {}),
     };
     const res = editando
       ? await apiPatch(`/api/v1/emporio/presentations/${apresentacao.id}`, corpo)
@@ -213,6 +233,36 @@ export function ApresentacaoForm({
             />
             É uma embalagem fechada (lacrada)
           </label>
+        )}
+      </Field>
+
+      <Field
+        label="Código de barras (opcional)"
+        hint="O da embalagem, ou gere um interno. Pode trocar depois."
+        id={err.idDe("barcode")}
+        error={err.erros.barcode}
+      >
+        {({ id, ...aria }) => (
+          <div className="flex gap-2">
+            <Input
+              id={id}
+              {...aria}
+              inputMode="numeric"
+              autoComplete="off"
+              value={codigo}
+              onChange={(e) => {
+                setCodigo(e.target.value);
+                err.limparCampo("barcode");
+              }}
+              onKeyDown={(e) => {
+                // O leitor manda Enter depois dos números: não pode enviar o painel.
+                if (e.key === "Enter") e.preventDefault();
+              }}
+            />
+            <Button type="button" variant="outline" disabled={gerando} onClick={() => void gerarCodigo()}>
+              {gerando ? "Gerando..." : "Gerar código"}
+            </Button>
+          </div>
         )}
       </Field>
     </FormSheet>

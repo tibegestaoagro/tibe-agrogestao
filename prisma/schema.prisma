@@ -966,6 +966,11 @@ model ProductPresentation {
   name               String
   base_qty           Decimal   @db.Decimal(14, 3)
   is_sealed_package  Boolean   @default(false)
+  /// Q358: código de barras (EAN-13 ou EAN-8; o de 12 é gravado com o 0), o
+  /// oficial da embalagem ou um gerado aqui ("20..."), editável. Único entre as
+  /// apresentações ativas da conta, conferido na action (Q359; sem índice
+  /// parcial: o schema não o representa).
+  barcode            String?
   archived_at        DateTime?
   created_by_user_id String?
   updated_by_user_id String?
@@ -984,6 +989,7 @@ model ProductPresentation {
 
   @@unique([emporio_product_id, name])
   @@index([tenant_id])
+  @@index([tenant_id, barcode])
 }
 
 /// Módulo 39, §8 e §10: preço de uma apresentação numa loja, e a exceção de
@@ -1479,6 +1485,28 @@ model EmporioSettings {
   logo                     Bytes?
   logo_mime                String?
   logo_updated_at          DateTime?
+  /// Frente D (Q361): a tecla de cada atalho do balcão (lista fechada em
+  /// `src/lib/emporio/atalhos.ts`), a legenda e as medidas das etiquetas, em mm.
+  shortcut_product         String    @default("F2")
+  shortcut_customer        String    @default("F4")
+  shortcut_seller          String    @default("F8")
+  shortcut_payment         String    @default("F9")
+  shortcut_close           String    @default("Ctrl+Enter")
+  show_shortcut_legend     Boolean   @default(true)
+  /// `a4` (folha de etiquetas adesivas) ou `rolo` (impressora térmica).
+  label_default_format     String    @default("a4")
+  label_a4_columns         Int       @default(3)
+  label_a4_rows            Int       @default(7)
+  label_a4_width           Decimal   @default(63.5) @db.Decimal(6, 2)
+  label_a4_height          Decimal   @default(38.1) @db.Decimal(6, 2)
+  label_a4_margin_top      Decimal   @default(15.15) @db.Decimal(6, 2)
+  label_a4_margin_left     Decimal   @default(7.2) @db.Decimal(6, 2)
+  label_a4_gap_x           Decimal   @default(2.5) @db.Decimal(6, 2)
+  label_a4_gap_y           Decimal   @default(0) @db.Decimal(6, 2)
+  label_roll_width         Decimal   @default(40) @db.Decimal(6, 2)
+  label_roll_height        Decimal   @default(25) @db.Decimal(6, 2)
+  label_roll_columns       Int       @default(1)
+  label_roll_gap_x         Decimal   @default(2) @db.Decimal(6, 2)
   created_at               DateTime  @default(now())
   updated_at               DateTime  @updatedAt
 

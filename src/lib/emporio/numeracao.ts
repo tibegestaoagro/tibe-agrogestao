@@ -3,8 +3,8 @@ import { scoped } from "@/lib/prisma";
 
 type Tx = Prisma.TransactionClient;
 
-/** "venda" agora; "orcamento" fica reservada para a entrega 4. */
-export type ChaveDoContador = "venda" | "orcamento";
+/** "venda" e "orcamento" numeram o papel; "codigo_de_barras" é a sequência do código interno da apresentação (Q358). */
+export type ChaveDoContador = "venda" | "orcamento" | "codigo_de_barras";
 
 /** Número exibido: 6 dígitos com zero à esquerda (`004581`); acima disso, por inteiro. */
 export function formatarNumero(n: number): string {

@@ -27,15 +27,18 @@ import {
 } from "@/lib/emporio/cartao";
 import { somarDiasUteis } from "@/lib/emporio/dia-util";
 import { formatarDocumento } from "@/lib/contatos/cadastro";
+import { codigoParaBusca } from "@/lib/emporio/codigo-de-barras";
 import { pctBr } from "./formato";
 import { FraseDaAutorizacao, PedidoDeAutorizacao } from "./autorizacao-gestor";
 import { FORMA_ROTULO } from "./venda-rotulos";
 import {
+  apresentacaoDoCodigo,
   diaDeHoje,
   ehCartao,
   normalizar,
   produtoCasaBusca,
   type CampoDaFranquia,
+  type ApresentacaoVenda,
   type CampoDaVenda,
   type ContaPixDaLoja,
   type EstadoDaVenda,
@@ -544,8 +547,11 @@ export function VendaCampos({
       ? []
       : produtos.filter((p) => p.apresentacoes.length > 0 && produtoCasaBusca(p, termo)).slice(0, MAX_RESULTADOS);
 
-  function escolher(p: ProdutoVenda) {
-    const entrou = v.adicionarProduto(p);
+  // Só dígitos (8 a 14) que não casam com apresentação nenhuma: o aviso do leitor, no lugar do "nome".
+  const buscaEhCodigo = codigoParaBusca(busca) !== null;
+
+  function escolher(p: ProdutoVenda, apresentacao?: ApresentacaoVenda) {
+    const entrou = v.adicionarProduto(p, apresentacao);
     setSemPrecoDe(entrou ? null : p.name);
     limpar("items");
     setBusca("");
@@ -594,6 +600,7 @@ export function VendaCampos({
             <Input
               type="search"
               aria-label="Buscar produto"
+              data-atalho="busca"
               placeholder="Buscar por nome, marca ou código"
               autoComplete="off"
               value={busca}
@@ -602,6 +609,16 @@ export function VendaCampos({
                 // Enter no campo de busca não pode fechar a venda: com um só resultado, ele escolhe.
                 if (e.key !== "Enter") return;
                 e.preventDefault();
+                // O Ctrl+Enter é do atalho de fechar (`atalhos-do-balcao`): aqui não lê nem escolhe.
+                if (e.ctrlKey) return;
+                // O leitor digita o código e manda Enter: o código exato entra na apresentação lida,
+                // antes de qualquer resultado da busca por texto (que escolheria a padrão).
+                const codigo = codigoParaBusca(busca);
+                const lido = codigo ? apresentacaoDoCodigo(produtos, codigo) : null;
+                if (lido) {
+                  escolher(lido.produto, lido.apresentacao);
+                  return;
+                }
                 if (resultados.length === 1) escolher(resultados[0]);
               }}
             />
@@ -609,7 +626,9 @@ export function VendaCampos({
             {termo !== "" && (
               <div className="space-y-1">
                 {resultados.length === 0 ? (
-                  <p className="text-sm text-texto-secundario">Nenhum produto com esse nome.</p>
+                  <p className="text-sm text-texto-secundario">
+                    {buscaEhCodigo ? `Nenhum produto com o código ${busca.trim()}.` : "Nenhum produto com esse nome."}
+                  </p>
                 ) : (
                   resultados.map((p) => (
                     <button
@@ -899,9 +918,10 @@ export function VendaCampos({
           {({ id, ...aria }) => (
             <div id={id} tabIndex={-1} {...aria} className="space-y-3">
               <div className="flex flex-wrap gap-2">
-                {FORMAS_DO_BALCAO.map((k) => (
+                {FORMAS_DO_BALCAO.map((k, n) => (
                   <Button
                     key={k}
+                    data-atalho={n === 0 ? "forma-de-pagamento" : undefined}
                     type="button"
                     variant="outline"
                     size="sm"
