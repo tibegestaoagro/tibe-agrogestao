@@ -103,6 +103,7 @@
     "test:m120": "tsx scripts/m120-emporio-informacao-amarrada.test.ts",
     "test:m121": "tsx scripts/m121-emporio-conferir-cartao.test.ts",
     "test:m122": "tsx scripts/m122-emporio-cheque-duas-etapas.test.ts",
+    "test:m123": "tsx scripts/m123-emporio-balcao-rapido.test.ts",
     "test:isolation": "tsx scripts/tenant-isolation.test.ts",
     "test:docs-api": "tsx scripts/docs-api-completeness.test.ts",
     "test:nav": "tsx scripts/nav-build.test.ts",
