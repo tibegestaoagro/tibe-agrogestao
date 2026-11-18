@@ -160,6 +160,28 @@ export function ParteDeConfiguracoes() {
           </p>
         </Chamada>
       </Tarefa>
+
+      <Subtitulo>Balcão e etiquetas</Subtitulo>
+      <Tarefa
+        paraQueServe="Escolher as teclas dos atalhos do balcão e ajustar a etiqueta à folha ou à impressora de rolo da loja. É de quem cuida da conta."
+        passos={[
+          <>Em <strong>Configurações</strong>, na seção <strong>Balcão e etiquetas</strong>, clique em <strong>Mudar</strong>.</>,
+          <>Em cada ação (Produto, Cliente, Vendedor, Pagamento, Fechar), escolha a tecla. Desmarque a <strong>Legenda</strong> se não quiser a faixa no rodapé.</>,
+          <>Escolha o <strong>Formato padrão</strong> das etiquetas: folha A4 ou rolo.</>,
+          <>Ajuste as medidas em milímetros, como estão na caixa da folha de etiquetas ou no manual da impressora: colunas, linhas, largura, altura, margens e espaços.</>,
+          <>Clique em <strong>Salvar</strong>. <strong>Voltar ao padrão</strong> preenche a folha de 21 etiquetas (3 x 7, 63,5 x 38,1 mm) e o rolo de 40 x 25 mm.</>,
+        ]}
+        problemas={[
+          {
+            quando: "“A tecla ... já está em outra ação.”",
+            fazer: "Duas ações não podem usar a mesma tecla. Troque a tecla de uma delas.",
+          },
+          {
+            quando: "A medida da folha é recusada",
+            fazer: "As etiquetas, com as margens e os espaços, passaram do tamanho da folha A4 (210 x 297 mm). Confira as medidas na caixa da folha.",
+          },
+        ]}
+      />
     </div>
   );
 }

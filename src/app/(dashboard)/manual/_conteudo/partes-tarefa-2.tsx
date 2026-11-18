@@ -9,6 +9,7 @@ const B = BASE_DO_EMPORIO;
 
 export function ParteDeVender() {
   return (
+    <div className="space-y-2">
     <Tarefa
       paraQueServe="Registrar a venda no balcão em poucos segundos, tirar do estoque e lançar o dinheiro no caixa aberto."
       passos={[
@@ -106,6 +107,37 @@ export function ParteDeVender() {
         </p>
       </Chamada>
     </Tarefa>
+
+      <Subtitulo>Leitor de código de barras e atalhos do teclado</Subtitulo>
+      <Tarefa
+        paraQueServe="Vender mais rápido no computador: ler a embalagem em vez de buscar, e usar o teclado em vez do mouse."
+        passos={[
+          <>Com o cursor na busca de produto, leia a embalagem com o leitor. O produto entra na venda já na apresentação lida, e a busca fica pronta para a próxima leitura.</>,
+          "Leu o mesmo produto de novo? A quantidade da linha sobe 1. Três leituras da saca viram quantidade 3.",
+          "Sem leitor, digitar o código na busca e apertar Enter faz o mesmo.",
+          <>Os atalhos ficam na faixa do rodapé do balcão: <strong>F2</strong> vai para a busca de produto, <strong>F4</strong> abre a escolha do cliente, <strong>F8</strong> vai para o Vendedor, <strong>F9</strong> vai para as formas de pagamento e <strong>Ctrl+Enter</strong> fecha a venda (ou salva o orçamento).</>,
+        ]}
+        problemas={[
+          {
+            quando: "“Nenhum produto com o código ...”",
+            fazer: <>Nenhuma apresentação tem esse código. Cadastre o código no produto, como em <Link className="underline" href={`${B}/produtos`}>Cadastrar produto</Link>.</>,
+          },
+          {
+            quando: "O atalho não faz nada",
+            fazer: "Feche a janela ou o painel que estiver aberto: com ele por cima, os atalhos não agem. As teclas podem ter sido trocadas: confira a faixa do rodapé.",
+          },
+        ]}
+      >
+        <Chamada tipo="saiba">
+          <p>
+            O Ctrl+Enter passa pelas mesmas conferências do botão Fechar a venda: se faltar pagamento ou cliente, a venda
+            não fecha e o aviso aparece no campo. O Enter do leitor nunca fecha a venda. Os atalhos e a faixa só aparecem
+            no computador. As teclas são escolhidas em{" "}
+            <Link className="underline" href={`${B}/configuracoes`}>Configurações</Link>.
+          </p>
+        </Chamada>
+      </Tarefa>
+    </div>
   );
 }
 
