@@ -70,7 +70,16 @@ export function FinanceiroReceber({
   };
   const fiado = ver ? dados.fiado.filter((c) => doRecorte(c) > 0) : dados.fiado;
   const cheques = ver ? dados.checks.filter((c) => noRecorte(ver, hoje, c.good_for)) : dados.checks;
-  const cartoes = ver ? dados.cards.filter((p) => ver !== "vencido" && noRecorte(ver, hoje, p.effective_on)) : dados.cards;
+  // Vencido do cartão é a parcela atrasada; Hoje inclui o que já caiu e espera conferência.
+  const cartoes = ver
+    ? dados.cards.filter((p) =>
+        ver === "vencido"
+          ? p.status === "atrasada"
+          : ver === "hoje"
+            ? noRecorte("hoje", hoje, p.effective_on) || p.status === "a_conferir"
+            : noRecorte(ver, hoje, p.effective_on),
+      )
+    : dados.cards;
   const totalFiado = fiado.reduce((s, c) => s + Math.round(doRecorte(c) * 100), 0) / 100;
   // Antecipar é de quem gere a loja da parcela ou cuida do dinheiro (o servidor confere de novo).
   const lojasQueAntecipam = [...new Set(dados.cards.map((c) => c.establishment_id))].filter(
@@ -230,7 +239,8 @@ export function FinanceiroReceber({
         antecipacoes={antecipacoes}
         lojasQueAntecipam={lojasQueAntecipam}
         padraoId={padraoId}
-        semVencidoNoFiltro={ver === "vencido"}
+        semAtrasadoNoFiltro={ver === "vencido"}
+        podeConferir={pode(papel, "dinheiro")}
       />
     </div>
   );

@@ -20,6 +20,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useAviso } from "@/components/ui/toast";
 import { useErrosDeFormulario } from "@/components/ui/use-erros-de-formulario";
 import { NomeDoCliente, VendaLink } from "./amarras";
+import { ConferirDiaForm, type GrupoDoDia } from "./conferir-dia-form";
+import { ConferirParcelaForm } from "./conferir-parcela-form";
+import { DesfazerConferenciaForm } from "./desfazer-conferencia-form";
+import { SeloDoEstado } from "./selo-do-estado";
 import { pctBr } from "./formato";
 
 /** Ordem VISUAL, com o nome que a API usa. */
@@ -40,12 +44,15 @@ export function CartoesAReceber({
   antecipacoes,
   lojasQueAntecipam,
   padraoId = null,
-  semVencidoNoFiltro = false,
+  semAtrasadoNoFiltro = false,
+  podeConferir = false,
 }: {
   /** O cliente padrão, que não vira link. */
   padraoId?: string | null;
-  /** O filtro Vencido: parcela de cartão não vence, então a seção diz isso em vez da frase de "nada a receber". */
-  semVencidoNoFiltro?: boolean;
+  /** O filtro Vencido: a seção diz que nada está atrasado em vez da frase de "nada a receber". */
+  semAtrasadoNoFiltro?: boolean;
+  /** Quem tem `dinheiro` confere, confere o dia e desfaz (o servidor confere de novo). */
+  podeConferir?: boolean;
   cards: CartaoAReceberView[];
   antecipacoes: AntecipacaoView[];
   /** As lojas em que quem lê pode antecipar (a conta toda traz todas). */
@@ -59,6 +66,29 @@ export function CartoesAReceber({
   const contas = new Set(selecionadas.map((p) => p.bank_account_id));
   const mesmaConta = contas.size <= 1;
 
+  // "Conferir o dia": as parcelas não conferidas que já caíram, por data, adquirente e conta. Parcela sem
+  // adquirente (anterior às taxas de cartão) só confere uma a uma.
+  const grupos = new Map<string, GrupoDoDia>();
+  for (const p of cards) {
+    if (p.status !== "a_conferir" && p.status !== "atrasada") continue;
+    const adquirenteId = p.acquirer_id;
+    if (!adquirenteId || !p.acquirer_name) continue;
+    const chave = `${p.effective_on}-${p.bank_account_id}-${adquirenteId}`;
+    const g = grupos.get(chave);
+    if (g) g.parcelas.push(p);
+    else
+      grupos.set(chave, {
+        chave,
+        effective_on: p.effective_on,
+        bank_account_id: p.bank_account_id,
+        bank_account_name: p.bank_account_name,
+        acquirer_id: adquirenteId,
+        acquirer_name: p.acquirer_name,
+        parcelas: [p],
+      });
+  }
+  const gruposDoDia = [...grupos.values()].sort((a, b) => a.effective_on.localeCompare(b.effective_on));
+
   function alternar(id: string) {
     setMarcadas((m) => (m.includes(id) ? m.filter((x) => x !== id) : [...m, id]));
   }
@@ -67,9 +97,9 @@ export function CartoesAReceber({
     <>
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-texto">Cartões a receber</h2>
-        {cards.length === 0 && semVencidoNoFiltro ? (
-          <EmptyState titulo="Nada vencido no cartão">
-            Parcela de cartão cai sozinha na data; a conferência vem na próxima etapa.
+        {cards.length === 0 && semAtrasadoNoFiltro ? (
+          <EmptyState titulo="Nada atrasado no cartão">
+            Nenhuma parcela de cartão passou do prazo sem ser conferida.
           </EmptyState>
         ) : cards.length === 0 ? (
           <EmptyState titulo="Nada a receber do cartão">
@@ -94,6 +124,22 @@ export function CartoesAReceber({
                 )}
               </div>
             )}
+            {podeConferir && gruposDoDia.length > 0 && (
+              <ul className="divide-y divide-borda rounded-md border border-borda">
+                {gruposDoDia.map((g) => (
+                  <li key={g.chave} className="flex flex-wrap items-center justify-between gap-3 px-3 py-2 text-sm">
+                    <span className="min-w-0 text-texto">
+                      {dataBr(g.effective_on)}, {g.acquirer_name}, {g.bank_account_name}:{" "}
+                      <span className="text-texto-secundario">
+                        {g.parcelas.length === 1 ? "1 parcela" : `${g.parcelas.length} parcelas`},{" "}
+                        {reaisBr(g.parcelas.reduce((s, p) => s + cent(p.effective_net), 0) / 100)} previsto
+                      </span>
+                    </span>
+                    <ConferirDiaForm grupo={g} />
+                  </li>
+                ))}
+              </ul>
+            )}
             <Table>
               <TableHeader>
                 <TableRow>
@@ -107,7 +153,13 @@ export function CartoesAReceber({
                   <TableHead>Adquirente</TableHead>
                   <TableHead>Parcela</TableHead>
                   <TableHead>Líquido</TableHead>
+                  <TableHead>Estado</TableHead>
                   <TableHead>Venda</TableHead>
+                  {podeConferir && (
+                    <TableHead>
+                      <span className="sr-only">Conferência</span>
+                    </TableHead>
+                  )}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -126,11 +178,6 @@ export function CartoesAReceber({
                     </TableCell>
                     <TableCell>
                       {dataBr(p.effective_on)}
-                      {p.received && (
-                        <Badge variant="green" className="ml-2">
-                          Hoje
-                        </Badge>
-                      )}
                       {p.anticipated && (
                         <span className="block text-xs text-texto-secundario">
                           antecipada em {dataBr(p.effective_on).slice(0, 5)} (previsto {dataBr(p.expected_on)})
@@ -148,11 +195,24 @@ export function CartoesAReceber({
                     </TableCell>
                     <TableCell>
                       {reaisBr(p.effective_net)}
+                      {p.status === "conferida" && p.confirmed_net !== null && (
+                        <span className="block text-xs text-texto-secundario">
+                          conferido {reaisBr(p.confirmed_net)}
+                          {p.adjustment !== null && p.adjustment !== 0 && (
+                            <span className={p.adjustment < 0 ? "text-perigo-tinta" : "text-sucesso-tinta"}>
+                              , ajuste {p.adjustment < 0 ? "-" : "+"} {reaisBr(Math.abs(p.adjustment))}
+                            </span>
+                          )}
+                        </span>
+                      )}
                       {p.anticipated && (
                         <Badge variant="blue" className="ml-2">
                           Antecipada
                         </Badge>
                       )}
+                    </TableCell>
+                    <TableCell>
+                      <SeloDoEstado estado={p.status} />
                     </TableCell>
                     <TableCell>
                       <VendaLink id={p.sale_id} numero={p.sale_number} parcela={`${p.installment}/${p.installments}`} />
@@ -162,6 +222,12 @@ export function CartoesAReceber({
                         </span>
                       )}
                     </TableCell>
+                    {podeConferir && (
+                      <TableCell>
+                        {(p.status === "a_conferir" || p.status === "atrasada") && <ConferirParcelaForm parcela={p} />}
+                        {p.status === "conferida" && <DesfazerConferenciaForm parcela={p} />}
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>

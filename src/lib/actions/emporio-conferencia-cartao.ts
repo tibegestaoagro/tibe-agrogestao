@@ -68,6 +68,7 @@ export function viewDoCartao(p: ParcelaComJuncoes, hoje: Date): CartaoAReceberVi
     fee_amount: decToNum(p.fee_amount) ?? 0,
     anticipated: p.anticipation_id !== null,
     received: p.effective_on.getTime() <= hoje.getTime(),
+    acquirer_id: p.acquirer_id,
     acquirer_name: p.acquirer?.name ?? null,
     brand: p.brand,
     sale_number: p.sale.number,

@@ -95,6 +95,7 @@ export type CartaoAReceberView = {
   anticipated: boolean;
   received: boolean;
   /** Taxas de cartão (Q254): nulos nas parcelas de antes da entrega. */
+  acquirer_id: string | null;
   acquirer_name: string | null;
   brand: string | null;
   /** Frente A: a venda e o cliente da parcela, para os links. `customer_*` é nulo na venda sem cliente. */
