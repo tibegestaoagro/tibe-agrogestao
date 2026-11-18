@@ -317,6 +317,20 @@ esperar_mostrando("Mostrando 1 a 20 de", ENT)
 confere("caixa: mudar as entregas para a pagina 1 NAO mexe nos movimentos (seguem em 41 a ..., URL com pagina_mov=3 e sem pagina_ent)", mostrando(ENT).startswith("Mostrando 1 a 20 de") and mostrando(MOV).startswith("Mostrando 41 a") and "pagina_mov=3" in caminho() and "pagina_ent" not in caminho(), [mostrando(ENT), mostrando(MOV), caminho()])
 confere("caixa: as entregas voltam a R$ 500,00 a R$ 519,00 (a mais antiga primeiro)", valores(ENT, 1) == [float(500 + k) for k in range(20)], valores(ENT, 1))
 
+# --- 5b -----------------------------------------------------------------------------------------------------------------
+# Achado do juiz (18/11): a aba Esperando das Aprovacoes cortava em 200 em silencio. Os 25 pedidos do cenario
+# (R$ 700 a 724) sao os pendentes mais antigos da conta: a pagina 1 comeca no R$ 700, a 2 traz o R$ 720.
+passo("5b. Aprovacoes: os pedidos pendentes paginam (25 do cenario, os mais antigos)")
+ir("/emporio/financeiro/aprovacoes?status=pendente")
+esperar(lambda: mostrando().startswith("Mostrando 1 a 20 de"), 60)
+texto1 = texto_do_main().replace(" ", " ")
+confere("aprovacoes: 'Mostrando 1 a 20 de N' (N >= 25) e a barra com a pagina 2", mostrando().startswith("Mostrando 1 a 20 de") and int((re.findall(r"\d+", mostrando()) or ["0"])[-1]) >= 25 and item(nav(), "2") is not None, [mostrando(), nav()])
+confere("aprovacoes: a pagina 1 traz o mais antigo (R$ 700,00) e nao o 21o (R$ 720,00)", "R$ 700,00" in texto1 and "R$ 720,00" not in texto1, texto1[:300])
+confere("aprovacoes: clica na pagina 2", clicar_pagina(2))
+esperar(lambda: mostrando().startswith("Mostrando 21 a"), 60)
+texto2 = texto_do_main().replace(" ", " ")
+confere("aprovacoes: pagina 2 'Mostrando 21 a ...', com o R$ 720,00 e sem o R$ 700,00, URL com pagina=2", mostrando().startswith("Mostrando 21 a") and "R$ 720,00" in texto2 and "R$ 700,00" not in texto2 and "pagina=2" in caminho(), [mostrando(), caminho()])
+
 # --- 6 ------------------------------------------------------------------------------------------------------------------
 passo("6. Tela inicial do Emporio: os resumos de sempre")
 ir("/emporio")

@@ -355,7 +355,7 @@ async function buscarVendas(
   return db.emporioSale.findMany({
     where,
     include: INCLUDE_VENDA,
-    orderBy: [{ sold_at: o }, { created_at: o }],
+    orderBy: [{ sold_at: o }, { created_at: o }, { id: o }],
     ...(pag.skip ? { skip: pag.skip } : {}),
     ...(take ? { take } : {}),
   });

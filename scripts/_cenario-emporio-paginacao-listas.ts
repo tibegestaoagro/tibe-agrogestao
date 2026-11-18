@@ -69,6 +69,7 @@ async function limpar(tenant_id: string) {
   await prisma.emporioQuote.deleteMany({ where: { tenant_id, establishment_id: { in: lojas } } });
   await prisma.emporioCustomer.deleteMany({ where: { tenant_id, id: { in: clientes } } });
   await prisma.cashHandover.deleteMany({ where: { tenant_id, establishment_id: { in: lojas } } });
+  await prisma.emporioPaymentRequest.deleteMany({ where: { tenant_id, establishment_id: { in: lojas } } });
   await prisma.cashSession.deleteMany({ where: { tenant_id, establishment_id: { in: lojas } } });
   await prisma.cashRegister.deleteMany({ where: { tenant_id, establishment_id: { in: lojas } } });
   await prisma.stockLimit.deleteMany({ where: { tenant_id, establishment_id: { in: lojas } } });
@@ -204,6 +205,15 @@ async function main() {
       },
     });
   }
+
+  // --- Aprovações: 25 pedidos de pagamento pendentes, os mais antigos da conta (R$ 700 a 724) ----------------------
+  // Achado do juiz (18/11): os pendentes cortavam em 200 em silêncio; agora a aba Esperando pagina de 20 em 20.
+  await prisma.emporioPaymentRequest.createMany({
+    data: Array.from({ length: 25 }, (_, k) => ({
+      tenant_id, requested_by_user_id: owner.id, entry_ids: ["x"], total: 700 + k, status: "pendente",
+      establishment_id: lojaCaixa, created_at: new Date(Date.UTC(2019, 0, 1, k)),
+    })),
+  });
 
   // --- Curva: tres produtos de faturamento igual ----------------------------------------------------------------
   const lojaCurva = await loja("Curva");

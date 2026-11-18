@@ -122,6 +122,7 @@ const R = {
   counts: () => import("@/app/api/v1/emporio/cash/counts/route"),
   cash: () => import("@/app/api/v1/emporio/cash/route"),
   abc: () => import("@/app/api/v1/emporio/reports/abc/route"),
+  paymentRequests: () => import("@/app/api/v1/emporio/finance/payment-requests/route"),
 };
 
 type Resp = { status: number; corpo: Dado };
@@ -701,13 +702,32 @@ async function secao8() {
 
 async function secao9() {
   secaoAtual = "9";
-  console.log("\n9. Pedidos de pagamento (listarPedidosDePagamentoAction): só se a action paginar");
+  console.log("\n9. Pedidos de pagamento pendentes: 45 (listarPedidosDePagamentoAction, GET emporio/finance/payment-requests)");
+  // Achado do juiz (18/11): os pendentes cortavam em 200 em silêncio. Agora paginam, do mais antigo (a fila de quem aprova).
   const Ap = await import("@/lib/actions/emporio-aprovacoes");
+  const prisma = await prismaCru();
+  const L = await novaLoja(A, "Pedidos");
+  await prisma.emporioPaymentRequest.createMany({
+    data: Array.from({ length: 45 }, (_, k) => ({
+      tenant_id: A.tenantId, requested_by_user_id: A.owner.id, entry_ids: ["x"], total: 1, status: "pendente",
+      establishment_id: L.id, created_at: new Date(AGORA - (45 - k) * 3_600_000),
+    })),
+  });
+  // O banco é o oráculo da ordem (outra seção pode ter deixado pendente nesta conta).
+  const pendentes = await prisma.emporioPaymentRequest.findMany({
+    where: { tenant_id: A.tenantId, status: "pendente" },
+    orderBy: [{ created_at: "asc" }, { id: "asc" }],
+    select: { id: true },
+  });
+  await gabarito({
+    nome: "pedidos pendentes",
+    maisAntigoPrimeiro: pendentes.map((p: Dado) => String(p.id)),
+    padraoAsc: true,
+    acao: (o: Dado) => Ap.listarPedidosDePagamentoAction(A.db, A.owner, { status: "pendente", ...o }),
+    rota: (p) => chamar(A.tok.owner, R.paymentRequests, `emporio/finance/payment-requests?${qs({ status: "pendente", ...p })}`),
+    outroTenant: () => Ap.listarPedidosDePagamentoAction(B.db, B.owner, { status: "pendente", page: 1, per_page: 20 }),
+  });
   const r: Dado = await Ap.listarPedidosDePagamentoAction(A.db, A.owner, { page: 1, per_page: 20 } as Dado);
-  if (r?.ok === true && Array.isArray(r.data)) {
-    console.log("  ⚠️ a action ainda devolve array e ignora `page`: a seção pula (Task 1 decidiu manter o cursor)");
-    return;
-  }
   check("a action devolve { linhas, total, page, per_page }", r?.ok === true && Array.isArray(r.data?.linhas) && typeof r.data?.total === "number" && r.data.page === 1 && r.data.per_page === 20, j(r).slice(0, 220));
   const ruim: Dado = await Ap.listarPedidosDePagamentoAction(A.db, A.owner, { page: 1, per_page: 30 } as Dado);
   check("per_page=30: 422 em per_page", ruim?.ok === false && ruim.status === 422 && ruim.field === "per_page", j(ruim).slice(0, 200));
@@ -810,7 +830,7 @@ async function limpar(id: string) {
   const por = { where: { tenant_id: id } };
   await prisma.emporioSale.updateMany({ ...por, data: { exchange_return_id: null, quote_id: null, replaces_sale_id: null } }).catch(() => undefined);
   await prisma.emporioQuote.updateMany({ ...por, data: { sale_id: null, based_on_quote_id: null } }).catch(() => undefined);
-  for (const m of ["cashMovement", "cashCount", "cashHandover", "cardAnticipation", "productionEntry", "stockTransfer"]) {
+  for (const m of ["emporioPaymentRequest", "cashMovement", "cashCount", "cashHandover", "cardAnticipation", "productionEntry", "stockTransfer"]) {
     await prisma[m].deleteMany(por).catch((e: unknown) => console.log(`  (teardown ${m}: ${e instanceof Error ? e.message.slice(0, 100) : e})`));
   }
   await prisma.tenant.delete({ where: { id } }).catch((e: unknown) => console.log(`  (teardown ${id}: ${e instanceof Error ? e.message.slice(0, 100) : e})`));

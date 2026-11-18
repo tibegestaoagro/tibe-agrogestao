@@ -32,10 +32,17 @@ pagamento, Antecipações e Entregas, 0. A 5.27 junta dois acertos da curva ABC.
   pelo `order`. **Exceção:** as entregas pendentes do caixa seguem com o
   padrão `asc` (a mais antiga primeiro, a próxima a confirmar), como já eram;
   o `order` explícito continua valendo.
-- **Lista que já pagina por cursor** (Pedidos de pagamento, com `before` e
-  `before_id`): se a tela já mostra "ver mais" sem cortar em silêncio, fica
-  como está e a dívida dela fecha só com a conferência; se corta, entra no
-  padrão.
+- **Pedidos de pagamento:** os decididos já paginavam por cursor ("Ver mais
+  antigos", `before` e `before_id`) e seguem assim; a tela passou a mandar o
+  `before_id` também. Os **pendentes** cortavam em 200 em silêncio (achado do
+  juiz, 18/11) e entraram no padrão, com a paginação compacta na aba
+  "Esperando" e o padrão `asc` (a fila de quem aprova). A action devolve
+  `{ linhas, total, page, per_page }` nos dois casos.
+- **Movimentos do caixa** paginam sem troca de ordem (sempre do mais novo ao
+  mais antigo): a tela não oferece o seletor, e a rota não aceita `order` para
+  eles.
+- **Quem chama a API sem `page` nem `limit`** passa a receber a página 1 de 20
+  (antes, até 200); o `meta.total` diz quantos há.
 - **Telas:** o componente `src/app/(dashboard)/emporio/_components/paginacao.tsx`
   em todas. Na completa, os seletores "Por página" e "Ordem" junto dos filtros
   da página; na compacta, só a barra embaixo da seção. Cada lista guarda a

@@ -117,7 +117,7 @@ async function buscarCompras(
   return db.emporioPurchase.findMany({
     where,
     include: INCLUDE_COMPRA,
-    orderBy: [{ purchased_at: o }, { created_at: o }],
+    orderBy: [{ purchased_at: o }, { created_at: o }, { id: o }],
     ...(pag.skip ? { skip: pag.skip } : {}),
     ...(take ? { take } : {}),
   });

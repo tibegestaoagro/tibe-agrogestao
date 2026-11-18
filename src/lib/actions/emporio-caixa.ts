@@ -2888,7 +2888,7 @@ export async function listarConferenciasAction(
   const linhas = await db.cashCount.findMany({
     where,
     include: { establishment: { select: { name: true } } },
-    orderBy: [{ counted_at: o }, { created_at: o }],
+    orderBy: [{ counted_at: o }, { created_at: o }, { id: o }],
     skip,
     take,
   });

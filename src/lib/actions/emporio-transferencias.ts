@@ -125,7 +125,7 @@ async function buscar(
   return db.stockTransfer.findMany({
     where,
     include: INCLUDE_TRANSFERENCIA,
-    orderBy: [{ sent_at: o }, { created_at: o }],
+    orderBy: [{ sent_at: o }, { created_at: o }, { id: o }],
     ...(pag.skip ? { skip: pag.skip } : {}),
     ...(take ? { take } : {}),
   });
