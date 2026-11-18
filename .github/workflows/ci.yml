@@ -66,6 +66,10 @@ jobs:
         run: npm run check
 
       - name: Type-check
+        # 18/11/2026: o tsc passou do limite padrao de memoria do Node (~2 GB) no runner
+        # ("heap out of memory", exit 134) com o crescimento das suites; 6 GB cabem no runner.
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
         run: npx tsc --noEmit
 
       - name: Lint
