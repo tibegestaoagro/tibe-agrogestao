@@ -67,6 +67,8 @@ export const ACOES_DO_HISTORICO = {
   "caixa.saldo_inicial": "Informou o saldo inicial do caixa",
   // Sem tela: gravada pelo suporte ao apagar um saldo inicial a pedido do usuário (19/11/2026).
   "caixa.saldo_inicial_removido": "Saldo inicial removido pelo suporte",
+  // Sem tela: gravada por `scripts/zerar-financeiro-conta.ts` (19/11/2026).
+  "suporte.financeiro_zerado": "Financeiro zerado pelo suporte",
   "caixa.criar": "Criou um caixa",
   "caixa.abrir": "Abriu o caixa",
   "caixa.sangria": "Fez uma sangria",
