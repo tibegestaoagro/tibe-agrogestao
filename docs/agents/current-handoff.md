@@ -25,16 +25,21 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-18. **Paginação das listas e acertos da curva ABC
-  (dívidas 5.26 e 5.27, Q366 e Q367) EM PRODUÇÃO** (merge da branch
-  `emporio-paginacao-listas`, autorizado pelo usuário na conversa em 18/11;
-  sem migração). Vendas, Compras, Transferências,
-  produções, antecipações, entregas, movimentos do caixa, conferências e os
-  pendentes das Aprovações paginam sem corte silencioso; a curva fecha em
-  100%; o seletor de lucro é decidido no servidor. Provas: `test:all` 128/128,
-  `test:m125` (com os pendentes), roteiro `emporio-paginacao-listas` (0
-  falhas; reprova nas sabotagens), juiz sem bloqueante com os dois importantes
-  corrigidos, manual e figuras. Sobras na 5.28.
+- Atualizado em: 2026-11-19. **Branch `emporio-transacao-e-taxas-encerradas`
+  pronta, NÃO mergeada** (sem migração). Duas reclamações da Central do Milho:
+  (1) editar a venda nº 4 (fiado para débito) dava "Erro interno": a transação
+  passava dos 5 s padrão do Prisma, com ~120 ms por consulta entre a Vercel
+  (iad1) e o Neon (sa-east-1); nenhuma edição de venda tinha dado certo em
+  produção. Correção: `transactionOptions` de 30 s em `src/lib/prisma.ts`
+  (`test:m126` simula a distância e reprova sem ela) e `regions: ["gru1"]` no
+  `vercel.json` (decisão do usuário em 19/11). (2) As taxas valendo só de 14 a
+  16/11 "sumiram": a lista agora avisa as encerradas escondidas e deixa editar
+  a encerrada sem venda (roteiro `emporio-taxas-encerradas`, 0 falhas, 14 sem a
+  correção). Depois do merge: conferir o deploy na região nova e pedir à
+  Central para editar de novo as vendas nº 1, 2 e 4 e estender a taxa de
+  crédito à vista da LOJA MOC (hoje sem taxa vigente).
+- 18/11: paginação das listas e curva ABC em produção (merge `58e077fc`; sobras
+  na 5.28).
 - Plano do GestãoClick (Q341 a Q344):
   [../superpowers/specs/2026-11-17-emporio-plano-gestaoclick.md](../superpowers/specs/2026-11-17-emporio-plano-gestaoclick.md).
   Em produção: A (`49fbd47`), B (`cc8a614`; sobras 5.23), C (`76a61ba`; 5.24),
@@ -42,20 +47,13 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   (curva ABC e orçamentos paginados, `77cf2ca`). G1 (2.18) e G2 (2.34) esperam a
   planilha do GestãoClick e o XML de nota. **Próximo passo:** G1 e G2 quando
   os arquivos chegarem.
-- Em produção desde 16/11: orçamento com total, cadastro leve e CEP (Q335 a
-  Q340, merge `762854a`, `test:m119`); preço do cadastro, desconto por PIN e
-  brinde (Q327 a Q334, merge `c43a130`, m118; os gestores precisam cadastrar o
-  PIN); manual completo (merge `1616dbd`, 17/11); frete no orçamento (Q326) e
-  vendas do turno (Q325). GIFs do manual: roteiro `manual-gifs` e
-  `python scripts/manual-gifs-montar.py`.
-- `main` igual a `origin/main`, Neon em dia. Em produção também: conta avulsa e
-  2.64/2.65, Apresentação sempre visível, observação no impresso, cliente no
-  extrato, relatórios e exportação (Q268 a Q274), cartão (Q250 a Q267), frete
-  e editar venda (Q244 a Q249), o financeiro (Q214 a Q243); evidências em
-  [financeiro-emporio-relatorio.md](financeiro-emporio-relatorio.md). De 09
-  e 10/11 (specs dessas datas): peso total e regra por apresentação (Q291,
-  Q292), orçamento (Q285 a Q290), boleto e cheque (Q278 a Q284; aberta 2.69),
-  acordo, aviso e recálculo (Q275 a Q277; aberta 2.66).
+- Em produção desde 16/11: Q325 a Q340 (orçamento com total, cadastro leve,
+  CEP, preço do cadastro, PIN, brinde, frete no orçamento; os gestores precisam
+  cadastrar o PIN) e o manual (GIFs: roteiro `manual-gifs` e
+  `python scripts/manual-gifs-montar.py`). Antes disso, Q214 a Q324 (detalhe em
+  `historico/2026-11.md` e
+  [financeiro-emporio-relatorio.md](financeiro-emporio-relatorio.md); abertas
+  2.66 e 2.69). Neon em dia.
 
 ### Granel em qualquer peso e atacado na mesma saca (Q319 a Q324): em produção (merge `8727de8`)
 
