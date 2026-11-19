@@ -3,6 +3,8 @@ import type { AntecipacaoView } from "@/lib/actions/emporio-antecipacao";
 import type { AReceberView } from "@/lib/actions/emporio-financeiro";
 import type { FiadoClienteView } from "@/lib/actions/emporio-caixa";
 import { pode, type PapelContexto } from "@/lib/emporio/papel";
+import { chequeIncompleto } from "@/lib/emporio/cheque";
+import Link from "next/link";
 import { reaisBr } from "@/lib/numero-br";
 import { dataBr } from "@/lib/emporio/datas";
 import { Badge } from "@/components/ui/badge";
@@ -37,6 +39,7 @@ export function FinanceiroReceber({
   antecipacoes,
   paginacaoAntecipacoes = null,
   ver = null,
+  soACompletar = false,
   hoje,
   padraoId = null,
   loja = "",
@@ -45,6 +48,8 @@ export function FinanceiroReceber({
   loja?: string;
   /** Frente A: o cartão ativo da faixa (`?ver=`), sem o "recebido", que troca a tela por outra lista. */
   ver?: "vencido" | "hoje" | "a_vencer" | null;
+  /** `?cheques=a_completar` (o "Ver os cheques" do Hoje): só a seção dos cheques, só os que faltam dados. Vence o `ver`. */
+  soACompletar?: boolean;
   /** Hoje em Brasília (AAAA-MM-DD), a régua do recorte. */
   hoje: string;
   /** O cliente padrão, que não vira link. */
@@ -76,7 +81,13 @@ export function FinanceiroReceber({
     return datas[0] ?? c.oldest_due_date;
   };
   const fiado = ver ? dados.fiado.filter((c) => doRecorte(c) > 0) : dados.fiado;
-  const cheques = ver ? dados.checks.filter((c) => c.good_for !== null && noRecorte(ver, hoje, c.good_for)) : dados.checks;
+  const cheques = soACompletar
+    ? dados.checks.filter(chequeIncompleto)
+    : ver
+      ? dados.checks.filter((c) => c.good_for !== null && noRecorte(ver, hoje, c.good_for))
+      : dados.checks;
+  // O endereço de volta: o mesmo, sem o filtro dos cheques e com a loja.
+  const enderecoDeTudo = loja ? `/emporio/financeiro/receber?loja=${encodeURIComponent(loja)}` : "/emporio/financeiro/receber";
   // Vencido do cartão é a parcela atrasada; Hoje inclui o que já caiu e espera conferência.
   const cartoes = ver
     ? dados.cards.filter((p) =>
@@ -95,6 +106,7 @@ export function FinanceiroReceber({
 
   return (
     <div className="space-y-8">
+      {!soACompletar && (
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-texto">Fiado por cliente</h2>
         {soPix && (
@@ -172,14 +184,27 @@ export function FinanceiroReceber({
           </>
         )}
       </section>
+      )}
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-texto">Cheques em carteira</h2>
+        {soACompletar && (
+          <p className="text-sm text-texto-secundario">
+            Mostrando só os cheques a completar.{" "}
+            <Link href={enderecoDeTudo} className="font-medium text-texto-marca hover:underline">
+              Ver tudo o que receber
+            </Link>
+          </p>
+        )}
         {cheques.length === 0 ? (
-          <EmptyState titulo={ver ? "Nenhum cheque neste recorte" : "Nenhum cheque na carteira"}>
-            {ver
-              ? "Nenhum cheque tem bom para essa data. Use Ver tudo para voltar."
-              : "Os cheques recebidos e ainda não compensados aparecem aqui, por data."}
+          <EmptyState
+            titulo={soACompletar ? "Nenhum cheque a completar" : ver ? "Nenhum cheque neste recorte" : "Nenhum cheque na carteira"}
+          >
+            {soACompletar
+              ? "Todos os cheques da carteira já têm número, banco e data."
+              : ver
+                ? "Nenhum cheque tem bom para essa data. Use Ver tudo para voltar."
+                : "Os cheques recebidos e ainda não compensados aparecem aqui, por data."}
           </EmptyState>
         ) : (
           <Table>
@@ -237,6 +262,8 @@ export function FinanceiroReceber({
         )}
       </section>
 
+      {!soACompletar && (
+        <>
       <BoletosLista
         iniciais={dados.boletos}
         loja={lojas.length === 1 ? lojas[0].id : ""}
@@ -257,6 +284,8 @@ export function FinanceiroReceber({
         podeConferir={pode(papel, "dinheiro")}
         loja={loja}
       />
+        </>
+      )}
     </div>
   );
 }

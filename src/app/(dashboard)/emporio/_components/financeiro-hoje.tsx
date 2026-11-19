@@ -61,6 +61,7 @@ export function FinanceiroHoje({ resumo, loja }: { resumo: HojeView; loja: strin
   const enderecoSemCarimbo = conta
     ? `${enderecoDaAba("/emporio/financeiro/caixa", loja)}${loja ? "&" : "?"}lugar=conta:${conta.id}&carimbo=sem`
     : enderecoDaAba("/emporio/financeiro/caixa", loja);
+  const enderecoDosCheques = `${enderecoDaAba("/emporio/financeiro/receber", loja)}${loja ? "&" : "?"}cheques=a_completar`;
   const aReceberHoje = receivables_due.fiado.total + receivables_due.checks.total + receivables_due.boletos.total + receivables_due.cards.total;
 
   return (
@@ -84,7 +85,7 @@ export function FinanceiroHoje({ resumo, loja }: { resumo: HojeView; loja: strin
       )}
 
       {checks_to_complete.count > 0 && (
-        <Cartao titulo="Cheques a completar" href={enderecoDaAba("/emporio/financeiro/receber", loja)} verTudo="Ver os cheques">
+        <Cartao titulo="Cheques a completar" href={enderecoDosCheques} verTudo="Ver os cheques">
           <Linha
             rotulo={`A completar: ${plural(checks_to_complete.count, "cheque", "cheques")}`}
             valor={reaisBr(checks_to_complete.total)}
