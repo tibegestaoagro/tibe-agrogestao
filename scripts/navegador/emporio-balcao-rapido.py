@@ -17,6 +17,7 @@
 #   5. Etiquetas: lista com preco da loja, "sem preco" desabilitado, "sem codigo"; Selecionar todas
 #   6. Impressao: A4 medido em mm (margens, passo das colunas e das linhas, "comecar na etiqueta nº 5"), rolo 40 x 25 mm,
 #      barras decodificadas do SVG contra o EAN independente; capturas em alta resolucao
+#      Aviso de barras que nao cabem: no painel (rolo 40 x 15 avisa, 40 x 25 nao) e na escolha das etiquetas
 #   7. Celular (390 px): sem rolagem horizontal nas Etiquetas e nas Configuracoes; sem legenda no balcao
 #
 # cenario: scripts/_cenario-emporio-balcao-rapido.ts
@@ -486,6 +487,16 @@ definir("#balcao-label_a4_width", "99")
 definir("#balcao-label_roll_columns", "9")
 confere("'Voltar ao padrao' preenche os padroes (3 colunas, 7 linhas, 63,5, 38,1, 15,15, 7,2, 2,5, 0 e o rolo 40 x 25)", clicar_no_painel("Voltar ao padrão") and [valor_de("#balcao-" + c) for c in ["label_a4_columns", "label_a4_rows", "label_a4_width", "label_a4_height", "label_a4_margin_top", "label_a4_margin_left", "label_a4_gap_x", "label_a4_gap_y", "label_roll_width", "label_roll_height", "label_roll_columns", "label_roll_gap_x"]] == ["3", "7", "63,5", "38,1", "15,15", "7,2", "2,5", "0", "40", "25", "1", "2"], [valor_de("#balcao-" + c) for c in ["label_a4_columns", "label_a4_rows", "label_a4_width", "label_a4_height", "label_a4_margin_top", "label_a4_margin_left", "label_a4_gap_x", "label_a4_gap_y", "label_roll_width", "label_roll_height", "label_roll_columns", "label_roll_gap_x"]])
 
+AVISO_BARRAS = "o código de barras não cabe"
+confere("rolo 40 x 25 (o padrao): o painel NAO avisa de barras", AVISO_BARRAS not in (js("(document.querySelector('[role=dialog]')).innerText") or ""), "")
+definir("#balcao-label_roll_height", "15")
+time.sleep(0.5)
+aviso_painel = js("(document.querySelector('[role=dialog]')).innerText") or ""
+confere("rolo 40 x 15: o painel avisa que o codigo de barras nao cabe, com a altura minima", AVISO_BARRAS in aviso_painel and "use pelo menos" in aviso_painel, aviso_painel[-400:])
+definir("#balcao-label_roll_height", "25")
+time.sleep(0.5)
+confere("de volta a 40 x 25 o aviso some (nada foi gravado: so o painel)", AVISO_BARRAS not in (js("(document.querySelector('[role=dialog]')).innerText") or ""), "")
+
 confere("troca a tecla do Produto para Alt+1", escolher("Buscar produto", "Alt+1") is True)
 enviar_painel()
 confere("salvar fecha o painel", bool(esperar(lambda: not painel_aberto(), 60)))
@@ -576,6 +587,25 @@ js("(() => { const s = document.getElementById('etq-formato'); Object.getOwnProp
 time.sleep(0.5)
 href_rolo = js("(() => { const a = Array.from(document.querySelectorAll('main a')).find(x => x.innerText.trim() === 'Imprimir etiquetas'); return a ? a.getAttribute('href') : ''; })()") or ""
 confere("no rolo o link sai com formato=rolo e sem inicio", "formato=rolo" in href_rolo and "inicio=" not in href_rolo and "Começar" not in texto_do_main(), href_rolo)
+
+# Aviso na escolha: com o rolo gravado em 40 x 15 as barras nao cabem; so avisa se algo marcado tem codigo.
+r = api("PATCH", "/api/v1/emporio/settings/balcao", {"label_roll_height": 15})
+confere("grava o rolo em 40 x 15 pela API (restaurado logo depois)", r["status"] == 200, [r["status"], r["body"]])
+try:
+    ir("/emporio/produtos/etiquetas")
+    js("(() => { const s = document.getElementById('etq-loja'); const alvo = Array.from(s.options).find(o => o.text === " + repr(LOJA) + "); Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(s, alvo.value); s.dispatchEvent(new Event('change', { bubbles: true })); })()")
+    time.sleep(1)
+    js("(() => { const s = document.getElementById('etq-formato'); Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(s, 'rolo'); s.dispatchEvent(new Event('change', { bubbles: true })); })()")
+    time.sleep(0.5)
+    confere("rolo 40 x 15, nada marcado: sem aviso de barras", AVISO_BARRAS not in texto_do_main(), "")
+    confere("marca so a Br Etq Sem Codigo: ainda sem aviso (nao ha barras a perder)", marcar_linha("Br Etq Sem Codigo") is True and AVISO_BARRAS not in texto_do_main(), "")
+    confere("marca a Br Etq Oficial (tem codigo): o aviso aparece, com a altura minima", marcar_linha("Br Etq Oficial") is True and AVISO_BARRAS in texto_do_main() and "use pelo menos" in texto_do_main(), texto_do_main()[-300:])
+    js("(() => { const s = document.getElementById('etq-formato'); Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(s, 'a4'); s.dispatchEvent(new Event('change', { bubbles: true })); })()")
+    time.sleep(0.5)
+    confere("no formato A4 (63,5 x 38,1) o aviso some", AVISO_BARRAS not in texto_do_main(), "")
+finally:
+    r = api("PATCH", "/api/v1/emporio/settings/balcao", {"label_roll_height": 25})
+    confere("devolve o rolo a 40 x 25", r["status"] == 200, [r["status"], r["body"]])
 
 # --- 6 ------------------------------------------------------------------------------------------------------------------
 passo("6. Impressao: A4 medido em mm, rolo, barras decodificadas")

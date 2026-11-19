@@ -1,6 +1,7 @@
 import type { TenantPrismaClient } from "@/lib/prisma";
 import { decToNum } from "@/lib/serialize";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
+import { alturaMinimaComBarras, cabemBarras } from "@/lib/emporio/etiqueta-medidas";
 import { listarEstabelecimentosAction, type Ator } from "@/lib/actions/emporio-catalogo";
 
 export type LojaDeEtiqueta = { id: string; name: string };
@@ -77,4 +78,17 @@ export async function itensDeEtiqueta(
       precos: precos.get(a.id) ?? {},
     }))
     .sort((a, b) => a.produto.localeCompare(b.produto, "pt-BR") || a.apresentacao.localeCompare(b.apresentacao, "pt-BR"));
+}
+
+type Medida = { width: number; height: number };
+
+/**
+ * Em que formatos as barras não cabem na etiqueta configurada, e a menor altura que serviria (para o
+ * aviso da escolha). É a mesma conta da etiqueta impressa.
+ */
+export function barrasDosFormatos(a4: Medida, rolo: Medida) {
+  return {
+    semBarras: { a4: !cabemBarras(a4.width, a4.height), rolo: !cabemBarras(rolo.width, rolo.height) },
+    alturaMinima: { a4: alturaMinimaComBarras(a4.width), rolo: alturaMinimaComBarras(rolo.width) },
+  };
 }

@@ -4,7 +4,7 @@ import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
 import { lerConfiguracoesAction } from "@/lib/actions/emporio-configuracoes";
 import { EtiquetasEscolha } from "./_components/etiquetas-escolha";
-import { itensDeEtiqueta, lojasDeEtiqueta } from "./_dados";
+import { barrasDosFormatos, itensDeEtiqueta, lojasDeEtiqueta } from "./_dados";
 
 export const metadata = { title: "Etiquetas" };
 
@@ -24,6 +24,7 @@ export default async function EtiquetasPage() {
   ]);
   const cfg = config.ok ? config.data : null;
   const folha = cfg?.label_a4;
+  const barras = cfg ? barrasDosFormatos(cfg.label_a4, cfg.label_roll) : null;
 
   return (
     <div className="space-y-6">
@@ -41,6 +42,8 @@ export default async function EtiquetasPage() {
         itens={itens}
         formatoPadrao={cfg?.label_default_format ?? "a4"}
         posicoesDaFolha={folha ? folha.columns * folha.rows : 21}
+        semBarras={barras?.semBarras ?? { a4: false, rolo: false }}
+        alturaMinima={barras?.alturaMinima ?? { a4: null, rolo: null }}
       />
     </div>
   );
