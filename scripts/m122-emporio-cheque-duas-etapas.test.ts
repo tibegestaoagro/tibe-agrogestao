@@ -19,6 +19,7 @@ exigirBancoLocal();
  * Seção 5: permissão e isolamento (Gestor da loja, Gestor de outra loja, Vendedor, Caixa, outro tenant).
  * Seção 6: somas: A receber, Hoje (e checks_to_complete), Projeção e ficha do cliente.
  * Seção 7: editar a venda com cheque incompleto.
+ * Seção 8: corrida entre completar ou corrigir e depositar o mesmo cheque.
  *
  * Leituras adotadas onde a spec era ambígua (ver o relato):
  * - datas no corpo vão como AAAA-MM-DD (o que as rotas de venda já aceitam);
@@ -781,6 +782,69 @@ async function secao7() {
 }
 
 // ---------------------------------------------------------------------------
+// Seção 8: a corrida entre completar ou corrigir e depositar
+// ---------------------------------------------------------------------------
+
+const RODADAS_CORRIDA = 10;
+
+async function secao8() {
+  secaoAtual = "8";
+  console.log(`\n8. Corrida: completar ou corrigir e depositar o MESMO cheque, em paralelo (${RODADAS_CORRIDA} rodadas cada)`);
+  const L = A.lojas[0];
+
+  console.log("  (a) cheque completo: corrigir o número e depositar");
+  let semErro500a = true;
+  let regraNumero = true;
+  let regraRecusa = true;
+  let regraStatus = true;
+  let regraOrdem = true;
+  let detalheA = "";
+  let corrigiuEDepositou = 0;
+  for (let i = 1; i <= RODADAS_CORRIDA; i += 1) {
+    const k = await novoCheque(A, L, completo(emDias(6)));
+    const alvo = `N-${i}`;
+    const [rp, rd] = await Promise.all([patch(A.tok.owner, k.id, { number: alvo }), depositar(A.tok.owner, k.id, A.conta)]);
+    const fim = await lerCheque(k.id);
+    const nota = (m: string) => { detalheA ||= `rodada ${i}: ${m} | patch ${resumo(rp)} | deposito ${resumo(rd)} | final ${j({ s: fim.status, n: fim.number })}`; };
+    if (rp.status >= 500 || rd.status >= 500 || rp.status === 0 || rd.status === 0) { semErro500a = false; nota("500 ou exceção"); }
+    if (ok2xx(rp) && fim.number !== alvo) { regraNumero = false; nota("correção 2xx mas o número final não é o dela"); }
+    if (ok2xx(rd) && !ok2xx(rp) && rp.status !== 409) { regraRecusa = false; nota("depósito 2xx e correção recusada sem ser 409"); }
+    if ((fim.status === "depositado") !== ok2xx(rd)) { regraStatus = false; nota("status final não bate com o depósito"); }
+    if (ok2xx(rd) && ok2xx(rp)) {
+      corrigiuEDepositou += 1;
+      // as duas deram 2xx: a correção tem de ter vindo ANTES do depósito, e o Histórico conta a ordem
+      const comp = (await logsDe(k.id, "cheque.completar"))[0];
+      const dep = (await logsDe(k.id, "cheque.depositar"))[0];
+      if (!comp || !dep || new Date(comp.created_at).getTime() > new Date(dep.created_at).getTime()) { regraOrdem = false; nota("correção 2xx gravada depois do depósito"); }
+    }
+  }
+  check(`nenhuma resposta 500 em ${RODADAS_CORRIDA} rodadas`, semErro500a, detalheA);
+  check("correção 2xx: o número final é o dela", regraNumero, detalheA);
+  check("depósito 2xx e correção recusada: a correção foi 409", regraRecusa, detalheA);
+  check("o status final é depositado se e só se o depósito deu 2xx", regraStatus, detalheA);
+  check("quando as duas deram 2xx, a correção veio antes do depósito (Histórico)", regraOrdem, detalheA);
+  console.log(`  (informativo: ${corrigiuEDepositou} de ${RODADAS_CORRIDA} rodadas com as duas 2xx)`);
+
+  console.log("  (b) cheque sem banco: completar o banco e depositar");
+  let semErro500b = true;
+  let regraBanco = true;
+  let regraIncompleto = true;
+  let detalheB = "";
+  for (let i = 1; i <= RODADAS_CORRIDA; i += 1) {
+    const k = await novoCheque(A, L, { holder_name: NOME, number: `B-${i}`, good_for: emDias(7) });
+    const [rp, rd] = await Promise.all([patch(A.tok.owner, k.id, { bank: "Sicredi" }), depositar(A.tok.owner, k.id, A.conta)]);
+    const fim = await lerCheque(k.id);
+    const nota = (m: string) => { detalheB ||= `rodada ${i}: ${m} | patch ${resumo(rp)} | deposito ${resumo(rd)} | final ${j({ s: fim.status, b: fim.bank })}`; };
+    if (rp.status >= 500 || rd.status >= 500 || rp.status === 0 || rd.status === 0) { semErro500b = false; nota("500 ou exceção"); }
+    if (ok2xx(rd) && fim.bank === null) { regraBanco = false; nota("depositou com o banco nulo"); }
+    if (!ok2xx(rd) && !recusou(rd, 409, undefined, "CHEQUE_INCOMPLETO")) { regraIncompleto = false; nota("depósito recusado sem ser 409 CHEQUE_INCOMPLETO"); }
+  }
+  check(`nenhuma resposta 500 em ${RODADAS_CORRIDA} rodadas`, semErro500b, detalheB);
+  check("depósito 2xx: o banco final não é nulo", regraBanco, detalheB);
+  check("depósito recusado: foi 409 CHEQUE_INCOMPLETO", regraIncompleto, detalheB);
+}
+
+// ---------------------------------------------------------------------------
 // Limpeza e main
 // ---------------------------------------------------------------------------
 
@@ -834,6 +898,7 @@ async function main() {
       await rodar("5", secao5);
       await rodar("6", secao6);
       await rodar("7", secao7);
+      await rodar("8", secao8);
     });
   } finally {
     await limpar();
