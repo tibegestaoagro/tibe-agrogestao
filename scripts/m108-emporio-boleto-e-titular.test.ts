@@ -310,8 +310,8 @@ async function main() {
       const s0 = await saldo();
       check("Vendedor baixa boleto: 403", erro(await chamar(A.tok.vend, R.pay, "POST", `emporio/boletos/${boletoId1}/pay`, { bank_account_id: A.conta }, boletoId1), 403));
       check("o 403 não baixou nada", (await P.emporioBoleto.findUnique({ where: { id: boletoId1 } }))?.status === "aberto");
-      const fut = await chamar(A.tok.owner, R.pay, "POST", `emporio/boletos/${boletoId1}/pay`, { bank_account_id: A.conta, paid_on: somaDias(hojeStr, 3) }, boletoId1);
-      check("paid_on futuro: 422 em paid_on", erro(fut, 422, "paid_on"), `${fut.status} ${j(fut.corpo)}`);
+      const fut = await chamar(A.tok.owner, R.pay, "POST", `emporio/boletos/${boletoId1}/pay`, { bank_account_id: A.conta, paid_on: somaDias(hojeStr, 32) }, boletoId1);
+      check("paid_on além da janela de 31 dias (Q370): 422 em paid_on", erro(fut, 422, "paid_on"), `${fut.status} ${j(fut.corpo)}`);
       const semConta = await chamar(A.tok.owner, R.pay, "POST", `emporio/boletos/${boletoId1}/pay`, {}, boletoId1);
       check("sem conta bancária: 422 em bank_account_id", erro(semConta, 422, "bank_account_id"), `${semConta.status} ${j(semConta.corpo)}`);
       check("as recusas não mexeram na conta", (await P.cashMovement.count({ where: { boleto_id: boletoId1 } })) === 0 && perto(await saldo(), s0));

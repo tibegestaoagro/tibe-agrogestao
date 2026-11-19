@@ -1224,8 +1224,8 @@ export const GROUPS: Group[] = [
         method: "POST",
         path: "/api/v1/emporio/receivables/receive",
         auth: "Sessão · emporio:write · OWNER, ADMIN e OPERADOR com a loja no vínculo",
-        description: "Recebe fiado sem criar venda. `operation_key` obrigatória (repetir devolve o recebimento gravado com 200). `kind`: `dinheiro` (entra na gaveta da loja) ou `pix` (conta PIX da loja, ou `bank_account_id`). Com `entry_id` paga aquele lançamento; sem ele distribui da VENDA mais antiga para a mais nova. Valor acima do devido: 422 `amount`. Em dinheiro, exige um turno aberto (`cash_register_id` opcional, recusas `CASH_CLOSED` e `CASH_REGISTER_REQUIRED` como na venda); em PIX, leva o turno quando houver um.",
-        request: `{ "operation_key": "k-11", "customer_id": "cl...", "establishment_id": "cl...", "amount": 50, "kind": "dinheiro" }`,
+        description: "Recebe fiado sem criar venda. `operation_key` obrigatória (repetir devolve o recebimento gravado com 200). `kind`: `dinheiro` (entra na gaveta da loja) ou `pix` (conta PIX da loja, ou `bank_account_id`). Com `entry_id` paga aquele lançamento; sem ele distribui da VENDA mais antiga para a mais nova. Valor acima do devido: 422 `amount`. Em dinheiro, exige um turno aberto (`cash_register_id` opcional, recusas `CASH_CLOSED` e `CASH_REGISTER_REQUIRED` como na venda); em PIX, leva o turno quando houver um. `received_on` (AAAA-MM-DD, opcional, padrão hoje) é o dia em que o dinheiro caiu: vai de hoje menos 31 a hoje mais 31 dias (fora: 422 `received_on`, \"A data precisa estar entre DD/MM/AAAA e DD/MM/AAAA.\"). Só Financeiro, Gerente geral e Dono mudam a data (outros: 403 `received_on`, \"Só o Financeiro, o Gerente geral e o Dono mudam a data.\"); dinheiro na gaveta é sempre de hoje (422 `received_on`, \"Dinheiro na gaveta é sempre de hoje.\"). Data de outro dia grava o movimento ao meio-dia de Brasília e o Histórico cita a data.",
+        request: `{ "operation_key": "k-11", "customer_id": "cl...", "establishment_id": "cl...", "amount": 50, "kind": "pix", "received_on": "2026-11-18" }`,
         response: `201
 { "data": { "amount": 50, "kind": "dinheiro", "parts": [{ "entry_id": "cl...", "amount": 50 }] }, "meta": {} }`,
       },
@@ -1716,8 +1716,8 @@ export const GROUPS: Group[] = [
         method: "POST",
         path: "/api/v1/emporio/checks/:id/deposit",
         auth: "Sessão · emporio:write · OWNER, ADMIN e OPERADOR com a loja no vínculo",
-        description: "Depositar: `recebido` para `depositado`, na conta escolhida (422 `bank_account_id`). Fora da ordem: 409 `CHECK_STATUS`. Cheque \"A completar\" (sem número, banco ou bom para): 409 `CHEQUE_INCOMPLETO`, \"Complete o número, o banco e o bom para antes de depositar.\"",
-        request: `{ "bank_account_id": "cl..." }`,
+        description: "Depositar: `recebido` para `depositado`, na conta escolhida (422 `bank_account_id`). Fora da ordem: 409 `CHECK_STATUS`. Cheque \"A completar\" (sem número, banco ou bom para): 409 `CHEQUE_INCOMPLETO`, \"Complete o número, o banco e o bom para antes de depositar.\" `deposited_on` (AAAA-MM-DD, opcional, padrão hoje) é o dia do depósito, de hoje menos 31 a hoje mais 31 (fora: 422 `deposited_on` com a janela); só Financeiro, Gerente geral e Dono mudam a data (outros: 403 `deposited_on`, \"Só o Financeiro, o Gerente geral e o Dono mudam a data.\").",
+        request: `{ "bank_account_id": "cl...", "deposited_on": "2026-11-18" }`,
         response: `200
 { "data": { "id": "cl...", "status": "depositado", "bank_account_id": "cl..." }, "meta": {} }`,
       },
@@ -1725,7 +1725,8 @@ export const GROUPS: Group[] = [
         method: "POST",
         path: "/api/v1/emporio/checks/:id/clear",
         auth: "Sessão · emporio:write · só OWNER e ADMIN",
-        description: "Compensou: `depositado` para `compensado`, e o valor entra na conta do depósito (movimento `cheque_compensado`). Sem corpo. Fora da ordem: 409 `CHECK_STATUS`.",
+        description: "Compensou: `depositado` para `compensado`, e o valor entra na conta do depósito (movimento `cheque_compensado`). Corpo opcional: `cleared_on` (AAAA-MM-DD, padrão hoje) é o dia em que compensou, de hoje menos 31 a hoje mais 31 (fora: 422 `cleared_on` com a janela); só Financeiro, Gerente geral e Dono mudam a data (outros: 403 `cleared_on`). Fora da ordem: 409 `CHECK_STATUS`.",
+        request: `{ "cleared_on": "2026-11-17" }`,
         response: `200
 { "data": { "id": "cl...", "status": "compensado" }, "meta": {} }`,
       },
@@ -1750,7 +1751,7 @@ export const GROUPS: Group[] = [
         method: "POST",
         path: "/api/v1/emporio/boletos/:id/pay",
         auth: "Sessão · emporio:write · só OWNER e ADMIN (ou gestor da loja)",
-        description: "Boleto pago: `aberto` para `pago`, e o valor entra na conta escolhida (movimento `boleto_pago`, na data `paid_on`, que não pode ser futura: 422 `paid_on`; padrão hoje). `bank_account_id` obrigatório e de conta ativa (422 `bank_account_id`). Fora da ordem: 409 `BOLETO_STATUS`.",
+        description: "Boleto pago: `aberto` para `pago`, e o valor entra na conta escolhida (movimento `boleto_pago`, na data `paid_on`, de hoje menos 31 a hoje mais 31 dias: fora, 422 `paid_on` com \"A data precisa estar entre DD/MM/AAAA e DD/MM/AAAA.\"; padrão hoje; data futura vira Agendado no extrato e só conta no saldo no dia). Mudam a data o Financeiro, o Gerente geral, o Dono e o Gestor da loja do boleto (os demais: 403 `paid_on`, \"Só o Financeiro, o Gerente geral e o Dono mudam a data.\"). `bank_account_id` obrigatório e de conta ativa (422 `bank_account_id`). Fora da ordem: 409 `BOLETO_STATUS`.",
         request: `{ "bank_account_id": "cl...", "paid_on": "2026-12-10" }`,
         response: `200
 { "data": { "id": "cl...", "status": "pago", "bank_account_id": "cl...", "paid_on": "2026-12-10" }, "meta": {} }`,

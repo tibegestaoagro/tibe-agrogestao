@@ -6,7 +6,7 @@ import { exigir, exigirUma, papelDoEmporio, pode, recusaDe } from "@/lib/emporio
 import { createLinkedEntry, runSerializableTenantTransaction, type TenantTransactionClient } from "@/lib/financial";
 import { resolverTurno } from "@/lib/emporio/turno";
 import { CATEGORIA_DIFERENCA_CAIXA, VIGENCIA_DESDE_SEMPRE, hojeEmBrasilia } from "@/lib/emporio/cartao";
-import { fimDeHojeEmBrasilia } from "@/lib/emporio/data-da-baixa";
+import { fimDeHojeEmBrasilia, instanteDaBaixa, lerDataDaBaixa } from "@/lib/emporio/data-da-baixa";
 import {
   criarTaxaAction,
   editarTaxaAction,
@@ -277,6 +277,37 @@ export async function listarFiadoAction(
   );
 }
 
+/** A data da baixa lida e autorizada (Q370, Q371): o dia, o instante que se grava e o trecho do Histórico. */
+type DataDaBaixa = { dia: Date; ehHoje: boolean; instante: (agora: Date) => Date; sufixo: string };
+
+/**
+ * Lê a data antes de qualquer escrita. Hoje (ou ausente) qualquer um pode; outro dia só quem passa
+ * pelo mesmo `pode` de "dinheiro" (Financeiro, Gerente geral e Dono).
+ */
+async function lerDataDaBaixaDoAtor(
+  db: TenantPrismaClient,
+  ator: Ator,
+  valor: unknown,
+  campo: string,
+  /** O boleto sempre deixou o Gestor da loja escolher a data: ele segue podendo, só na loja dele. */
+  lojaDoGestor?: string,
+): Promise<ActionResult<DataDaBaixa>> {
+  const hoje = hojeEmBrasilia();
+  const lida = lerDataDaBaixa(valor, hoje);
+  if (!lida.ok) return fail("VALIDATION_ERROR", lida.mensagem, 422, campo);
+  const ehHoje = lida.dia.getTime() === hoje.getTime();
+  const papel = await papelDoEmporio(db, ator);
+  if (!ehHoje && !pode(papel, "dinheiro") && !(lojaDoGestor && pode(papel, "gestor_da_loja", lojaDoGestor))) {
+    return fail("FORBIDDEN", "Só o Financeiro, o Gerente geral e o Dono mudam a data.", 403, campo);
+  }
+  return ok({
+    dia: lida.dia,
+    ehHoje,
+    instante: (agora) => instanteDaBaixa(lida.dia, hoje, agora),
+    sufixo: ehHoje ? "" : ` (data da baixa: ${dataBr(lida.dia.toISOString())})`,
+  });
+}
+
 export type ReceberFiadoInput = {
   operation_key: string;
   customer_id: string;
@@ -287,6 +318,8 @@ export type ReceberFiadoInput = {
   bank_account_id?: string | null;
   /** Entrega 2: o caixa do turno; o dinheiro exige turno, o PIX leva o turno quando houver. */
   cash_register_id?: string | null;
+  /** Q370: o dia em que o dinheiro caiu (AAAA-MM-DD ou Date); só o Financeiro, o Gerente geral e o Dono mudam. Dinheiro é sempre de hoje. */
+  received_on?: string | Date | null;
 };
 
 export type RecebimentoView = {
@@ -362,6 +395,11 @@ export async function receberFiadoAction(
     return fail("VALIDATION_ERROR", "O valor recebido deve ser maior que zero.", 422, "amount");
   }
   const valorCent = centavos(input.amount);
+  const data = await lerDataDaBaixaDoAtor(db, ator, input.received_on, "received_on");
+  if (!data.ok) return data;
+  if (input.kind === "dinheiro" && !data.data.ehHoje) {
+    return fail("VALIDATION_ERROR", "Dinheiro na gaveta é sempre de hoje.", 422, "received_on");
+  }
   // O Financeiro não trabalha na loja: o que ele recebe entra na conta e não toca turno nenhum.
   const naLoja = pode(await papelDoEmporio(db, ator), "vendedor_da_loja", loja.data.id);
   if (input.kind === "dinheiro" && !naLoja) {
@@ -433,6 +471,7 @@ export async function receberFiadoAction(
       if (!turno.ok) throw new RecusaCaixa(turno);
 
       const agora = new Date();
+      const instante = data.data.instante(agora);
       let restante = valorCent;
       const feitas: RecebimentoView["parts"] = [];
       for (const e of abertas) {
@@ -443,13 +482,13 @@ export async function receberFiadoAction(
           data: scoped({
             entry_id: e.id,
             amount: parte / 100,
-            paid_at: agora,
+            paid_at: instante,
             method: input.kind as "dinheiro" | "pix",
             created_by_user_id: ator.id,
           }),
         });
         if (parte === e.open_cent) {
-          await tx.financialEntry.update({ where: { id: e.id }, data: { status: "paid", paid_at: agora } });
+          await tx.financialEntry.update({ where: { id: e.id }, data: { status: "paid", paid_at: instante } });
         }
         await tx.cashMovement.create({
           data: scoped({
@@ -460,7 +499,7 @@ export async function receberFiadoAction(
             direction: "entrada" as const,
             amount: parte / 100,
             origin: "recebimento_fiado" as const,
-            occurred_at: agora,
+            occurred_at: instante,
             sale_id: e.agreement_id ? null : e.related_id,
             financial_payment_id: fp.id,
             operation_key: chave,
@@ -474,9 +513,9 @@ export async function receberFiadoAction(
         establishment_id: loja.data.id,
         target_type: "fiado",
         target_id: cliente.id,
-        summary: `Recebeu ${dinheiro(valorCent / 100)} de fiado de ${cliente.name} (${input.kind === "pix" ? "PIX" : "dinheiro"})`,
+        summary: `Recebeu ${dinheiro(valorCent / 100)} de fiado de ${cliente.name} (${input.kind === "pix" ? "PIX" : "dinheiro"})${data.data.sufixo}`,
       });
-      return { feitas, agora };
+      return { feitas, agora: instante };
     });
     return ok({
       operation_key: chave,
@@ -1923,7 +1962,7 @@ export async function depositarChequeAction(
   db: TenantPrismaClient,
   ator: Ator,
   id: string,
-  input: { bank_account_id: string },
+  input: { bank_account_id: string; deposited_on?: string | Date | null },
 ): Promise<ActionResult<ChequeView>> {
   // O depósito não mexe na gaveta nem pede turno (só troca o status e escolhe a conta),
   // então o Financeiro, que cuida das contas, também deposita.
@@ -1942,11 +1981,13 @@ export async function depositarChequeAction(
   if (!conta || conta.archived_at) {
     return fail("VALIDATION_ERROR", "Escolha a conta bancária onde o cheque foi depositado.", 422, "bank_account_id");
   }
+  const data = await lerDataDaBaixaDoAtor(db, ator, input.deposited_on, "deposited_on");
+  if (!data.ok) return data;
   try {
     await db.$transaction(async (tx) => {
       const r = await tx.emporioCheck.updateMany({
         where: { id, status: "recebido" },
-        data: { status: "depositado", bank_account_id: conta.id, deposited_at: new Date(), updated_by_user_id: ator.id },
+        data: { status: "depositado", bank_account_id: conta.id, deposited_at: data.data.instante(new Date()), updated_by_user_id: ator.id },
       });
       if (r.count === 0) throw new RecusaCaixa(FORA_DE_ORDEM("depositado"));
       await registrarNoHistorico(tx, ator, {
@@ -1954,7 +1995,7 @@ export async function depositarChequeAction(
         establishment_id: cheque.establishment_id,
         target_type: "cheque",
         target_id: id,
-        summary: `Depositou o ${nomeDoCheque(cheque.number)} de ${dinheiro(decToNum(cheque.amount) ?? 0)}`,
+        summary: `Depositou o ${nomeDoCheque(cheque.number)} de ${dinheiro(decToNum(cheque.amount) ?? 0)}${data.data.sufixo}`,
       });
     });
   } catch (err) {
@@ -2076,15 +2117,18 @@ export async function compensarChequeAction(
   db: TenantPrismaClient,
   ator: Ator,
   id: string,
+  input?: { cleared_on?: string | Date | null },
 ): Promise<ActionResult<ChequeView>> {
   const neg = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "marcar o cheque como compensado");
   if (neg) return neg;
   const cheque = await acharCheque(db, ator, id);
   if (!cheque) return NAO_ACHADO("Cheque");
   if (cheque.status !== "depositado" || !cheque.bank_account_id) return FORA_DE_ORDEM(cheque.status);
+  const data = await lerDataDaBaixaDoAtor(db, ator, input?.cleared_on, "cleared_on");
+  if (!data.ok) return data;
   try {
     await runSerializableTenantTransaction(db, async (tx) => {
-      const agora = new Date();
+      const agora = data.data.instante(new Date());
       const r = await tx.emporioCheck.updateMany({
         where: { id, status: "depositado" },
         data: { status: "compensado", cleared_at: agora, updated_by_user_id: ator.id },
@@ -2108,7 +2152,7 @@ export async function compensarChequeAction(
         establishment_id: cheque.establishment_id,
         target_type: "cheque",
         target_id: id,
-        summary: `Compensou o ${nomeDoCheque(cheque.number)} de ${dinheiro(decToNum(cheque.amount) ?? 0)}`,
+        summary: `Compensou o ${nomeDoCheque(cheque.number)} de ${dinheiro(decToNum(cheque.amount) ?? 0)}${data.data.sufixo}`,
       });
     });
   } catch (err) {
@@ -2343,7 +2387,7 @@ export async function pagarBoletoAction(
   db: TenantPrismaClient,
   ator: Ator,
   id: string,
-  input: { bank_account_id: string; paid_on?: Date | null },
+  input: { bank_account_id: string; paid_on?: string | Date | null },
 ): Promise<ActionResult<BoletoView>> {
   const neg = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "marcar o boleto como pago");
   if (neg) return neg;
@@ -2357,16 +2401,9 @@ export async function pagarBoletoAction(
   if (!conta || conta.archived_at) {
     return fail("VALIDATION_ERROR", "Escolha a conta bancária onde o boleto foi pago.", 422, "bank_account_id");
   }
-  const hoje = hojeEmBrasilia();
-  let pagoEm = hoje;
-  if (input.paid_on != null) {
-    if (!dataValida(input.paid_on)) return fail("VALIDATION_ERROR", "Informe uma data de pagamento válida.", 422, "paid_on");
-    // Dia de calendário: o horário que vier junto não conta.
-    pagoEm = new Date(input.paid_on.toISOString().slice(0, 10));
-    if (pagoEm.getTime() > hoje.getTime()) {
-      return fail("VALIDATION_ERROR", "A data do pagamento não pode ser futura.", 422, "paid_on");
-    }
-  }
+  const data = await lerDataDaBaixaDoAtor(db, ator, input.paid_on, "paid_on", boleto.establishment_id);
+  if (!data.ok) return data;
+  const pagoEm = data.data.dia;
   try {
     await runSerializableTenantTransaction(db, async (tx) => {
       const agora = new Date();
@@ -2382,9 +2419,8 @@ export async function pagarBoletoAction(
           direction: "entrada" as const,
           amount: decToNum(boleto.amount) ?? 0,
           origin: "boleto_pago" as const,
-          // `pagoEm` é a meia-noite UTC do dia, que em Brasília ainda é a véspera: hoje vale o instante
-          // da baixa; dia passado, o meio-dia de Brasília (15h UTC), para o extrato mostrar o dia certo.
-          occurred_at: pagoEm.getTime() === hoje.getTime() ? agora : new Date(pagoEm.getTime() + 15 * 3_600_000),
+          // Hoje vale o instante da baixa; outro dia, o meio-dia de Brasília: o extrato mostra o dia certo.
+          occurred_at: data.data.instante(agora),
           sale_id: boleto.sale_id,
           boleto_id: boleto.id,
           created_by_user_id: ator.id,
@@ -2395,7 +2431,7 @@ export async function pagarBoletoAction(
         establishment_id: boleto.establishment_id,
         target_type: "boleto",
         target_id: id,
-        summary: `Marcou o boleto${boleto.number ? ` ${boleto.number}` : ""} de ${dinheiro(decToNum(boleto.amount) ?? 0)} como pago`,
+        summary: `Marcou o boleto${boleto.number ? ` ${boleto.number}` : ""} de ${dinheiro(decToNum(boleto.amount) ?? 0)} como pago${data.data.sufixo}`,
       });
     });
   } catch (err) {
