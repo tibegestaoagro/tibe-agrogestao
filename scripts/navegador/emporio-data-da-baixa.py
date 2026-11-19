@@ -232,7 +232,25 @@ ir("/emporio/resultado?loja=" + str(loja_id))
 esperar(lambda: linha_do_resultado("Juros de boleto"), 40)
 juros = linha_do_resultado("Juros de boleto") or ""
 confere("o Resultado tem a linha Juros de boleto com R$ 0,20", "R$ 0,20" in juros, juros)
-confere("e nao tem Descontos de boleto (nao houve)", linha_do_resultado("Descontos de boleto") is None, linha_do_resultado("Descontos de boleto"))
+confere("e ainda nao tem Descontos de boleto (nenhum pago com desconto ate aqui)", linha_do_resultado("Descontos de boleto") is None, linha_do_resultado("Descontos de boleto"))
+
+passo("7b. Boleto de R$ 50,00 pago com R$ 49,50: desconto de R$ 0,50 na lista e no Resultado")
+ir(RECEBER)
+confere("o boleto BOL-DD-3 tem Boleto pago", abrir_pela_linha("BOL-DD-3", "Boleto pago"), texto_principal(200))
+confere("o campo Valor pago vem com 50,00 do boleto", valor_do_campo(CAMPO_VALOR) == "50,00", valor_do_campo(CAMPO_VALOR))
+escolher("Conta onde caiu", CONTA)
+preencher(CAMPO_VALOR, "49,50")
+confere("R$ 49,50 paga e fecha o painel", enviar_e_esperar_fechar(), painel()[-280:])
+js("(() => { const b = Array.from(document.querySelectorAll('main button')).find(x => x.innerText.trim() === 'Pagos'); if (b) b.click(); })()")
+esperar(lambda: linha_da_lista("BOL-DD-3"), 30)
+lista = linha_da_lista("BOL-DD-3") or ""
+confere("a linha do boleto pago diz pago R$ 49,50 (desconto R$ 0,50)", "pago R$ 49,50 (desconto R$ 0,50)" in lista, lista or "sem a linha")
+ir("/emporio/resultado?loja=" + str(loja_id))
+esperar(lambda: linha_do_resultado("Descontos de boleto"), 40)
+desc = linha_do_resultado("Descontos de boleto") or ""
+confere("o Resultado tem a linha Descontos de boleto com R$ 0,50", "R$ 0,50" in desc, desc)
+juros = linha_do_resultado("Juros de boleto") or ""
+confere("e a linha Juros de boleto segue com R$ 0,20", "R$ 0,20" in juros, juros)
 
 passo("8. Celular (390 px): sem rolagem horizontal")
 cdp("Emulation.setDeviceMetricsOverride", width=390, height=800, deviceScaleFactor=2, mobile=True)
