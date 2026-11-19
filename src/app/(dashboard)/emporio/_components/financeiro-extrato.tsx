@@ -227,6 +227,7 @@ export function ExtratoDoLugar({
                 <TableHead>Data</TableHead>
                 <TableHead>O quê</TableHead>
                 <TableHead>Valor</TableHead>
+                {comCarimbo && <TableHead>Ações</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -244,6 +245,13 @@ export function ExtratoDoLugar({
                     <TableCell className={entrada ? "text-sucesso-tinta" : "text-perigo-tinta"}>
                       {entrada ? "+" : "-"} {reaisBr(l.amount)}
                     </TableCell>
+                    {comCarimbo && (
+                      <TableCell>
+                        {l.kind === "movimento" && l.origin === "venda" && !l.reconciled_at && (
+                          <CorrigirDataBotao id={l.id} diaAtual={l.occurred_on} />
+                        )}
+                      </TableCell>
+                    )}
                   </TableRow>
                 );
               })}

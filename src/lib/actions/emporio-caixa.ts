@@ -289,7 +289,7 @@ export async function lerDataDaBaixaDoAtor(
   ator: Ator,
   valor: unknown,
   campo: string,
-  /** O boleto sempre deixou o Gestor da loja escolher a data: ele segue podendo, só na loja dele. */
+  /** O boleto sempre deixou o Gestor da loja escolher a data: ele segue podendo, só na loja dele e só no passado. */
   lojaDoGestor?: string,
 ): Promise<ActionResult<DataDaBaixa>> {
   const hoje = hojeEmBrasilia();
@@ -297,8 +297,15 @@ export async function lerDataDaBaixaDoAtor(
   if (!lida.ok) return fail("VALIDATION_ERROR", lida.mensagem, 422, campo);
   const ehHoje = lida.dia.getTime() === hoje.getTime();
   const papel = await papelDoEmporio(db, ator);
-  if (!ehHoje && !pode(papel, "dinheiro") && !(lojaDoGestor && pode(papel, "gestor_da_loja", lojaDoGestor))) {
-    return fail("FORBIDDEN", "Só o Financeiro, o Gerente geral e o Dono mudam a data.", 403, campo);
+  if (!ehHoje && !pode(papel, "dinheiro")) {
+    const futura = lida.dia.getTime() > hoje.getTime();
+    // O Gestor da loja só escolhe dia passado; o futuro (agendar) é do dinheiro.
+    if (lojaDoGestor && futura && pode(papel, "gestor_da_loja", lojaDoGestor)) {
+      return fail("FORBIDDEN", "Só o Financeiro, o Gerente geral e o Dono agendam uma data futura.", 403, campo);
+    }
+    if (!(lojaDoGestor && !futura && pode(papel, "gestor_da_loja", lojaDoGestor))) {
+      return fail("FORBIDDEN", "Só o Financeiro, o Gerente geral e o Dono mudam a data.", 403, campo);
+    }
   }
   return ok({
     dia: lida.dia,
@@ -1610,6 +1617,7 @@ export async function saldoInicialCaixaAction(
   }
   const quando = input.occurred_at == null ? new Date() : input.occurred_at;
   if (!dataValida(quando)) return fail("VALIDATION_ERROR", "Informe uma data válida.", 422, "occurred_at");
+  if (quando.getTime() >= fimDeHojeEmBrasilia().getTime()) return fail("VALIDATION_ERROR", "A data não pode ser futura.", 422, "occurred_at");
 
   let lojaId: string | null = null;
   let caixaId: string | null = null;

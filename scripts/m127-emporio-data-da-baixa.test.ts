@@ -215,6 +215,23 @@ async function secao3() {
     check("o movimento do Gestor está em ontem ao meio-dia", movG?.occurred_at?.getTime() === meioDia(ontem), String(movG?.occurred_at?.toISOString()));
     const pVendData = await chamar(tok.vend, R.pay, `emporio/boletos/${b3}/pay`, { bank_account_id: conta, paid_on: iso(ontem) }, b3);
     check("Vendedor com data de ontem: recusado e o boleto segue aberto", pVendData.status === 403 && (await cru.emporioBoleto.findFirst({ where: { id: b3 } })).status === "aberto", resumo(pVendData));
+    // Achado 3: o Gestor da loja escolhe dia passado (como antes), mas agendar o futuro é do dinheiro.
+    const vB5 = await vender([{ kind: "boleto", amount: 30, boleto: { due_on: iso(somar(hoje, 20)) } }]);
+    const b5 = await bol(vB5);
+    const pGestorFut = await chamar(tok.gestor, R.pay, `emporio/boletos/${b5}/pay`, { bank_account_id: conta, paid_on: iso(amanha) }, b5);
+    check(
+      "Gestor da loja com data futura: 403 em paid_on (agendar é do Financeiro, do Gerente geral e do Dono)",
+      recusou(pGestorFut, 403, "paid_on", "Só o Financeiro, o Gerente geral e o Dono agendam uma data futura."),
+      resumo(pGestorFut),
+    );
+    check("o boleto recusado ao Gestor segue aberto", (await cru.emporioBoleto.findFirst({ where: { id: b5 } })).status === "aberto");
+
+    // Achado 2: baixa com data futura ainda não é "Recebido" (boleto, fiado e cheque; o cartão já era limitado).
+    await receber(tok.fin, { received_on: iso(amanha) });
+    const ar = await F.listarContasAReceberAction(db, dono, { de: iso(somar(hoje, -5)), ate: iso(somar(hoje, 5)) });
+    const itensFuturos = ar.ok ? (ar.data.received_items as Dado[]).filter((i) => i.occurred_on > iso(hoje)) : [];
+    check("Recebidos no período não traz baixa de data futura (boleto de amanhã e fiado de amanhã ficam fora)", ar.ok && itensFuturos.length === 0, j(ar.ok ? itensFuturos : ar));
+    check("o boleto baixado hoje ou antes segue em Recebidos", ar.ok && (ar.data.received_items as Dado[]).some((i) => i.kind === "boleto"), j(ar.ok ? ar.data.received_items.map((i: Dado) => i.kind) : ar));
 
     console.log("  (c) cheque");
     const cheque = async () => {
@@ -384,7 +401,7 @@ async function secao4() {
     const logs = await historico("financeiro.data_corrigida");
     check(
       "o Histórico traz as duas datas e o número da venda",
-      logs.some((l) => String(l.summary) === `Corrigiu a data do PIX da venda nº ${v1.numero} de ${br(hoje)} para ${br(ontem)}`),
+      logs.some((l) => String(l.summary) === `Corrigiu a data do recebimento da venda nº ${v1.numero} de ${br(hoje)} para ${br(ontem)}`),
       j(logs.map((l) => l.summary)),
     );
     const ext1 = await extrato();
@@ -398,6 +415,34 @@ async function secao4() {
     const m1b = await cru.cashMovement.findFirst({ where: { id: v1.mov.id } });
     check("corrigir para hoje: 200 e o instante é agora", rHoje.status === 200 && Math.abs(m1b.occurred_at.getTime() - Date.now()) < 60_000, resumo(rHoje));
 
+    // Achado 1 (servidor): a linha agendada volta para o passado pela mesma ação.
+    await corrigir(tok.fin, v1.mov.id, iso(amanha));
+    const rVolta = await corrigir(tok.fin, v1.mov.id, iso(ontem));
+    const extVolta = await extrato();
+    check(
+      "linha agendada corrigida de volta para ontem: 200 e sai de scheduled para lines",
+      rVolta.status === 200 && extVolta.ok && !extVolta.data.scheduled.some((l: Dado) => l.id === v1.mov.id) && extVolta.data.lines.some((l: Dado) => l.id === v1.mov.id && l.occurred_on === iso(ontem)),
+      resumo(rVolta),
+    );
+
+    // Achado 4: parcela de cartão futura não entra no corpo do extrato nem no fechamento (bate com o saldo da conta).
+    const X: Dado = await import("@/lib/actions/emporio-caixa");
+    const pgto = await cru.emporioSalePayment.findFirst({ where: { tenant_id: t.id, sale_id: v1.venda } });
+    const venda1 = await cru.emporioSale.findFirst({ where: { id: v1.venda } });
+    const parcela = await cru.cardReceivable.create({
+      data: {
+        tenant_id: t.id, sale_id: v1.venda, sale_payment_id: pgto.id, establishment_id: venda1.establishment_id, bank_account_id: conta,
+        installment: 1, installments: 1, gross_amount: 30, net_amount: 29, expected_on: somar(hoje, 2), effective_on: somar(hoje, 2), effective_net: 29,
+      },
+    });
+    const extCartao = await extrato();
+    const saldoDaConta = ((await X.saldosDasContas(db)).get(conta) ?? 0) / 100;
+    check("a parcela de cartão de hoje mais 2 não está em lines", extCartao.ok && !extCartao.data.lines.some((l: Dado) => l.id === parcela.id), j(extCartao.ok ? extCartao.data.lines.map((l: Dado) => l.kind) : extCartao));
+    check("o fechamento do extrato bate com o saldo da conta", extCartao.ok && extCartao.data.closing_balance === saldoDaConta, `${extCartao.ok ? extCartao.data.closing_balance : "?"} x ${saldoDaConta}`);
+
+    await corrigir(tok.fin, v1.mov.id, iso(hoje));
+    const m1d = await cru.cashMovement.findFirst({ where: { id: v1.mov.id } });
+
     console.log("  (b) recusas");
     const rJanela = await corrigir(tok.fin, v1.mov.id, iso(somar(hoje, 32)));
     check("data fora da janela: 422 em occurred_on com a mensagem da janela", recusou(rJanela, 422, "occurred_on", `A data precisa estar entre ${br(somar(hoje, -31))} e ${br(somar(hoje, 31))}.`), resumo(rJanela));
@@ -408,7 +453,7 @@ async function secao4() {
     const rOutro = await corrigir(tok.dono2, v1.mov.id, iso(ontem));
     check("outro tenant: 404", rOutro.status === 404, resumo(rOutro));
     const m1c = await cru.cashMovement.findFirst({ where: { id: v1.mov.id } });
-    check("as recusas não mexeram na data", m1c.occurred_at.getTime() === m1b.occurred_at.getTime());
+    check("as recusas não mexeram na data", m1c.occurred_at.getTime() === m1d.occurred_at.getTime());
 
     const v2 = await vendaPix();
     await cru.cashMovement.update({ where: { id: v2.mov.id }, data: { reconciled_at: new Date(), reconciled_by_user_id: fin.id } });
@@ -552,6 +597,15 @@ async function secao5() {
       Math.round((x.margin - x.losses - x.fixed_expenses + x.freight.difference - x.anticipation_costs - x.card_cost.adjustments + x.boleto_interest - x.boleto_discount) * 100);
     check("o result inclui os juros (0,20)", Math.round(a1.result * 100) === esperado(a1) && a1.boleto_interest === 0.2, `${a1.result} esperado ${esperado(a1) / 100}`);
 
+    // Achado 2: Recebidos e "o que o cliente pagou" mostram o valor pago, não o do boleto.
+    const Fin: Dado = await import("@/lib/actions/emporio-financeiro");
+    const ar = await Fin.listarContasAReceberAction(db, dono, { de: `${mes}-01`, ate: iso(hoje) });
+    const itemBoleto = ar.ok ? (ar.data.received_items as Dado[]).find((i) => i.kind === "boleto" && i.id === b1) : null;
+    check("Recebidos mostra o boleto com o valor pago (100,10), não o original", itemBoleto?.amount === 100.1, j(itemBoleto ?? ar));
+    const doCliente = await Cli.listarRecebimentosDoClienteAction(db, dono, cliente);
+    const itemCliente = doCliente.ok ? (doCliente.data.items as Dado[]).find((i) => i.kind === "boleto" && i.id === b1) : null;
+    check("o que o cliente pagou mostra o boleto com o valor pago (100,10)", itemCliente?.amount === 100.1, j(itemCliente ?? doCliente));
+
     console.log("  (b) pago a menos: R$ 95,00");
     const b2 = await vendaComBoleto();
     const r2 = await pagar(b2, { paid_amount: 95 });
@@ -691,7 +745,24 @@ async function main() {
     if (conta120.ok) {
       const pago = await D.pagarDespesasAction(db, dono, { entry_ids: [conta120.data.entry.entry_id], from: { bank_account_id: conta.id } });
       check("pagar 120 por essa conta é recusado por saldo insuficiente", !pago.ok && pago.code === "INSUFFICIENT_CASH", j(pago));
+      const futuro = await D.pagarDespesasAction(db, dono, { entry_ids: [conta120.data.entry.entry_id], from: { bank_account_id: conta.id }, paid_at: meioDiaDeAmanha });
+      check("pagar despesa com paid_at de amanhã: 422 em paid_at (A data não pode ser futura.)", !futuro.ok && futuro.status === 422 && futuro.field === "paid_at" && futuro.message === "A data não pode ser futura.", j(futuro));
     }
+
+    // Achado 5: a data futura não chega à gaveta nem à conta por estas portas (as telas já limitam a hoje).
+    const Fq: Dado = await import("@/lib/actions/emporio-franqueados");
+    const franq = await Fq.cadastrarFranqueadoAction(db, dono, { name: "M127 Franqueado", phone: "11999990000" });
+    check("o franqueado de teste nasce", franq.ok, j(franq));
+    if (franq.ok) {
+      const pf = await Fq.pagarFranqueadoAction(db, dono, franq.data.id, {
+        operation_key: `m127-fq-${stamp}`, amount: 10, paid_at: meioDiaDeAmanha, paid_from: { bank_account_id: conta.id },
+      });
+      check("pagar franqueado com paid_at de amanhã: 422 em paid_at", !pf.ok && pf.status === 422 && pf.field === "paid_at" && pf.message === "A data não pode ser futura.", j(pf));
+    }
+    const conta2 = await db.bankAccount.create({ data: scoped({ name: `M127 Conta2 ${stamp}` }) });
+    const impl = await X.saldoInicialCaixaAction(db, dono, { bank_account_id: conta2.id, amount: 10, occurred_at: meioDiaDeAmanha });
+    check("saldo inicial com occurred_at de amanhã: 422 em occurred_at", !impl.ok && impl.status === 422 && impl.field === "occurred_at" && impl.message === "A data não pode ser futura.", j(impl));
+    check("a recusa não gravou o saldo inicial", (await db.cashMovement.count({ where: { bank_account_id: conta2.id } })) === 0);
 
     await db.cashMovement.update({ where: { id: agendado.id }, data: { occurred_at: new Date() } });
     check("o mesmo movimento com a data de hoje entra no saldo (150)", (await saldo()) === 150, String(await saldo()));

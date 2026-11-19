@@ -478,10 +478,14 @@ async function recebidosNoPeriodo(
   periodo: Periodo,
   hoje: Date,
 ): Promise<RecebimentoView[]> {
-  const { since, until } = periodoDeDatasEmSaoPaulo(periodo.de, periodo.ate);
+  const { since, until: untilDoPeriodo } = periodoDeDatasEmSaoPaulo(periodo.de, periodo.ate);
+  // Baixa com data futura (Q370) ainda não entrou: nenhum recebimento passa de hoje.
+  const ultimoInstanteDeHoje = new Date(fimDeHojeEmBrasilia().getTime() - 1);
+  const until = untilDoPeriodo && untilDoPeriodo.getTime() < ultimoInstanteDeHoje.getTime() ? untilDoPeriodo : ultimoInstanteDeHoje;
   const deDia = dataCalendario(periodo.de);
-  const ateDia = dataCalendario(periodo.ate);
-  const ateCartao = ateDia.getTime() < hoje.getTime() ? ateDia : hoje;
+  const ateDoPeriodo = dataCalendario(periodo.ate);
+  const ateDia = ateDoPeriodo.getTime() < hoje.getTime() ? ateDoPeriodo : hoje;
+  const ateCartao = ateDia;
   const nome = { select: { name: true } };
 
   const [fiados, cheques, boletos, cartoes] = await Promise.all([
@@ -553,7 +557,7 @@ async function recebidosNoPeriodo(
       sale_number: b.sale.number,
       establishment_id: b.establishment_id,
       establishment_name: b.establishment.name,
-      amount: decToNum(b.amount) ?? 0,
+      amount: decToNum(b.paid_amount ?? b.amount) ?? 0,
     })),
     ...cartoes.map((p): RecebimentoView => ({
       id: p.id,
@@ -694,7 +698,9 @@ export async function lerExtratoAction(
 
   // O saldo só conta movimento com data até hoje: o de data futura é "Agendado" e fica de fora das linhas.
   const fimDeHoje = fimDeHojeEmBrasilia();
-  const teto = (d: Date) => (d.getTime() < fimDeHoje.getTime() ? d : fimDeHoje);
+  // A parcela de cartão futura também não entra no corpo nem no fechamento: bate com `saldosDasContas`.
+  const hojeDia = hojeEmBrasilia();
+  const teto =(d: Date) => (d.getTime() < fimDeHoje.getTime() ? d : fimDeHoje);
 
   const [antes, antesCartao, movs, parcelas, agendados] = await Promise.all([
     db.cashMovement.groupBy({
@@ -719,7 +725,7 @@ export async function lerExtratoAction(
     }),
     conta
       ? db.cardReceivable.findMany({
-          where: { bank_account_id: conta.id, canceled_at: null, effective_on: { gte: deDia, lte: ateDia } },
+          where: { bank_account_id: conta.id, canceled_at: null, effective_on: { gte: deDia, lte: ateDia.getTime() < hojeDia.getTime() ? ateDia : hojeDia } },
           include: {
             establishment: { select: { name: true } },
             acquirer: { select: { name: true } },
@@ -985,7 +991,7 @@ export async function corrigirDataDoMovimentoAction(
       action: "financeiro.data_corrigida",
       target_type: "conta",
       target_id: m.bank_account_id,
-      summary: `Corrigiu a data do PIX da venda nº ${m.sale?.number ?? "?"} de ${dataBr(de)} para ${dataBr(dia(data.data.dia))}`,
+      summary: `Corrigiu a data do recebimento da venda nº ${m.sale?.number ?? "?"} de ${dataBr(de)} para ${dataBr(dia(data.data.dia))}`,
     });
     return true;
   });

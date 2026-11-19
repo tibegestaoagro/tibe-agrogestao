@@ -9,7 +9,7 @@
 #   5. Financeiro corrige o PIX de R$ 30,00 de uma venda para ontem (hoje mais 40 recusa embaixo do campo): a linha
 #      muda de dia na MESMA <tr> com o valor; a linha carimbada (R$ 40,00) nao mostra "Corrigir a data"
 #   6. Financeiro paga o boleto BOL-DD-2 de R$ 99,90 digitando R$ 100,10 (Q373): valor 0 recusa embaixo do campo; a
-#      linha em Pagos mostra "pago R$ 100,10 (juros R$ 0,20)"; o Resultado da loja mostra "Juros de boleto R$ 0,20"
+#      linha em Pagos mostra "pago R$ 100,10 (juros R$ 0,20)"; o Resultado da loja mostra "Juros recebidos R$ 0,20"
 #   7. Celular (390 px): sem rolagem horizontal no extrato e no A receber
 #
 # Os valores estao descritos no cabecalho do cenario (todos na "Dd Loja 1"): fiado de "Dd Maria" R$ 200,00
@@ -92,7 +92,7 @@ def abrir_extrato_da_conta():
 
 def linhas_do_extrato(agendados=False):
     """O texto de cada <tr> da tabela do extrato (4+ colunas: Data, O que, Loja, Valor) ou da de Agendados (3 colunas)."""
-    return js("(() => { const ts = Array.from(document.querySelectorAll('main table')).filter(t => { const h = t.querySelector('thead').innerText.toLowerCase(); return h.includes('data') && h.includes('valor') && (t.querySelectorAll('thead th').length === 3) === " + ("true" if agendados else "false") + "; }); return ts.flatMap(t => Array.from(t.querySelectorAll('tbody tr')).map(tr => tr.innerText.replace(/\\u00a0/g, ' ').split('\\n').join(' | '))); })()") or []
+    return js("(() => { const ts = Array.from(document.querySelectorAll('main table')).filter(t => { const h = t.querySelector('thead').innerText.toLowerCase(); return h.includes('data') && h.includes('valor') && !h.includes('loja') === " + ("true" if agendados else "false") + "; }); return ts.flatMap(t => Array.from(t.querySelectorAll('tbody tr')).map(tr => tr.innerText.replace(/\\u00a0/g, ' ').split('\\n').join(' | '))); })()") or []
 
 
 def linha_com(linhas, *trechos):
@@ -205,6 +205,24 @@ linhas = linhas_do_extrato()
 confere("a linha de R$ 30,00 mudou para ontem, na mesma linha do valor", linha_com(linhas, br(ontem), "R$ 30,00") is not None, linhas)
 confere("e saiu de hoje", linha_com(linhas, br(hoje), "R$ 30,00") is None, linhas)
 
+passo("6b. Corrigida por engano para amanha: a linha vai a Agendados e VOLTA por la")
+confere("o painel de corrigir abre na tabela principal", abrir_pela_linha("R$ 30,00", "Corrigir a data"), texto_principal(200))
+preencher(CAMPO_DATA, amanha)
+confere("amanha corrige e fecha o painel", enviar_e_esperar_fechar(), painel()[:200])
+esperar(lambda: linha_com(linhas_do_extrato(True), br(amanha), "R$ 30,00"), 30)
+agendadas = linhas_do_extrato(True)
+confere("a linha de R$ 30,00 esta em Agendados, em amanha", linha_com(agendadas, br(amanha), "R$ 30,00") is not None, agendadas)
+confere("e saiu da tabela principal", linha_com(linhas_do_extrato(), "R$ 30,00") is None, linhas_do_extrato())
+botoes_ag = botoes_da_linha("R$ 30,00") or []
+confere("a linha agendada tem Corrigir a data (o caminho de volta)", "Corrigir a data" in botoes_ag, botoes_ag)
+confere("o painel de corrigir abre pela linha de Agendados", abrir_pela_linha("R$ 30,00", "Corrigir a data"), texto_principal(200))
+confere("o campo vem com amanha", valor_do_campo(CAMPO_DATA) == amanha, valor_do_campo(CAMPO_DATA))
+preencher(CAMPO_DATA, ontem)
+confere("ontem corrige e fecha o painel", enviar_e_esperar_fechar(), painel()[:200])
+esperar(lambda: linha_com(linhas_do_extrato(), br(ontem), "R$ 30,00"), 30)
+confere("a linha de R$ 30,00 voltou para ontem na tabela principal", linha_com(linhas_do_extrato(), br(ontem), "R$ 30,00") is not None, linhas_do_extrato())
+confere("e saiu de Agendados", linha_com(linhas_do_extrato(True), "R$ 30,00") is None, linhas_do_extrato(True))
+
 passo("7. Boleto de R$ 99,90 pago com R$ 100,10: juros de R$ 0,20 na lista e no Resultado")
 entrar("financeiro")
 ir(RECEBER)
@@ -229,10 +247,10 @@ dados = dados.get("items") if isinstance(dados, dict) else dados
 loja_id = next((x["id"] for x in (dados or []) if x.get("name") == LOJA), None)
 confere("achei o id da loja", loja_id is not None, resp)
 ir("/emporio/resultado?loja=" + str(loja_id))
-esperar(lambda: linha_do_resultado("Juros de boleto"), 40)
-juros = linha_do_resultado("Juros de boleto") or ""
-confere("o Resultado tem a linha Juros de boleto com R$ 0,20", "R$ 0,20" in juros, juros)
-confere("e ainda nao tem Descontos de boleto (nenhum pago com desconto ate aqui)", linha_do_resultado("Descontos de boleto") is None, linha_do_resultado("Descontos de boleto"))
+esperar(lambda: linha_do_resultado("Juros recebidos"), 40)
+juros = linha_do_resultado("Juros recebidos") or ""
+confere("o Resultado tem a linha Juros recebidos com R$ 0,20", "R$ 0,20" in juros, juros)
+confere("e ainda nao tem Desconto concedido (nenhum pago com desconto ate aqui)", linha_do_resultado("Desconto concedido") is None, linha_do_resultado("Desconto concedido"))
 
 passo("7b. Boleto de R$ 50,00 pago com R$ 49,50: desconto de R$ 0,50 na lista e no Resultado")
 ir(RECEBER)
@@ -246,11 +264,11 @@ esperar(lambda: linha_da_lista("BOL-DD-3"), 30)
 lista = linha_da_lista("BOL-DD-3") or ""
 confere("a linha do boleto pago diz pago R$ 49,50 (desconto R$ 0,50)", "pago R$ 49,50 (desconto R$ 0,50)" in lista, lista or "sem a linha")
 ir("/emporio/resultado?loja=" + str(loja_id))
-esperar(lambda: linha_do_resultado("Descontos de boleto"), 40)
-desc = linha_do_resultado("Descontos de boleto") or ""
-confere("o Resultado tem a linha Descontos de boleto com R$ 0,50", "R$ 0,50" in desc, desc)
-juros = linha_do_resultado("Juros de boleto") or ""
-confere("e a linha Juros de boleto segue com R$ 0,20", "R$ 0,20" in juros, juros)
+esperar(lambda: linha_do_resultado("Desconto concedido"), 40)
+desc = linha_do_resultado("Desconto concedido") or ""
+confere("o Resultado tem a linha Desconto concedido com R$ 0,50", "R$ 0,50" in desc, desc)
+juros = linha_do_resultado("Juros recebidos") or ""
+confere("e a linha Juros recebidos segue com R$ 0,20", "R$ 0,20" in juros, juros)
 
 passo("8. Celular (390 px): sem rolagem horizontal")
 cdp("Emulation.setDeviceMetricsOverride", width=390, height=800, deviceScaleFactor=2, mobile=True)

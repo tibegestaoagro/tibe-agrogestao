@@ -17,6 +17,7 @@ import {
   type PedidoDePagamentoView,
 } from "@/lib/emporio/pedido-pagamento";
 import { CATEGORIA_FRETE } from "@/lib/emporio/frete";
+import { fimDeHojeEmBrasilia } from "@/lib/emporio/data-da-baixa";
 import { fimDoDiaEmSaoPaulo, inicioDoDiaEmSaoPaulo, periodoDeDatasEmSaoPaulo } from "@/lib/dia-calendario";
 import { hojeEmBrasilia } from "@/lib/emporio/cartao";
 import { conferirPeriodo, type Faixa, type Periodo } from "@/lib/emporio/periodo";
@@ -2190,6 +2191,9 @@ async function pagarDespesas(
   let pagoEm = new Date();
   if (input.paid_at != null) {
     if (!dataValida(input.paid_at)) return fail("VALIDATION_ERROR", "Informe uma data de pagamento válida.", 422, "paid_at");
+    if (input.paid_at.getTime() >= fimDeHojeEmBrasilia().getTime()) {
+      return fail("VALIDATION_ERROR", "A data não pode ser futura.", 422, "paid_at");
+    }
     pagoEm = input.paid_at;
   }
 
