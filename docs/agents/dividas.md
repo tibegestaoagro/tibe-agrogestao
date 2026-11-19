@@ -329,6 +329,36 @@ Registrado em 07/11/2026, na branch `emporio-entrega-e-romaneio` (plano 3 de 3).
   a seção 3 confere o `field` mas não a mensagem exata do principal incompleto e
   do "outro" sem bairro.
 
+### 5.29 Empório, sobras das frentes B, C, D e H (Q368, Q369): o que ficou para depois
+
+Registrado em 19/11/2026, na branch `emporio-sobras-gestaoclick` (plano
+`docs/superpowers/plans/2026-11-19-emporio-sobras-gestaoclick.md`; juiz 7/10,
+o importante corrigido: estorno de parcela conferida em zero dava 500). Ela
+fechou das 5.23, 5.24, 5.25 e 5.28: estorno da conferida (Q368), ordem da
+carteira (Q369), link "A completar", frase das anteriores, aviso das barras,
+filtro redundante do Caixa, `eh_404` e os roteiros de Retirar, Carimbar,
+antecipação e estorno, e a corrida do cheque.
+- **Três roteiros com falha sem relação aparente:** `emporio-impressao` (venda
+  com observação fora da lista), `emporio-informacao-amarrada` (frase
+  provisória da frente A no Vencido) e `emporio-relatorios-exportacao` (coluna
+  "R$ 0,00" a mais em Balcão e E-commerce). Não foram rodados na `main` para
+  provar que já falhavam; o juiz descartou o elo com o `eh_404`.
+- **Corrida do cheque (`m122` seção 8):** só tirar as duas travas do completar
+  juntas (transação serializável e `status: "recebido"` no `updateMany`)
+  reprova, e quem pega é a ordem pelo Histórico. A parte (b) prova só ausência
+  de 500 e consistência.
+- Sem teste da edição de venda com parcela conferida em zero (passa pela mesma
+  `cancelarNaTransacao` que o teste do cancelamento cobre).
+- O aviso das barras nas Configurações é o `hint` cinza do `Field`; na tela de
+  etiquetas é `text-atencao-tinta`. `PADDING_DA_ETIQUETA_MM` repete o `PAD`.
+- `numeroDaVenda` roda dentro do laço das parcelas no cancelamento;
+  `enderecoDeTudo` (`financeiro-receber.tsx`) repete o `enderecoDaAba`.
+- Cenário do cartão: a venda `number: 4043` fixa colide com o unique quando o
+  contador da conta do seed chegar lá; o passo 12 do roteiro lê todo
+  `main tbody tr`.
+- `m121`, linha ~530: um `check` com `every((p) => true)`, cláusula que não
+  afirma nada (o resto do mesmo `check` afirma).
+
 ### 5.28 Empório, paginação das listas e curva ABC (Q366, Q367): o que ficou para depois
 
 Registrado em 18/11/2026, no merge da branch `emporio-paginacao-listas`, que fechou as
@@ -344,18 +374,12 @@ pendentes das Aprovações) corrigidos.
 - **Fora do navegador (só na `m125`):** antecipações, conferências e 80 e 100
   por página em Compras e Transferências; o 403 do lucro (Vendedor e Caixa
   nem abrem o Relatórios).
-- A tela do Caixa ainda refiltra as entregas por loja do gestor depois da
-  consulta (redundante desde que o filtro foi para a action).
 
 ### 5.25 Empório, balcão rápido (frente D, Q357 a Q361): o que ficou para depois
 
 Registrado em 18/11/2026, no merge da branch `emporio-balcao-rapido` (juiz sem
 bloqueante nem importante; três dos quatro menores corrigidos). A 2.74 saiu da
 lista com esta frente.
-- **Barras somem em silêncio na etiqueta baixa:** com menos de 5 mm sobrando
-  para as barras (rolo de 40 x 15 mm, por exemplo), a etiqueta sai sem barras e
-  a tela não avisa (`etiquetas-papel.tsx`, `comBarras`). Avisar na tela de
-  etiquetas ou encolher o texto.
 - **Nunca validado com equipamento:** leitor USB de verdade, impressora térmica
   e folha adesiva real (escala 100% no diálogo, margem física da impressora).
   O roteiro simula o leitor pela busca e mede a página em mm; as barras foram
@@ -379,15 +403,6 @@ lista com esta frente.
 
 Registrado em 18/11/2026, depois do merge `76a61ba` (juiz com
 os achados importantes corrigidos). A 2.73 saiu da lista com esta frente.
-- **"No topo da lista":** só o cheque sem bom para vai ao topo da carteira.
-  O que tem data e falta número ou banco ordena pela data, com o selo. A spec
-  diz as duas coisas (linhas 92 e 148); confirmar com o usuário.
-- **O link do cartão "A completar" no Hoje** abre o A receber da loja inteiro,
-  sem filtro de "A completar" (a spec diz "carteira filtrada"). Um
-  `?ver=a_completar` mexe na faixa de recortes, no fiado e no cartão.
-- **A corrida completar contra depositar** está protegida (transação
-  serializável e `updateMany` com `status: "recebido"`), mas nenhuma suíte
-  dispara os dois em paralelo.
 - **Turbopack em laço no `/emporio/vender`** (Next 16.4.3, nesta máquina): a
   página recarregava sem parar e não hidratava. O roteiro rodou com
   `npx next dev --webpack`. Não investigado.
@@ -396,20 +411,6 @@ os achados importantes corrigidos). A 2.73 saiu da lista com esta frente.
 
 Registrado em 17/11/2026, depois do merge `cc8a614` (juiz 8/10, achados
 corrigidos).
-- **Venda cancelada depois de conferida:** o estorno da parcela já caída usa o
-  `effective_net`, não o `confirmed_net`, e o ajuste da conferência fica no
-  saldo. A spec não define o caso; decidir com o usuário se o cancelamento
-  também desfaz a conferência.
-- Cobertura de roteiro que falta: o "Retirar" e o "Carimbar" da linha de cartão
-  no extrato (desfazer e conferir pelo carimbo, Q352), a antecipação pontual
-  nascendo conferida e a venda cancelada depois de conferida. Os três estão só
-  na `m121`.
-- O link "Conferir as parcelas" do Hoje abre `?ver=hoje`, que mostra as de hoje
-  e também as A conferir de dias anteriores, sem a tela dizer isso.
-- O `eh_404()` de `scripts/navegador/_lib.py` procura "404" em qualquer texto
-  (casou com a venda nº 004043). Seis roteiros ainda o chamam; trocar pela
-  frase "could not be found", como o `nao_achada()` do roteiro
-  `emporio-conferir-cartao`, e rodar os seis de novo.
 - O teste da migração Q353 (seção 14c da `m121`) roda os UPDATE do arquivo
   sobre o banco de dev inteiro, dentro de uma transação desfeita: correto, mas
   segura as linhas de outras suítes enquanto roda.
