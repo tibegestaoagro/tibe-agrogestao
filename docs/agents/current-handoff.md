@@ -40,6 +40,11 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   correção). `test:all` 129/129. Falta: a Central editar de novo as vendas nº
   1, 2 e 4 (a primeira edição real em produção) e estender a taxa de crédito
   à vista da LOJA MOC (hoje sem taxa vigente); mensagem entregue ao usuário.
+- 19/11, escrita em produção autorizada pelo usuário: apagado o saldo inicial
+  de R$ 15.020,83 da conta CAIXA DAMATTA (Da Mata; um `CashMovement`
+  `implantacao`, conferido antes e depois na mesma transação, com linha
+  `caixa.saldo_inicial_removido` no Histórico). A Agromax faz pela tela a volta
+  da transferência de R$ 1.436,00 (CONTA / 1256-4 para o PIX 1076-6).
 - 18/11: paginação das listas e curva ABC em produção (merge `58e077fc`; sobras
   na 5.28).
 - Plano do GestãoClick (Q341 a Q344):
@@ -57,21 +62,14 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   [financeiro-emporio-relatorio.md](financeiro-emporio-relatorio.md); abertas
   2.66 e 2.69). Neon em dia.
 
-### Granel em qualquer peso e atacado na mesma saca (Q319 a Q324): em produção (merge `8727de8`)
+### Abertas das entregas de 09 a 13/11 (todas em produção)
 
-### Contas PIX (Q310 a Q318): em produção desde 13/11 (merge `bd7fd3f`)
-
-Spec de 13/11. Na Da Mata só a `CAIXA DAMATTA - PIX - 1076-6` ficou no PIX.
-
-### Em produção desde 11/11: franqueado (Q300 a Q309) e custo único (Q298, Q299)
-
-Specs de 11/11. Abertas: o Caixa escolhe franqueado? devolução com crédito?
-taxa do cartão sobre o crédito? ⚠️ Cancelar compra anterior a uma contagem faz
-a contagem tirar a mais (candidato a dívida).
-
-### Cartão (Q250 a Q267): entregas 1 a 3 em produção
-
-Specs de 09/11. Abertas 2.60, 2.62, 2.63; entrega 4 depende do extrato real da Stone.
+- Contas PIX (Q310 a Q318): na Da Mata só a `CAIXA DAMATTA - PIX - 1076-6`.
+- Franqueado (Q300 a Q309): o Caixa escolhe franqueado? devolução com
+  crédito? taxa do cartão sobre o crédito? ⚠️ Cancelar compra anterior a uma
+  contagem faz a contagem tirar a mais (candidato a dívida).
+- Cartão (Q250 a Q267): abertas 2.60, 2.62, 2.63; a entrega 4 depende do
+  extrato real da Stone.
 
 ### ⏭️ Próximo passo
 
