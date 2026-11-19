@@ -139,7 +139,11 @@ function createBaseClient(): PrismaClient {
     );
   }
   const adapter = new PrismaPg({ connectionString });
-  return new PrismaClient({ adapter });
+  // 18/11/2026: com 5 s (o padrão do Prisma), editar uma venda caía com "expired
+  // transaction" em produção: a transação faz umas 60 consultas, e cada uma ia
+  // da Vercel ao Neon em ~120 ms. Vale para toda transação, inclusive as dos
+  // clients escopados por tenant. Prova: `npm run test:m126`.
+  return new PrismaClient({ adapter, transactionOptions: { timeout: 30_000, maxWait: 10_000 } });
 }
 
 // Singleton: evita esgotar conexões em hot-reload (dev) e reusa em serverless.
