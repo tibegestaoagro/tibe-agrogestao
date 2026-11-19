@@ -468,6 +468,7 @@ export default async function CaixaPage({
                       podeCompletar={pode(papel, "dinheiro") || pode(papel, "gestor_da_loja", c.establishment_id)}
                       podeDepositar={pode(papel, "chave:depositar_cheque", c.establishment_id) || pode(papel, "dinheiro")}
                       ehAdmin={pode(papel, "gestor_da_loja", c.establishment_id) || pode(papel, "dinheiro")}
+                      podeMudarData={pode(papel, "dinheiro")}
                     />
                   </TableCell>
                 </TableRow>

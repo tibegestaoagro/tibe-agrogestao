@@ -223,6 +223,7 @@ export function ParteDeFiado() {
           <>Digite o <strong>Valor recebido (R$)</strong>. Pode ser menos do que o cliente deve.</>,
           <>Em <strong>Como o cliente pagou</strong>, escolha Dinheiro (entra na gaveta) ou PIX (entra na conta marcada em <strong>Conta do PIX</strong>, que vem com a conta PIX da loja: troque se o cliente pagou em outra conta liberada). Confira a <strong>Loja que recebe</strong>.</>,
           <>Em dinheiro, o valor entra num caixa aberto da loja. Com mais de um aberto, escolha em <strong>Caixa que recebe</strong>.</>,
+          <>No PIX, o Financeiro, o Gerente geral e o Dono veem o campo <strong>Data em que caiu</strong>: ele vem com hoje, e dá para pôr o dia em que o dinheiro caiu de verdade, até 31 dias para trás ou para frente, para o extrato bater com o do banco. Dinheiro na gaveta é sempre de hoje.</>,
           <>Clique em <strong>Registrar recebimento</strong>. O pagamento abate primeiro a dívida mais antiga.</>,
         ]}
         problemas={[
@@ -545,9 +546,9 @@ export function ParteDeCaixa() {
           <>Em <strong>Cheques</strong>, cada cheque passa por: recebido, depositado, compensado ou devolvido.</>,
           <>O cheque registrado na venda sem número, banco ou bom para aparece com o selo <strong>A completar</strong>. Clique em <strong>Completar</strong> e preencha o que tiver; dá para completar aos poucos. Depois de completo, o botão vira <strong>Corrigir</strong>, enquanto o cheque não for depositado. Completam o Gestor da loja do cheque, o Financeiro, o Gerente geral e o Dono.</>,
           <>Na carteira, primeiro os cheques sem bom para, depois os que têm a data mas falta número ou banco, cada grupo na ordem em que foi lançado. O cheque <strong>A completar</strong> não se deposita. Sem o bom para, ele fica fora do vencido, do a vencer e da Projeção, mas conta no que o cliente deve. No Financeiro, o cartão <strong>Cheques a completar</strong> do Hoje mostra quantos faltam.</>,
-          "Quando você deposita um cheque, escolha a conta. Quando o banco compensa, marque como compensado.",
+          <>Quando você deposita um cheque, escolha a conta. Quando o banco compensa, clique em <strong>Compensou</strong>. O Financeiro, o Gerente geral e o Dono podem pôr em <strong>Data em que caiu</strong> o dia em que o dinheiro caiu no banco, para o extrato bater. Data depois de hoje fica em <strong>Agendados</strong> no extrato da conta e só entra no saldo quando o dia chega.</>,
           "Se o cheque voltar, marque como devolvido: a dívida reabre no fiado do cliente.",
-          <>Em <strong>Boletos</strong>, filtre por <strong>Abertos</strong>, <strong>Vencidos</strong>, <strong>Pagos</strong> ou <strong>No fiado</strong>. Quando o banco pagar, clique em <strong>Boleto pago</strong> e escolha a conta e a data. Se o cliente não pagou, clique em <strong>Mandar para o fiado</strong> e diga o motivo: a dívida reabre no fiado dele.</>,
+          <>Em <strong>Boletos</strong>, filtre por <strong>Abertos</strong>, <strong>Vencidos</strong>, <strong>Pagos</strong> ou <strong>No fiado</strong>. Quando o banco pagar, clique em <strong>Boleto pago</strong> e escolha a conta e a <strong>Data em que caiu</strong> (até 31 dias para trás ou para frente; data depois de hoje fica em Agendados, fora do saldo). Se o cliente não pagou, clique em <strong>Mandar para o fiado</strong> e diga o motivo: a dívida reabre no fiado dele.</>,
         ]}
       >
         <Figura id="caixa-cartao-cheques" />

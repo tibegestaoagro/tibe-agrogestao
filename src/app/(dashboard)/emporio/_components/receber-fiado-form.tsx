@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { MoneyInput } from "@/components/ui/money-input";
 import { Field } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 import { FormSheet } from "@/components/ui/form-sheet";
 import {
   Select,
@@ -17,13 +18,14 @@ import { useErrosDeFormulario } from "@/components/ui/use-erros-de-formulario";
 import { useAviso } from "@/components/ui/toast";
 import { apiGet, apiPost } from "@/lib/client-api";
 import { lerNumeroBr, reaisBr } from "@/lib/numero-br";
-import { centavosParaCampo, type ContaPixDaLoja } from "./venda-estado";
+import { JANELA_DA_BAIXA_DIAS } from "@/lib/emporio/data-da-baixa";
+import { centavosParaCampo, diaDeHoje, type ContaPixDaLoja } from "./venda-estado";
 import { ContaPixSelect } from "./venda-campos";
 import { CaixaDaOperacao } from "./caixa-da-operacao";
 import { abertosDaLoja, caixaInicial, type CaixaDaLoja } from "./caixas-da-loja";
 
 // Ordem visual, de cima para baixo.
-const ORDEM = ["customer_id", "amount", "kind", "establishment_id", "bank_account_id", "cash_register_id"] as const;
+const ORDEM = ["customer_id", "amount", "kind", "establishment_id", "bank_account_id", "received_on", "cash_register_id"] as const;
 type Campo = (typeof ORDEM)[number];
 
 /**
@@ -40,7 +42,10 @@ export function ReceberFiadoForm({
   caixas,
   usuarioId,
   soPix = false,
+  podeMudarData = false,
 }: {
+  /** Q371: só o Financeiro, o Gerente geral e o Dono escolhem a data em que o PIX caiu. O servidor confere de novo. */
+  podeMudarData?: boolean;
   /** O Financeiro não está na loja: recebe por PIX na conta, e o dinheiro é do caixa da loja. */
   soPix?: boolean;
   contatoId: string;
@@ -60,6 +65,8 @@ export function ReceberFiadoForm({
   const [forma, setForma] = useState(soPix ? "pix" : "dinheiro");
   const [loja, setLoja] = useState(lojas.length === 1 ? lojas[0].id : "");
   const [caixa, setCaixa] = useState("");
+  const [caiuEm, setCaiuEm] = useState("");
+  const hoje = diaDeHoje();
   // A conta do PIX (Q314): lida da loja escolhida quando a forma é PIX; vem marcada só a padrão ou a única.
   const [contaEscolhida, setContaEscolhida] = useState("");
   const [lidas, setLidas] = useState<{ lojaId: string; lista: ContaPixDaLoja[] } | null>(null);
@@ -82,6 +89,8 @@ export function ReceberFiadoForm({
   // Só o dinheiro entra na gaveta; PIX nunca vê o campo do caixa.
   const abertos = abertosDaLoja(caixas, loja);
   const caixaEscolhido = abertos.some((c) => c.id === caixa) ? caixa : caixaInicial(abertos, usuarioId);
+  // A data da baixa só existe para o PIX: dinheiro na gaveta é sempre de hoje.
+  const mostrarData = podeMudarData && forma === "pix";
   const mostrarCaixa =
     forma === "dinheiro" && loja !== "" && (abertos.length !== 1 || !!err.erros.cash_register_id);
 
@@ -102,7 +111,7 @@ export function ReceberFiadoForm({
 
     err.limparTudo();
     const contaDaApi = forma === "pix" && contaDoPix ? contaDoPix : null;
-    const assinatura = JSON.stringify([contatoId, n, forma, loja, contaDaApi]);
+    const assinatura = JSON.stringify([contatoId, n, forma, loja, contaDaApi, mostrarData ? caiuEm || hoje : null]);
     if (chave.current?.assinatura !== assinatura) chave.current = { assinatura, key: crypto.randomUUID() };
     setLoading(true);
     const res = await apiPost("/api/v1/emporio/receivables/receive", {
@@ -113,6 +122,7 @@ export function ReceberFiadoForm({
       kind: forma,
       ...(contaDaApi ? { bank_account_id: contaDaApi } : {}),
       cash_register_id: forma === "dinheiro" && caixaEscolhido ? caixaEscolhido : null,
+      ...(mostrarData ? { received_on: caiuEm || hoje } : {}),
     });
     setLoading(false);
     if (!res.ok) {
@@ -133,7 +143,10 @@ export function ReceberFiadoForm({
       open={open}
       onOpenChange={(o) => {
         setOpen(o);
-        if (o) setValor(centavosParaCampo(devidoCent));
+        if (o) {
+          setValor(centavosParaCampo(devidoCent));
+          setCaiuEm("");
+        }
         if (!o) err.limparTudo();
       }}
       onSubmit={submit}
@@ -223,6 +236,28 @@ export function ReceberFiadoForm({
               aoMudar={(c) => {
                 setContaEscolhida(c);
                 err.limparCampo("bank_account_id");
+              }}
+            />
+          )}
+        </Field>
+      )}
+
+      {mostrarData && (
+        <Field
+          label="Data em que caiu"
+          id={err.idDe("received_on")}
+          error={err.erros.received_on}
+          hint={`Para o extrato bater com o do banco. Até ${JANELA_DA_BAIXA_DIAS} dias para trás ou para frente.`}
+        >
+          {({ id, ...aria }) => (
+            <Input
+              id={id}
+              {...aria}
+              type="date"
+              value={caiuEm || hoje}
+              onChange={(e) => {
+                setCaiuEm(e.target.value);
+                err.limparCampo("received_on");
               }}
             />
           )}
