@@ -25,8 +25,10 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-19. **Branch `emporio-transacao-e-taxas-encerradas`
-  pronta, NÃO mergeada** (sem migração). Duas reclamações da Central do Milho:
+- Atualizado em: 2026-11-19. **Transação de 30 s, região gru1 e taxas
+  encerradas EM PRODUÇÃO** (merge `7569a5e5`, autorizado pelo usuário na
+  conversa em 19/11; sem migração; `X-Vercel-Id: gru1::gru1` conferido).
+  Duas reclamações da Central do Milho:
   (1) editar a venda nº 4 (fiado para débito) dava "Erro interno": a transação
   passava dos 5 s padrão do Prisma, com ~120 ms por consulta entre a Vercel
   (iad1) e o Neon (sa-east-1); nenhuma edição de venda tinha dado certo em
@@ -35,9 +37,9 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   `vercel.json` (decisão do usuário em 19/11). (2) As taxas valendo só de 14 a
   16/11 "sumiram": a lista agora avisa as encerradas escondidas e deixa editar
   a encerrada sem venda (roteiro `emporio-taxas-encerradas`, 0 falhas, 14 sem a
-  correção). Depois do merge: conferir o deploy na região nova e pedir à
-  Central para editar de novo as vendas nº 1, 2 e 4 e estender a taxa de
-  crédito à vista da LOJA MOC (hoje sem taxa vigente).
+  correção). `test:all` 129/129. Falta: a Central editar de novo as vendas nº
+  1, 2 e 4 (a primeira edição real em produção) e estender a taxa de crédito
+  à vista da LOJA MOC (hoje sem taxa vigente); mensagem entregue ao usuário.
 - 18/11: paginação das listas e curva ABC em produção (merge `58e077fc`; sobras
   na 5.28).
 - Plano do GestãoClick (Q341 a Q344):
