@@ -129,9 +129,8 @@ export default async function CaixaPage({
     const texto = p.toString();
     return texto ? `/emporio/caixa?${texto}` : "/emporio/caixa";
   };
-  const entregas = (entregasRes && entregasRes.ok ? entregasRes.data.linhas : []).filter((e) =>
-    pode(papel, "gestor_da_loja", e.establishment_id),
-  );
+  // A action já filtra pelas lojas em que o ator é gestor (no `where`, antes da paginação).
+  const entregas = entregasRes && entregasRes.ok ? entregasRes.data.linhas : [];
   const contaComSaldoInicial = new Set(implantados.flatMap((m) => (m.bank_account_id ? [m.bank_account_id] : [])));
   const nomeDaLoja = new Map(caixa.drawers.map((d) => [d.establishment_id, d.name]));
   const nomeDoCaixa = new Map(caixa.drawers.flatMap((d) => d.registers.map((r) => [r.id, `${r.nome}, ${d.name}`] as const)));
