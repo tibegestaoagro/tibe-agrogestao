@@ -107,6 +107,9 @@ grep -rl "^tipo: armadilha" docs/conhecimento/
 | [a lista que corta em silêncio faz o cliente achar que o dado sumiu](a-lista-que-corta-em-silencio-faz-o-cliente-achar-que-o-dado-sumiu.md) | licao | os 247 orçamentos estavam no Neon e a lista parava no 38; pagine com total, `count` no mesmo `where` e desempate por `id` |
 | [o Turbopack entra em laço no balcão, e o --webpack não](o-turbopack-entra-em-laco-no-balcao-e-o-webpack-nao.md) | armadilha | 2.692 recargas e nenhuma hidratação no `/emporio/vender`; roteiro com `npx next dev --webpack` |
 | [o CI estourou a memória do Node com o projeto maior](o-ci-estourou-a-memoria-do-node-com-o-projeto-maior.md) | armadilha | "heap out of memory" no Type-check e no Build com o tsc local limpo; `NODE_OPTIONS` no job |
+| [a transação que passa local cai em produção pela distância até o banco](a-transacao-que-passa-local-cai-em-producao-pela-distancia-ate-o-banco.md) | armadilha | editar venda nunca funcionou em produção: 60 consultas a 120 ms (Vercel EUA, Neon SP) passavam dos 5 s do Prisma |
+| [o guarda-bash lê "vercel" como deploy até no nome do arquivo](o-guarda-bash-le-vercel-como-deploy-ate-no-nome-do-arquivo.md) | armadilha | `git add vercel.json` e linha "Vercel:" na mensagem viram deploy; `git add -u` e "Infra:" |
+| [apagar dado de cliente se prova pela digital do que fica](apagar-dado-de-cliente-se-prova-pela-digital-do-que-fica.md) | decisao | o md5 do que fica pegou o SET NULL nos orçamentos que a contagem não via; ensaio local, contagem, confirmação, gravação |
 
 ⚠️ **`[[wikilink]]` para nota que não existe reprova o `npm run check`**
 (conferência 13). É o que impede esta pasta de virar um cemitério de links
