@@ -48,6 +48,22 @@ A paginação certa tem duas armadilhas que só a revisão achou:
 - A fixture da suíte de uma lista precisa passar de uma página (45 registros
   com `per_page` 20 deram 20/20/5).
 
+## Acréscimo de 2026-11-19: o filtro que esconde também corta em silêncio
+
+No dia seguinte, a Central do Milho: "na aba taxas por loja não aparece as que
+eu cadastrei". Tinham cadastrado o débito e o crédito à vista valendo só de
+14/11 a 16/11, e em 18/11 viraram "encerradas". A lista esconde as encerradas
+por padrão, e o aviso "Há N encerradas" só aparecia com a lista VAZIA: como uma
+taxa vigente aparecia, o aviso sumia. Mesmo com "Mostrar encerradas", a linha
+não tinha "Editar", embora o servidor aceite editar a encerrada sem venda.
+Corrigido em `5353e41f`: o aviso aparece sempre que houver escondida, e a
+encerrada sem uso ganhou Editar e Remover.
+
+- Filtro padrão que esconde linhas diz quantas escondeu, com ou sem lista
+  vazia. Esconder sem contar é o mesmo corte silencioso do `take: 200`.
+- Botão escondido na tela tem de casar com o que o servidor recusa: quando a
+  tela é mais estrita, o cliente fica sem caminho e acha que o dado sumiu.
+
 ## Relacionado
 
 - [[a-lista-que-ganha-linha-que-nao-e-pendencia-contamina-a-soma-da-tela]]
