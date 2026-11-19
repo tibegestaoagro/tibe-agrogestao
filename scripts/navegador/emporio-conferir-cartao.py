@@ -612,11 +612,11 @@ confere("cancela a venda 4043: 200", r_x["status"] == 200, [r_x["status"], r_x["
 saldo_c, EXTRATO_ESTORNO, lin_c = posicao_da_conta("Cc Estorno")
 confere("o saldo da conta voltou ao de antes da venda (R$ 1.000,00): " + str(saldo_b) + " -> " + str(saldo_c), saldo_c is not None and abs(saldo_c - 1000.00) < 0.005, lin_c)
 ir(EXTRATO_ESTORNO)
-# A linha do estorno e o movimento `estorno_cartao`: o extrato mostra as `notes` (o motivo do cancelamento) no lugar
-# do rotulo "Estorno de cartão", que so aparece quando nao ha motivo (e o cancelamento exige um).
-esperar(lambda: linha_do_extrato("Cliente desistiu") != "", 30)
-lin_est = linha_do_extrato("Cliente desistiu")
-confere("o extrato traz a linha do estorno (descricao = o motivo 'Cliente desistiu', nao 'Estorno de cartão') pelo valor conferido (- R$ 190,00), da venda 004043", "- R$ 190,00" in lin_est and "004043" in lin_est, lin_est)
+# A linha do estorno e o movimento `estorno_cartao`: o extrato a descreve como "Estorno de cartão: <motivo do
+# cancelamento>" (Q368), para a linha se ler como estorno e nao so como o motivo solto.
+esperar(lambda: linha_do_extrato("Estorno de cartão: Cliente desistiu") != "", 30)
+lin_est = linha_do_extrato("Estorno de cartão: Cliente desistiu")
+confere("o extrato traz a linha do estorno (descricao 'Estorno de cartão: Cliente desistiu') pelo valor conferido (- R$ 190,00), da venda 004043", "- R$ 190,00" in lin_est and "004043" in lin_est, lin_est)
 lin_aj = linha_do_extrato("Ajuste da conferência do cartão")
 confere("a linha do ajuste continua (- R$ 10,00)", "- R$ 10,00" in lin_aj, lin_aj)
 lin_cart = linha_do_extrato("Cartão, parcela", "conferido R$ 190,00")

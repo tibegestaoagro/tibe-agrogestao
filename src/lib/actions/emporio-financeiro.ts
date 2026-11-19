@@ -186,6 +186,13 @@ export type ExtratoView = {
   unreconciled_total: number;
 };
 
+/** A frase do movimento no extrato: as notas, ou o rótulo da origem. O estorno de cartão leva o rótulo na frente do motivo (Q368). */
+function descricaoDoMovimento(m: { origin: string; notes: string | null }): string {
+  const notas = m.notes?.trim();
+  if (m.origin === "estorno_cartao") return notas ? `${ROTULO_ORIGEM.estorno_cartao}: ${notas}` : ROTULO_ORIGEM.estorno_cartao;
+  return notas || ROTULO_ORIGEM[m.origin] || m.origin;
+}
+
 export const ROTULO_ORIGEM: Record<string, string> = {
   venda: "Venda",
   recebimento_fiado: "Fiado recebido",
@@ -709,7 +716,7 @@ export async function lerExtratoAction(
       establishment_id: m.establishment_id ?? m.manager_establishment_id ?? null,
       establishment_name:
         m.establishment?.name ?? (m.manager_establishment_id ? lugar.name : null) ?? m.sale?.establishment.name ?? null,
-      description: m.notes?.trim() || ROTULO_ORIGEM[m.origin] || m.origin,
+      description: descricaoDoMovimento(m),
       customer_name: m.sale?.customer?.name ?? null,
       sale_number: m.sale?.number ?? null,
       sale_id: m.sale_id,
@@ -799,7 +806,7 @@ async function acharLinhaDeConta(
     return {
       linha: {
         conta_id: m.bank_account_id,
-        descricao: m.notes?.trim() || ROTULO_ORIGEM[m.origin] || m.origin,
+        descricao: descricaoDoMovimento(m),
         valor: decToNum(m.amount) ?? 0,
         dia: inicioDoDiaEmSaoPaulo(m.occurred_at),
         carimbada: !!m.reconciled_at,

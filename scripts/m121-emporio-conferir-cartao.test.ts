@@ -787,6 +787,9 @@ async function secao8() {
   check("o saldo da conta volta ao de antes da venda", (await saldo(A, c.conta)) === saldoAntesDaVenda, `${(await saldo(A, c.conta)) - saldoAntesDaVenda}`);
   const hist = await historicoDe("cartao.estorno_conferida", p.id);
   check("Histórico com cartao.estorno_conferida, com o valor que caiu", hist.length === 1 && String(hist[0].summary).includes("94,50"), j(hist.map((h) => h.summary)));
+  const extE = await chamar(A.tok.fin, R.statement, "GET", `emporio/finance/statement?bank_account_id=${c.conta}&de=${emDias(-12)}&ate=${hojeStr}`);
+  const linE = ((extE.corpo?.data?.lines ?? []) as Dado[]).find((l) => l.kind === "movimento" && est.length === 1 && l.id === est[0].id);
+  check("o extrato descreve o estorno como \"Estorno de cartão: <motivo>\"", linE?.description === "Estorno de cartão: Erro de digitação", j(linE));
   const rdes = await desf(A.tok.owner, p.id, "Tentando desfazer depois de cancelar");
   check("Desfazer a conferência depois do cancelamento: 409 VENDA_CANCELADA", recusou(rdes, 409) && rdes.corpo?.error?.code === "VENDA_CANCELADA", `${rdes.status} ${j(rdes.corpo).slice(0, 160)}`);
 
