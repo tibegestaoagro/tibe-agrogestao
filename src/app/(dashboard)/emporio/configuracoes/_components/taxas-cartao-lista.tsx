@@ -168,6 +168,13 @@ export function TaxasCartaoLista({
         <p className="text-sm text-texto-secundario">Cadastre uma conta bancária no Caixa para poder definir as taxas.</p>
       )}
 
+      {listaDeGrupos.length > 0 && escondidas > 0 && (
+        <p className="text-sm text-texto-secundario">
+          {escondidas === 1 ? "Há 1 taxa encerrada escondida" : `Há ${escondidas} taxas encerradas escondidas`}: marque
+          &quot;Mostrar encerradas&quot; para ver{escondidas === 1 ? "" : " todas"}.
+        </p>
+      )}
+
       {listaDeGrupos.length === 0 ? (
         <EmptyState titulo="Nenhuma taxa cadastrada">
           Sem a taxa da loja para a adquirente, a bandeira e a modalidade, o balcão não deixa vender no cartão.
@@ -196,6 +203,9 @@ export function TaxasCartaoLista({
                 {g.linhas.map((t) => {
                   const loja = nomeDaLoja(t.establishment_id);
                   const mexe = gere.has(t.establishment_id) && !encerrada(t);
+                  // Encerrada sem venda ainda se edita (o servidor deixa): é como corrigir uma vigência
+                  // cadastrada curta demais, o caso da Central do Milho em 19/11/2026.
+                  const corrigeEncerrada = gere.has(t.establishment_id) && encerrada(t) && !t.in_use;
                   return (
                     <TableRow key={t.id}>
                       <TableCell className="font-medium text-texto">{loja}</TableCell>
@@ -233,6 +243,18 @@ export function TaxasCartaoLista({
                                 contas={contas}
                               />
                             )}
+                            <TaxaRemoverBotao taxa={t} descricao={descricaoDaTaxa(t, loja)} />
+                          </div>
+                        )}
+                        {corrigeEncerrada && (
+                          <div className="flex flex-wrap gap-2">
+                            <TaxaCartaoForm
+                              modo="editar"
+                              taxa={t}
+                              lojas={lojasParaNova}
+                              adquirentes={adquirentes}
+                              contas={contas}
+                            />
                             <TaxaRemoverBotao taxa={t} descricao={descricaoDaTaxa(t, loja)} />
                           </div>
                         )}

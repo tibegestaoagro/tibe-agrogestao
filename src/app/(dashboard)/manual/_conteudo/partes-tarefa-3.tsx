@@ -95,6 +95,10 @@ export function ParteDeConfiguracoes() {
             quando: "A recusa aparece embaixo de Vale a partir de",
             fazer: "Já existe taxa para a mesma loja, adquirente, bandeira, modalidade e faixa de parcelas naquelas datas. Use Nova vigência na linha que vale, em vez de criar outra.",
           },
+          {
+            quando: "A taxa que eu cadastrei não aparece na lista",
+            fazer: "A data final dela já passou, e a lista esconde as taxas encerradas. Marque Mostrar encerradas. Se nenhuma venda usou a taxa, ela ainda tem Editar: apague a data final para ela voltar a valer, ou corrija as datas.",
+          },
         ]}
       />
 
