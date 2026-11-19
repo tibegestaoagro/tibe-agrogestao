@@ -181,7 +181,7 @@ export function ParteDeDevolver() {
       </Tarefa>
       <Chamada tipo="saiba">
         <p>
-          Cartão: as parcelas que ainda não caíram são canceladas. A que já caiu vira uma saída da conta. Cheque
+          Cartão: as parcelas que ainda não caíram são canceladas. A que já caiu vira uma saída da conta. A parcela já conferida é estornada pelo valor que caiu e aparece como Estorno de cartão no extrato; a conferência fica na história. Cheque
           recebido volta para o cliente.
         </p>
         <p>
