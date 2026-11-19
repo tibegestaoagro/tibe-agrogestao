@@ -3,6 +3,7 @@ import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { decToNum } from "@/lib/serialize";
 import { exigir } from "@/lib/emporio/papel";
 import { hojeEmBrasilia } from "@/lib/emporio/cartao";
+import { fimDeHojeEmBrasilia } from "@/lib/emporio/data-da-baixa";
 import { diasDeAtraso } from "@/lib/emporio/fiado";
 import { faixaDeIdade, type FaixaDeIdade } from "@/lib/emporio/projecao";
 import { lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
@@ -360,12 +361,14 @@ export async function lerPosicaoPorLugarAction(
   const { de, ate } = periodo;
   const desde = new Date(de.getTime() + MEIA_NOITE_SP_EM_UTC_MS);
   const ateInstante = new Date(ate.getTime() + DIA_MS + MEIA_NOITE_SP_EM_UTC_MS);
+  const fimDeHoje = fimDeHojeEmBrasilia();
   const posicoes = await lerPosicoes(db, { lojaId: al.lojaId, visiveis: al.visiveis, comContas: !al.lojaId });
 
   // Uma consulta por tabela, distribuída em memória por lugar.
   const movimentos = await db.cashMovement.groupBy({
     by: ["establishment_id", "manager_establishment_id", "bank_account_id", "origin", "direction"],
-    where: { occurred_at: { gte: desde, lt: ateInstante } },
+    // O movimento agendado (data depois de hoje) não está no saldo: fica fora do período, como o cartão futuro.
+    where: { occurred_at: { gte: desde, lt: ateInstante.getTime() < fimDeHoje.getTime() ? ateInstante : fimDeHoje } },
     _sum: { amount: true },
   });
   // A parcela de cartão futura não está no saldo (que soma até hoje): fica fora do período também.

@@ -3,6 +3,7 @@ import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { decToNum } from "@/lib/serialize";
 import { exigir, exigirUma } from "@/lib/emporio/papel";
 import { hojeEmBrasilia } from "@/lib/emporio/cartao";
+import { fimDeHojeEmBrasilia } from "@/lib/emporio/data-da-baixa";
 import { dataCalendario, inicioDoDiaEmSaoPaulo, periodoDeDatasEmSaoPaulo } from "@/lib/dia-calendario";
 import { conferirPeriodo, type Faixa, type Periodo } from "@/lib/emporio/periodo";
 import { dinheiro, registrarNoHistorico } from "@/lib/emporio/historico";
@@ -180,6 +181,8 @@ export type ExtratoView = {
   account: { id: string; name: string; bank: string | null } | null;
   opening_balance: number;
   lines: ExtratoLinhaView[];
+  /** Só conta: os movimentos com data depois de hoje (Agendado). Ficam fora de `lines` e do saldo corrido; entram sozinhos quando o dia chega. */
+  scheduled: ExtratoLinhaView[];
   closing_balance: number;
   /** Linhas de conta sem carimbo no período e a soma dos valores absolutos, antes do filtro `apenas_sem_carimbo`. */
   unreconciled_count: number;
@@ -648,10 +651,14 @@ export async function lerExtratoAction(
   const desde = new Date(deDia.getTime() + MEIA_NOITE_SP_EM_UTC_MS);
   const ate = new Date(ateDia.getTime() + DIA_MS + MEIA_NOITE_SP_EM_UTC_MS);
 
-  const [antes, antesCartao, movs, parcelas] = await Promise.all([
+  // O saldo só conta movimento com data até hoje: o de data futura é "Agendado" e fica de fora das linhas.
+  const fimDeHoje = fimDeHojeEmBrasilia();
+  const teto = (d: Date) => (d.getTime() < fimDeHoje.getTime() ? d : fimDeHoje);
+
+  const [antes, antesCartao, movs, parcelas, agendados] = await Promise.all([
     db.cashMovement.groupBy({
       by: ["direction"],
-      where: { ...ondeMovimentos, occurred_at: { lt: desde } },
+      where: { ...ondeMovimentos, occurred_at: { lt: teto(desde) } },
       _sum: { amount: true },
     }),
     conta
@@ -661,7 +668,7 @@ export async function lerExtratoAction(
         })
       : null,
     db.cashMovement.findMany({
-      where: { ...ondeMovimentos, occurred_at: { gte: desde, lt: ate } },
+      where: { ...ondeMovimentos, occurred_at: { gte: desde, lt: teto(ate) } },
       include: {
         establishment: { select: { name: true } },
         // O PIX e a transferência caem na conta sem loja: a venda diz a loja e o cliente da linha.
@@ -680,6 +687,16 @@ export async function lerExtratoAction(
           orderBy: [{ effective_on: "asc" }, { installment: "asc" }],
         })
       : [],
+    conta
+      ? db.cashMovement.findMany({
+          where: { ...ondeMovimentos, occurred_at: { gte: fimDeHoje } },
+          include: {
+            establishment: { select: { name: true } },
+            sale: { select: { number: true, customer_id: true, customer: { select: { name: true } }, establishment: { select: { name: true } } } },
+          },
+          orderBy: [{ occurred_at: "asc" }, { created_at: "asc" }],
+        })
+      : [],
   ]);
 
   let abertura = centavos(decToNum(antesCartao?._sum.effective_net) ?? 0);
@@ -691,7 +708,7 @@ export async function lerExtratoAction(
   // Quem carimbou, por nome (só conta tem carimbo; gaveta e gerência nunca o têm).
   const idsCarimbadores = [
     ...new Set(
-      [...movs, ...parcelas].map((l) => l.reconciled_by_user_id).filter((u): u is string => typeof u === "string" && !!u),
+      [...movs, ...agendados, ...parcelas].map((l) => l.reconciled_by_user_id).filter((u): u is string => typeof u === "string" && !!u),
     ),
   ];
   const nomes = new Map<string, string>(
@@ -704,25 +721,27 @@ export async function lerExtratoAction(
     reconciled_by: r.reconciled_at && r.reconciled_by_user_id ? (nomes.get(r.reconciled_by_user_id) ?? null) : null,
   });
 
+  const linhaDoMovimento = (m: (typeof movs)[number]): ExtratoLinhaView => ({
+    kind: "movimento",
+    id: m.id,
+    occurred_on: dia(inicioDoDiaEmSaoPaulo(m.occurred_at)),
+    direction: m.direction,
+    amount: decToNum(m.amount) ?? 0,
+    origin: m.origin,
+    // O movimento da gerência grava `manager_establishment_id`, não `establishment_id`: a loja é a do lugar.
+    establishment_id: m.establishment_id ?? m.manager_establishment_id ?? null,
+    establishment_name:
+      m.establishment?.name ?? (m.manager_establishment_id ? lugar.name : null) ?? m.sale?.establishment.name ?? null,
+    description: descricaoDoMovimento(m),
+    customer_name: m.sale?.customer?.name ?? null,
+    sale_number: m.sale?.number ?? null,
+    sale_id: m.sale_id,
+    customer_id: m.sale?.customer_id ?? null,
+    ...carimbo(m),
+  });
+
   const todas: ExtratoLinhaView[] = [
-    ...movs.map((m): ExtratoLinhaView => ({
-      kind: "movimento",
-      id: m.id,
-      occurred_on: dia(inicioDoDiaEmSaoPaulo(m.occurred_at)),
-      direction: m.direction,
-      amount: decToNum(m.amount) ?? 0,
-      origin: m.origin,
-      // O movimento da gerência grava `manager_establishment_id`, não `establishment_id`: a loja é a do lugar.
-      establishment_id: m.establishment_id ?? m.manager_establishment_id ?? null,
-      establishment_name:
-        m.establishment?.name ?? (m.manager_establishment_id ? lugar.name : null) ?? m.sale?.establishment.name ?? null,
-      description: descricaoDoMovimento(m),
-      customer_name: m.sale?.customer?.name ?? null,
-      sale_number: m.sale?.number ?? null,
-      sale_id: m.sale_id,
-      customer_id: m.sale?.customer_id ?? null,
-      ...carimbo(m),
-    })),
+    ...movs.map(linhaDoMovimento),
     ...parcelas.map((p): ExtratoLinhaView => ({
       kind: "cartao",
       id: p.id,
@@ -770,6 +789,7 @@ export async function lerExtratoAction(
     account: conta ? { id: conta.id, name: conta.name, bank: conta.bank } : null,
     opening_balance: abertura / 100,
     lines: linhas,
+    scheduled: agendados.map(linhaDoMovimento),
     closing_balance: (abertura + variacao) / 100,
     unreconciled_count: semCarimbo.length,
     unreconciled_total: semCarimbo.reduce((s, l) => s + centavos(Math.abs(l.amount)), 0) / 100,

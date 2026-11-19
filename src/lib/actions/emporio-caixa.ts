@@ -6,6 +6,7 @@ import { exigir, exigirUma, papelDoEmporio, pode, recusaDe } from "@/lib/emporio
 import { createLinkedEntry, runSerializableTenantTransaction, type TenantTransactionClient } from "@/lib/financial";
 import { resolverTurno } from "@/lib/emporio/turno";
 import { CATEGORIA_DIFERENCA_CAIXA, VIGENCIA_DESDE_SEMPRE, hojeEmBrasilia } from "@/lib/emporio/cartao";
+import { fimDeHojeEmBrasilia } from "@/lib/emporio/data-da-baixa";
 import {
   criarTaxaAction,
   editarTaxaAction,
@@ -583,7 +584,8 @@ async function lojaPresaNaConta(db: TenantPrismaClient, contaId: string, ficam: 
 export async function saldosDasContas(db: TenantPrismaClient): Promise<Map<string, number>> {
   const linhas = await db.cashMovement.groupBy({
     by: ["bank_account_id", "direction"],
-    where: { bank_account_id: { not: null } },
+    // Movimento com data de amanhã em diante é "Agendado": entra no saldo quando o dia chega, sem job.
+    where: { bank_account_id: { not: null }, occurred_at: { lt: fimDeHojeEmBrasilia() } },
     _sum: { amount: true },
   });
   const mapa = new Map<string, number>();
