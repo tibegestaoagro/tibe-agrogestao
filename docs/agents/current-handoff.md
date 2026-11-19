@@ -40,11 +40,14 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   correção). `test:all` 129/129. Falta: a Central editar de novo as vendas nº
   1, 2 e 4 (a primeira edição real em produção) e estender a taxa de crédito
   à vista da LOJA MOC (hoje sem taxa vigente); mensagem entregue ao usuário.
-- 19/11, escrita em produção autorizada pelo usuário: apagado o saldo inicial
-  de R$ 15.020,83 da conta CAIXA DAMATTA (Da Mata; um `CashMovement`
-  `implantacao`, conferido antes e depois na mesma transação, com linha
-  `caixa.saldo_inicial_removido` no Histórico). A Agromax faz pela tela a volta
-  da transferência de R$ 1.436,00 (CONTA / 1256-4 para o PIX 1076-6).
+- 19/11, escritas em produção autorizadas pelo usuário, na Da Mata: (1) apagado
+  o saldo inicial de R$ 15.020,83 da CAIXA DAMATTA; (2) financeiro zerado com
+  `scripts/zerar-financeiro-conta.ts` (494 registros: vendas, caixa, cartão,
+  cheques, boleto, compras, financeiro, 57 movimentos de estoque de venda e
+  compra, 113 linhas do Histórico; md5 do que fica conferido na mesma
+  transação; linha `suporte.financeiro_zerado`). Ficaram orçamentos (268),
+  clientes, produtos, estoque (o TALCO/GEL perdeu as 375 un. da compra) e
+  contas zeradas. A próxima venda é a nº 1.
 - 18/11: paginação das listas e curva ABC em produção (merge `58e077fc`; sobras
   na 5.28).
 - Plano do GestãoClick (Q341 a Q344):
