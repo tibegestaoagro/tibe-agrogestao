@@ -94,6 +94,31 @@ async function secao1Pura() {
     check(`${st} com os três nulos: false (só existe em recebido)`, f({ status: st, number: null, bank: null, good_for: null }) === false);
     check(`${st} completo: false`, f({ status: st }) === false);
   }
+
+  console.log("  (b) grupoNaCarteira e ordenarCarteira (Q369)");
+  check("o módulo exporta grupoNaCarteira e ordenarCarteira", typeof M.grupoNaCarteira === "function" && typeof M.ordenarCarteira === "function");
+  if (typeof M.grupoNaCarteira !== "function" || typeof M.ordenarCarteira !== "function") return;
+  const g = (o: Dado): number => M.grupoNaCarteira({ status: "recebido", number: "123", bank: "Sicredi", good_for: new Date("2026-12-01T12:00:00Z"), ...o });
+  check("recebido sem bom para e sem número: grupo 1", g({ good_for: null, number: null }) === 1);
+  check("recebido sem bom para (com número e banco): grupo 1", g({ good_for: null }) === 1);
+  check("recebido com bom para e sem banco: grupo 2", g({ bank: null }) === 2);
+  check("recebido com bom para e sem número: grupo 2", g({ number: null }) === 2);
+  check("recebido completo: grupo 3", g({}) === 3);
+  check("depositado sem número: grupo 3", g({ status: "depositado", number: null }) === 3);
+  const d = (dia: string) => new Date(`${dia}T12:00:00Z`);
+  const t = (h: number) => new Date(Date.UTC(2026, 10, 1, h));
+  const linha = (id: string, o: Dado) => ({ id, status: "recebido", number: "1", bank: "X", good_for: d("2026-12-10"), created_at: t(1), ...o });
+  const entrada = [
+    linha("c-b", { good_for: d("2026-12-20") }),
+    linha("g2", { bank: null, created_at: t(5) }),
+    linha("g1-tarde", { good_for: null, number: null, created_at: t(9) }),
+    linha("c-a", { good_for: d("2026-12-05") }),
+    linha("g1-cedo", { good_for: null, created_at: t(2) }),
+  ];
+  const copia = entrada.map((x) => x.id);
+  const saida: Dado[] = M.ordenarCarteira(entrada);
+  check("ordenarCarteira: grupo 1 por lançamento, grupo 2, grupo 3 por bom para", j(saida.map((x) => x.id)) === j(["g1-cedo", "g1-tarde", "g2", "c-a", "c-b"]), j(saida.map((x) => x.id)));
+  check("ordenarCarteira devolve cópia e não muda a entrada", j(entrada.map((x) => x.id)) === j(copia) && saida !== entrada);
 }
 
 // ---------------------------------------------------------------------------
@@ -430,6 +455,24 @@ async function secao3() {
   const cartRec: Dado[] = dados(rc)?.checks ?? [];
   const t3 = semDataNoTopo(cartRec);
   check("A receber: o sem data está em checks, no topo", cartRec.some((c) => c.id === semData.id) && t3.ok, `${rc.status} nulos ${t3.nulos}, datados ${t3.datados}`);
+
+  console.log("  (o) ordem da carteira (Q369): sem bom para, depois sem número ou banco, depois o resto");
+  const loja2 = A.lojas[0];
+  const g2Antes = await novoCheque(A, loja2, { holder_name: NOME, bank: "Sicredi", good_for: emDias(30) });
+  const g1Depois = await novoCheque(A, loja2, soNome);
+  const g3 = await novoCheque(A, loja2, completo(emDias(2)));
+  const idsOrd = [g1Depois.id, g2Antes.id];
+  const lo: Dado[] = (await listaCheques(A.tok.owner)).corpo?.data ?? [];
+  const pos = (id: string) => lo.findIndex((c) => c.id === id);
+  check("grupo 2 lançado antes de um do grupo 1 aparece depois dele", pos(g1Depois.id) >= 0 && pos(g1Depois.id) < pos(g2Antes.id), `${pos(g1Depois.id)} ${pos(g2Antes.id)}`);
+  check("o grupo 2 vem antes de qualquer do grupo 3", pos(g2Antes.id) < pos(g3.id) && pos(g3.id) >= 0);
+  const grupoDe = (c: Dado): number => (c.status !== "recebido" ? 3 : c.good_for === null ? 1 : c.number === null || c.bank === null ? 2 : 3);
+  const gs = lo.map(grupoDe);
+  check("a lista inteira vem com os grupos em ordem (1, 2, 3)", gs.every((x, i) => i === 0 || gs[i - 1] <= x), j(gs));
+  const cxo = await chamar(A.tok.owner, R.cash, "GET", "emporio/cash");
+  const cart: Dado[] = dados(cxo)?.checks ?? [];
+  const gc = cart.map(grupoDe);
+  check("a carteira do Caixa também vem em ordem de grupo", gc.length > 0 && gc.every((x, i) => i === 0 || gc[i - 1] <= x) && cart.findIndex((c) => c.id === idsOrd[0]) < cart.findIndex((c) => c.id === idsOrd[1]), j(gc));
 
   console.log("  (a) depositar incompleto: 409 CHEQUE_INCOMPLETO e nada muda");
   const m0 = await (await prismaCru()).cashMovement.count({ where: { check_id: semData.id } });

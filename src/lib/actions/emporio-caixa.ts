@@ -17,7 +17,7 @@ import {
 } from "@/lib/actions/emporio-cartoes";
 import { lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
 import { diferencas, dinheiro, registrarNoHistorico } from "@/lib/emporio/historico";
-import { chequeIncompleto } from "@/lib/emporio/cheque";
+import { chequeIncompleto, ordenarCarteira } from "@/lib/emporio/cheque";
 import { diaUtc, vencimentoEfetivo } from "@/lib/emporio/fiado";
 import { acharLojaParaEscrita } from "@/lib/actions/emporio-estoque";
 import { CATEGORIA_VENDAS } from "@/lib/actions/emporio-vendas";
@@ -1494,8 +1494,8 @@ export async function lerCaixaAction(
       establishment_id: opts.establishment_id ? opts.establishment_id : { in: lojas.map((l) => l.id) },
     },
     include: { customer: { select: { name: true } }, sale: { select: { number: true } } },
-    // O "A completar" (sem data) vai ao topo, destacado, em vez de sumir no fim.
-    orderBy: [{ good_for: { sort: "asc", nulls: "first" } }, { created_at: "asc" }],
+    // A ordem final vem de ordenarCarteira (Q369): sem bom para no topo, depois os sem número ou banco.
+    orderBy: [{ created_at: "asc" }, { id: "asc" }],
   });
 
   const lojaIds = opts.establishment_id ? [opts.establishment_id] : lojas.map((l) => l.id);
@@ -1528,7 +1528,7 @@ export async function lerCaixaAction(
     })),
     accounts: contas,
     card_receivables: parcelas,
-    checks: carteira.map(viewDoCheque),
+    checks: ordenarCarteira(carteira).map(viewDoCheque),
     movements: movs.map(viewDoMovimento),
     movimentos_total: movimentosTotal,
     movimentos_page: recorte.page,
@@ -1900,9 +1900,9 @@ export async function listarChequesAction(
       ...(opts.status ? { status: opts.status as (typeof STATUS_DE_CHEQUE)[number] } : {}),
     },
     include: { customer: { select: { name: true } }, sale: { select: { number: true } } },
-    orderBy: [{ good_for: { sort: "asc", nulls: "first" } }, { created_at: "asc" }],
+    orderBy: [{ created_at: "asc" }, { id: "asc" }],
   });
-  return ok(cheques.map(viewDoCheque));
+  return ok(ordenarCarteira(cheques).map(viewDoCheque));
 }
 
 async function acharCheque(db: TenantPrismaClient, ator: Ator, id: string) {
