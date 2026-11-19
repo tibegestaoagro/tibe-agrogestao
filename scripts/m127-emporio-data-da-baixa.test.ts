@@ -581,7 +581,14 @@ async function secao5() {
       const r = await pagar(b4, { paid_amount: v });
       check(`paid_amount ${rotulo}: 422 em paid_amount`, r.status === 422 && r.corpo?.error?.field === "paid_amount", `${r.status} ${j(r.corpo)}`);
     }
-    const aindaAberto = await cru.emporioBoleto.findFirst({ where: { id: b4 } });
+    const rTexto = await pagar(b4, { paid_amount: "100.1" });
+    check("paid_amount em texto: 422 em paid_amount pela rota", rTexto.status === 422 && rTexto.corpo?.error?.field === "paid_amount", `${rTexto.status} ${j(rTexto.corpo)}`);
+    const X: Dado = await import("@/lib/actions/emporio-caixa");
+    for (const [rotulo, v] of [["NaN", Number.NaN], ["Infinity", Number.POSITIVE_INFINITY], ["acima do limite da coluna", 1e12]] as const) {
+      const r = await X.pagarBoletoAction(db, dono, b4, { bank_account_id: conta, paid_amount: v });
+      check(`ação: paid_amount ${rotulo}: 422 em paid_amount`, !r.ok && r.status === 422 && r.field === "paid_amount", j(r));
+    }
+    const aindaAberto =await cru.emporioBoleto.findFirst({ where: { id: b4 } });
     check("a recusa deixou o boleto aberto", aindaAberto.status === "aberto" && aindaAberto.paid_amount === null);
   } catch (e) {
     check("a seção 5 terminou sem exceção", false, e instanceof Error ? e.stack ?? e.message : String(e));

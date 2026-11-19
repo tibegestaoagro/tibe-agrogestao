@@ -2411,7 +2411,7 @@ export async function pagarBoletoAction(
     return fail("VALIDATION_ERROR", "Escolha a conta bancária onde o boleto foi pago.", 422, "bank_account_id");
   }
   const digitado = input.paid_amount;
-  if (digitado !== undefined && digitado !== null && (typeof digitado !== "number" || !Number.isFinite(digitado) || centavos(digitado) <= 0)) {
+  if (digitado !== undefined && digitado !== null && (typeof digitado !== "number" || !Number.isFinite(digitado) || centavos(digitado) <= 0 || digitado >= 1e12)) {
     return fail("VALIDATION_ERROR", "Informe o valor pago, maior que zero.", 422, "paid_amount");
   }
   const data = await lerDataDaBaixaDoAtor(db, ator, input.paid_on, "paid_on", boleto.establishment_id);
