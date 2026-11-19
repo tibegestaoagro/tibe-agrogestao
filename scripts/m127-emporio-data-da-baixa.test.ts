@@ -449,6 +449,156 @@ async function secao4() {
   }
 }
 
+/**
+ * Seção 5: o valor pago do boleto (Q373). O Financeiro digita o que o banco recebeu: o movimento da conta leva esse valor,
+ * o boleto guarda o original, e a diferença vira juros (pagou mais) ou desconto (pagou menos) no Resultado da loja.
+ */
+async function secao5() {
+  console.log("\n5. Valor pago do boleto: juros e desconto no Resultado");
+  const { prisma, prismaForTenant, scoped } = await import("@/lib/prisma");
+  const { hojeEmBrasilia } = await import("@/lib/emporio/cartao");
+  const { papelDeFixture } = await import("./_emporio-papel");
+  const { abrirTurnoDeTeste } = await import("./_emporio-turno");
+  const { withBearer } = await import("./_escopo-de-requisicao");
+  const bcrypt = (await import("bcryptjs")).default;
+  const Cat: Dado = await import("@/lib/actions/emporio-catalogo");
+  const Est: Dado = await import("@/lib/actions/emporio-estoque");
+  const Cli: Dado = await import("@/lib/actions/emporio-clientes");
+  const Res: Dado = await import("@/lib/actions/emporio-resultado");
+  const rotaTok: Dado = await import("@/app/api/v1/auth/token/route");
+  const cru = prisma as Dado;
+
+  const hoje = hojeEmBrasilia();
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  const mes = iso(hoje).slice(0, 7);
+  const vencimento = iso(new Date(hoje.getTime() + 10 * DIA));
+  const stamp = `${Date.now().toString(36)}`;
+  let seq = 0;
+
+  const t = await prisma.tenant.create({
+    data: { name: `M127e ${stamp}`, document: `M127E${stamp}`.slice(0, 14), plan: "grupo", status: "trial", trial_ends_at: new Date(Date.now() + DIA) },
+  });
+  try {
+    await prisma.tenantProfile.create({ data: { tenant_id: t.id, profile_type: "emporio", active: true } });
+    await prisma.tenantProfile.create({ data: { tenant_id: t.id, profile_type: "fazenda", active: true } });
+    await prisma.tenantFeature.create({ data: { tenant_id: t.id, feature_key: "emporio", enabled: true } });
+    const padrao = { fiado_due_days: 30, fiado_block_after_days: 365, fiado_default_limit: null, fiado_collection_message: null, payment_approval_limit: null };
+    await cru.emporioSettings.upsert({ where: { tenant_id: t.id }, create: { tenant_id: t.id, ...padrao }, update: padrao });
+    const hash = await bcrypt.hash(SENHA, 4);
+    const owner = await prisma.user.create({
+      data: { tenant_id: t.id, name: "M127e own", email: `m127e-own-${stamp}@teste.local`, password_hash: hash, role: "OWNER", ...papelDeFixture("OWNER") },
+    });
+    const db: Dado = prismaForTenant(t.id);
+    const dono = { id: owner.id, role: "OWNER" as const };
+    const loja = (await Cat.criarEstabelecimentoAction(db, dono, { name: "M127e Loja" })).data.id as string;
+    const loja2 = (await Cat.criarEstabelecimentoAction(db, dono, { name: "M127e Loja 2" })).data.id as string;
+    const cat = await db.productCategory.create({ data: scoped({ name: "M127e categoria" }) });
+    const prod = await Cat.criarProdutoEmporioAction(db, dono, { name: `M127e Ração ${stamp}`, category_id: cat.id, base_unit: "quilograma" });
+    const pres = await Cat.criarApresentacaoAction(db, dono, prod.data.id, { name: "Quilo", base_qty: 1, is_sealed_package: false });
+    await Cat.definirPrecoAction(db, dono, { establishment_id: loja, presentation_id: pres.data.id, price: 9.99 });
+    await Est.implantarEstoqueAction(db, dono, { establishment_id: loja, emporio_product_id: prod.data.id, sealed: [], loose_qty: 100000, unit_cost: 4 });
+    await abrirTurnoDeTeste(db, dono, loja);
+    const reg = (await db.cashRegister.findFirst({ where: { establishment_id: loja, number: 1 } })).id as string;
+    const cliente = (await cru.emporioCustomer.create({ data: { tenant_id: t.id, name: "M127e Cliente" } })).id as string;
+    await Cli.garantirConsumidorFinal(db);
+    const conta = (await prisma.bankAccount.create({ data: { tenant_id: t.id, name: "M127e Banco", receives_pix: true, pix_all_establishments: true } })).id as string;
+
+    const r0 = await rotaTok.POST(new Request("http://localhost/api/v1/auth/token", {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: owner.email, password: SENHA }),
+    }));
+    const tok = String(((await r0.json()) as Dado)?.data?.access_token ?? "");
+
+    type Resp = { status: number; corpo: Dado };
+    async function chamar(rota: () => Promise<Dado>, url: string, corpo: unknown, id?: string): Promise<Resp> {
+      const m = await rota();
+      const req = new Request(`http://localhost/api/v1/${url}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(corpo) });
+      const res = await withBearer(tok, (): Promise<Response> => m.POST(req, id === undefined ? undefined : { params: Promise.resolve({ id }) }));
+      return { status: res.status, corpo: (await res.json().catch(() => ({}))) as Dado };
+    }
+    const vendaComBoleto = async (): Promise<string> => {
+      const r = await chamar(() => import("@/app/api/v1/emporio/sales/route"), "emporio/sales", {
+        operation_key: `m127e-venda-${stamp}-${(seq += 1)}`, establishment_id: loja, cash_register_id: reg, customer_id: cliente,
+        items: [{ emporio_product_id: prod.data.id, presentation_id: pres.data.id, quantity: 10 }],
+        payments: [{ kind: "boleto", amount: 99.9, boleto: { due_on: vencimento } }],
+      });
+      if (r.status !== 201) throw new Error(`venda de preparação: ${r.status} ${j(r.corpo).slice(0, 240)}`);
+      const b = await cru.emporioBoleto.findFirst({ where: { tenant_id: t.id, sale_id: String(r.corpo.data.id) } });
+      return b.id as string;
+    };
+    const pagar = (id: string, corpo: Dado) => chamar(() => import("@/app/api/v1/emporio/boletos/[id]/pay/route"), `emporio/boletos/${id}/pay`, { bank_account_id: conta, ...corpo }, id);
+    const resultado = async (estab: string) => {
+      const r = await Res.resultadoDaLojaAction(db, dono, { establishment_id: estab, month: mes });
+      if (!r.ok) throw new Error(`resultado: ${j(r)}`);
+      return r.data as Dado;
+    };
+    const movimento = async (id: string) => (await cru.cashMovement.findFirst({ where: { tenant_id: t.id, boleto_id: id, origin: "boleto_pago" } })) as Dado;
+
+    const base = await resultado(loja);
+    check("antes de qualquer baixa o Resultado tem juros e desconto zerados", base.boleto_interest === 0 && base.boleto_discount === 0, j([base.boleto_interest, base.boleto_discount]));
+
+    console.log("  (a) pago a mais: R$ 100,10 sobre R$ 99,90");
+    const b1 = await vendaComBoleto();
+    const r1 = await pagar(b1, { paid_amount: 100.1 });
+    check("pagar com paid_amount 100,10: 200", r1.status === 200, `${r1.status} ${j(r1.corpo).slice(0, 240)}`);
+    check("a resposta traz amount 99,90, paid_amount 100,10 e difference 0,20", r1.corpo?.data?.amount === 99.9 && r1.corpo?.data?.paid_amount === 100.1 && r1.corpo?.data?.difference === 0.2, j(r1.corpo?.data));
+    check("o movimento da conta é de 100,10", Number((await movimento(b1))?.amount) === 100.1, j(await movimento(b1)));
+    const bd1 = await cru.emporioBoleto.findFirst({ where: { id: b1 } });
+    check("o boleto guarda amount 99,90 e paid_amount 100,10", Number(bd1.amount) === 99.9 && Number(bd1.paid_amount) === 100.1);
+    const log1 = (await cru.emporioAuditLog.findMany({ where: { tenant_id: t.id, action: "boleto.pagar", target_id: b1 } })) as Dado[];
+    check("o Histórico diz pago R$ 100,10 e juros R$ 0,20", log1.some((l) => /100,10/.test(String(l.summary)) && /juros/.test(String(l.summary)) && /0,20/.test(String(l.summary))), j(log1.map((l) => l.summary)));
+    const a1 = await resultado(loja);
+    check("o Resultado da loja traz juros 0,20 e desconto 0", a1.boleto_interest === 0.2 && a1.boleto_discount === 0, j([a1.boleto_interest, a1.boleto_discount]));
+    const esperado = (x: Dado) =>
+      Math.round((x.margin - x.losses - x.fixed_expenses + x.freight.difference - x.anticipation_costs - x.card_cost.adjustments + x.boleto_interest - x.boleto_discount) * 100);
+    check("o result inclui os juros (0,20)", Math.round(a1.result * 100) === esperado(a1) && a1.boleto_interest === 0.2, `${a1.result} esperado ${esperado(a1) / 100}`);
+
+    console.log("  (b) pago a menos: R$ 95,00");
+    const b2 = await vendaComBoleto();
+    const r2 = await pagar(b2, { paid_amount: 95 });
+    check("pagar com paid_amount 95: 200 e difference -4,90", r2.status === 200 && r2.corpo?.data?.difference === -4.9, `${r2.status} ${j(r2.corpo?.data)}`);
+    check("o movimento da conta é de 95,00", Number((await movimento(b2))?.amount) === 95, j(await movimento(b2)));
+    const log2 = (await cru.emporioAuditLog.findMany({ where: { tenant_id: t.id, action: "boleto.pagar", target_id: b2 } })) as Dado[];
+    check("o Histórico diz pago R$ 95,00 e desconto R$ 4,90", log2.some((l) => /95,00/.test(String(l.summary)) && /desconto/.test(String(l.summary)) && /4,90/.test(String(l.summary))), j(log2.map((l) => l.summary)));
+    const a2 = await resultado(loja);
+    check("o Resultado traz juros 0,20 e desconto 4,90", a2.boleto_interest === 0.2 && a2.boleto_discount === 4.9, j([a2.boleto_interest, a2.boleto_discount]));
+    check("o result inclui os juros e o desconto (0,20 menos 4,90)", Math.round(a2.result * 100) === esperado(a2), `${a2.result} esperado ${esperado(a2) / 100}`);
+    const all = await resultado("all");
+    check("a visão de todas as lojas soma o mesmo", all.boleto_interest === 0.2 && all.boleto_discount === 4.9, j([all.boleto_interest, all.boleto_discount]));
+    const outra = await resultado(loja2);
+    check("o Resultado de outra loja não recebe nada", outra.boleto_interest === 0 && outra.boleto_discount === 0, j([outra.boleto_interest, outra.boleto_discount]));
+
+    console.log("  (c) sem paid_amount, igual a hoje");
+    const b3 = await vendaComBoleto();
+    const r3 = await pagar(b3, {});
+    check("sem paid_amount: 200, paid_amount 99,90 e difference 0", r3.status === 200 && r3.corpo?.data?.paid_amount === 99.9 && r3.corpo?.data?.difference === 0, `${r3.status} ${j(r3.corpo?.data)}`);
+    check("o movimento é do valor do boleto", Number((await movimento(b3))?.amount) === 99.9);
+    const a3 = await resultado(loja);
+    check("o Resultado não mudou", a3.boleto_interest === 0.2 && a3.boleto_discount === 4.9, j([a3.boleto_interest, a3.boleto_discount]));
+
+    console.log("  (d) recusas");
+    const b4 = await vendaComBoleto();
+    for (const [rotulo, v] of [["zero", 0], ["negativo", -5]] as const) {
+      const r = await pagar(b4, { paid_amount: v });
+      check(`paid_amount ${rotulo}: 422 em paid_amount`, r.status === 422 && r.corpo?.error?.field === "paid_amount", `${r.status} ${j(r.corpo)}`);
+    }
+    const aindaAberto = await cru.emporioBoleto.findFirst({ where: { id: b4 } });
+    check("a recusa deixou o boleto aberto", aindaAberto.status === "aberto" && aindaAberto.paid_amount === null);
+  } catch (e) {
+    check("a seção 5 terminou sem exceção", false, e instanceof Error ? e.stack ?? e.message : String(e));
+  } finally {
+    await prisma.emporioSale.updateMany({ where: { tenant_id: t.id }, data: { exchange_return_id: null, quote_id: null } }).catch(() => undefined);
+    const modelos = [
+      "emporioBoleto", "emporioAuditLog", "cashMovement", "emporioSalePayment", "stockMovement", "emporioSaleItem", "emporioCheck", "emporioSale",
+      "financialPayment", "financialEntry", "emporioCustomer", "cashSession", "cashRegister", "emporioCounter", "emporioSettings",
+      "userEstablishment", "establishment", "bankAccount", "user", "tenantProfile", "tenantFeature",
+    ];
+    for (let passada = 0; passada < 2; passada += 1) {
+      for (const m of modelos) await (prisma as Dado)[m]?.deleteMany({ where: { tenant_id: t.id } }).catch(() => undefined);
+    }
+    await prisma.tenant.delete({ where: { id: t.id } }).catch((e: unknown) => console.log(`  (teardown 5: ${e instanceof Error ? e.message.slice(0, 100) : e})`));
+  }
+}
+
 async function main() {
   const { prisma, prismaForTenant, scoped } = await import("@/lib/prisma");
   const { hojeEmBrasilia } = await import("@/lib/emporio/cartao");
@@ -551,6 +701,7 @@ async function main() {
 
   await secao3();
   await secao4();
+  await secao5();
   await prisma.$disconnect();
   console.log(`\nChecagens: ${total}`);
   console.log(falhas === 0 ? "\n✅ M127 (Módulo 39, Empório): data da baixa passou." : `\n❌ M127 (Módulo 39, Empório): ${falhas} afirmação(ões) falharam.`);

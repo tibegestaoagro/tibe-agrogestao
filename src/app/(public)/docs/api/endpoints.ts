@@ -1754,16 +1754,16 @@ export const GROUPS: Group[] = [
         auth: "Sessão · emporio:read · quem tem a loja no vínculo",
         description: "Boletos registrados nas vendas, do vencimento mais antigo ao mais novo; os cancelados (venda cancelada) não aparecem. Filtros: `status` (`aberto`, que inclui os vencidos, `vencido`, `pago` ou `no_fiado`; outro valor: 422 `status`), `loja` (ou `establishment_id`; loja fora do vínculo: 404) e `customer_id`. `overdue` é verdadeiro no boleto `aberto` com `due_on` antes de hoje em Brasília (calculado, não gravado). `due_on` e `paid_on` são datas de calendário.",
         response: `200
-{ "data": [{ "id": "cl...", "sale_id": "cl...", "sale_number": 12, "customer_id": "cl...", "customer_name": "Seu Zé", "establishment_id": "cl...", "establishment_name": "Loja Centro", "number": "0001", "due_on": "2026-12-10", "amount": 100, "status": "aberto", "overdue": false, "bank_account_id": null, "bank_account_name": null, "paid_on": null, "sent_to_fiado_at": null, "reason": null }], "meta": {} }`,
+{ "data": [{ "id": "cl...", "sale_id": "cl...", "sale_number": 12, "customer_id": "cl...", "customer_name": "Seu Zé", "establishment_id": "cl...", "establishment_name": "Loja Centro", "number": "0001", "due_on": "2026-12-10", "amount": 100, "status": "aberto", "overdue": false, "bank_account_id": null, "bank_account_name": null, "paid_on": null, "paid_amount": null, "difference": null, "sent_to_fiado_at": null, "reason": null }], "meta": {} }`,
       },
       {
         method: "POST",
         path: "/api/v1/emporio/boletos/:id/pay",
         auth: "Sessão · emporio:write · só OWNER e ADMIN (ou gestor da loja)",
-        description: "Boleto pago: `aberto` para `pago`, e o valor entra na conta escolhida (movimento `boleto_pago`, na data `paid_on`, de hoje menos 31 a hoje mais 31 dias: fora, 422 `paid_on` com \"A data precisa estar entre DD/MM/AAAA e DD/MM/AAAA.\"; padrão hoje; data futura vira Agendado no extrato e só conta no saldo no dia). Mudam a data o Financeiro, o Gerente geral, o Dono e o Gestor da loja do boleto (os demais: 403 `paid_on`, \"Só o Financeiro, o Gerente geral e o Dono mudam a data.\"). `bank_account_id` obrigatório e de conta ativa (422 `bank_account_id`). Fora da ordem: 409 `BOLETO_STATUS`.",
-        request: `{ "bank_account_id": "cl...", "paid_on": "2026-12-10" }`,
+        description: "Boleto pago: `aberto` para `pago`, e o valor entra na conta escolhida (movimento `boleto_pago`, na data `paid_on`, de hoje menos 31 a hoje mais 31 dias: fora, 422 `paid_on` com \"A data precisa estar entre DD/MM/AAAA e DD/MM/AAAA.\"; padrão hoje; data futura vira Agendado no extrato e só conta no saldo no dia). Mudam a data o Financeiro, o Gerente geral, o Dono e o Gestor da loja do boleto (os demais: 403 `paid_on`, \"Só o Financeiro, o Gerente geral e o Dono mudam a data.\"). `bank_account_id` obrigatório e de conta ativa (422 `bank_account_id`). `paid_amount` (opcional, maior que zero: 422 `paid_amount`) é o valor que o banco recebeu: o movimento da conta e o `paid_amount` do boleto levam esse valor, o boleto guarda o original em `amount`, e `difference` (pago menos original) vira \"Juros recebidos\" (positivo) ou \"Desconto concedido\" (negativo) no Resultado da loja do boleto, no mês de `paid_on`; sem ele vale o valor do boleto. Fora da ordem: 409 `BOLETO_STATUS`.",
+        request: `{ "bank_account_id": "cl...", "paid_on": "2026-12-10", "paid_amount": 100.1 }`,
         response: `200
-{ "data": { "id": "cl...", "status": "pago", "bank_account_id": "cl...", "paid_on": "2026-12-10" }, "meta": {} }`,
+{ "data": { "id": "cl...", "status": "pago", "bank_account_id": "cl...", "paid_on": "2026-12-10", "amount": 99.9, "paid_amount": 100.1, "difference": 0.2 }, "meta": {} }`,
       },
       {
         method: "POST",

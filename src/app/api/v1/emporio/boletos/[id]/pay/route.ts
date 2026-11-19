@@ -6,11 +6,12 @@ import { pagarBoletoAction } from "@/lib/actions/emporio-caixa";
 import { dataIso } from "@/lib/emporio/venda-schema";
 import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
 
-/** POST /api/v1/emporio/boletos/:id/pay  { bank_account_id, paid_on? }: o boleto foi pago e o dinheiro entra na conta. */
+/** POST /api/v1/emporio/boletos/:id/pay  { bank_account_id, paid_on?, paid_amount? }: o boleto foi pago e o dinheiro entra na conta. */
 
 const schema = z.object({
   bank_account_id: z.string({ error: "Escolha a conta do pagamento." }).min(1, "Escolha a conta do pagamento."),
   paid_on: dataIso.nullish(),
+  paid_amount: z.number({ error: "Informe o valor pago, maior que zero." }).positive("Informe o valor pago, maior que zero.").nullish(),
 });
 
 type Props = { params: Promise<{ id: string }> };

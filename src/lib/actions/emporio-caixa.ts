@@ -2274,6 +2274,10 @@ export type BoletoView = {
   bank_account_name: string | null;
   /** Data de calendário (AAAA-MM-DD) do pagamento no banco. */
   paid_on: string | null;
+  /** O que o banco recebeu (nulo no boleto não pago); sem valor digitado vale `amount`. */
+  paid_amount: number | null;
+  /** Pago menos o original (positivo: juros; negativo: desconto); nulo no boleto não pago. */
+  difference: number | null;
   sent_to_fiado_at: string | null;
   reason: string | null;
 };
@@ -2308,6 +2312,7 @@ type BoletoRow = {
   status: string;
   bank_account_id: string | null;
   paid_on: Date | null;
+  paid_amount?: unknown;
   sent_to_fiado_at: Date | null;
   fiado_reason: string | null;
   customer: { name: string };
@@ -2317,6 +2322,8 @@ type BoletoRow = {
 };
 
 function viewDoBoleto(b: BoletoRow, hoje: Date): BoletoView {
+  const original = decToNum(b.amount as never) ?? 0;
+  const pago = b.status === "pago" ? (decToNum(b.paid_amount as never) ?? original) : null;
   return {
     id: b.id,
     sale_id: b.sale_id,
@@ -2333,6 +2340,8 @@ function viewDoBoleto(b: BoletoRow, hoje: Date): BoletoView {
     bank_account_id: b.bank_account_id,
     bank_account_name: b.bank_account?.name ?? null,
     paid_on: b.paid_on ? dia(b.paid_on) : null,
+    paid_amount: pago,
+    difference: pago === null ? null : arred2(pago - original),
     sent_to_fiado_at: isoOrNull(b.sent_to_fiado_at),
     reason: b.fiado_reason,
   };
@@ -2387,7 +2396,7 @@ export async function pagarBoletoAction(
   db: TenantPrismaClient,
   ator: Ator,
   id: string,
-  input: { bank_account_id: string; paid_on?: string | Date | null },
+  input: { bank_account_id: string; paid_on?: string | Date | null; paid_amount?: number | null },
 ): Promise<ActionResult<BoletoView>> {
   const neg = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "marcar o boleto como pago");
   if (neg) return neg;
@@ -2401,15 +2410,33 @@ export async function pagarBoletoAction(
   if (!conta || conta.archived_at) {
     return fail("VALIDATION_ERROR", "Escolha a conta bancária onde o boleto foi pago.", 422, "bank_account_id");
   }
+  const digitado = input.paid_amount;
+  if (digitado !== undefined && digitado !== null && (typeof digitado !== "number" || !Number.isFinite(digitado) || centavos(digitado) <= 0)) {
+    return fail("VALIDATION_ERROR", "Informe o valor pago, maior que zero.", 422, "paid_amount");
+  }
   const data = await lerDataDaBaixaDoAtor(db, ator, input.paid_on, "paid_on", boleto.establishment_id);
   if (!data.ok) return data;
   const pagoEm = data.data.dia;
+  const originalCent = centavos(decToNum(boleto.amount) ?? 0);
+  const pagoCent = digitado === undefined || digitado === null ? originalCent : centavos(digitado);
+  const diferencaCent = pagoCent - originalCent;
+  const sufixoDoValor =
+    diferencaCent === 0
+      ? ""
+      : `, pago ${dinheiro(pagoCent / 100)} (${diferencaCent > 0 ? "juros" : "desconto"} ${dinheiro(Math.abs(diferencaCent) / 100)})`;
   try {
     await runSerializableTenantTransaction(db, async (tx) => {
       const agora = new Date();
       const r = await tx.emporioBoleto.updateMany({
         where: { id, status: "aberto" },
-        data: { status: "pago", bank_account_id: conta.id, paid_on: pagoEm, paid_at: agora, updated_by_user_id: ator.id },
+        data: {
+          status: "pago",
+          bank_account_id: conta.id,
+          paid_on: pagoEm,
+          paid_at: agora,
+          paid_amount: pagoCent / 100,
+          updated_by_user_id: ator.id,
+        },
       });
       if (r.count === 0) throw new RecusaCaixa(BOLETO_FORA_DE_ORDEM("pago"));
       await tx.cashMovement.create({
@@ -2417,7 +2444,7 @@ export async function pagarBoletoAction(
           establishment_id: null,
           bank_account_id: conta.id,
           direction: "entrada" as const,
-          amount: decToNum(boleto.amount) ?? 0,
+          amount: pagoCent / 100,
           origin: "boleto_pago" as const,
           // Hoje vale o instante da baixa; outro dia, o meio-dia de Brasília: o extrato mostra o dia certo.
           occurred_at: data.data.instante(agora),
@@ -2431,7 +2458,7 @@ export async function pagarBoletoAction(
         establishment_id: boleto.establishment_id,
         target_type: "boleto",
         target_id: id,
-        summary: `Marcou o boleto${boleto.number ? ` ${boleto.number}` : ""} de ${dinheiro(decToNum(boleto.amount) ?? 0)} como pago${data.data.sufixo}`,
+        summary: `Marcou o boleto${boleto.number ? ` ${boleto.number}` : ""} de ${dinheiro(decToNum(boleto.amount) ?? 0)} como pago${sufixoDoValor}${data.data.sufixo}`,
       });
     });
   } catch (err) {
