@@ -765,17 +765,76 @@ async function secao8() {
   const on = emDias(-9);
 
   console.log("  (a) venda cancelada DEPOIS de conferida");
-  const p = await parcela(A, c, { net: 100, on });
-  const rc = await conf(A, A.tok.fin, p.id, 96);
-  check("preparação: conferida com 4,00 a menos", ok2xx(rc), `${rc.status}`);
+  const estornosDe = async (ids: string[]): Promise<Dado[]> =>
+    (await prismaCru()).cashMovement.findMany({ where: { card_receivable_id: { in: ids }, origin: "estorno_cartao" } });
+  const historicoDe = async (action: string, targetId: string): Promise<Dado[]> =>
+    (await prismaCru()).emporioAuditLog.findMany({ where: { tenant_id: A.tenantId, action, target_id: targetId } });
+
+  const saldoAntesDaVenda = await saldo(A, c.conta);
+  const p = await parcela(A, c, { net: 97.5, on });
+  const rc = await conf(A, A.tok.fin, p.id, 94.5);
+  check("preparação: conferida com 3,00 a menos", ok2xx(rc), `${rc.status}`);
   const rv = await cancelarVenda(A, p);
   check("cancelar a venda: 2xx", ok2xx(rv), `${rv.status} ${j(rv.corpo).slice(0, 200)}`);
-  // A parcela que já caiu segue viva e o estorno_cartao a compensa no saldo (cancelamento de antes desta frente);
-  // a spec só pede que ela saia dos estados.
   const r = await aReceber(A.tok.owner);
   check("a parcela cancelada some dos estados (A receber)", cartoesDe(r).find((x) => x.id === p.id) === undefined);
+  const est = await estornosDe([p.id]);
+  check("há um só estorno", est.length === 1, `${est.length}`);
+  check("o estorno sai pelo valor conferido", est.length === 1 && est[0].amount.toString() === "94.5" && est[0].direction === "saida", j(est.map((m) => [m.direction, m.amount])));
   const aj = await ajustesDe([p.id]);
-  console.log(`  (informativo: o ajuste da conferida cancelada ${aj.length === 1 ? "ficou" : "foi apagado"} no extrato: ${j(aj.map((m) => [m.direction, m.amount]))})`);
+  check("o ajuste da conferência fica no extrato", aj.length === 1, `${aj.length}`);
+  check("a parcela segue conferida", (await lerParcela(p.id)).reconciled_at !== null);
+  check("o saldo da conta volta ao de antes da venda", (await saldo(A, c.conta)) === saldoAntesDaVenda, `${(await saldo(A, c.conta)) - saldoAntesDaVenda}`);
+  const hist = await historicoDe("cartao.estorno_conferida", p.id);
+  check("Histórico com cartao.estorno_conferida, com o valor que caiu", hist.length === 1 && String(hist[0].summary).includes("94,50"), j(hist.map((h) => h.summary)));
+  const extE = await chamar(A.tok.fin, R.statement, "GET", `emporio/finance/statement?bank_account_id=${c.conta}&de=${emDias(-12)}&ate=${hojeStr}`);
+  const linE = ((extE.corpo?.data?.lines ?? []) as Dado[]).find((l) => l.kind === "movimento" && est.length === 1 && l.id === est[0].id);
+  check("o extrato descreve o estorno como \"Estorno de cartão: <motivo>\"", linE?.description === "Estorno de cartão: Erro de digitação", j(linE));
+  const rdes = await desf(A.tok.owner, p.id, "Tentando desfazer depois de cancelar");
+  check("Desfazer a conferência depois do cancelamento: 409 VENDA_CANCELADA", recusou(rdes, 409) && rdes.corpo?.error?.code === "VENDA_CANCELADA", `${rdes.status} ${j(rdes.corpo).slice(0, 160)}`);
+
+  console.log("  (a1) conferida em R$ 0,00 (estorno do banco) e depois cancelada: sem linha de estorno, sem 500");
+  const saldoAntesZero = await saldo(A, c.conta);
+  const pz = await parcela(A, c, { net: 97.5, on });
+  const rcz = await conf(A, A.tok.fin, pz.id, 0);
+  check("preparação: conferida em 0,00", ok2xx(rcz) && cent((await lerParcela(pz.id)).confirmed_net) === 0, `${rcz.status} ${j(rcz.corpo).slice(0, 160)}`);
+  const rvz = await cancelarVenda(A, pz);
+  check("cancelar a venda conferida em 0,00: 2xx", ok2xx(rvz), `${rvz.status} ${j(rvz.corpo).slice(0, 200)}`);
+  check("nenhum estorno_cartao para essa parcela", (await estornosDe([pz.id])).length === 0);
+  check("o saldo volta ao de antes da venda (+97,50 da parcela, -97,50 do ajuste)", (await saldo(A, c.conta)) === saldoAntesZero, `${(await saldo(A, c.conta)) - saldoAntesZero}`);
+  const histZ = await historicoDe("cartao.estorno_conferida", pz.id);
+  check("Histórico com cartao.estorno_conferida, dizendo que caiu 0,00 e não houve linha de estorno", histZ.length === 1 && String(histZ[0].summary).includes("0,00") && String(histZ[0].summary).includes("sem linha de estorno"), j(histZ.map((h) => h.summary)));
+
+  console.log("  (a2) duas parcelas: a 1ª conferida sem diferença, a 2ª futura");
+  const p2a = await parcela(A, c, { net: 60, on });
+  const P = await prismaCru();
+  const base = await P.cardReceivable.findUnique({ where: { id: p2a.id } });
+  const { id: _id, ...resto } = base;
+  const p2b = await P.cardReceivable.create({
+    data: { ...resto, installment: 2, installments: 2, expected_on: dUTC(emDias(30)), effective_on: dUTC(emDias(30)), reconciled_at: null, reconciled_by_user_id: null, confirmed_net: null },
+  });
+  await P.cardReceivable.update({ where: { id: p2a.id }, data: { installments: 2 } });
+  const rc2 = await conf(A, A.tok.fin, p2a.id, 60);
+  check("preparação: a 1ª conferida pelo previsto", ok2xx(rc2), `${rc2.status} ${j(rc2.corpo).slice(0, 160)}`);
+  const rv3 = await cancelarVenda(A, p2a);
+  check("cancelar a venda de duas parcelas: 2xx", ok2xx(rv3), `${rv3.status} ${j(rv3.corpo).slice(0, 200)}`);
+  const est2 = await estornosDe([p2a.id, p2b.id]);
+  check("só uma linha estorno_cartao, a da 1ª, pelo conferido", est2.length === 1 && est2[0].card_receivable_id === p2a.id && est2[0].amount.toString() === "60", j(est2.map((m) => [m.card_receivable_id, m.amount])));
+  check("a 2ª, futura, fica cancelada", (await lerParcela(p2b.id)).canceled_at !== null);
+
+  console.log("  (a3) conferida por antecipação pontual: um estorno, pelo líquido que caiu");
+  const An = await import("@/lib/actions/emporio-antecipacao");
+  const pa = await parcela(A, c, { net: 100, on: emDias(5) });
+  const opa = await An.anteciparAction(A.db, A.owner, { receivable_ids: [pa.id], operated_on: meioDia(hojeStr), received_net: 95 });
+  check("preparação: antecipada", opa.ok, j(opa).slice(0, 200));
+  const opaId = opa.ok ? ((opa.data as Dado).id as string) : "x";
+  const rv4 = await cancelarVenda(A, pa);
+  check("cancelar a venda da antecipada: 2xx", ok2xx(rv4), `${rv4.status} ${j(rv4.corpo).slice(0, 200)}`);
+  const est3 = await estornosDe([pa.id]);
+  const dpa = await lerParcela(pa.id);
+  check("um estorno só, pelo effective_net (igual ao confirmed_net)", est3.length === 1 && cent(est3[0].amount) === cent(dpa.effective_net) && cent(dpa.effective_net) === cent(dpa.confirmed_net), j([est3.map((m) => m.amount), dpa.effective_net, dpa.confirmed_net]));
+  const rxa = await An.desfazerAntecipacaoAction(A.db, A.owner, opaId);
+  check("desfazer a antecipação depois do cancelamento: ANTECIPACAO_VENDA_CANCELADA", !rxa.ok && rxa.code === "ANTECIPACAO_VENDA_CANCELADA", j(rxa).slice(0, 200));
 
   console.log("  (b) venda cancelada ANTES de conferir: sai das contagens e não se confere");
   const q = await parcela(A, c, { net: 50, on });

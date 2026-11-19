@@ -48,7 +48,10 @@ export function CartoesAReceber({
   semAtrasadoNoFiltro = false,
   podeConferir = false,
   loja = "",
+  nota = null,
 }: {
+  /** Frase curta sob o título (ex.: o que o filtro Vence hoje traz a mais). */
+  nota?: string | null;
   /** A loja do filtro da tela (vazia: todas). O "Conferir o dia" confere só as parcelas dela, as que a tela mostra. */
   loja?: string;
   /** O cliente padrão, que não vira link. */
@@ -106,6 +109,7 @@ export function CartoesAReceber({
     <>
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-texto">Cartões a receber</h2>
+        {nota && <p className="text-sm text-texto-secundario">{nota}</p>}
         {cards.length === 0 && semAtrasadoNoFiltro ? (
           <EmptyState titulo="Nada atrasado no cartão">
             Nenhuma parcela de cartão passou do prazo sem ser conferida.

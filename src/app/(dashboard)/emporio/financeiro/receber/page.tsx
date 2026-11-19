@@ -29,11 +29,13 @@ const CAMINHO = "/emporio/financeiro/receber";
 export default async function FinanceiroReceberPage({
   searchParams,
 }: {
-  searchParams: Promise<{ loja?: string; ver?: string; de?: string; ate?: string; pagina_ant?: string }>;
+  searchParams: Promise<{ loja?: string; ver?: string; cheques?: string; de?: string; ate?: string; pagina_ant?: string }>;
 }) {
   const user = await requireFeaturePage("emporio");
-  const { loja: lojaDaUrl = "", ver: verDaUrl, de: deDaUrl, ate: ateDaUrl, pagina_ant: paginaAntDaUrl } = await searchParams;
+  const { loja: lojaDaUrl = "", ver: verDaUrl, cheques: chequesDaUrl, de: deDaUrl, ate: ateDaUrl, pagina_ant: paginaAntDaUrl } = await searchParams;
   const ver = verDoReceber(verDaUrl);
+  // Filtro próprio (não é um valor do ?ver=): a faixa, o fiado e os cartões ficam como estão.
+  const soACompletar = chequesDaUrl === "a_completar";
   // Sem `de` e `ate` válidos, o período é Este mês (o Recebido do cartão abre nele).
   const periodo = periodoDaUrl({ de: deDaUrl, ate: ateDaUrl }, hojeEmBrasilia());
   const hoje = hojeIsoEmBrasilia();
@@ -88,7 +90,7 @@ export default async function FinanceiroReceberPage({
         lojas={lojas}
         loja={loja}
         caminho="/emporio/financeiro/receber"
-        preservar={{ ver: ver ?? undefined, de: deDaUrl, ate: ateDaUrl }}
+        preservar={{ ver: ver ?? undefined, cheques: soACompletar ? "a_completar" : undefined, de: deDaUrl, ate: ateDaUrl }}
       />
 
       {dadosRes.ok && (
@@ -126,6 +128,7 @@ export default async function FinanceiroReceberPage({
       ) : (
         <FinanceiroReceber
           ver={ver}
+          soACompletar={soACompletar}
           loja={loja}
           hoje={hoje}
           padraoId={padraoId}

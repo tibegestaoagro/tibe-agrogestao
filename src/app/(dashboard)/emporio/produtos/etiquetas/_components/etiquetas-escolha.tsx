@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { reaisBr } from "@/lib/numero-br";
+import { textoSemBarras } from "@/lib/emporio/etiqueta-medidas";
 import type { ItemDeEtiqueta, LojaDeEtiqueta } from "../_dados";
 
 type Formato = "a4" | "rolo";
@@ -33,12 +34,18 @@ export function EtiquetasEscolha({
   itens,
   formatoPadrao,
   posicoesDaFolha,
+  semBarras,
+  alturaMinima,
 }: {
   lojas: LojaDeEtiqueta[];
   itens: ItemDeEtiqueta[];
   formatoPadrao: Formato;
   /** Colunas x linhas da folha A4 configurada. */
   posicoesDaFolha: number;
+  /** Formato cuja etiqueta configurada é baixa demais para as barras. */
+  semBarras: { a4: boolean; rolo: boolean };
+  /** Menor altura que serviria em cada formato, para o texto do aviso. */
+  alturaMinima: { a4: number | null; rolo: number | null };
 }) {
   const [lojaId, setLojaId] = useState(lojas[0]?.id ?? "");
   const [formato, setFormato] = useState<Formato>(formatoPadrao);
@@ -90,6 +97,9 @@ export function EtiquetasEscolha({
     (s, i) => s + Math.min(Math.max(Number(copias[i.id]) || 1, 1), COPIAS_MAXIMAS),
     0,
   );
+
+  // Só avisa se alguma etiqueta marcada tem código: sem código não há barras a perder.
+  const perdeBarras = semBarras[formato] && validos.some((i) => !!i.barcode);
 
   return (
     <div className="space-y-4">
@@ -211,6 +221,12 @@ export function EtiquetasEscolha({
                 );
               })}
             </ul>
+          )}
+
+          {perdeBarras && (
+            <p data-aviso="sem-barras" className="text-sm text-atencao-tinta">
+              {textoSemBarras(alturaMinima[formato])}
+            </p>
           )}
 
           <div className="flex flex-wrap items-center gap-3">

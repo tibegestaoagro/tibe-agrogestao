@@ -69,7 +69,8 @@ def texto_principal(n=400):
 
 
 def eh_404():
-    return bool(js("document.body.innerText.includes('404') || document.body.innerText.includes('could not be found')"))
+    """A pagina de 404 do Next ('This page could not be found'). Nao procura '404' solto: numero de venda como 004043 casa."""
+    return bool(js("document.body.innerText.includes('could not be found')"))
 
 
 def clicar(rotulo):

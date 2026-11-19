@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useErrosDeFormulario } from "@/components/ui/use-erros-de-formulario";
 import { apiPatch } from "@/lib/client-api";
 import { lerNumeroBr } from "@/lib/numero-br";
+import { alturaMinimaComBarras, cabemBarras, textoSemBarras } from "@/lib/emporio/etiqueta-medidas";
 import { ATALHOS_PADRAO, TECLAS_PERMITIDAS } from "@/lib/emporio/atalhos";
 import type { EmporioSettingsView } from "@/lib/actions/emporio-configuracoes";
 import { paraCampo } from "../../_components/formato";
@@ -206,6 +207,14 @@ export function BalcaoEtiquetasForm({ balcao }: { balcao: BalcaoParaForm }) {
     router.refresh();
   }
 
+  /** Aviso embaixo da altura quando, com a largura e a altura digitadas, as barras não cabem. */
+  const avisoDeBarras = (largura: string, altura: string): string | undefined => {
+    const l = lerNumeroBr(largura);
+    const a = lerNumeroBr(altura);
+    if (l === null || a === null || l <= 0 || a <= 0 || cabemBarras(l, a)) return undefined;
+    return textoSemBarras(alturaMinimaComBarras(l));
+  };
+
   const tecla = (campo: CampoDeTexto, rotulo: string, dica?: string) => (
     <Field label={rotulo} hint={dica} id={err.idDe(campo)} error={err.erros[campo]}>
       {({ id, ...aria }) => (
@@ -314,7 +323,12 @@ export function BalcaoEtiquetasForm({ balcao }: { balcao: BalcaoParaForm }) {
             />
           )}
         </Field>
-        <Field label="Altura da etiqueta" id={err.idDe("label_a4_height")} error={err.erros.label_a4_height}>
+        <Field
+          label="Altura da etiqueta"
+          hint={avisoDeBarras(f.label_a4_width, f.label_a4_height)}
+          id={err.idDe("label_a4_height")}
+          error={err.erros.label_a4_height}
+        >
           {({ id, ...aria }) => (
             <MoneyInput
               id={id}
@@ -390,7 +404,12 @@ export function BalcaoEtiquetasForm({ balcao }: { balcao: BalcaoParaForm }) {
             />
           )}
         </Field>
-        <Field label="Altura da etiqueta" id={err.idDe("label_roll_height")} error={err.erros.label_roll_height}>
+        <Field
+          label="Altura da etiqueta"
+          hint={avisoDeBarras(f.label_roll_width, f.label_roll_height)}
+          id={err.idDe("label_roll_height")}
+          error={err.erros.label_roll_height}
+        >
           {({ id, ...aria }) => (
             <MoneyInput
               id={id}

@@ -759,6 +759,17 @@ async function secao3() {
   check("listarEntregas: o Caixa recebe 403", rec(await Tu.listarEntregasAction(db, cx, { establishment_id: L1 }), "FORBIDDEN", 403));
   check("listarEntregas: o Vendedor recebe 403", rec(await Tu.listarEntregasAction(db, v1, {}), "FORBIDDEN", 403));
   check("listarEntregas: o Gestor da loja lê", (await Tu.listarEntregasAction(db, gestor, { establishment_id: L1 })).ok);
+  // sem establishment_id, o filtro de loja do gestor tem que estar no where (não na página)
+  const pendL1 = await db.cashHandover.count({ where: { establishment_id: L1, confirmed_at: null } });
+  check("há entrega pendente na Loja 1 para o filtro ter o que esconder", pendL1 > 0, String(pendL1));
+  const entregasG2 = await Tu.listarEntregasAction(db, gestor2, {});
+  check("(a) o Gestor da Loja 2 não recebe nenhuma entrega da Loja 1", entregasG2.ok && entregasG2.data.linhas.every((e: Dado) => e.establishment_id === L2), j(entregasG2));
+  const pendL2 = await db.cashHandover.count({ where: { establishment_id: L2, confirmed_at: null } });
+  check("(a) o total do Gestor da Loja 2 conta só as da Loja 2", entregasG2.ok && entregasG2.data.total === pendL2, j(entregasG2));
+  check("(b) o Gestor da Loja 2 pede a Loja 1 pelo filtro: 403", rec(await Tu.listarEntregasAction(db, gestor2, { establishment_id: L1 }), "FORBIDDEN", 403));
+  const entregasG1 = await Tu.listarEntregasAction(db, gestor, {});
+  check("(c) o Gestor da Loja 1 sem establishment_id recebe só as da Loja 1", entregasG1.ok && entregasG1.data.linhas.length > 0 && entregasG1.data.linhas.every((e: Dado) => e.establishment_id === L1), j(entregasG1));
+  check("(c) o total do Gestor da Loja 1 conta só as da Loja 1", entregasG1.ok && entregasG1.data.total === pendL1, j(entregasG1));
 
   // --- listar e ler
   const lc =await Tu.listarCaixasAction(db, v1, L1);

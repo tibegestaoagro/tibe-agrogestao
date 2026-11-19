@@ -1,5 +1,11 @@
 import { reaisBr } from "@/lib/numero-br";
 import { CodigoDeBarras } from "@/components/emporio/codigo-de-barras";
+import {
+  PADDING_DA_ETIQUETA_MM,
+  alturaDasBarras,
+  cabemBarras,
+  escalaDaEtiqueta,
+} from "@/lib/emporio/etiqueta-medidas";
 
 /**
  * Etiquetas de prateleira em folha A4 ou rolo. Papel preto sobre branco, sem
@@ -26,20 +32,17 @@ export type MedidasA4 = {
 
 export type MedidasRolo = { width: number; height: number; columns: number; gap_x: number };
 
-const PT_EM_MM = 0.3528;
-const FOLGA = 1.2;
-
 function Etiqueta({ e, largura, altura }: { e: EtiquetaDados; largura: number; altura: number }) {
-  // As fontes crescem e encolhem com a etiqueta (base: 40 x 25 mm).
-  const escala = Math.min(Math.max(Math.min(largura / 40, altura / 25), 0.75), 1.6);
+  // As fontes crescem e encolhem com a etiqueta (base: 40 x 25 mm); a conta das barras é a do módulo
+  // de medidas, a mesma que sustenta o aviso das Configurações.
+  const escala = escalaDaEtiqueta(largura, altura);
   const fNome = 7 * escala;
   const fApres = 6 * escala;
   const fPreco = 10.5 * escala;
-  const pad = 1.4;
-  const textos = (2 * 1.15 * fNome + 1.2 * fApres + 1.25 * fPreco) * PT_EM_MM;
-  const alturaBarras = Math.max(altura - 2 * pad - textos - FOLGA, 0);
+  const pad = PADDING_DA_ETIQUETA_MM;
+  const alturaBarras = alturaDasBarras(largura, altura);
   const larguraBarras = largura - 2 * pad;
-  const comBarras = !!e.barcode && alturaBarras >= 5;
+  const comBarras = !!e.barcode && cabemBarras(largura, altura);
   return (
     <div className="etq" style={{ width: `${largura}mm`, height: `${altura}mm`, padding: `${pad}mm` }}>
       <div className="nome" style={{ fontSize: `${fNome}pt` }}>

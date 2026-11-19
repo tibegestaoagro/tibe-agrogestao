@@ -28,18 +28,12 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 - Atualizado em: 2026-11-19. **Transação de 30 s, região gru1 e taxas
   encerradas EM PRODUÇÃO** (merge `7569a5e5`, autorizado pelo usuário na
   conversa em 19/11; sem migração; `X-Vercel-Id: gru1::gru1` conferido).
-  Duas reclamações da Central do Milho:
-  (1) editar a venda nº 4 (fiado para débito) dava "Erro interno": a transação
-  passava dos 5 s padrão do Prisma, com ~120 ms por consulta entre a Vercel
-  (iad1) e o Neon (sa-east-1); nenhuma edição de venda tinha dado certo em
-  produção. Correção: `transactionOptions` de 30 s em `src/lib/prisma.ts`
-  (`test:m126` simula a distância e reprova sem ela) e `regions: ["gru1"]` no
-  `vercel.json` (decisão do usuário em 19/11). (2) As taxas valendo só de 14 a
-  16/11 "sumiram": a lista agora avisa as encerradas escondidas e deixa editar
-  a encerrada sem venda (roteiro `emporio-taxas-encerradas`, 0 falhas, 14 sem a
-  correção). `test:all` 129/129. Falta: a Central editar de novo as vendas nº
-  1, 2 e 4 (a primeira edição real em produção) e estender a taxa de crédito
-  à vista da LOJA MOC (hoje sem taxa vigente); mensagem entregue ao usuário.
+  Central do Milho: (1) editar venda dava "Erro interno" (transação acima dos
+  5 s do Prisma, ~120 ms por consulta até o Neon): `transactionOptions` de 30 s
+  em `src/lib/prisma.ts` (`test:m126`) e `regions: ["gru1"]`; (2) taxas
+  encerradas escondidas sem aviso: aviso e Editar na encerrada sem venda
+  (roteiro `emporio-taxas-encerradas`). Falta a Central editar de novo as
+  vendas nº 1, 2 e 4 e estender a taxa de crédito à vista da LOJA MOC.
 - 19/11, escritas em produção autorizadas pelo usuário, na Da Mata: (1) apagado
   o saldo inicial de R$ 15.020,83 da CAIXA DAMATTA; (2) financeiro zerado com
   `scripts/zerar-financeiro-conta.ts` (494 registros: vendas, caixa, cartão,
@@ -48,15 +42,21 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   transação; linha `suporte.financeiro_zerado`). Ficaram orçamentos (268),
   clientes, produtos, estoque (o TALCO/GEL perdeu as 375 un. da compra) e
   contas zeradas. A próxima venda é a nº 1.
-- 18/11: paginação das listas e curva ABC em produção (merge `58e077fc`; sobras
-  na 5.28).
+- **Branch `emporio-sobras-gestaoclick` pronta, SEM merge** (espera autorização):
+  sobras das frentes B, C, D e H, plano
+  `docs/superpowers/plans/2026-11-19-emporio-sobras-gestaoclick.md`. Q368: venda
+  cancelada estorna a parcela conferida pelo valor que caiu, com Histórico e a
+  linha "Estorno de cartão: <motivo>" (conferida em zero: sem linha). Q369:
+  carteira com sem bom para, depois sem número ou banco. Mais: link "A
+  completar", frase das anteriores, aviso das barras, `eh_404`, roteiros e a
+  corrida do cheque. Juiz 7/10 com o importante corrigido; `test:all`
+  126/126; sem migração. Sobras na 5.29.
 - Plano do GestãoClick (Q341 a Q344):
   [../superpowers/specs/2026-11-17-emporio-plano-gestaoclick.md](../superpowers/specs/2026-11-17-emporio-plano-gestaoclick.md).
-  Em produção: A (`49fbd47`), B (`cc8a614`; sobras 5.23), C (`76a61ba`; 5.24),
-  D (balcão rápido, `b24776a`, sem leitor nem impressora reais; 5.25) e H
-  (curva ABC e orçamentos paginados, `77cf2ca`). G1 (2.18) e G2 (2.34) esperam a
-  planilha do GestãoClick e o XML de nota. **Próximo passo:** G1 e G2 quando
-  os arquivos chegarem.
+  Em produção: A, B, C, D (sem leitor nem impressora reais; 5.25), H e a
+  paginação (`58e077fc`; 5.28). G1 (2.18) e G2 (2.34) esperam a planilha do
+  GestãoClick e o XML de nota. **Próximo passo:** merge da branch acima; G1 e
+  G2 quando os arquivos chegarem.
 - Em produção desde 16/11: Q325 a Q340 (orçamento com total, cadastro leve,
   CEP, preço do cadastro, PIN, brinde, frete no orçamento; os gestores precisam
   cadastrar o PIN) e o manual (GIFs: roteiro `manual-gifs` e

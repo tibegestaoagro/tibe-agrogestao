@@ -2216,9 +2216,11 @@ async function cancelarNaTransacao(
     data: { status: "cancelado", updated_by_user_id: ator.id },
   });
 
-  // Cartão (Q94, Q261): a parcela que ainda não caiu de fato (data efetiva
-  // futura) some; a que já caiu sai da conta pelo líquido EFETIVO (o antecipado
-  // entrou menor). A que caiu continua não cancelada, e o estorno a compensa no saldo.
+  // Cartão (Q94, Q261, Q368): a parcela que ainda não caiu de fato (data efetiva
+  // futura) some; a que já caiu sai da conta pelo valor que CAIU (`confirmed_net`,
+  // quando conferida) ou, sem conferência, pelo líquido efetivo (o antecipado
+  // entrou menor). A que caiu continua não cancelada, e o estorno a compensa no
+  // saldo; a conferência e o `ajuste_cartao` ficam no extrato como história.
   const hoje = hojeEmBrasilia(agora);
   const parcelas = await tx.cardReceivable.findMany({ where: { sale_id: id, canceled_at: null } });
   for (const parcela of parcelas) {
@@ -2226,20 +2228,38 @@ async function cancelarNaTransacao(
       await tx.cardReceivable.update({ where: { id: parcela.id }, data: { canceled_at: agora } });
       continue;
     }
-    await tx.cashMovement.create({
-      data: scoped({
-        establishment_id: null,
-        bank_account_id: parcela.bank_account_id,
-        direction: "saida" as const,
-        amount: decToNum(parcela.effective_net) ?? 0,
-        origin: "estorno_cartao" as const,
-        occurred_at: agora,
-        sale_id: id,
-        card_receivable_id: parcela.id,
-        notes: motivo,
-        created_by_user_id: ator.id,
-      }),
-    });
+    const previsto = decToNum(parcela.effective_net) ?? 0;
+    const estornado = decToNum(parcela.confirmed_net) ?? previsto;
+    // Conferida em R$ 0,00 (ex.: estorno do banco): o ajuste já tirou tudo, e o
+    // CHECK amount > 0 recusaria a linha. O saldo fecha sem ela.
+    const semLinha = Math.round(estornado * 100) === 0;
+    if (!semLinha) {
+      await tx.cashMovement.create({
+        data: scoped({
+          establishment_id: null,
+          bank_account_id: parcela.bank_account_id,
+          direction: "saida" as const,
+          amount: estornado,
+          origin: "estorno_cartao" as const,
+          occurred_at: agora,
+          sale_id: id,
+          card_receivable_id: parcela.id,
+          notes: motivo,
+          created_by_user_id: ator.id,
+        }),
+      });
+    }
+    if (parcela.reconciled_at !== null) {
+      await registrarNoHistorico(tx, ator, {
+        action: "cartao.estorno_conferida",
+        establishment_id: parcela.establishment_id,
+        target_type: "parcela_cartao",
+        target_id: parcela.id,
+        summary: semLinha
+          ? `Estorno da parcela ${parcela.installment}/${parcela.installments} conferida (venda nº ${formatarNumero(await numeroDaVenda(tx, id))}): o valor que caiu foi ${dinheiro(0)}, sem linha de estorno; previsto ${dinheiro(previsto)}`
+          : `Estorno da parcela ${parcela.installment}/${parcela.installments} conferida (venda nº ${formatarNumero(await numeroDaVenda(tx, id))}): sai ${dinheiro(estornado)}, o valor que caiu; previsto ${dinheiro(previsto)}`,
+      });
+    }
   }
   // A taxa (MDR) só some se a adquirente devolve no cancelamento (como a Stone);
   // pagamento sem adquirente cancela, como sempre. A despesa é uma só por venda:

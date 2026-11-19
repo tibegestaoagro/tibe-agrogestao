@@ -181,7 +181,7 @@ export function ParteDeDevolver() {
       </Tarefa>
       <Chamada tipo="saiba">
         <p>
-          Cartão: as parcelas que ainda não caíram são canceladas. A que já caiu vira uma saída da conta. Cheque
+          Cartão: as parcelas que ainda não caíram são canceladas. A que já caiu vira uma saída da conta. A parcela já conferida é estornada pelo valor que caiu e aparece como Estorno de cartão no extrato; a conferência fica na história. Cheque
           recebido volta para o cliente.
         </p>
         <p>
@@ -544,7 +544,7 @@ export function ParteDeCaixa() {
           <>Em <strong>Antecipações</strong>, na mesma tela, ficam as operações feitas. Para voltar atrás, clique em <strong>Desfazer</strong>: as parcelas voltam à data prevista e o custo é cancelado. Uma operação já conferida com o extrato não se desfaz, e a antecipação automática se desfaz cancelando a venda.</>,
           <>Em <strong>Cheques</strong>, cada cheque passa por: recebido, depositado, compensado ou devolvido.</>,
           <>O cheque registrado na venda sem número, banco ou bom para aparece com o selo <strong>A completar</strong>. Clique em <strong>Completar</strong> e preencha o que tiver; dá para completar aos poucos. Depois de completo, o botão vira <strong>Corrigir</strong>, enquanto o cheque não for depositado. Completam o Gestor da loja do cheque, o Financeiro, o Gerente geral e o Dono.</>,
-          <>O cheque <strong>A completar</strong> não se deposita. Sem o bom para, ele fica fora do vencido, do a vencer e da Projeção, mas conta no que o cliente deve. No Financeiro, o cartão <strong>Cheques a completar</strong> do Hoje mostra quantos faltam.</>,
+          <>Na carteira, primeiro os cheques sem bom para, depois os que têm a data mas falta número ou banco, cada grupo na ordem em que foi lançado. O cheque <strong>A completar</strong> não se deposita. Sem o bom para, ele fica fora do vencido, do a vencer e da Projeção, mas conta no que o cliente deve. No Financeiro, o cartão <strong>Cheques a completar</strong> do Hoje mostra quantos faltam.</>,
           "Quando você deposita um cheque, escolha a conta. Quando o banco compensa, marque como compensado.",
           "Se o cheque voltar, marque como devolvido: a dívida reabre no fiado do cliente.",
           <>Em <strong>Boletos</strong>, filtre por <strong>Abertos</strong>, <strong>Vencidos</strong>, <strong>Pagos</strong> ou <strong>No fiado</strong>. Quando o banco pagar, clique em <strong>Boleto pago</strong> e escolha a conta e a data. Se o cliente não pagou, clique em <strong>Mandar para o fiado</strong> e diga o motivo: a dívida reabre no fiado dele.</>,

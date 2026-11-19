@@ -62,6 +62,7 @@ export const ACOES_DO_HISTORICO = {
   "cartao.conferir": "Conferiu uma parcela de cartão",
   "cartao.conferir_dia": "Conferiu o cartão de um dia",
   "cartao.desfazer_conferencia": "Desfez a conferência de uma parcela de cartão",
+  "cartao.estorno_conferida": "Estorno da parcela conferida",
   "caixa.transferir": "Transferiu dinheiro",
   "caixa.conferir": "Conferiu a gaveta",
   "caixa.saldo_inicial": "Informou o saldo inicial do caixa",

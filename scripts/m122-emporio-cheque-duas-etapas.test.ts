@@ -19,6 +19,7 @@ exigirBancoLocal();
  * Seção 5: permissão e isolamento (Gestor da loja, Gestor de outra loja, Vendedor, Caixa, outro tenant).
  * Seção 6: somas: A receber, Hoje (e checks_to_complete), Projeção e ficha do cliente.
  * Seção 7: editar a venda com cheque incompleto.
+ * Seção 8: corrida entre completar ou corrigir e depositar o mesmo cheque.
  *
  * Leituras adotadas onde a spec era ambígua (ver o relato):
  * - datas no corpo vão como AAAA-MM-DD (o que as rotas de venda já aceitam);
@@ -94,6 +95,31 @@ async function secao1Pura() {
     check(`${st} com os três nulos: false (só existe em recebido)`, f({ status: st, number: null, bank: null, good_for: null }) === false);
     check(`${st} completo: false`, f({ status: st }) === false);
   }
+
+  console.log("  (b) grupoNaCarteira e ordenarCarteira (Q369)");
+  check("o módulo exporta grupoNaCarteira e ordenarCarteira", typeof M.grupoNaCarteira === "function" && typeof M.ordenarCarteira === "function");
+  if (typeof M.grupoNaCarteira !== "function" || typeof M.ordenarCarteira !== "function") return;
+  const g = (o: Dado): number => M.grupoNaCarteira({ status: "recebido", number: "123", bank: "Sicredi", good_for: new Date("2026-12-01T12:00:00Z"), ...o });
+  check("recebido sem bom para e sem número: grupo 1", g({ good_for: null, number: null }) === 1);
+  check("recebido sem bom para (com número e banco): grupo 1", g({ good_for: null }) === 1);
+  check("recebido com bom para e sem banco: grupo 2", g({ bank: null }) === 2);
+  check("recebido com bom para e sem número: grupo 2", g({ number: null }) === 2);
+  check("recebido completo: grupo 3", g({}) === 3);
+  check("depositado sem número: grupo 3", g({ status: "depositado", number: null }) === 3);
+  const d = (dia: string) => new Date(`${dia}T12:00:00Z`);
+  const t = (h: number) => new Date(Date.UTC(2026, 10, 1, h));
+  const linha = (id: string, o: Dado) => ({ id, status: "recebido", number: "1", bank: "X", good_for: d("2026-12-10"), created_at: t(1), ...o });
+  const entrada = [
+    linha("c-b", { good_for: d("2026-12-20") }),
+    linha("g2", { bank: null, created_at: t(5) }),
+    linha("g1-tarde", { good_for: null, number: null, created_at: t(9) }),
+    linha("c-a", { good_for: d("2026-12-05") }),
+    linha("g1-cedo", { good_for: null, created_at: t(2) }),
+  ];
+  const copia = entrada.map((x) => x.id);
+  const saida: Dado[] = M.ordenarCarteira(entrada);
+  check("ordenarCarteira: grupo 1 por lançamento, grupo 2, grupo 3 por bom para", j(saida.map((x) => x.id)) === j(["g1-cedo", "g1-tarde", "g2", "c-a", "c-b"]), j(saida.map((x) => x.id)));
+  check("ordenarCarteira devolve cópia e não muda a entrada", j(entrada.map((x) => x.id)) === j(copia) && saida !== entrada);
 }
 
 // ---------------------------------------------------------------------------
@@ -431,6 +457,24 @@ async function secao3() {
   const t3 = semDataNoTopo(cartRec);
   check("A receber: o sem data está em checks, no topo", cartRec.some((c) => c.id === semData.id) && t3.ok, `${rc.status} nulos ${t3.nulos}, datados ${t3.datados}`);
 
+  console.log("  (o) ordem da carteira (Q369): sem bom para, depois sem número ou banco, depois o resto");
+  const loja2 = A.lojas[0];
+  const g2Antes = await novoCheque(A, loja2, { holder_name: NOME, bank: "Sicredi", good_for: emDias(30) });
+  const g1Depois = await novoCheque(A, loja2, soNome);
+  const g3 = await novoCheque(A, loja2, completo(emDias(2)));
+  const idsOrd = [g1Depois.id, g2Antes.id];
+  const lo: Dado[] = (await listaCheques(A.tok.owner)).corpo?.data ?? [];
+  const pos = (id: string) => lo.findIndex((c) => c.id === id);
+  check("grupo 2 lançado antes de um do grupo 1 aparece depois dele", pos(g1Depois.id) >= 0 && pos(g1Depois.id) < pos(g2Antes.id), `${pos(g1Depois.id)} ${pos(g2Antes.id)}`);
+  check("o grupo 2 vem antes de qualquer do grupo 3", pos(g2Antes.id) < pos(g3.id) && pos(g3.id) >= 0);
+  const grupoDe = (c: Dado): number => (c.status !== "recebido" ? 3 : c.good_for === null ? 1 : c.number === null || c.bank === null ? 2 : 3);
+  const gs = lo.map(grupoDe);
+  check("a lista inteira vem com os grupos em ordem (1, 2, 3)", gs.every((x, i) => i === 0 || gs[i - 1] <= x), j(gs));
+  const cxo = await chamar(A.tok.owner, R.cash, "GET", "emporio/cash");
+  const cart: Dado[] = dados(cxo)?.checks ?? [];
+  const gc = cart.map(grupoDe);
+  check("a carteira do Caixa também vem em ordem de grupo", gc.length > 0 && gc.every((x, i) => i === 0 || gc[i - 1] <= x) && cart.findIndex((c) => c.id === idsOrd[0]) < cart.findIndex((c) => c.id === idsOrd[1]), j(gc));
+
   console.log("  (a) depositar incompleto: 409 CHEQUE_INCOMPLETO e nada muda");
   const m0 = await (await prismaCru()).cashMovement.count({ where: { check_id: semData.id } });
   const rd = await depositar(A.tok.owner, semData.id, A.conta);
@@ -738,6 +782,81 @@ async function secao7() {
 }
 
 // ---------------------------------------------------------------------------
+// Seção 8: a corrida entre completar ou corrigir e depositar
+// ---------------------------------------------------------------------------
+
+const RODADAS_CORRIDA = 10;
+
+async function secao8() {
+  secaoAtual = "8";
+  console.log(`\n8. Corrida: completar ou corrigir e depositar o MESMO cheque, em paralelo (${RODADAS_CORRIDA} rodadas cada)`);
+  const L = A.lojas[0];
+
+  console.log("  (a) cheque completo: corrigir o número e depositar");
+  let semErro500a = true;
+  let regraNumero = true;
+  let regraRecusa = true;
+  let regraStatus = true;
+  let regraOrdem = true;
+  let detalheA = "";
+  const desfechoA = { ambas2xx: 0, deposito2xxPatch409: 0, patch2xxDeposito409: 0, outros: 0 };
+  for (let i = 1; i <= RODADAS_CORRIDA; i += 1) {
+    const k = await novoCheque(A, L, completo(emDias(6)));
+    const alvo = `N-${i}`;
+    const [rp, rd] = await Promise.all([patch(A.tok.owner, k.id, { number: alvo }), depositar(A.tok.owner, k.id, A.conta)]);
+    const fim = await lerCheque(k.id);
+    const nota = (m: string) => { detalheA ||= `rodada ${i}: ${m} | patch ${resumo(rp)} | deposito ${resumo(rd)} | final ${j({ s: fim.status, n: fim.number })}`; };
+    if (rp.status >= 500 || rd.status >= 500 || rp.status === 0 || rd.status === 0) { semErro500a = false; nota("500 ou exceção"); }
+    if (ok2xx(rp) && fim.number !== alvo) { regraNumero = false; nota("correção 2xx mas o número final não é o dela"); }
+    if (ok2xx(rd) && !ok2xx(rp) && rp.status !== 409) { regraRecusa = false; nota("depósito 2xx e correção recusada sem ser 409"); }
+    if ((fim.status === "depositado") !== ok2xx(rd)) { regraStatus = false; nota("status final não bate com o depósito"); }
+    if (ok2xx(rd) && ok2xx(rp)) desfechoA.ambas2xx += 1;
+    else if (ok2xx(rd) && rp.status === 409) desfechoA.deposito2xxPatch409 += 1;
+    else if (ok2xx(rp) && rd.status === 409) desfechoA.patch2xxDeposito409 += 1;
+    else desfechoA.outros += 1;
+    if (ok2xx(rd) && ok2xx(rp)) {
+      // as duas deram 2xx: a correção tem de ter vindo ANTES do depósito, e o Histórico conta a ordem
+      const comp = (await logsDe(k.id, "cheque.completar"))[0];
+      const dep = (await logsDe(k.id, "cheque.depositar"))[0];
+      if (!comp || !dep || new Date(comp.created_at).getTime() > new Date(dep.created_at).getTime()) { regraOrdem = false; nota("correção 2xx gravada depois do depósito"); }
+    }
+  }
+  check(`nenhuma resposta 500 em ${RODADAS_CORRIDA} rodadas`, semErro500a, detalheA);
+  check("correção 2xx: o número final é o dela", regraNumero, detalheA);
+  check("depósito 2xx e correção recusada: a correção foi 409", regraRecusa, detalheA);
+  check("o status final é depositado se e só se o depósito deu 2xx", regraStatus, detalheA);
+  check("quando as duas deram 2xx, a correção veio antes do depósito (Histórico)", regraOrdem, detalheA);
+  console.log(`  (desfechos de (a) em ${RODADAS_CORRIDA} rodadas: ambas 2xx ${desfechoA.ambas2xx}; depósito 2xx e correção 409 ${desfechoA.deposito2xxPatch409}; correção 2xx e depósito 409 ${desfechoA.patch2xxDeposito409}; outros ${desfechoA.outros})`);
+
+  console.log("  (b) cheque sem banco: completar o banco e depositar");
+  // Limite assumido: o depósito confere chequeIncompleto numa leitura FORA da transação e o PATCH só
+  // preenche o banco, então esta corrida não consegue reprovar por ordem de execução. Ela prova que não
+  // há 500 e que o resultado é consistente (depositou => banco preenchido; recusou => 409 CHEQUE_INCOMPLETO).
+  // Se alguém tirar chequeIncompleto do depósito, quem reprova primeiro são as seções 3 e 4.
+  const desfechoB = { deposito2xx: 0, deposito409Incompleto: 0, outros: 0 };
+  let semErro500b = true;
+  let regraBanco = true;
+  let regraIncompleto = true;
+  let detalheB = "";
+  for (let i = 1; i <= RODADAS_CORRIDA; i += 1) {
+    const k = await novoCheque(A, L, { holder_name: NOME, number: `B-${i}`, good_for: emDias(7) });
+    const [rp, rd] = await Promise.all([patch(A.tok.owner, k.id, { bank: "Sicredi" }), depositar(A.tok.owner, k.id, A.conta)]);
+    const fim = await lerCheque(k.id);
+    const nota = (m: string) => { detalheB ||= `rodada ${i}: ${m} | patch ${resumo(rp)} | deposito ${resumo(rd)} | final ${j({ s: fim.status, b: fim.bank })}`; };
+    if (rp.status >= 500 || rd.status >= 500 || rp.status === 0 || rd.status === 0) { semErro500b = false; nota("500 ou exceção"); }
+    if (ok2xx(rd)) desfechoB.deposito2xx += 1;
+    else if (recusou(rd, 409, undefined, "CHEQUE_INCOMPLETO")) desfechoB.deposito409Incompleto += 1;
+    else desfechoB.outros += 1;
+    if (ok2xx(rd) && fim.bank === null) { regraBanco = false; nota("depositou com o banco nulo"); }
+    if (!ok2xx(rd) && !recusou(rd, 409, undefined, "CHEQUE_INCOMPLETO")) { regraIncompleto = false; nota("depósito recusado sem ser 409 CHEQUE_INCOMPLETO"); }
+  }
+  check(`nenhuma resposta 500 em ${RODADAS_CORRIDA} rodadas`, semErro500b, detalheB);
+  check("depósito 2xx: o banco final não é nulo", regraBanco, detalheB);
+  check("depósito recusado: foi 409 CHEQUE_INCOMPLETO", regraIncompleto, detalheB);
+  console.log(`  (desfechos de (b) em ${RODADAS_CORRIDA} rodadas: depósito 2xx ${desfechoB.deposito2xx}; 409 CHEQUE_INCOMPLETO ${desfechoB.deposito409Incompleto}; outros ${desfechoB.outros})`);
+}
+
+// ---------------------------------------------------------------------------
 // Limpeza e main
 // ---------------------------------------------------------------------------
 
@@ -791,6 +910,7 @@ async function main() {
       await rodar("5", secao5);
       await rodar("6", secao6);
       await rodar("7", secao7);
+      await rodar("8", secao8);
     });
   } finally {
     await limpar();

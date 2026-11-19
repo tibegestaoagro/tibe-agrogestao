@@ -69,11 +69,6 @@ def tem(texto):
     return texto.lower() in texto_do_main().lower()
 
 
-def nao_achada():
-    """A pagina de 404 do Next. O `eh_404` da lib tambem procura '404' solto, e numero de venda como 004043 casa."""
-    return bool(js("(document.body.innerText || '').includes('could not be found')"))
-
-
 def br(dia_iso):
     return dia_iso[8:10] + "/" + dia_iso[5:7] + "/" + dia_iso[0:4]
 
@@ -270,7 +265,7 @@ if VENDA_N_ID:
 passo("2. A venda mostra 'Cheque a completar', sem data 01/01/1970")
 ir("/emporio/vendas/" + VENDA_N_ID)
 pagina = texto_da_pagina()
-confere("a venda abre", not nao_achada() and "/emporio/vendas/" + VENDA_N_ID == caminho(), caminho())
+confere("a venda abre", not eh_404() and "/emporio/vendas/" + VENDA_N_ID == caminho(), caminho())
 confere("mostra 'Cheque a completar' nos dois cheques", pagina.count("Cheque a completar") == 2, pagina.count("Cheque a completar"))
 confere("nenhuma data 01/01/1970 (nem 1970) na venda", "01/01/1970" not in pagina and "1970" not in pagina, pagina[:600])
 confere("mostra o titular de terceiros 'Em nome de " + TERCEIRO + "'", ("Em nome de " + TERCEIRO) in pagina, pagina[:700])
@@ -280,7 +275,7 @@ confere("nao mostra 'bom para' (nao ha data)", "bom para" not in pagina.lower(),
 passo("3. A receber (Financeiro): selo, tracos, sem Depositar, com Completar")
 entrar("financeiro")
 chegou = ir(RECEBER)
-confere("o A receber abre para o Financeiro", chegou == RECEBER_BASE and not nao_achada() and tem("Cheques em carteira"), chegou)
+confere("o A receber abre para o Financeiro", chegou == RECEBER_BASE and not eh_404() and tem("Cheques em carteira"), chegou)
 confere("a lista de cheques tem os 6 (R$ 150, 50, 30, 70, 60 e 40)", sorted(valores_dos_cheques()) == sorted(["R$ 150,00", "R$ 50,00", "R$ 30,00", "R$ 70,00", "R$ 60,00", "R$ 40,00"]), valores_dos_cheques())
 for valor in ["R$ 150,00", "R$ 30,00", "R$ 70,00", "R$ 60,00", "R$ 40,00"]:
     confere(valor + ": selo 'A completar'", a_completar(valor), linha_cheque(valor))
@@ -332,12 +327,29 @@ while time.time() < fim_em and RECEBER_BASE not in caminho():
 confere("clicando no link chega ao A receber da loja", RECEBER_BASE in caminho() and LOJA_ID in caminho(), caminho())
 time.sleep(1.5)
 confere("e a lista tem os cheques a completar", a_completar("R$ 150,00"), valores_dos_cheques())
+confere("o link leva ao filtro", "cheques=a_completar" in caminho() and LOJA_ID in caminho(), caminho())
+vs = valores_dos_cheques()
+confere("so os incompletos: 5 linhas, todas com o selo, e o cheque completo (R$ 50,00) fora", len(vs) == 5 and "R$ 50,00" not in vs and all(a_completar(v) for v in vs), vs)
+tx = texto_do_main()
+confere("fiado e cartao fora", "Fiado por cliente" not in tx and "Cartões a receber" not in tx and "Boletos" not in tx, tx[:300])
+confere("a frase do filtro", tem("Mostrando só os cheques a completar"), tx[:300])
+ir(RECEBER + "&ver=hoje&cheques=a_completar")
+vs = valores_dos_cheques()
+confere("com ?ver=hoje na URL o filtro dos cheques vence (os 5 incompletos) e a loja continua", len(vs) == 5 and "R$ 50,00" not in vs and tem("Mostrando só os cheques a completar"), vs)
+ir(RECEBER + "&cheques=a_completar")
+hrefs_tudo = js("Array.from(document.querySelectorAll('main a')).filter(a => a.innerText.includes('Ver tudo o que receber')).map(a => a.getAttribute('href'))") or []
+confere("'Ver tudo o que receber' mantem a loja e tira o filtro", len(hrefs_tudo) == 1 and LOJA_ID in hrefs_tudo[0] and "cheques=" not in hrefs_tudo[0], hrefs_tudo)
+fim_em = time.time() + 60
+while time.time() < fim_em and "cheques=" in caminho():
+    js("(() => { const a = Array.from(document.querySelectorAll('main a')).find(x => x.innerText.includes('Ver tudo o que receber')); if (a) a.click(); })()")
+    esperar(lambda: "cheques=" not in caminho(), 8)
+confere("clicar em 'Ver tudo o que receber' volta o cheque completo", bool(esperar(lambda: "R$ 50,00" in valores_dos_cheques(), 20)) and LOJA_ID in caminho(), [caminho(), valores_dos_cheques()])
 
 # --- 5 ---------------------------------------------------------------------------------------------------------------------------
 passo("5. Caixa como Gestor da loja: selo, Completar, so o numero, apagar recusa")
 entrar("gestor")
 chegou = ir("/emporio/caixa")
-confere("o Gestor abre o Caixa", chegou == "/emporio/caixa" and not nao_achada(), chegou)
+confere("o Gestor abre o Caixa", chegou == "/emporio/caixa" and not eh_404(), chegou)
 confere("o Caixa mostra R$ 150,00 com o selo 'A completar'", a_completar("R$ 150,00"), linha_cheque("R$ 150,00"))
 bg = botoes_cheque("R$ 150,00") or []
 confere("o Gestor ve Completar e nao ve Depositar no incompleto", "Completar" in bg and "Depositar" not in bg, bg)
@@ -408,7 +420,7 @@ passo("7. Vendedor: sem Completar")
 entrar("vendedor")
 chegou = ir("/emporio/caixa")
 btn_vend = js("Array.from(document.querySelectorAll('main button')).map(b => b.innerText.trim())") or []
-print("   o Vendedor em /emporio/caixa: caminho=" + chegou + ", 404=" + str(nao_achada()) + ", botoes=" + str(btn_vend[:12]))
+print("   o Vendedor em /emporio/caixa: caminho=" + chegou + ", 404=" + str(eh_404()) + ", botoes=" + str(btn_vend[:12]))
 confere("o Vendedor nao ve nenhum botao Completar nem Corrigir no Caixa", "Completar" not in btn_vend and "Corrigir" not in btn_vend, btn_vend)
 confere("e nao ve o cheque como carteira para completar (sem linha de R$ 70,00 com botoes)", not botoes_cheque("R$ 70,00"), botoes_cheque("R$ 70,00"))
 r = api("PATCH", "/api/v1/emporio/checks/" + ID_P, {"number": "999999"})
@@ -445,7 +457,7 @@ if nova:
     # mostrando "Cheque nº null, null" (achado do juiz, 18/11). Agora sai "-" no que falta.
     ir("/emporio/vendas/" + VENDA_E_ID)
     antiga = texto_da_pagina()
-    confere("a venda antiga abre", not nao_achada() and "/emporio/vendas/" + VENDA_E_ID == caminho(), caminho())
+    confere("a venda antiga abre", not eh_404() and "/emporio/vendas/" + VENDA_E_ID == caminho(), caminho())
     confere("a venda antiga nao mostra 'null' e mostra o cheque sem dados com '-' (Cheque nº -, -)", "null" not in antiga and "Cheque nº -, -" in antiga, antiga[:900])
 entrar("financeiro")
 ir(RECEBER)

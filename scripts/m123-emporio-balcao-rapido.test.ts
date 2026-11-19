@@ -217,6 +217,26 @@ async function secao1Pura() {
   check("número sem Alt dá null", ev("3") === null);
   check("Alt+0 dá null", ev("0", { altKey: true }) === null);
   check("Meta+Enter dá null", ev("Enter", { metaKey: true }) === null);
+
+  // As barras cabem na etiqueta? (Task 5). O número fixado é o da conta inline de `Etiqueta`, calculada
+  // ANTES da extração, para provar que mover a conta não mudou o desenho.
+  let M: Dado = {};
+  try {
+    M = await import("../src/lib/emporio/etiqueta-medidas");
+  } catch (e) {
+    check("importa src/lib/emporio/etiqueta-medidas", false, `import_error: ${(e as Error).message}`);
+    return;
+  }
+  check("exporta o piso das barras: 5 mm", M.ALTURA_MINIMA_DAS_BARRAS_MM === 5, j(M.ALTURA_MINIMA_DAS_BARRAS_MM));
+  check("alturaDasBarras(63,5 x 38,1) = 14,5155 (o valor da conta antiga)", perto(M.alturaDasBarras?.(63.5, 38.1), 14.5155, 0.0001), j(M.alturaDasBarras?.(63.5, 38.1)));
+  check("rolo 40 x 15: as barras NÃO cabem", M.cabemBarras?.(40, 15) === false);
+  check("rolo 40 x 25 (o padrão): as barras cabem", M.cabemBarras?.(40, 25) === true);
+  const minima = M.alturaMinimaComBarras?.(40);
+  check("alturaMinimaComBarras(40) é um número", typeof minima === "number", j(minima));
+  if (typeof minima === "number") {
+    check("na altura mínima as barras cabem", M.cabemBarras(40, minima) === true, j(minima));
+    check("meio mm abaixo da mínima já não cabem", M.cabemBarras(40, minima - 0.5) === false, j(minima));
+  }
 }
 
 // ---------------------------------------------------------------------------

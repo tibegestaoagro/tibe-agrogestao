@@ -13,16 +13,20 @@ import { estadoDaParcela } from "@/lib/actions/emporio-conferencia-cartao";
  * conta (EmporioSettings, regra de dia util): so cria lojas, conta, adquirente, vendas e parcelas proprias.
  *   - "Cc Loja 1" e "Cc Loja 2"; cc-gestor@teste.local e Gestor da Loja 1 so;
  *   - a conta "Cc Banco" (saldo inicial 5000) e a adquirente "Cc Adquirente";
- *   - oito vendas no credito a vista da Loja 1, cada uma com 1 parcela de liquido igual ao bruto (sem taxa), com as
+ *   - nove vendas no credito a vista da Loja 1, cada uma com 1 parcela de liquido igual ao bruto (sem taxa), com as
  *     datas calculadas de HOJE em Brasilia e do calendario de dia util do cartao (os feriados nacionais entram):
  *       Prevista:   R$ 70,00 daqui a 2 dias;
  *       A conferir: R$ 80,00 e R$ 90,00, que caem hoje (a de 90 e a que o roteiro confere com diferenca e desfaz:
  *                   a lista do A receber so mantem a parcela conferida de HOJE em diante, entao so a de hoje
  *                   tem o botao Desfazer na tela);
+ *                   e R$ 55,00 de ONTEM, tambem A conferir (o A receber de hoje diz que traz as anteriores);
  *       Atrasada, dia D1 (a data mais recente que ja esta atrasada): R$ 100,00 e R$ 200,00 (o "Conferir o dia" de
  *                   R$ 300,00 previstos);
  *       Atrasada, dia D2 (o dia anterior a D1): R$ 60,00 e R$ 40,00 (R$ 100,00 previstos);
  *       Conferida:  R$ 50,00 num dia mais antigo, conferida pelo previsto (sem ajuste).
+ *   - tres vendas na Loja 2, em contas proprias (a conta "Cc Banco" nao muda): "Cc Reserva" com R$ 130,00
+ *     conferida hoje (Retirar e Carimbar) e R$ 120,00 Prevista (antecipacao pontual); "Cc Estorno" (saldo inicial
+ *     1000) com R$ 200,00 de ontem, venda de numero 4043 (conferir com diferenca e cancelar a venda).
  *
  * Apaga antes o que rodadas anteriores criaram. Idempotente. `--limpar` so apaga. So banco local:
  * `exigirBancoLocal()` barra o resto.
@@ -65,12 +69,13 @@ async function limpar(tenant_id: string) {
   const parcelas = (
     await prisma.cardReceivable.findMany({ where: { tenant_id, OR: [{ establishment_id: { in: lojas } }, { bank_account_id: { in: contas } }] }, select: { id: true } })
   ).map((p) => p.id);
+  const antecipacoes = (await prisma.cardAnticipation.findMany({ where: { tenant_id, bank_account_id: { in: contas } }, select: { id: true } })).map((a) => a.id);
   const lancamentos = (
     await prisma.financialEntry.findMany({ where: { tenant_id, OR: [{ establishment_id: { in: lojas } }, { related_id: { in: vendas } }] }, select: { id: true } })
   ).map((l) => l.id);
 
   await prisma.emporioAuditLog.deleteMany({
-    where: { tenant_id, OR: [{ target_id: { in: [...clientes, ...vendas, ...lancamentos, ...lojas, ...parcelas, ...contas] } }, { establishment_id: { in: lojas } }] },
+    where: { tenant_id, OR: [{ target_id: { in: [...clientes, ...vendas, ...lancamentos, ...lojas, ...parcelas, ...contas, ...antecipacoes] } }, { establishment_id: { in: lojas } }] },
   });
   await prisma.cashMovement.deleteMany({
     where: {
@@ -80,6 +85,7 @@ async function limpar(tenant_id: string) {
   });
   await prisma.cashCount.deleteMany({ where: { tenant_id, establishment_id: { in: lojas } } });
   await prisma.cardReceivable.deleteMany({ where: { tenant_id, id: { in: parcelas } } });
+  await prisma.cardAnticipation.deleteMany({ where: { tenant_id, id: { in: antecipacoes } } });
   await prisma.stockMovement.deleteMany({ where: { tenant_id, OR: [{ establishment_id: { in: lojas } }, { product_id: { in: produtos } }] } });
   await prisma.emporioSalePayment.deleteMany({ where: { tenant_id, sale_id: { in: vendas } } });
   await prisma.financialPayment.deleteMany({ where: { tenant_id, entry_id: { in: lancamentos } } });
@@ -154,12 +160,12 @@ async function main() {
   const cliente = await prisma.emporioCustomer.create({ data: { tenant_id, name: `${PREFIXO}Cliente`, person_kind: "pf", phone: "34990000099" } as never });
   let seq = 0;
   /** Uma venda no credito a vista, cuja unica parcela vira liquida (sem taxa) e cai em `dia`, da adquirente do cenario. */
-  const parcela = async (valor: number, dia: string, conferida = false) => {
+  const parcela = async (valor: number, dia: string, conferida = false, o: { loja?: string; turno?: string; conta?: string; numero?: number } = {}) => {
     const venda = exigir(
       await vendas.venderAction(db, dono, {
         operation_key: `cenario-cc-${Date.now()}-${(seq += 1)}`,
-        establishment_id: loja1,
-        cash_register_id: turno1.cash_register_id,
+        establishment_id: o.loja ?? loja1,
+        cash_register_id: o.turno ?? turno1.cash_register_id,
         customer_id: cliente.id,
         items: [{ emporio_product_id: racao, presentation_id: quilo, quantity: valor / 10 }],
         payments: [{ kind: "credito_vista", amount: valor }],
@@ -177,9 +183,11 @@ async function main() {
         effective_net: linhas[0].gross_amount,
         fee_amount: 0,
         acquirer_id: adquirente.id,
+        ...(o.conta ? { bank_account_id: o.conta } : {}),
         ...(conferida ? { reconciled_at: meioDia(hojeStr), reconciled_by_user_id: owner.id, confirmed_net: linhas[0].gross_amount } : {}),
       },
     });
+    if (o.numero !== undefined) await prisma.emporioSale.update({ where: { id: venda.id }, data: { number: o.numero } });
   };
 
   const d1 = diaAtrasadoMaisRecente();
@@ -193,6 +201,29 @@ async function main() {
   await parcela(60, d2);
   await parcela(40, d2);
   await parcela(50, d3, true);
+  // A conferir de um dia ANTERIOR: o "Vence hoje" do A receber traz esta tambem, e diz isso. Ontem nunca esta
+  // Atrasada (o limite e o proximo dia util depois de ontem, sempre >= hoje); a conferencia abaixo e so sanidade.
+  const ontem = somaDias(hojeStr, -1);
+  if (estadoDaParcela({ effective_on: meiaNoite(ontem), reconciled_at: null }, meiaNoite(hojeStr)) !== "a_conferir") {
+    throw new Error(`Ontem (${ontem}) nao saiu como A conferir: o cenario precisa de uma A conferir anterior a hoje.`);
+  }
+  await parcela(55, ontem);
+
+  // Loja 2, fora da conta da Loja 1 (os numeros dos passos 1 a 10 nao mudam): carimbo, antecipacao e cancelamento.
+  const conta2 = (exigir(await cx.criarContaAction(db, dono, { name: `${PREFIXO}Reserva`, bank: "Banco Cc" }), "conta 2") as { id: string }).id;
+  const conta3 = (exigir(await cx.criarContaAction(db, dono, { name: `${PREFIXO}Estorno`, bank: "Banco Cc" }), "conta 3") as { id: string }).id;
+  exigir(await cx.saldoInicialCaixaAction(db, dono, { bank_account_id: conta3, amount: 1000 }), "saldo inicial da conta 3");
+  const turno2 = await abrirTurnoDeTeste(db, dono, loja2);
+  exigir(
+    await cx.definirRegraCartaoAction(db, dono, { establishment_id: loja2, kind: "credito_vista", fee_pct: 2, days: 1, bank_account_id: conta2 }),
+    "regra de cartao da loja 2",
+  );
+  const l2 = { loja: loja2, turno: turno2.cash_register_id };
+  await parcela(130, hojeStr, true, { ...l2, conta: conta2 }); // conferida (previsto 130): o Retirar e o Carimbar do extrato
+  await parcela(120, somaDias(hojeStr, 3), false, { ...l2, conta: conta2 }); // Prevista: a antecipacao pontual do roteiro
+  // Conta so dela, com saldo inicial 1000: depois de conferida com diferenca e cancelada, o saldo tem de voltar a 1000.
+  // O numero 4043 aparece como "004043": a venda que o roteiro abre para provar que o `eh_404` nao o confunde com a pagina 404.
+  await parcela(200, ontem, false, { ...l2, conta: conta3, numero: 4043 });
 
   console.log("Conta do seed:", tenant_id, "(hoje:", hojeStr + ", D1:", d1 + ", D2:", d2 + ", D3 conferida:", d3 + ")");
   console.log("Lojas:", loja1, loja2, "Gestor:", EMAIL_GESTOR, "Conta:", conta);
