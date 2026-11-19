@@ -209,7 +209,7 @@ export function ExtratoDoLugar({
           </TableBody>
         </Table>
       )}
-      {extrato.scheduled.length > 0 && (
+      {ehConta && extrato.scheduled.length > 0 && (
         <section className="space-y-2">
           <h3 className="text-base font-semibold text-texto">Agendados</h3>
           <p className="text-sm text-texto-secundario">

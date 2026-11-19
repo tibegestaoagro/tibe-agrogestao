@@ -84,6 +84,16 @@ def abrir_extrato_da_conta():
     return True
 
 
+def linhas_do_extrato(agendados=False):
+    """O texto de cada <tr> da tabela do extrato (4+ colunas: Data, O que, Loja, Valor) ou da de Agendados (3 colunas)."""
+    return js("(() => { const ts = Array.from(document.querySelectorAll('main table')).filter(t => { const h = t.querySelector('thead').innerText.toLowerCase(); return h.includes('data') && h.includes('valor') && (t.querySelectorAll('thead th').length === 3) === " + ("true" if agendados else "false") + "; }); return ts.flatMap(t => Array.from(t.querySelectorAll('tbody tr')).map(tr => tr.innerText.replace(/\\u00a0/g, ' ').split('\\n').join(' | '))); })()") or []
+
+
+def linha_com(linhas, *trechos):
+    """A primeira linha que tem TODOS os trechos (data, valor e descricao juntos), ou None."""
+    return next((l for l in linhas if all(t in l for t in trechos)), None)
+
+
 def fechamento():
     m = re.search(r"Saldo de fechamento:\s*(R\$\s*[\d.,\-]+)", texto_do_main())
     return m.group(1) if m else None
@@ -114,20 +124,22 @@ confere("o painel de compensar tem o campo da data", tem_campo(CAMPO_DATA), pain
 preencher(CAMPO_DATA, soma_dias(hoje, 40))
 enviar_painel()
 recusa = esperar(lambda: erro_do_campo(CAMPO_DATA), 30)
-confere("hoje + 40 recusa embaixo do campo", bool(recusa) and "entre" in recusa, recusa)
+confere("hoje + 40 recusa embaixo do campo", bool(recusa) and "A data precisa estar entre" in recusa, recusa)
 confere("o painel segue aberto", painel_aberto())
 preencher(CAMPO_DATA, anteontem)
 confere("anteontem compensa e fecha o painel", enviar_e_esperar_fechar(), painel()[:200])
 
 passo("3. O extrato da conta: ontem e anteontem como linhas")
 confere("abre o extrato da conta", abrir_extrato_da_conta(), texto_principal(150))
-txt = texto_do_main()
-confere("a linha de ontem (fiado R$ 50,00)", br(ontem) in txt and "R$ 50,00" in txt, txt[:400])
-confere("a linha de anteontem (cheque R$ 80,00)", br(anteontem) in txt and "R$ 80,00" in txt, txt[:400])
-antes = fechamento()
-confere("o saldo de fechamento foi lido", antes is not None, antes)
+linhas = linhas_do_extrato()
+confere("a linha de ontem e UMA so: data, fiado e R$ 50,00", linha_com(linhas, br(ontem), "Fiado recebido", "R$ 50,00") is not None, linhas)
+confere("a linha de anteontem e UMA so: data, cheque e R$ 80,00", linha_com(linhas, br(anteontem), "Cheque compensado", "R$ 80,00") is not None, linhas)
+confere("sem Agendados ainda", not linhas_do_extrato(True) and "Agendados" not in texto_do_main(), texto_do_main()[-200:])
 
 passo("4. Financeiro paga o boleto com data de amanha: Agendados, fora do saldo")
+confere("abre o extrato antes de pagar o boleto", abrir_extrato_da_conta(), texto_principal(150))
+antes = fechamento()
+confere("o saldo de fechamento de antes foi lido", antes is not None, antes)
 ir(RECEBER)
 confere("o boleto aberto tem Boleto pago", abrir_pela_linha("BOL-DD-1", "Boleto pago"), texto_principal(200))
 confere("o painel do boleto tem o campo da data", tem_campo(CAMPO_DATA), painel()[:200])
@@ -135,9 +147,11 @@ escolher("Conta onde caiu", CONTA)
 preencher(CAMPO_DATA, amanha)
 confere("o boleto agendado fecha o painel", enviar_e_esperar_fechar(), painel()[:200])
 confere("abre o extrato da conta de novo", abrir_extrato_da_conta(), texto_principal(150))
-txt = texto_do_main()
-confere("existe a secao Agendados", "Agendados" in txt, txt[-400:])
-confere("o agendado mostra amanha e R$ 60,00", br(amanha) in txt.split("Agendados")[-1] and "R$ 60,00" in txt.split("Agendados")[-1], txt.split("Agendados")[-1][:300])
+agendadas = linhas_do_extrato(True)
+confere("existe a secao Agendados", "Agendados" in texto_do_main(), texto_do_main()[-300:])
+confere("o agendado e UMA linha: amanha, boleto e R$ 60,00", linha_com(agendadas, br(amanha), "Boleto pago", "R$ 60,00") is not None, agendadas)
+principal = linhas_do_extrato()
+confere("o boleto de amanha NAO esta na tabela principal (que tem as 2 linhas)", len(principal) >= 2 and linha_com(principal, br(amanha)) is None and linha_com(principal, "R$ 60,00") is None, principal)
 confere("o saldo de fechamento nao mudou", fechamento() == antes, str(antes) + " -> " + str(fechamento()))
 
 passo("5. Vendedor: sem o campo da data")
@@ -145,7 +159,8 @@ entrar("vendedor")
 ir("/emporio/fiado")
 confere("Fiado abre para o Vendedor", not eh_404(), texto_principal(120))
 confere("o Vendedor abre o Receber", abrir_pela_linha("Dd Maria", "Receber"), texto_principal(200))
-confere("o painel do Vendedor NAO tem a data", not tem_campo(CAMPO_DATA), painel()[:300])
+confere("o Vendedor escolhe PIX", escolher("Como o cliente pagou", "PIX (entra na conta PIX da loja)") is True)
+confere("com PIX escolhido, o painel do Vendedor NAO tem a data", "PIX" in painel() and not tem_campo(CAMPO_DATA), painel()[:300])
 
 passo("6. Celular (390 px): sem rolagem horizontal")
 cdp("Emulation.setDeviceMetricsOverride", width=390, height=800, deviceScaleFactor=2, mobile=True)
