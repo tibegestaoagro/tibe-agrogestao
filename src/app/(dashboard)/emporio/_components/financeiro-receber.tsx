@@ -275,12 +275,6 @@ export function FinanceiroReceber({
             padraoId={padraoId}
           />
 
-          {trazAnteriores && (
-            <p className="text-sm text-texto-secundario">
-              Vence hoje mostra também as parcelas de dias anteriores que ainda esperam conferência.
-            </p>
-          )}
-
           <CartoesAReceber
             cards={cartoes}
             antecipacoes={antecipacoes}
@@ -290,6 +284,7 @@ export function FinanceiroReceber({
             semAtrasadoNoFiltro={ver === "vencido"}
             podeConferir={pode(papel, "dinheiro")}
             loja={loja}
+            nota={trazAnteriores ? "Vence hoje mostra também as parcelas de dias anteriores que ainda esperam conferência." : null}
           />
         </>
       )}

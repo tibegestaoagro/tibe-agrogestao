@@ -793,6 +793,18 @@ async function secao8() {
   const rdes = await desf(A.tok.owner, p.id, "Tentando desfazer depois de cancelar");
   check("Desfazer a conferência depois do cancelamento: 409 VENDA_CANCELADA", recusou(rdes, 409) && rdes.corpo?.error?.code === "VENDA_CANCELADA", `${rdes.status} ${j(rdes.corpo).slice(0, 160)}`);
 
+  console.log("  (a1) conferida em R$ 0,00 (estorno do banco) e depois cancelada: sem linha de estorno, sem 500");
+  const saldoAntesZero = await saldo(A, c.conta);
+  const pz = await parcela(A, c, { net: 97.5, on });
+  const rcz = await conf(A, A.tok.fin, pz.id, 0);
+  check("preparação: conferida em 0,00", ok2xx(rcz) && cent((await lerParcela(pz.id)).confirmed_net) === 0, `${rcz.status} ${j(rcz.corpo).slice(0, 160)}`);
+  const rvz = await cancelarVenda(A, pz);
+  check("cancelar a venda conferida em 0,00: 2xx", ok2xx(rvz), `${rvz.status} ${j(rvz.corpo).slice(0, 200)}`);
+  check("nenhum estorno_cartao para essa parcela", (await estornosDe([pz.id])).length === 0);
+  check("o saldo volta ao de antes da venda (+97,50 da parcela, -97,50 do ajuste)", (await saldo(A, c.conta)) === saldoAntesZero, `${(await saldo(A, c.conta)) - saldoAntesZero}`);
+  const histZ = await historicoDe("cartao.estorno_conferida", pz.id);
+  check("Histórico com cartao.estorno_conferida, dizendo que caiu 0,00 e não houve linha de estorno", histZ.length === 1 && String(histZ[0].summary).includes("0,00") && String(histZ[0].summary).includes("sem linha de estorno"), j(histZ.map((h) => h.summary)));
+
   console.log("  (a2) duas parcelas: a 1ª conferida sem diferença, a 2ª futura");
   const p2a = await parcela(A, c, { net: 60, on });
   const P = await prismaCru();
