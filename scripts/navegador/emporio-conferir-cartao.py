@@ -14,9 +14,15 @@
 #   8. O Hoje do Financeiro mostra "Cartao a conferir" e "Atrasadas", e os links levam ao A receber filtrado
 #   9. Um Gestor de loja nao ve os botoes Conferir (e a rota recusa)
 #  10. Celular (390 px): sem rolagem horizontal da pagina no A receber e nos paineis de conferir
+#  11. No extrato da conta, Retirar na linha de cartao conferida: a linha volta a sem carimbo e a parcela a A
+#      conferir; Carimbar de novo: volta a Conferida pelo carimbo (Q352)
+#  12. Antecipacao pontual de uma parcela Prevista: nasce Conferida, conferido igual ao liquido antecipado, sem ajuste
+#  13. Venda cancelada depois de conferida (numero 4043, que o eh_404 nao pode confundir com a pagina 404): no
+#      extrato, "Estorno de cartao" pelo valor conferido, o ajuste continua, e o saldo volta ao de antes da venda
 #
-# Os valores estao descritos no cabecalho do cenario (todos na "Cc Loja 1", filtrada por ?loja=).
-# A ordem de execucao e: 1, 8 e 7 (estado inicial), 2, 3, 4, 5, 6, 9 e 10 (estado final).
+# Os valores estao descritos no cabecalho do cenario (os passos 1 a 10 na "Cc Loja 1", filtrada por ?loja=; os
+# passos 11 a 13 na "Cc Loja 2", cada um numa conta propria).
+# A ordem de execucao e: 1, 8 e 7 (estado inicial), 2, 3, 4, 5, 6, 9, 10, 11, 12 e 13 (estado final).
 #
 # cenario: scripts/_cenario-emporio-conferir-cartao.ts
 # sessao: owner owner@example.com
@@ -165,11 +171,6 @@ def fechar_painel():
     js("(() => { const d = document.querySelector('[role=dialog]'); if (!d) return; const b = Array.from(d.querySelectorAll('button')).find(x => x.getAttribute('aria-label') === 'Close' || x.innerText.trim() === 'Fechar' || x.innerText.trim() === 'Cancelar'); if (b) b.click(); else document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); })()")
     esperar(lambda: not painel_aberto(), 10)
     time.sleep(0.5)
-
-
-def nao_achada():
-    """A pagina de 404 do Next. O `eh_404` da lib tambem procura '404' solto, e numero de venda como 004043 casa."""
-    return bool(js("(document.body.innerText || '').includes('could not be found')"))
 
 
 def reais_de(texto):
@@ -467,14 +468,14 @@ r_un = api("POST", "/api/v1/emporio/finance/card-receivables/" + ID_DA_90 + "/un
 confere("e desfaz pela rota (volta ao estado do roteiro): 200", r_un["status"] == 200, [r_un["status"], r_un["body"]])
 entrar("gestor")
 chegou = ir(RECEBER)
-if chegou == "/emporio/financeiro/receber" and not nao_achada():
+if chegou == "/emporio/financeiro/receber" and not eh_404():
     confere("o Gestor abre o A receber e ve os selos (A conferir)", "a conferir" in linha_cartao("R$ 90,00").lower(), linha_cartao("R$ 90,00"))
     bts = botoes_do_main()
     confere("o Gestor nao ve nenhum botao Conferir, Conferir o dia nem Desfazer no A receber", not any(b in ("Conferir", "Conferir o dia", "Desfazer") for b in bts), bts)
 else:
-    confere("o Gestor nao abre o A receber (404): so Dono, Gerente geral e Financeiro abrem, entao nao ha botao a ver", nao_achada(), texto_principal(120))
+    confere("o Gestor nao abre o A receber (404): so Dono, Gerente geral e Financeiro abrem, entao nao ha botao a ver", eh_404(), texto_principal(120))
 chegou = ir("/emporio/caixa")
-confere("o Gestor abre o Caixa da loja", chegou == "/emporio/caixa" and not nao_achada(), chegou)
+confere("o Gestor abre o Caixa da loja", chegou == "/emporio/caixa" and not eh_404(), chegou)
 # O "Conferir" da gaveta (contagem de dinheiro) existe no Caixa e nao e o do cartao: a conferencia do cartao so se
 # procura dentro da secao 'A receber do cartao'.
 cartao_gestor = secao("A receber do cartão") or ""
@@ -510,3 +511,113 @@ larg = rolagem_horizontal()
 confere("390 px: o painel 'Conferir o dia' cabe na tela e a pagina nao rola", caixa is not None and caixa[0] >= 0 and caixa[1] <= 390 and larg[0] <= larg[1], [caixa, larg])
 fechar_painel()
 cdp("Emulation.clearDeviceMetricsOverride")
+
+
+# --- 11 a 13: a Loja 2, cada passo numa conta propria ---------------------------------------------
+def posicao_da_conta(nome):
+    """O saldo e o endereco do extrato da conta `nome`, na Posicao de caixa de todas as lojas."""
+    ir("/emporio/financeiro/caixa")
+    achar = "(() => { const t = Array.from(document.querySelectorAll('main tr')).find(x => x.innerText.includes(" + repr(nome) + ") && (x.innerText.includes('Ver extrato') || x.innerText.includes('Aberto abaixo'))); return t || null; })()"
+    lin = esperar(lambda: js("(() => { const t = " + achar + "; return t ? t.innerText.replace(/\\u00a0/g, ' ').split('\\n').join(' | ') : ''; })()"), 30) or ""
+    href = js("(() => { const t = " + achar + "; const a = t && Array.from(t.querySelectorAll('a')).find(x => (x.getAttribute('href') || '').includes('lugar=conta')); return a ? a.getAttribute('href') : ''; })()") or ""
+    return reais_de(lin), href, lin
+
+
+def _linha_do_extrato_expr(trechos):
+    return "(() => { const tr = Array.from(document.querySelectorAll('main tbody tr')).find(t => { const v = t.innerText.replace(/\\u00a0/g, ' '); return " + repr(trechos) + ".every(x => v.includes(x)); }); return tr || null; })()"
+
+
+def linha_do_extrato(*trechos):
+    """O texto (numa linha so) da primeira linha do extrato que traz todos os `trechos`, ou ''."""
+    return js("(() => { const t = " + _linha_do_extrato_expr(list(trechos)) + "; return t ? t.innerText.replace(/\\u00a0/g, ' ').split('\\n').join(' | ') : ''; })()") or ""
+
+
+def clicar_no_extrato(rotulo, *trechos):
+    return bool(js("(() => { const t = " + _linha_do_extrato_expr(list(trechos)) + "; if (!t) return false; const b = Array.from(t.querySelectorAll('button')).find(x => x.innerText.trim() === " + repr(rotulo) + "); if (!b) return false; b.click(); return true; })()"))
+
+
+lojas = api("GET", "/api/v1/emporio/establishments")["body"]["data"]
+l2 = next((l for l in lojas if l["name"] == "Cc Loja 2"), None)
+confere("acha a Loja 2 do cenario pela API", l2 is not None, len(lojas))
+ID2 = l2["id"] if l2 else ""
+RECEBER2 = "/emporio/financeiro/receber?loja=" + ID2
+
+
+def cartao_da_api(liquido):
+    r = api("GET", "/api/v1/emporio/finance/receivables?establishment_id=" + ID2)
+    cartoes = ((((r["body"] or {}).get("data") or {}).get("cards")) or [])
+    return next((c for c in cartoes if c["effective_net"] == liquido), None)
+
+
+# --- 11 ----------------------------------------------------------------------------------------
+passo("11. Extrato da conta: Retirar e Carimbar a linha de cartao conferida (Q352)")
+_, EXTRATO_RESERVA, lin_res = posicao_da_conta("Cc Reserva")
+confere("a conta 'Cc Reserva' tem link para o extrato", EXTRATO_RESERVA != "", lin_res)
+ir(EXTRATO_RESERVA)
+esperar(lambda: linha_do_extrato("Cartão, parcela", "130,00") != "", 30)
+l130 = linha_do_extrato("Cartão, parcela", "130,00")
+confere("a linha de cartao de R$ 130,00 vem carimbada (conferida), com o botao Retirar", "Carimbado em" in l130 and "Retirar" in l130, l130)
+ir(RECEBER2)
+confere("no A receber a parcela de R$ 130,00 esta Conferida", estado_da_linha("R$ 130,00") == "conferida", linha_cartao("R$ 130,00"))
+ir(EXTRATO_RESERVA)
+esperar(lambda: linha_do_extrato("Cartão, parcela", "130,00") != "", 30)
+confere("clica em Retirar na linha de R$ 130,00", bool(esperar(lambda: clicar_no_extrato("Retirar", "Cartão, parcela", "130,00"), 30)))
+sem_carimbo = esperar(lambda: "Carimbado em" not in linha_do_extrato("Cartão, parcela", "130,00") and "Carimbar" in linha_do_extrato("Cartão, parcela", "130,00"), 40)
+confere("a linha volta a sem carimbo (botao Carimbar, sem 'Carimbado em')", bool(sem_carimbo), linha_do_extrato("Cartão, parcela", "130,00"))
+ir(RECEBER2)
+confere("e a parcela voltou a 'A conferir', com o botao Conferir", estado_da_linha("R$ 130,00") == "a conferir" and botoes_da_linha("R$ 130,00") == ["Conferir"], [linha_cartao("R$ 130,00"), botoes_da_linha("R$ 130,00")])
+ir(EXTRATO_RESERVA)
+esperar(lambda: linha_do_extrato("Cartão, parcela", "130,00") != "", 30)
+confere("clica em Carimbar de novo", bool(esperar(lambda: clicar_no_extrato("Carimbar", "Cartão, parcela", "130,00"), 30)))
+carimbada = esperar(lambda: "Carimbado em" in linha_do_extrato("Cartão, parcela", "130,00") and "Retirar" in linha_do_extrato("Cartão, parcela", "130,00"), 40)
+confere("a linha volta a carimbada (Carimbado em, botao Retirar)", bool(carimbada), linha_do_extrato("Cartão, parcela", "130,00"))
+ir(RECEBER2)
+l130 = linha_cartao("R$ 130,00")
+confere("e a parcela volta a Conferida pelo carimbo: 'conferido R$ 130,00', sem ajuste", "conferida" in l130.lower() and "conferido R$ 130,00" in l130 and "ajuste" not in l130.lower(), l130)
+
+# --- 12 ----------------------------------------------------------------------------------------
+passo("12. Antecipacao pontual de uma parcela Prevista: nasce Conferida, sem ajuste")
+prevista = cartao_da_api(120)
+confere("a parcela de R$ 120,00 da Loja 2 e Prevista (daqui a 3 dias)", prevista is not None and prevista.get("status") == "prevista", prevista and prevista.get("status"))
+r_ant = api("POST", "/api/v1/emporio/card-anticipations", {"receivable_ids": [prevista["id"]] if prevista else [], "operated_on": hoje_iso, "received_net": 114})
+confere("antecipa pela rota: 201 (a adquirente pagou R$ 114,00 pelos R$ 120,00)", r_ant["status"] == 201, [r_ant["status"], r_ant["body"]])
+ir(RECEBER2)
+l114 = linha_cartao("R$ 114,00")
+confere("a parcela aparece Conferida, com o conferido igual ao liquido antecipado (R$ 114,00) e sem ajuste", "conferida" in l114.lower() and "conferido R$ 114,00" in l114 and "ajuste" not in l114.lower(), l114)
+apos = cartao_da_api(114)
+confere("a API da a parcela como conferida, confirmed_net 114", apos is not None and apos.get("status") == "conferida" and apos.get("confirmed_net") == 114, apos and [apos.get("status"), apos.get("confirmed_net")])
+_, EXTRATO_RESERVA, _ = posicao_da_conta("Cc Reserva")
+ir(EXTRATO_RESERVA)
+esperar(lambda: linha_do_extrato("Cartão, parcela", "114,00") != "", 30)
+lin114 = linha_do_extrato("Cartão, parcela", "114,00")
+confere("o extrato mostra a linha de cartao de R$ 114,00 com 'conferido R$ 114,00'", "conferido R$ 114,00" in lin114, lin114)
+confere("e a conta nao tem nenhuma linha de 'Ajuste da conferência do cartão' (antecipar e carimbar nao ajustam)", not any("Ajuste da conferência do cartão" in t for t in linhas_do_extrato()), [t[:100] for t in linhas_do_extrato()])
+
+# --- 13 ----------------------------------------------------------------------------------------
+passo("13. Venda cancelada depois de conferida: Estorno de cartao pelo conferido, ajuste fica, saldo volta")
+c200 = cartao_da_api(200)
+confere("acha a parcela de R$ 200,00 (venda 4043) na API", c200 is not None and c200.get("sale_number") == 4043, c200 and c200.get("sale_number"))
+SALE_ID = c200["sale_id"] if c200 else ""
+chegou = ir("/emporio/vendas/" + SALE_ID)
+pagina_da_venda = texto_do_main()
+confere("a venda de numero 004043 abre e NAO e tomada por pagina 404 (o numero contem '404')", "004043" in pagina_da_venda and not eh_404(), [chegou, pagina_da_venda[:120]])
+saldo_a, EXTRATO_ESTORNO, lin_a = posicao_da_conta("Cc Estorno")
+confere("a conta 'Cc Estorno' tem saldo e extrato (saldo inicial 1000 mais a parcela de 200: " + str(saldo_a) + ")", saldo_a is not None and EXTRATO_ESTORNO != "", lin_a)
+r_c = api("POST", "/api/v1/emporio/finance/card-receivables/" + (c200["id"] if c200 else "x") + "/confirm", {"received_amount": 190})
+confere("confere a parcela por R$ 190,00 (ajuste - R$ 10,00): 200", r_c["status"] == 200, [r_c["status"], r_c["body"]])
+saldo_b, _, lin_b = posicao_da_conta("Cc Estorno")
+confere("o saldo caiu R$ 10,00 com o ajuste: " + str(saldo_a) + " -> " + str(saldo_b), saldo_a is not None and saldo_b is not None and abs((saldo_a - saldo_b) - 10.00) < 0.005, lin_b)
+r_x = api("POST", "/api/v1/emporio/sales/" + SALE_ID + "/cancel", {"reason": "Cliente desistiu"})
+confere("cancela a venda 4043: 200", r_x["status"] == 200, [r_x["status"], r_x["body"]])
+saldo_c, EXTRATO_ESTORNO, lin_c = posicao_da_conta("Cc Estorno")
+confere("o saldo da conta voltou ao de antes da venda (R$ 1.000,00): " + str(saldo_b) + " -> " + str(saldo_c), saldo_c is not None and abs(saldo_c - 1000.00) < 0.005, lin_c)
+ir(EXTRATO_ESTORNO)
+# A linha do estorno e o movimento `estorno_cartao`: o extrato mostra as `notes` (o motivo do cancelamento) no lugar
+# do rotulo "Estorno de cartão", que so aparece quando nao ha motivo (e o cancelamento exige um).
+esperar(lambda: linha_do_extrato("Cliente desistiu") != "", 30)
+lin_est = linha_do_extrato("Cliente desistiu")
+confere("o extrato traz a linha do estorno (descricao = o motivo 'Cliente desistiu', nao 'Estorno de cartão') pelo valor conferido (- R$ 190,00), da venda 004043", "- R$ 190,00" in lin_est and "004043" in lin_est, lin_est)
+lin_aj = linha_do_extrato("Ajuste da conferência do cartão")
+confere("a linha do ajuste continua (- R$ 10,00)", "- R$ 10,00" in lin_aj, lin_aj)
+lin_cart = linha_do_extrato("Cartão, parcela", "conferido R$ 190,00")
+confere("a linha do cartao continua, com 'conferido R$ 190,00'", lin_cart != "", [t[:100] for t in linhas_do_extrato()])
