@@ -93,3 +93,16 @@ em laço).
 - Fechar à mão: `npm run navegador -- --limpar`.
 - Aba aberta fora do comando (browser-harness direto, `new_tab`): feche ao
   terminar de olhar. A regra está em `.claude/agents/prova-viva.md`.
+
+## Acréscimo de 2026-11-18: o dinheiro vem com espaço não separável
+
+Décimo primeiro atrito, no roteiro `emporio-paginacao-listas`: a tela das
+Aprovações mostrava "R$ 700,00" e a checagem `"R$ 700,00" in texto` reprovou.
+O `reaisBr` (Intl) põe um espaço não separável (U+00A0) entre "R$" e o número,
+e o `innerText` o devolve assim; a string do roteiro tem espaço comum. Saída:
+normalizar o texto lido com `.replace(" ", " ")` antes de comparar. O
+roteiro do balcão rápido bateu na mesma pedra no mesmo dia.
+
+⚠️ Escreva essa substituição com Edit/Write, nunca por `sed` no shell: o
+`sed -i` do mesmo dia gravou `"00a0"` no lugar de `" "` (o invariante 5 do
+`CLAUDE.md`), e a checagem passaria a não normalizar nada sem avisar.
