@@ -284,7 +284,7 @@ type DataDaBaixa = { dia: Date; ehHoje: boolean; instante: (agora: Date) => Date
  * Lê a data antes de qualquer escrita. Hoje (ou ausente) qualquer um pode; outro dia só quem passa
  * pelo mesmo `pode` de "dinheiro" (Financeiro, Gerente geral e Dono).
  */
-async function lerDataDaBaixaDoAtor(
+export async function lerDataDaBaixaDoAtor(
   db: TenantPrismaClient,
   ator: Ator,
   valor: unknown,

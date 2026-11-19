@@ -256,6 +256,199 @@ async function secao3() {
   }
 }
 
+/**
+ * Seção 4: o Financeiro corrige a data da linha de venda (PIX ou transferência) no extrato (Q372).
+ * Tudo pela ROTA (PATCH com token Bearer); as fixtures vêm das rotas de venda e do Prisma.
+ */
+async function secao4() {
+  console.log("\n4. Corrigir a data da linha de venda no extrato");
+  const { prisma, prismaForTenant, scoped } = await import("@/lib/prisma");
+  const { hojeEmBrasilia } = await import("@/lib/emporio/cartao");
+  const { papelDeFixture, papelFinanceiro, vincularTodas } = await import("./_emporio-papel");
+  const { abrirTurnoDeTeste } = await import("./_emporio-turno");
+  const { withBearer } = await import("./_escopo-de-requisicao");
+  const bcrypt = (await import("bcryptjs")).default;
+  const Cat: Dado = await import("@/lib/actions/emporio-catalogo");
+  const Est: Dado = await import("@/lib/actions/emporio-estoque");
+  const Cli: Dado = await import("@/lib/actions/emporio-clientes");
+  const F: Dado = await import("@/lib/actions/emporio-financeiro");
+  const rotaTok: Dado = await import("@/app/api/v1/auth/token/route");
+  const cru = prisma as Dado;
+
+  const hoje = hojeEmBrasilia();
+  const somar = (d: Date, k: number) => new Date(d.getTime() + k * DIA);
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  const br = (d: Date) => `${iso(d).slice(8, 10)}/${iso(d).slice(5, 7)}/${iso(d).slice(0, 4)}`;
+  const ontem = somar(hoje, -1);
+  const amanha = somar(hoje, 1);
+  const meioDia = (d: Date) => d.getTime() + 15 * 3_600_000;
+  const stamp = `${Date.now().toString(36)}`;
+  let seq = 0;
+
+  const t = await prisma.tenant.create({
+    data: { name: `M127c ${stamp}`, document: `M127C${stamp}`.slice(0, 14), plan: "grupo", status: "trial", trial_ends_at: new Date(Date.now() + DIA) },
+  });
+  const t2 = await prisma.tenant.create({
+    data: { name: `M127d ${stamp}`, document: `M127D${stamp}`.slice(0, 14), plan: "grupo", status: "trial", trial_ends_at: new Date(Date.now() + DIA) },
+  });
+  try {
+    for (const x of [t, t2]) {
+      await prisma.tenantProfile.create({ data: { tenant_id: x.id, profile_type: "emporio", active: true } });
+      await prisma.tenantProfile.create({ data: { tenant_id: x.id, profile_type: "fazenda", active: true } });
+      await prisma.tenantFeature.create({ data: { tenant_id: x.id, feature_key: "emporio", enabled: true } });
+    }
+    const padrao = { fiado_due_days: 30, fiado_block_after_days: 365, fiado_default_limit: null, fiado_collection_message: null, payment_approval_limit: null };
+    await cru.emporioSettings.upsert({ where: { tenant_id: t.id }, create: { tenant_id: t.id, ...padrao }, update: padrao });
+    const hash = await bcrypt.hash(SENHA, 4);
+    const mk = async (tenant: string, suf: string, role: "OWNER" | "OPERADOR", extra: Dado = {}) =>
+      prisma.user.create({
+        data: { tenant_id: tenant, name: `M127c ${suf}`, email: `m127c-${suf}-${stamp}@teste.local`, password_hash: hash, role, ...papelDeFixture(role), ...extra },
+      });
+    const owner = await mk(t.id, "own", "OWNER");
+    const vend = await mk(t.id, "vend", "OPERADOR");
+    const fin = await mk(t.id, "fin", "OPERADOR", papelFinanceiro());
+    const dono2 = await mk(t2.id, "own2", "OWNER");
+    const db: Dado = prismaForTenant(t.id);
+    const dono = { id: owner.id, role: "OWNER" as const };
+    const loja = (await Cat.criarEstabelecimentoAction(db, dono, { name: "M127c Loja" })).data.id as string;
+    await vincularTodas(prisma, t.id, [vend.id], [loja]);
+    const cat = await db.productCategory.create({ data: scoped({ name: "M127c categoria" }) });
+    const prod = await Cat.criarProdutoEmporioAction(db, dono, { name: `M127c Ração ${stamp}`, category_id: cat.id, base_unit: "quilograma" });
+    const pres = await Cat.criarApresentacaoAction(db, dono, prod.data.id, { name: "Quilo", base_qty: 1, is_sealed_package: false });
+    await Cat.definirPrecoAction(db, dono, { establishment_id: loja, presentation_id: pres.data.id, price: 10 });
+    await Est.implantarEstoqueAction(db, dono, { establishment_id: loja, emporio_product_id: prod.data.id, sealed: [], loose_qty: 100000, unit_cost: 4 });
+    await abrirTurnoDeTeste(db, dono, loja);
+    const reg = (await db.cashRegister.findFirst({ where: { establishment_id: loja, number: 1 } })).id as string;
+    const cliente = (await cru.emporioCustomer.create({ data: { tenant_id: t.id, name: "M127c Cliente" } })).id as string;
+    await Cli.garantirConsumidorFinal(db);
+    const conta = (await prisma.bankAccount.create({ data: { tenant_id: t.id, name: "M127c Banco", receives_pix: true, pix_all_establishments: true } })).id as string;
+
+    const tok: Record<string, string> = {};
+    for (const [k, u] of [["owner", owner], ["fin", fin], ["vend", vend], ["dono2", dono2]] as const) {
+      const r = await rotaTok.POST(new Request("http://localhost/api/v1/auth/token", {
+        method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: u.email, password: SENHA }),
+      }));
+      tok[k] = String(((await r.json()) as Dado)?.data?.access_token ?? "");
+    }
+
+    type Resp = { status: number; corpo: Dado };
+    async function chamar(token: string, metodo: "POST" | "PATCH", rota: () => Promise<Dado>, url: string, corpo: unknown, id?: string): Promise<Resp> {
+      let m: Dado;
+      try {
+        m = await rota();
+      } catch (e) {
+        return { status: 0, corpo: { import_error: String(e).slice(0, 160) } };
+      }
+      const req = new Request(`http://localhost/api/v1/${url}`, {
+        method: metodo, headers: { "content-type": "application/json" }, body: JSON.stringify(corpo),
+      });
+      try {
+        const res = await withBearer(token, (): Promise<Response> => m[metodo](req, id === undefined ? undefined : { params: Promise.resolve({ id }) }));
+        return { status: res.status, corpo: (await res.json().catch(() => ({}))) as Dado };
+      } catch (e) {
+        return { status: 0, corpo: { throw: String(e).slice(0, 160) } };
+      }
+    }
+    const R = {
+      sales: () => import("@/app/api/v1/emporio/sales/route"),
+      mov: () => import("@/app/api/v1/emporio/finance/statement/movements/[id]/route"),
+    };
+    const resumo = (r: Resp) => `${r.status} ${j(r.corpo).slice(0, 240)}`;
+    const recusou = (r: Resp, status: number, field: string, msg?: string) =>
+      r.status === status && r.corpo?.error?.field === field && (msg === undefined || r.corpo?.error?.message === msg);
+
+    async function vendaPix(): Promise<{ venda: string; numero: number; mov: Dado }> {
+      const r = await chamar(tok.owner, "POST", R.sales, "emporio/sales", {
+        operation_key: `m127c-venda-${stamp}-${(seq += 1)}`, establishment_id: loja, cash_register_id: reg, customer_id: cliente,
+        items: [{ emporio_product_id: prod.data.id, presentation_id: pres.data.id, quantity: 5 }],
+        payments: [{ kind: "pix", amount: 50, bank_account_id: conta }],
+      });
+      if (r.status !== 201) throw new Error(`venda de preparação: ${resumo(r)}`);
+      const venda = String(r.corpo.data.id);
+      const mov = await cru.cashMovement.findFirst({ where: { tenant_id: t.id, sale_id: venda, bank_account_id: conta } });
+      return { venda, numero: Number(r.corpo.data.number), mov };
+    }
+    const corrigir = (token: string, id: string, occurred_on: unknown) =>
+      chamar(token, "PATCH", R.mov, `emporio/finance/statement/movements/${id}`, { occurred_on }, id);
+    const extrato = () => F.lerExtratoDaContaAction(db, dono, { bank_account_id: conta, de: somar(hoje, -3), ate: somar(hoje, 3) });
+    const historico = async (acao: string) => (await cru.emporioAuditLog.findMany({ where: { tenant_id: t.id, action: acao }, orderBy: { created_at: "asc" } })) as Dado[];
+
+    console.log("  (a) corrige para ontem e para amanhã");
+    const v1 = await vendaPix();
+    check("a venda PIX gerou o movimento na conta", !!v1.mov, "sem movimento");
+    const rOntem = await corrigir(tok.fin, v1.mov.id, iso(ontem));
+    check("Financeiro: corrigir para ontem: 200", rOntem.status === 200, resumo(rOntem));
+    check("a resposta é a linha do extrato com a data de ontem", rOntem.corpo?.data?.kind === "movimento" && rOntem.corpo?.data?.id === v1.mov.id && rOntem.corpo?.data?.occurred_on === iso(ontem), j(rOntem.corpo?.data));
+    const m1 = await cru.cashMovement.findFirst({ where: { id: v1.mov.id } });
+    check("occurred_at é ontem ao meio-dia de Brasília", m1?.occurred_at?.getTime() === meioDia(ontem), String(m1?.occurred_at?.toISOString()));
+    const logs = await historico("financeiro.data_corrigida");
+    check(
+      "o Histórico traz as duas datas e o número da venda",
+      logs.some((l) => String(l.summary) === `Corrigiu a data do PIX da venda nº ${v1.numero} de ${br(hoje)} para ${br(ontem)}`),
+      j(logs.map((l) => l.summary)),
+    );
+    const ext1 = await extrato();
+    check("a linha está em lines, no dia de ontem", ext1.ok && ext1.data.lines.some((l: Dado) => l.id === v1.mov.id && l.occurred_on === iso(ontem)), j(ext1.ok ? ext1.data.lines.length : ext1));
+
+    const rAmanha = await corrigir(tok.fin, v1.mov.id, iso(amanha));
+    check("Financeiro: corrigir para amanhã: 200", rAmanha.status === 200, resumo(rAmanha));
+    const ext2 = await extrato();
+    check("a linha de amanhã vai para scheduled e sai de lines", ext2.ok && ext2.data.scheduled.some((l: Dado) => l.id === v1.mov.id) && !ext2.data.lines.some((l: Dado) => l.id === v1.mov.id), j(ext2.ok ? ext2.data.scheduled : ext2));
+    const rHoje = await corrigir(tok.fin, v1.mov.id, iso(hoje));
+    const m1b = await cru.cashMovement.findFirst({ where: { id: v1.mov.id } });
+    check("corrigir para hoje: 200 e o instante é agora", rHoje.status === 200 && Math.abs(m1b.occurred_at.getTime() - Date.now()) < 60_000, resumo(rHoje));
+
+    console.log("  (b) recusas");
+    const rJanela = await corrigir(tok.fin, v1.mov.id, iso(somar(hoje, 32)));
+    check("data fora da janela: 422 em occurred_on com a mensagem da janela", recusou(rJanela, 422, "occurred_on", `A data precisa estar entre ${br(somar(hoje, -31))} e ${br(somar(hoje, 31))}.`), resumo(rJanela));
+    const rSem = await corrigir(tok.fin, v1.mov.id, null);
+    check("sem data: 422 em occurred_on", rSem.status === 422 && rSem.corpo?.error?.field === "occurred_on", resumo(rSem));
+    const rVend = await corrigir(tok.vend, v1.mov.id, iso(ontem));
+    check("Vendedor: 403", rVend.status === 403, resumo(rVend));
+    const rOutro = await corrigir(tok.dono2, v1.mov.id, iso(ontem));
+    check("outro tenant: 404", rOutro.status === 404, resumo(rOutro));
+    const m1c = await cru.cashMovement.findFirst({ where: { id: v1.mov.id } });
+    check("as recusas não mexeram na data", m1c.occurred_at.getTime() === m1b.occurred_at.getTime());
+
+    const v2 = await vendaPix();
+    await cru.cashMovement.update({ where: { id: v2.mov.id }, data: { reconciled_at: new Date(), reconciled_by_user_id: fin.id } });
+    const rCar = await corrigir(tok.fin, v2.mov.id, iso(ontem));
+    check("linha carimbada: 409 JA_CARIMBADA", rCar.status === 409 && rCar.corpo?.error?.code === "JA_CARIMBADA" && rCar.corpo?.error?.message === "Tire o carimbo antes de corrigir a data.", resumo(rCar));
+    const m2 = await cru.cashMovement.findFirst({ where: { id: v2.mov.id } });
+    check("a carimbada segue com a data de antes", m2.occurred_at.getTime() === v2.mov.occurred_at.getTime());
+
+    const MSG_ORIGEM = "Só a data do PIX ou da transferência da venda se corrige aqui.";
+    const transf = await cru.cashMovement.create({ data: { tenant_id: t.id, bank_account_id: conta, direction: "entrada", origin: "transferencia", amount: 5, occurred_at: new Date() } });
+    const rTr = await corrigir(tok.fin, transf.id, iso(ontem));
+    check("linha de transferência entre contas: 422", rTr.status === 422 && rTr.corpo?.error?.message === MSG_ORIGEM, resumo(rTr));
+    const fiado = await cru.cashMovement.create({ data: { tenant_id: t.id, bank_account_id: conta, direction: "entrada", origin: "recebimento_fiado", amount: 5, occurred_at: new Date() } });
+    const rFi = await corrigir(tok.fin, fiado.id, iso(ontem));
+    check("linha de fiado: 422", rFi.status === 422 && rFi.corpo?.error?.message === MSG_ORIGEM, resumo(rFi));
+    const gaveta = await cru.cashMovement.create({ data: { tenant_id: t.id, establishment_id: loja, direction: "entrada", origin: "venda", amount: 5, occurred_at: new Date() } });
+    const rGa = await corrigir(tok.fin, gaveta.id, iso(ontem));
+    check("movimento da gaveta: 422", rGa.status === 422, resumo(rGa));
+    const rNada = await corrigir(tok.fin, "nao-existe", iso(ontem));
+    check("id inexistente: 404", rNada.status === 404, resumo(rNada));
+  } catch (e) {
+    check("a seção 4 terminou sem exceção", false, e instanceof Error ? e.stack ?? e.message : String(e));
+  } finally {
+    for (const x of [t, t2]) {
+      await prisma.emporioSale.updateMany({ where: { tenant_id: x.id }, data: { exchange_return_id: null, quote_id: null } }).catch(() => undefined);
+    }
+    const modelos = [
+      "emporioBoleto", "emporioAuditLog", "cashMovement", "emporioSalePayment", "stockMovement", "emporioSaleItem", "emporioCheck", "emporioSale",
+      "financialPayment", "financialEntry", "emporioCustomer", "cashSession", "cashRegister", "emporioCounter", "emporioSettings",
+      "userEstablishment", "establishment", "bankAccount", "user", "tenantProfile", "tenantFeature",
+    ];
+    for (const x of [t, t2]) {
+      for (let passada = 0; passada < 2; passada += 1) {
+        for (const m of modelos) await (prisma as Dado)[m]?.deleteMany({ where: { tenant_id: x.id } }).catch(() => undefined);
+      }
+      await prisma.tenant.delete({ where: { id: x.id } }).catch((e: unknown) => console.log(`  (teardown 4: ${e instanceof Error ? e.message.slice(0, 100) : e})`));
+    }
+  }
+}
+
 async function main() {
   const { prisma, prismaForTenant, scoped } = await import("@/lib/prisma");
   const { hojeEmBrasilia } = await import("@/lib/emporio/cartao");
@@ -357,6 +550,7 @@ async function main() {
   }
 
   await secao3();
+  await secao4();
   await prisma.$disconnect();
   console.log(`\nChecagens: ${total}`);
   console.log(falhas === 0 ? "\n✅ M127 (Módulo 39, Empório): data da baixa passou." : `\n❌ M127 (Módulo 39, Empório): ${falhas} afirmação(ões) falharam.`);

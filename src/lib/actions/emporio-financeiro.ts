@@ -7,9 +7,11 @@ import { fimDeHojeEmBrasilia } from "@/lib/emporio/data-da-baixa";
 import { dataCalendario, inicioDoDiaEmSaoPaulo, periodoDeDatasEmSaoPaulo } from "@/lib/dia-calendario";
 import { conferirPeriodo, type Faixa, type Periodo } from "@/lib/emporio/periodo";
 import { dinheiro, registrarNoHistorico } from "@/lib/emporio/historico";
+import { dataBr } from "@/lib/emporio/datas";
 import { lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
 import {
   entradasAbertas,
+  lerDataDaBaixaDoAtor,
   listarBoletosAction,
   listarChequesAction,
   listarFiadoAction,
@@ -569,6 +571,45 @@ async function recebidosNoPeriodo(
   return linhas.sort((a, b) => b.occurred_on.localeCompare(a.occurred_on) || b.id.localeCompare(a.id));
 }
 
+type MovimentoDoExtrato = {
+  id: string;
+  occurred_at: Date;
+  direction: "entrada" | "saida";
+  amount: unknown;
+  origin: string;
+  notes: string | null;
+  establishment_id: string | null;
+  manager_establishment_id: string | null;
+  sale_id: string | null;
+  establishment: { name: string } | null;
+  sale: { number: number; customer_id: string | null; customer: { name: string } | null; establishment: { name: string } } | null;
+};
+
+/** Um movimento como linha do extrato. `nomeDoLugar` é a loja da gerência quando o lugar é a gerência. */
+function linhaDeMovimento(
+  m: MovimentoDoExtrato,
+  nomeDoLugar: string,
+  carimbo: { reconciled_at: string | null; reconciled_by: string | null },
+): ExtratoLinhaView {
+  return {
+    kind: "movimento",
+    id: m.id,
+    occurred_on: dia(inicioDoDiaEmSaoPaulo(m.occurred_at)),
+    direction: m.direction,
+    amount: decToNum(m.amount as never) ?? 0,
+    origin: m.origin,
+    // O movimento da gerência grava `manager_establishment_id`, não `establishment_id`: a loja é a do lugar.
+    establishment_id: m.establishment_id ?? m.manager_establishment_id ?? null,
+    establishment_name: m.establishment?.name ?? (m.manager_establishment_id ? nomeDoLugar : null) ?? m.sale?.establishment.name ?? null,
+    description: descricaoDoMovimento(m),
+    customer_name: m.sale?.customer?.name ?? null,
+    sale_number: m.sale?.number ?? null,
+    sale_id: m.sale_id,
+    customer_id: m.sale?.customer_id ?? null,
+    ...carimbo,
+  };
+}
+
 /**
  * O extrato de uma conta no período: os movimentos mais as parcelas de cartão
  * (linhas iguais, como o banco mostra). `de` e `ate` são o dia de calendário,
@@ -721,24 +762,7 @@ export async function lerExtratoAction(
     reconciled_by: r.reconciled_at && r.reconciled_by_user_id ? (nomes.get(r.reconciled_by_user_id) ?? null) : null,
   });
 
-  const linhaDoMovimento = (m: (typeof movs)[number]): ExtratoLinhaView => ({
-    kind: "movimento",
-    id: m.id,
-    occurred_on: dia(inicioDoDiaEmSaoPaulo(m.occurred_at)),
-    direction: m.direction,
-    amount: decToNum(m.amount) ?? 0,
-    origin: m.origin,
-    // O movimento da gerência grava `manager_establishment_id`, não `establishment_id`: a loja é a do lugar.
-    establishment_id: m.establishment_id ?? m.manager_establishment_id ?? null,
-    establishment_name:
-      m.establishment?.name ?? (m.manager_establishment_id ? lugar.name : null) ?? m.sale?.establishment.name ?? null,
-    description: descricaoDoMovimento(m),
-    customer_name: m.sale?.customer?.name ?? null,
-    sale_number: m.sale?.number ?? null,
-    sale_id: m.sale_id,
-    customer_id: m.sale?.customer_id ?? null,
-    ...carimbo(m),
-  });
+  const linhaDoMovimento = (m: (typeof movs)[number]): ExtratoLinhaView => linhaDeMovimento(m, lugar.name, carimbo(m));
 
   const todas: ExtratoLinhaView[] = [
     ...movs.map(linhaDoMovimento),
@@ -916,4 +940,55 @@ export async function descarimbarLinhaAction(
   });
   if (!limpou) return fail("SEM_CARIMBO", "Esta linha não tem carimbo.", 409, "id");
   return ok({ kind: input.kind, id });
+}
+
+/**
+ * Q372: o PIX e a transferência da venda caem na conta no ato; o Financeiro corrige o dia da linha
+ * quando o dinheiro caiu em outro. Só a linha de conta com origem `venda` e sem carimbo: fiado, boleto
+ * e cheque escolhem a data na baixa, e despesa, compra e transferência guardam a data em outro registro.
+ */
+export async function corrigirDataDoMovimentoAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  id: string,
+  input: { occurred_on: string | Date },
+): Promise<ActionResult<ExtratoLinhaView>> {
+  const neg = await exigir(db, ator, "dinheiro", "corrigir a data do extrato");
+  if (neg) return neg;
+  const movId = typeof id === "string" ? id.trim() : "";
+  if (!movId) return fail("VALIDATION_ERROR", "Escolha a linha.", 422, "id");
+  const m = await db.cashMovement.findFirst({
+    where: { id: movId },
+    include: {
+      establishment: { select: { name: true } },
+      sale: { select: { number: true, customer_id: true, customer: { select: { name: true } }, establishment: { select: { name: true } } } },
+    },
+  });
+  if (!m) return fail("NOT_FOUND", "Linha não encontrada.", 404, "id");
+  if (m.reconciled_at) return fail("JA_CARIMBADA", "Tire o carimbo antes de corrigir a data.", 409, "occurred_on");
+  if (!m.bank_account_id || m.origin !== "venda") {
+    return fail("LINHA_NAO_CORRIGIVEL", "Só a data do PIX ou da transferência da venda se corrige aqui.", 422, "occurred_on");
+  }
+  const bruta = input?.occurred_on as unknown;
+  if (bruta === null || bruta === undefined || (typeof bruta === "string" && !bruta.trim())) {
+    return fail("VALIDATION_ERROR", "Informe a data em que o dinheiro caiu.", 422, "occurred_on");
+  }
+  const data = await lerDataDaBaixaDoAtor(db, ator, bruta, "occurred_on");
+  if (!data.ok) return data;
+  const novo = data.data.instante(new Date());
+  const de = dia(inicioDoDiaEmSaoPaulo(m.occurred_at));
+
+  const gravou = await db.$transaction(async (tx) => {
+    const r = await tx.cashMovement.updateMany({ where: { id: m.id, reconciled_at: null }, data: { occurred_at: novo } });
+    if (r.count === 0) return false;
+    await registrarNoHistorico(tx, ator, {
+      action: "financeiro.data_corrigida",
+      target_type: "conta",
+      target_id: m.bank_account_id,
+      summary: `Corrigiu a data do PIX da venda nº ${m.sale?.number ?? "?"} de ${dataBr(de)} para ${dataBr(dia(data.data.dia))}`,
+    });
+    return true;
+  });
+  if (!gravou) return fail("JA_CARIMBADA", "Tire o carimbo antes de corrigir a data.", 409, "occurred_on");
+  return ok(linhaDeMovimento({ ...m, occurred_at: novo }, "", { reconciled_at: null, reconciled_by: null }));
 }

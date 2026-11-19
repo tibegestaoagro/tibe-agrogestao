@@ -6,10 +6,13 @@
 #      o extrato mostra a linha em anteontem
 #   3. Financeiro paga um boleto com data de amanha: aparece em "Agendados", fora do saldo de fechamento
 #   4. Vendedor recebe fiado: o painel NAO tem o campo "Data em que caiu"
-#   5. Celular (390 px): sem rolagem horizontal no extrato e no A receber
+#   5. Financeiro corrige o PIX de R$ 30,00 de uma venda para ontem (hoje mais 40 recusa embaixo do campo): a linha
+#      muda de dia na MESMA <tr> com o valor; a linha carimbada (R$ 40,00) nao mostra "Corrigir a data"
+#   6. Celular (390 px): sem rolagem horizontal no extrato e no A receber
 #
 # Os valores estao descritos no cabecalho do cenario (todos na "Dd Loja 1"): fiado de "Dd Maria" R$ 200,00
-# (recebe R$ 50,00), boleto R$ 60,00 (BOL-DD-1) e cheque R$ 80,00 (000444, depositado).
+# (recebe R$ 50,00), boleto R$ 60,00 (BOL-DD-1) e cheque R$ 80,00 (000444, depositado); mais dois PIX de venda,
+# R$ 30,00 (sem carimbo) e R$ 40,00 (carimbado).
 #
 # cenario: scripts/_cenario-emporio-data-da-baixa.ts
 # sessao: financeiro dd-financeiro@teste.local
@@ -94,6 +97,11 @@ def linha_com(linhas, *trechos):
     return next((l for l in linhas if all(t in l for t in trechos)), None)
 
 
+def botoes_da_linha(trecho):
+    """Os botoes da <tr> do extrato que tem `trecho` (o texto de cada um), ou None se a linha nao existe."""
+    return js("(() => { const r = Array.from(document.querySelectorAll('main tbody tr')).find(tr => tr.innerText.replace(/\\u00a0/g, ' ').includes(" + repr(trecho) + ")); return r ? Array.from(r.querySelectorAll('button')).map(b => b.innerText.trim()) : null; })()")
+
+
 def fechamento():
     m = re.search(r"Saldo de fechamento:\s*(R\$\s*[\d.,\-]+)", texto_do_main())
     return m.group(1) if m else None
@@ -162,7 +170,29 @@ confere("o Vendedor abre o Receber", abrir_pela_linha("Dd Maria", "Receber"), te
 confere("o Vendedor escolhe PIX", escolher("Como o cliente pagou", "PIX (entra na conta PIX da loja)") is True)
 confere("com PIX escolhido, o painel do Vendedor NAO tem a data", "PIX" in painel() and not tem_campo(CAMPO_DATA), painel()[:300])
 
-passo("6. Celular (390 px): sem rolagem horizontal")
+passo("6. Financeiro corrige a data do PIX da venda: ontem muda a linha de dia")
+entrar("financeiro")
+confere("abre o extrato da conta", abrir_extrato_da_conta(), texto_principal(150))
+linhas = linhas_do_extrato()
+confere("o PIX de R$ 30,00 esta em hoje", linha_com(linhas, br(hoje), "R$ 30,00") is not None, linhas)
+botoes40 = botoes_da_linha("R$ 40,00") or []
+confere("a linha carimbada de R$ 40,00 tem Retirar e NAO tem Corrigir a data", "Retirar" in botoes40 and "Corrigir a data" not in botoes40, botoes40)
+botoes30 = botoes_da_linha("R$ 30,00") or []
+confere("a linha sem carimbo de R$ 30,00 tem Corrigir a data", "Corrigir a data" in botoes30, botoes30)
+confere("o painel de corrigir abre", abrir_pela_linha("R$ 30,00", "Corrigir a data"), texto_principal(200))
+confere("o campo vem com o dia atual da linha", valor_do_campo(CAMPO_DATA) == hoje, valor_do_campo(CAMPO_DATA))
+preencher(CAMPO_DATA, soma_dias(hoje, 40))
+enviar_painel()
+recusa = esperar(lambda: erro_do_campo(CAMPO_DATA), 30)
+confere("hoje + 40 recusa embaixo do campo", bool(recusa) and "A data precisa estar entre" in recusa, recusa)
+preencher(CAMPO_DATA, ontem)
+confere("ontem corrige e fecha o painel", enviar_e_esperar_fechar(), painel()[:200])
+esperar(lambda: linha_com(linhas_do_extrato(), br(ontem), "R$ 30,00"), 30)
+linhas = linhas_do_extrato()
+confere("a linha de R$ 30,00 mudou para ontem, na mesma linha do valor", linha_com(linhas, br(ontem), "R$ 30,00") is not None, linhas)
+confere("e saiu de hoje", linha_com(linhas, br(hoje), "R$ 30,00") is None, linhas)
+
+passo("7. Celular (390 px): sem rolagem horizontal")
 cdp("Emulation.setDeviceMetricsOverride", width=390, height=800, deviceScaleFactor=2, mobile=True)
 entrar("financeiro")
 for caminho_ in (RECEBER,):

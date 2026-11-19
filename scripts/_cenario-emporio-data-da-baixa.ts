@@ -16,7 +16,9 @@ import { papelFinanceiro } from "./_emporio-papel";
  *   - dd-financeiro@teste.local (Financeiro, sem loja) e dd-vendedor@teste.local (Vendedor da Loja 1);
  *   - FIADO: "Dd Maria" deve R$ 200,00 (venda no fiado);
  *   - BOLETO: R$ 60,00 de "Dd Joao", aberto, vence daqui a 10 dias;
- *   - CHEQUE: R$ 80,00 de "Dd Joao", completo (nº 000444, Caixa, bom para hoje) e ja DEPOSITADO na "Dd Banco".
+ *   - CHEQUE: R$ 80,00 de "Dd Joao", completo (nº 000444, Caixa, bom para hoje) e ja DEPOSITADO na "Dd Banco";
+ *   - PIX (Q372): duas vendas de "Dd Joao" pagas por PIX na "Dd Banco", de R$ 30,00 (sem carimbo, o roteiro corrige a
+ *     data) e de R$ 40,00 (a linha ja CARIMBADA, que nao mostra o botao "Corrigir a data").
  *
  * Apaga antes o que rodadas anteriores criaram. Idempotente. `--limpar` so apaga. So banco local:
  * `exigirBancoLocal()` barra o resto. Os dois usuarios ficam na conta (como nos outros cenarios): sao
@@ -151,6 +153,12 @@ async function main() {
   const cheque = await prisma.emporioCheck.findFirst({ where: { tenant_id, number: "000444", establishment_id: loja } });
   if (!cheque) throw new Error("O cheque do cenario nao nasceu.");
   exigir(await cx.depositarChequeAction(db, dono, cheque.id, { bank_account_id: conta }), "depositar o cheque");
+
+  await venda(joao.id, 30, { kind: "pix", bank_account_id: conta });
+  await venda(joao.id, 40, { kind: "pix", bank_account_id: conta });
+  const carimbada = await prisma.cashMovement.findFirst({ where: { tenant_id, bank_account_id: conta, origin: "venda", amount: 40 } });
+  if (!carimbada) throw new Error("O PIX de R$ 40,00 do cenario nao nasceu.");
+  await prisma.cashMovement.update({ where: { id: carimbada.id }, data: { reconciled_at: new Date(), reconciled_by_user_id: owner.id } });
 
   console.log("Conta do seed:", tenant_id, "(hoje:", hojeStr + ")");
   console.log("Loja:", loja, "Conta:", conta, "Financeiro:", EMAILS.financeiro, "Vendedor:", EMAILS.vendedor);

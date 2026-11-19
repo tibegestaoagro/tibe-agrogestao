@@ -59,6 +59,7 @@ export const ACOES_DO_HISTORICO = {
   "pagamento.recusar": "Pagamento recusado",
   "conciliacao.carimbar": "Carimbo de conciliação",
   "conciliacao.descarimbar": "Carimbo retirado",
+  "financeiro.data_corrigida": "Data do lançamento corrigida",
   "cartao.conferir": "Conferiu uma parcela de cartão",
   "cartao.conferir_dia": "Conferiu o cartão de um dia",
   "cartao.desfazer_conferencia": "Desfez a conferência de uma parcela de cartão",

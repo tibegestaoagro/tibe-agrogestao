@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/table";
 
 import { CarimboBotao } from "./carimbo-botao";
+import { CorrigirDataBotao } from "./corrigir-data-botao";
 import { NomeDoCliente, VendaLink } from "./amarras";
 import { PeriodoFiltro, enderecoComPeriodo } from "./periodo-filtro";
 
@@ -196,11 +197,16 @@ export function ExtratoDoLugar({
                   </TableCell>
                   {comCarimbo && (
                     <TableCell>
-                      <CarimboBotao
-                        kind={l.kind}
-                        id={l.id}
-                        carimbadoEm={l.reconciled_at ? diaMesEmBrasilia(l.reconciled_at) : null}
-                      />
+                      <div className="flex flex-wrap items-center gap-2">
+                        <CarimboBotao
+                          kind={l.kind}
+                          id={l.id}
+                          carimbadoEm={l.reconciled_at ? diaMesEmBrasilia(l.reconciled_at) : null}
+                        />
+                        {l.kind === "movimento" && l.origin === "venda" && !l.reconciled_at && (
+                          <CorrigirDataBotao id={l.id} diaAtual={l.occurred_on} />
+                        )}
+                      </div>
                     </TableCell>
                   )}
                 </TableRow>

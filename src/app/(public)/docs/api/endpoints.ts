@@ -1409,6 +1409,15 @@ export const GROUPS: Group[] = [
 { "data": { "kind": "movimento", "id": "cl..." }, "meta": {} }`,
       },
       {
+        method: "PATCH",
+        path: "/api/v1/emporio/finance/statement/movements/:id",
+        auth: "Sessão · emporio:write · Financeiro, Gerente geral e Dono (os outros papéis: 403 `FORBIDDEN`) · perfil emporio · recurso `emporio` liberado",
+        description: "Corrige o dia em que o PIX ou a transferência de uma venda caiu na conta (Q372), quando o dinheiro caiu em outro dia que não o da venda. `occurred_on` (AAAA-MM-DD, de hoje menos 31 a hoje mais 31 dias em Brasília; 422 em `occurred_on` fora da janela). Hoje grava o instante da correção; outro dia grava o meio-dia de Brasília, e data futura passa a `scheduled` do extrato. Só a linha de conta com origem de venda: fiado, boleto, cheque, despesa, compra, transferência entre contas e gaveta são 422 `LINHA_NAO_CORRIGIVEL`; linha carimbada: 409 `JA_CARIMBADA` (tire o carimbo antes); inexistente ou de outra conta de cliente: 404. Devolve a linha no formato de `lines` do extrato. Entra no Histórico como `financeiro.data_corrigida`.",
+        request: `{ "occurred_on": "2026-11-18" }`,
+        response: `200
+{ "data": { "kind": "movimento", "id": "cl...", "occurred_on": "2026-11-18", "direction": "entrada", "amount": 50, "origin": "venda", "sale_number": 412, "description": "Venda", "reconciled_at": null, "reconciled_by": null }, "meta": {} }`,
+      },
+      {
         method: "POST",
         path: "/api/v1/emporio/finance/card-receivables/:id/confirm",
         auth: "Sessão · emporio:write · Financeiro, Gerente geral e Dono (os outros papéis: 403 `FORBIDDEN`) · perfil emporio · recurso `emporio` liberado",
