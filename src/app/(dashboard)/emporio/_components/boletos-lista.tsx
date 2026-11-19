@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
+import { MoneyInput } from "@/components/ui/money-input";
 import { FormSheet } from "@/components/ui/form-sheet";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Carregando } from "@/components/ui/carregando";
@@ -20,7 +21,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@
 import { useErrosDeFormulario } from "@/components/ui/use-erros-de-formulario";
 import { useAviso } from "@/components/ui/toast";
 import { apiGet, apiPost } from "@/lib/client-api";
-import { reaisBr } from "@/lib/numero-br";
+import { lerNumeroBr, reaisBr } from "@/lib/numero-br";
 import { JANELA_DA_BAIXA_DIAS } from "@/lib/emporio/data-da-baixa";
 import type { BoletoView } from "@/lib/actions/emporio-caixa";
 import { BOLETO_SITUACAO_ROTULO } from "./venda-rotulos";
@@ -182,7 +183,14 @@ export function BoletosLista({
                     </Badge>
                   )}
                 </TableCell>
-                <TableCell>{reaisBr(b.amount)}</TableCell>
+                <TableCell>
+                  {reaisBr(b.amount)}
+                  {b.status === "pago" && b.paid_amount !== null && b.difference !== null && b.difference !== 0 && (
+                    <span className="block text-xs text-texto-secundario">
+                      {`pago ${reaisBr(b.paid_amount)} (${b.difference > 0 ? "juros" : "desconto"} ${reaisBr(Math.abs(b.difference))})`}
+                    </span>
+                  )}
+                </TableCell>
                 <TableCell>
                   <Badge variant={b.status === "pago" ? "green" : b.status === "no_fiado" ? "gray" : "amber"}>
                     {BOLETO_SITUACAO_ROTULO[b.status] ?? b.status}
@@ -220,7 +228,10 @@ const rotuloDoBoleto = (b: BoletoView) => (b.number ? `boleto ${b.number}` : `bo
 
 // ----- Boleto pago -----
 
-const ORDEM_PAGO = ["bank_account_id", "paid_on"] as const;
+const ORDEM_PAGO = ["bank_account_id", "paid_amount", "paid_on"] as const;
+
+/** O valor do boleto como o campo de dinheiro o escreve: "1.234,56", sem o "R$". */
+const valorNoCampo = (valor: number) => reaisBr(valor).replace(/[^\d,.]/g, "");
 
 function BoletoPago({
   boleto,
@@ -240,13 +251,16 @@ function BoletoPago({
   const [loading, setLoading] = useState(false);
   const [conta, setConta] = useState("");
   const [pagoEm, setPagoEm] = useState("");
+  const [valorPago, setValorPago] = useState(valorNoCampo(boleto.amount));
   const hoje = diaDeHoje();
 
   async function submit() {
     const novos: Partial<Record<(typeof ORDEM_PAGO)[number], string>> = {};
     if (!conta) novos.bank_account_id = "Escolha a conta onde o boleto foi pago.";
+    const pago = lerNumeroBr(valorPago);
+    if (pago === null || pago <= 0) novos.paid_amount = "Informe o valor que o banco recebeu, maior que zero.";
     const dia = pagoEm || hoje;
-    if (Object.keys(novos).length > 0) {
+    if (Object.keys(novos).length > 0 || pago === null) {
       err.setGlobal(null);
       err.reprovar(novos);
       return;
@@ -255,6 +269,7 @@ function BoletoPago({
     setLoading(true);
     const res = await apiPost(`/api/v1/emporio/boletos/${boleto.id}/pay`, {
       bank_account_id: conta,
+      paid_amount: pago,
       ...(podeMudarData ? { paid_on: dia } : {}),
     });
     setLoading(false);
@@ -266,6 +281,7 @@ function BoletoPago({
     setOpen(false);
     setConta("");
     setPagoEm("");
+    setValorPago(valorNoCampo(boleto.amount));
     aoMudar();
   }
 
@@ -273,7 +289,7 @@ function BoletoPago({
     <FormSheet
       trigger={<Button size="sm">Boleto pago</Button>}
       title={`Boleto pago: ${rotuloDoBoleto(boleto)}`}
-      description={`${reaisBr(boleto.amount)} entram como saldo na conta que você escolher. Confirme só depois de ver o dinheiro no extrato.`}
+      description={`O valor pago entra como saldo na conta que você escolher (o boleto é de ${reaisBr(boleto.amount)}). Confirme só depois de ver o dinheiro no extrato.`}
       open={open}
       onOpenChange={(o) => {
         setOpen(o);
@@ -306,6 +322,25 @@ function BoletoPago({
               ))}
             </SelectContent>
           </Select>
+        )}
+      </Field>
+      <Field
+        label="Valor pago (R$)"
+        required
+        id={err.idDe("paid_amount")}
+        error={err.erros.paid_amount}
+        hint="Se o banco cobrou juros ou deu desconto, digite o que entrou de verdade. A diferença vai para o Resultado."
+      >
+        {({ id, ...aria }) => (
+          <MoneyInput
+            id={id}
+            {...aria}
+            value={valorPago}
+            onValueChange={(v) => {
+              setValorPago(v);
+              err.limparCampo("paid_amount");
+            }}
+          />
         )}
       </Field>
       {podeMudarData && (

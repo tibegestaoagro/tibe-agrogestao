@@ -16,6 +16,7 @@ import { papelFinanceiro } from "./_emporio-papel";
  *   - dd-financeiro@teste.local (Financeiro, sem loja) e dd-vendedor@teste.local (Vendedor da Loja 1);
  *   - FIADO: "Dd Maria" deve R$ 200,00 (venda no fiado);
  *   - BOLETO: R$ 60,00 de "Dd Joao", aberto, vence daqui a 10 dias;
+ *   - BOLETO 2 (Q373): R$ 99,90 de "Dd Joao" (BOL-DD-2), aberto, o roteiro o paga com R$ 100,10 (juros de R$ 0,20);
  *   - CHEQUE: R$ 80,00 de "Dd Joao", completo (nº 000444, Caixa, bom para hoje) e ja DEPOSITADO na "Dd Banco";
  *   - PIX (Q372): duas vendas de "Dd Joao" pagas por PIX na "Dd Banco", de R$ 30,00 (sem carimbo, o roteiro corrige a
  *     data) e de R$ 40,00 (a linha ja CARIMBADA, que nao mostra o botao "Corrigir a data").
@@ -148,6 +149,7 @@ async function main() {
 
   await venda(maria.id, 200, { kind: "fiado", due_date: new Date(`${somaDias(hojeStr, 5)}T12:00:00Z`) });
   await venda(joao.id, 60, { kind: "boleto", boleto: { number: "BOL-DD-1", due_on: new Date(`${somaDias(hojeStr, 10)}T00:00:00Z`) } });
+  await venda(joao.id, 99.9, { kind: "boleto", boleto: { number: "BOL-DD-2", due_on: new Date(`${somaDias(hojeStr, 10)}T00:00:00Z`) } });
   await venda(joao.id, 80, { kind: "cheque", check: { number: "000444", bank: "Caixa", good_for: new Date(`${hojeStr}T00:00:00Z`), holder_name: `${PREFIXO}Joao` } });
 
   const cheque = await prisma.emporioCheck.findFirst({ where: { tenant_id, number: "000444", establishment_id: loja } });

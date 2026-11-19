@@ -8,11 +8,13 @@
 #   4. Vendedor recebe fiado: o painel NAO tem o campo "Data em que caiu"
 #   5. Financeiro corrige o PIX de R$ 30,00 de uma venda para ontem (hoje mais 40 recusa embaixo do campo): a linha
 #      muda de dia na MESMA <tr> com o valor; a linha carimbada (R$ 40,00) nao mostra "Corrigir a data"
-#   6. Celular (390 px): sem rolagem horizontal no extrato e no A receber
+#   6. Financeiro paga o boleto BOL-DD-2 de R$ 99,90 digitando R$ 100,10 (Q373): valor 0 recusa embaixo do campo; a
+#      linha em Pagos mostra "pago R$ 100,10 (juros R$ 0,20)"; o Resultado da loja mostra "Juros de boleto R$ 0,20"
+#   7. Celular (390 px): sem rolagem horizontal no extrato e no A receber
 #
 # Os valores estao descritos no cabecalho do cenario (todos na "Dd Loja 1"): fiado de "Dd Maria" R$ 200,00
 # (recebe R$ 50,00), boleto R$ 60,00 (BOL-DD-1) e cheque R$ 80,00 (000444, depositado); mais dois PIX de venda,
-# R$ 30,00 (sem carimbo) e R$ 40,00 (carimbado).
+# R$ 30,00 (sem carimbo) e R$ 40,00 (carimbado); e um boleto de R$ 99,90 (BOL-DD-2).
 #
 # cenario: scripts/_cenario-emporio-data-da-baixa.ts
 # sessao: financeiro dd-financeiro@teste.local
@@ -23,6 +25,7 @@ import re
 LOJA = "Dd Loja 1"
 CONTA = "Dd Banco"
 CAMPO_DATA = "Data em que caiu"
+CAMPO_VALOR = "Valor pago (R$)"
 RECEBER = "/emporio/financeiro/receber"
 EXTRATO = "/emporio/financeiro/caixa"
 
@@ -100,6 +103,16 @@ def linha_com(linhas, *trechos):
 def botoes_da_linha(trecho):
     """Os botoes da <tr> do extrato que tem `trecho` (o texto de cada um), ou None se a linha nao existe."""
     return js("(() => { const r = Array.from(document.querySelectorAll('main tbody tr')).find(tr => tr.innerText.replace(/\\u00a0/g, ' ').includes(" + repr(trecho) + ")); return r ? Array.from(r.querySelectorAll('button')).map(b => b.innerText.trim()) : null; })()")
+
+
+def linha_da_lista(trecho):
+    """O texto da <tr> da lista de boletos (a tabela com a coluna Vencimento) que tem `trecho`, ou None."""
+    return js("(() => { const ts = Array.from(document.querySelectorAll('main table')).filter(t => t.querySelector('thead').innerText.toLowerCase().includes('vencimento')); const r = ts.flatMap(t => Array.from(t.querySelectorAll('tbody tr'))).find(tr => tr.innerText.replace(/\\u00a0/g, ' ').includes(" + repr(trecho) + ")); return r ? r.innerText.replace(/\\u00a0/g, ' ').split('\\n').join(' | ') : null; })()")
+
+
+def linha_do_resultado(rotulo):
+    """O texto da linha da conta do Resultado (a primeira <div> da conta com o rotulo), ou None."""
+    return js("(() => { const ds = Array.from(document.querySelectorAll('main div')).filter(d => d.className.includes('py-2.5') && d.innerText.includes(" + repr(rotulo) + ")); return ds.length ? ds[0].innerText.replace(/\\u00a0/g, ' ').split('\\n').join(' | ') : null; })()")
 
 
 def fechamento():
@@ -192,7 +205,36 @@ linhas = linhas_do_extrato()
 confere("a linha de R$ 30,00 mudou para ontem, na mesma linha do valor", linha_com(linhas, br(ontem), "R$ 30,00") is not None, linhas)
 confere("e saiu de hoje", linha_com(linhas, br(hoje), "R$ 30,00") is None, linhas)
 
-passo("7. Celular (390 px): sem rolagem horizontal")
+passo("7. Boleto de R$ 99,90 pago com R$ 100,10: juros de R$ 0,20 na lista e no Resultado")
+entrar("financeiro")
+ir(RECEBER)
+confere("o boleto BOL-DD-2 tem Boleto pago", abrir_pela_linha("BOL-DD-2", "Boleto pago"), texto_principal(200))
+confere("o campo Valor pago vem com R$ 99,90 do boleto", valor_do_campo(CAMPO_VALOR) == "99,90", valor_do_campo(CAMPO_VALOR))
+escolher("Conta onde caiu", CONTA)
+preencher(CAMPO_VALOR, "0")
+enviar_painel()
+recusa = esperar(lambda: erro_do_campo(CAMPO_VALOR), 30)
+confere("valor 0 recusa embaixo do campo Valor pago", bool(recusa) and recusa != "invalido sem texto", recusa)
+confere("o painel segue aberto", painel_aberto())
+preencher(CAMPO_VALOR, "100,10")
+confere("R$ 100,10 paga e fecha o painel", enviar_e_esperar_fechar(), painel()[-280:])
+js("(() => { const b = Array.from(document.querySelectorAll('main button')).find(x => x.innerText.trim() === 'Pagos'); if (b) b.click(); })()")
+esperar(lambda: linha_da_lista("BOL-DD-2"), 30)
+lista = linha_da_lista("BOL-DD-2") or ""
+confere("a linha do boleto pago diz pago R$ 100,10 (juros R$ 0,20)", "pago R$ 100,10 (juros R$ 0,20)" in lista, lista or "sem a linha")
+confere("e traz o valor do boleto R$ 99,90 na mesma linha", "R$ 99,90" in lista, lista)
+resp = api("GET", "/api/v1/emporio/establishments")
+dados = (resp.get("body") or {}).get("data") if isinstance(resp, dict) else None
+dados = dados.get("items") if isinstance(dados, dict) else dados
+loja_id = next((x["id"] for x in (dados or []) if x.get("name") == LOJA), None)
+confere("achei o id da loja", loja_id is not None, resp)
+ir("/emporio/resultado?loja=" + str(loja_id))
+esperar(lambda: linha_do_resultado("Juros de boleto"), 40)
+juros = linha_do_resultado("Juros de boleto") or ""
+confere("o Resultado tem a linha Juros de boleto com R$ 0,20", "R$ 0,20" in juros, juros)
+confere("e nao tem Descontos de boleto (nao houve)", linha_do_resultado("Descontos de boleto") is None, linha_do_resultado("Descontos de boleto"))
+
+passo("8. Celular (390 px): sem rolagem horizontal")
 cdp("Emulation.setDeviceMetricsOverride", width=390, height=800, deviceScaleFactor=2, mobile=True)
 entrar("financeiro")
 for caminho_ in (RECEBER,):
