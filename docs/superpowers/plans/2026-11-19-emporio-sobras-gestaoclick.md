@@ -40,7 +40,7 @@
 
 ---
 
-### Tarefa 1: estorno da parcela conferida pelo valor que caiu (Q368)
+### Task 1: estorno da parcela conferida pelo valor que caiu (Q368)
 
 **Files:**
 - Modify: `src/lib/actions/emporio-vendas.ts` (laço das parcelas no cancelamento, perto da linha 2220)
@@ -74,7 +74,7 @@ Expected: PASS.
 
 - [ ] **Passo 5: commit** (`git add -u` e a suíte; mensagem "Empório: estorno da parcela conferida pelo valor que caiu (Q368)")
 
-### Tarefa 2: ordem da carteira de cheques (Q369)
+### Task 2: ordem da carteira de cheques (Q369)
 
 **Files:**
 - Modify: `src/lib/emporio/cheque.ts`
@@ -99,7 +99,7 @@ As duas funções em `cheque.ts`, ao lado de `chequeIncompleto` (o grupo 3 cobre
 
 - [ ] **Passo 5: commit** ("Empório: carteira de cheques com os sem bom para no topo e depois os sem número (Q369)")
 
-### Tarefa 3: o "Ver os cheques" do Hoje abre só os cheques a completar
+### Task 3: o "Ver os cheques" do Hoje abre só os cheques a completar
 
 **Files:**
 - Modify: `src/app/(dashboard)/emporio/financeiro/receber/page.tsx` (ler `cheques` do `searchParams`)
@@ -127,7 +127,7 @@ Página: `const soACompletar = chequesDaUrl === "a_completar"`. Componente: com 
 
 - [ ] **Passo 5: commit**
 
-### Tarefa 4: o "Conferir as parcelas" diz que traz as de dias anteriores
+### Task 4: o "Conferir as parcelas" diz que traz as de dias anteriores
 
 **Files:**
 - Modify: `src/app/(dashboard)/emporio/_components/financeiro-hoje.tsx` (cartão "Cartão a conferir")
@@ -140,7 +140,7 @@ Página: `const soACompletar = chequesDaUrl === "a_completar"`. Componente: com 
 - [ ] **Passo 4:** rodar (PASS).
 - [ ] **Passo 5:** commit.
 
-### Tarefa 5: aviso quando as barras não cabem na etiqueta
+### Task 5: aviso quando as barras não cabem na etiqueta
 
 **Files:**
 - Create: `src/lib/emporio/etiqueta-medidas.ts`
@@ -159,7 +159,7 @@ Página: `const soACompletar = chequesDaUrl === "a_completar"`. Componente: com 
 - [ ] **Passo 4:** rodar `m123` e o roteiro (PASS).
 - [ ] **Passo 5:** commit.
 
-### Tarefa 6: tirar o filtro redundante das entregas no Caixa
+### Task 6: tirar o filtro redundante das entregas no Caixa
 
 **Files:**
 - Modify: `src/app/(dashboard)/emporio/caixa/page.tsx:132-134`
@@ -169,7 +169,7 @@ Página: `const soACompletar = chequesDaUrl === "a_completar"`. Componente: com 
 - [ ] **Passo 3:** `npm run test:m125` (a seção das entregas do gestor) e `npm run navegador -- emporio-caixa-vendas`. Expected: PASS.
 - [ ] **Passo 4:** commit.
 
-### Tarefa 7: roteiros que faltam e o `eh_404` que confunde número de venda
+### Task 7: roteiros que faltam e o `eh_404` que confunde número de venda
 
 **Files:**
 - Modify: `scripts/navegador/_lib.py` (`eh_404`)
@@ -183,7 +183,7 @@ Página: `const soACompletar = chequesDaUrl === "a_completar"`. Componente: com 
   - venda cancelada depois de conferida (Tarefa 1): no extrato, a linha "Estorno de cartão" com o valor conferido, a linha do ajuste continua, e o saldo da conta volta ao de antes da venda.
 - [ ] **Passo 3:** rodar o roteiro inteiro (PASS) e commit.
 
-### Tarefa 8: corrida entre completar ou corrigir e depositar o cheque
+### Task 8: corrida entre completar ou corrigir e depositar o cheque
 
 **Files:**
 - Test: `scripts/m122-emporio-cheque-duas-etapas.test.ts` (seção 8 nova)
@@ -194,7 +194,7 @@ Página: `const soACompletar = chequesDaUrl === "a_completar"`. Componente: com 
 - [ ] **Passo 2:** rodar. Se passar de primeira, provar a trava: trocar por um instante o `updateMany` com `status: "recebido"` do completar por um `update` sem a condição e ver a (a) reprovar em alguma rodada; se não reprovar em 10, subir para 30 e registrar na dívida que a corrida não se reproduz localmente. Desfazer a troca.
 - [ ] **Passo 3:** commit.
 
-### Tarefa 9: fechar a frente
+### Task 9: fechar a frente
 
 - [ ] `npm run check`, `npx tsc --noEmit`, `npm run lint` e `npm run test:all -- --sem-redis` (com as URLs inline). Expected: tudo verde.
 - [ ] Juiz (`prova-juiz`) sobre o range da branch, com este plano como spec.
