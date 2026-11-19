@@ -98,6 +98,7 @@ export function FinanceiroReceber({
             : noRecorte(ver, hoje, p.effective_on),
       )
     : dados.cards;
+  const trazAnteriores = ver === "hoje" && cartoes.some((p) => p.status === "a_conferir" && p.effective_on.slice(0, 10) < hoje);
   const totalFiado = fiado.reduce((s, c) => s + Math.round(doRecorte(c) * 100), 0) / 100;
   // Antecipar é de quem gere a loja da parcela ou cuida do dinheiro (o servidor confere de novo).
   const lojasQueAntecipam = [...new Set(dados.cards.map((c) => c.establishment_id))].filter(
@@ -107,83 +108,83 @@ export function FinanceiroReceber({
   return (
     <div className="space-y-8">
       {!soACompletar && (
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold text-texto">Fiado por cliente</h2>
-        {soPix && (
-          <p className="text-sm text-texto-secundario">
-            O recebimento aqui é por PIX, na conta da loja. O dinheiro em espécie é recebido no caixa da loja.
-          </p>
-        )}
-        {fiado.length === 0 ? (
-          <EmptyState titulo={ver ? "Nenhum fiado neste recorte" : "Ninguém deve nada no momento"}>
-            {ver
-              ? "Nenhum cliente tem fiado com essa data. Use Ver tudo para voltar."
-              : "As vendas no fiado aparecem aqui, por cliente, até serem recebidas."}
-          </EmptyState>
-        ) : (
-          <>
-            <p className="text-sm text-texto">
-              {ver ? "Total neste recorte" : "Total em aberto"}: <strong>{reaisBr(totalFiado)}</strong> em {fiado.length}{" "}
-              {fiado.length === 1 ? "cliente" : "clientes"}.
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold text-texto">Fiado por cliente</h2>
+          {soPix && (
+            <p className="text-sm text-texto-secundario">
+              O recebimento aqui é por PIX, na conta da loja. O dinheiro em espécie é recebido no caixa da loja.
             </p>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead>Deve</TableHead>
-                  <TableHead>Vencimento</TableHead>
-                  <TableHead>Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {fiado.map((c) => (
-                  <TableRow key={c.customer_id}>
-                    <TableCell className="font-medium text-texto">
-                      <NomeDoCliente id={c.customer_id} nome={c.customer_name} padraoId={padraoId} />
-                      {c.phone && <span className="block text-xs font-normal text-texto-secundario">{c.phone}</span>}
-                    </TableCell>
-                    <TableCell>
-                      {reaisBr(c.owed)}
-                      {c.overdue_amount > 0 && (
-                        <Badge variant="red" className="ml-2">
-                          Vencido {reaisBr(c.overdue_amount)}
-                        </Badge>
-                      )}
-                      {ver === "hoje" && (
-                        <Badge variant="amber" className="ml-2">
-                          Vence hoje {reaisBr(c.due_today_amount)}
-                        </Badge>
-                      )}
-                      {ver === "a_vencer" && (
-                        <Badge variant="blue" className="ml-2">
-                          A vencer {reaisBr(c.upcoming_amount)}
-                        </Badge>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {(() => {
-                        const d = vencimentoDaLinha(c);
-                        return d ? DATA_UTC.format(new Date(d.length === 10 ? `${d}T00:00:00Z` : d)) : "-";
-                      })()}
-                    </TableCell>
-                    <TableCell>
-                      <ReceberFiadoForm
-                        contatoId={c.customer_id}
-                        contatoNome={c.customer_name}
-                        devidoCent={Math.round(c.owed * 100)}
-                        lojas={lojas}
-                        caixas={soPix ? [] : caixas}
-                        usuarioId={usuarioId}
-                        soPix={soPix}
-                      />
-                    </TableCell>
+          )}
+          {fiado.length === 0 ? (
+            <EmptyState titulo={ver ? "Nenhum fiado neste recorte" : "Ninguém deve nada no momento"}>
+              {ver
+                ? "Nenhum cliente tem fiado com essa data. Use Ver tudo para voltar."
+                : "As vendas no fiado aparecem aqui, por cliente, até serem recebidas."}
+            </EmptyState>
+          ) : (
+            <>
+              <p className="text-sm text-texto">
+                {ver ? "Total neste recorte" : "Total em aberto"}: <strong>{reaisBr(totalFiado)}</strong> em {fiado.length}{" "}
+                {fiado.length === 1 ? "cliente" : "clientes"}.
+              </p>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Cliente</TableHead>
+                    <TableHead>Deve</TableHead>
+                    <TableHead>Vencimento</TableHead>
+                    <TableHead>Ações</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </>
-        )}
-      </section>
+                </TableHeader>
+                <TableBody>
+                  {fiado.map((c) => (
+                    <TableRow key={c.customer_id}>
+                      <TableCell className="font-medium text-texto">
+                        <NomeDoCliente id={c.customer_id} nome={c.customer_name} padraoId={padraoId} />
+                        {c.phone && <span className="block text-xs font-normal text-texto-secundario">{c.phone}</span>}
+                      </TableCell>
+                      <TableCell>
+                        {reaisBr(c.owed)}
+                        {c.overdue_amount > 0 && (
+                          <Badge variant="red" className="ml-2">
+                            Vencido {reaisBr(c.overdue_amount)}
+                          </Badge>
+                        )}
+                        {ver === "hoje" && (
+                          <Badge variant="amber" className="ml-2">
+                            Vence hoje {reaisBr(c.due_today_amount)}
+                          </Badge>
+                        )}
+                        {ver === "a_vencer" && (
+                          <Badge variant="blue" className="ml-2">
+                            A vencer {reaisBr(c.upcoming_amount)}
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {(() => {
+                          const d = vencimentoDaLinha(c);
+                          return d ? DATA_UTC.format(new Date(d.length === 10 ? `${d}T00:00:00Z` : d)) : "-";
+                        })()}
+                      </TableCell>
+                      <TableCell>
+                        <ReceberFiadoForm
+                          contatoId={c.customer_id}
+                          contatoNome={c.customer_name}
+                          devidoCent={Math.round(c.owed * 100)}
+                          lojas={lojas}
+                          caixas={soPix ? [] : caixas}
+                          usuarioId={usuarioId}
+                          soPix={soPix}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </>
+          )}
+        </section>
       )}
 
       <section className="space-y-3">
@@ -264,26 +265,32 @@ export function FinanceiroReceber({
 
       {!soACompletar && (
         <>
-      <BoletosLista
-        iniciais={dados.boletos}
-        loja={lojas.length === 1 ? lojas[0].id : ""}
-        contas={contasDoBanco}
-        ehDinheiro={pode(papel, "dinheiro")}
-        lojasDoGestor={lojas.filter((l) => pode(papel, "gestor_da_loja", l.id)).map((l) => l.id)}
-        recorte={ver ? { ver, hoje } : null}
-        padraoId={padraoId}
-      />
+          <BoletosLista
+            iniciais={dados.boletos}
+            loja={lojas.length === 1 ? lojas[0].id : ""}
+            contas={contasDoBanco}
+            ehDinheiro={pode(papel, "dinheiro")}
+            lojasDoGestor={lojas.filter((l) => pode(papel, "gestor_da_loja", l.id)).map((l) => l.id)}
+            recorte={ver ? { ver, hoje } : null}
+            padraoId={padraoId}
+          />
 
-      <CartoesAReceber
-        cards={cartoes}
-        antecipacoes={antecipacoes}
-        paginacao={paginacaoAntecipacoes}
-        lojasQueAntecipam={lojasQueAntecipam}
-        padraoId={padraoId}
-        semAtrasadoNoFiltro={ver === "vencido"}
-        podeConferir={pode(papel, "dinheiro")}
-        loja={loja}
-      />
+          {trazAnteriores && (
+            <p className="text-sm text-texto-secundario">
+              Vence hoje mostra também as parcelas de dias anteriores que ainda esperam conferência.
+            </p>
+          )}
+
+          <CartoesAReceber
+            cards={cartoes}
+            antecipacoes={antecipacoes}
+            paginacao={paginacaoAntecipacoes}
+            lojasQueAntecipam={lojasQueAntecipam}
+            padraoId={padraoId}
+            semAtrasadoNoFiltro={ver === "vencido"}
+            podeConferir={pode(papel, "dinheiro")}
+            loja={loja}
+          />
         </>
       )}
     </div>

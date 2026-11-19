@@ -19,6 +19,7 @@ import { estadoDaParcela } from "@/lib/actions/emporio-conferencia-cartao";
  *       A conferir: R$ 80,00 e R$ 90,00, que caem hoje (a de 90 e a que o roteiro confere com diferenca e desfaz:
  *                   a lista do A receber so mantem a parcela conferida de HOJE em diante, entao so a de hoje
  *                   tem o botao Desfazer na tela);
+ *                   e R$ 55,00 de ONTEM, tambem A conferir (o A receber de hoje diz que traz as anteriores);
  *       Atrasada, dia D1 (a data mais recente que ja esta atrasada): R$ 100,00 e R$ 200,00 (o "Conferir o dia" de
  *                   R$ 300,00 previstos);
  *       Atrasada, dia D2 (o dia anterior a D1): R$ 60,00 e R$ 40,00 (R$ 100,00 previstos);
@@ -193,6 +194,12 @@ async function main() {
   await parcela(60, d2);
   await parcela(40, d2);
   await parcela(50, d3, true);
+  // A conferir de um dia ANTERIOR (ontem ainda esta no prazo): o "Vence hoje" do A receber traz esta tambem, e diz isso.
+  const ontem = somaDias(hojeStr, -1);
+  if (estadoDaParcela({ effective_on: meiaNoite(ontem), reconciled_at: null }, meiaNoite(hojeStr)) !== "a_conferir") {
+    throw new Error(`Ontem (${ontem}) ja esta atrasado: o cenario precisa de uma A conferir anterior a hoje.`);
+  }
+  await parcela(55, ontem);
 
   console.log("Conta do seed:", tenant_id, "(hoje:", hojeStr + ", D1:", d1 + ", D2:", d2 + ", D3 conferida:", d3 + ")");
   console.log("Lojas:", loja1, loja2, "Gestor:", EMAIL_GESTOR, "Conta:", conta);
