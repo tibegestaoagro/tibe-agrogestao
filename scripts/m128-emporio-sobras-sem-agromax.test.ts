@@ -202,11 +202,105 @@ async function secao2() {
   }
 }
 
+async function secao3() {
+  console.log("\n3. Recusas novas: cheque, replay do fiado e teto do valor pago (5.30)");
+  const { prisma, prismaForTenant, scoped } = await import("@/lib/prisma");
+  const { hojeEmBrasilia } = await import("@/lib/emporio/cartao");
+  const C: Dado = await import("@/lib/actions/emporio-catalogo");
+  const X: Dado = await import("@/lib/actions/emporio-caixa");
+  const cru = prisma as Dado;
+
+  const hoje = hojeEmBrasilia();
+  const ontem = new Date(hoje.getTime() - DIA);
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  const br = (d: Date) => `${iso(d).slice(8, 10)}/${iso(d).slice(5, 7)}/${iso(d).slice(0, 4)}`;
+  const stamp = Date.now();
+  const t = await prisma.tenant.create({
+    data: { name: `M128c ${stamp}`, document: `M128C${stamp}`.slice(0, 14), plan: "grupo", status: "trial", trial_ends_at: new Date(Date.now() + DIA) },
+  });
+  try {
+    const u = await prisma.user.create({
+      data: { tenant_id: t.id, name: "M128c dono", email: `m128c-${stamp}@teste.local`, password_hash: "x", role: "OWNER" },
+    });
+    const dono = { id: u.id, role: "OWNER" as const };
+    const db: Dado = prismaForTenant(t.id);
+    const loja = (await C.criarEstabelecimentoAction(db, dono, { name: "M128c Loja", kind: "ponto_venda" })).data;
+    const conta = await db.bankAccount.create({ data: scoped({ name: `M128c Conta ${stamp}` }) });
+    const cliente = await cru.emporioCustomer.create({ data: { tenant_id: t.id, name: "M128c Cliente" } });
+    const venda = await cru.emporioSale.create({
+      data: { tenant_id: t.id, establishment_id: loja.id, customer_id: cliente.id, operation_key: `m128c-${stamp}`, number: 1, sold_at: new Date(), net_amount: 200 },
+    });
+
+    console.log("  (a) D2: compensação antes do depósito");
+    const pgCheque = await cru.emporioSalePayment.create({ data: { tenant_id: t.id, sale_id: venda.id, kind: "cheque", amount: 50 } });
+    const novoCheque = (n: string) =>
+      cru.emporioCheck.create({
+        data: {
+          tenant_id: t.id, sale_id: venda.id, sale_payment_id: pgCheque.id, customer_id: cliente.id, establishment_id: loja.id,
+          holder_name: "M128c Cliente", number: n, amount: 50, status: "depositado", bank_account_id: conta.id, deposited_at: new Date(),
+        },
+      });
+    const ch1 = await novoCheque("1");
+    const r1 = await X.compensarChequeAction(db, dono, ch1.id, { cleared_on: iso(ontem) });
+    check("compensar com cleared_on de ontem é 422 em cleared_on", !r1.ok && r1.status === 422 && r1.field === "cleared_on", j(r1));
+    check("a mensagem traz a data do depósito", !r1.ok && r1.message === `A compensação não pode ser antes do depósito (${br(hoje)}).`, j(r1.ok ? null : r1.message));
+    const r2 = await X.compensarChequeAction(db, dono, ch1.id, { cleared_on: iso(hoje) });
+    check("compensar com cleared_on de hoje passa", r2.ok, j(r2));
+
+    console.log("  (b) D3: replay do fiado com outra data");
+    const entrada = await cru.financialEntry.create({
+      data: {
+        tenant_id: t.id, entry_type: "income", amount: 100, status: "pending", emporio_customer_id: cliente.id, establishment_id: loja.id,
+        related_module: "emporio", related_id: venda.id, category: "Vendas do Empório", due_date: hoje,
+      },
+    });
+    const base = { customer_id: cliente.id, establishment_id: loja.id, amount: 40, kind: "pix", bank_account_id: conta.id, entry_id: entrada.id };
+    const K = `m128c-fiado-${stamp}`;
+    const f1 = await X.receberFiadoAction(db, dono, { ...base, operation_key: K, received_on: iso(ontem) });
+    check("o primeiro recebimento (ontem) é gravado", f1.ok && !f1.data.replayed, j(f1));
+    const f2 = await X.receberFiadoAction(db, dono, { ...base, operation_key: K, received_on: iso(hoje) });
+    check("repetir a chave com data de hoje é 409 CONFLICT em received_on", !f2.ok && f2.status === 409 && f2.code === "CONFLICT" && f2.field === "received_on", j(f2));
+    check("a mensagem traz a data gravada", !f2.ok && f2.message === `Este recebimento já foi gravado com a data ${br(ontem)}.`, j(f2.ok ? null : f2.message));
+    const f3 = await X.receberFiadoAction(db, dono, { ...base, operation_key: K });
+    check("repetir sem received_on devolve o gravado", f3.ok && f3.data.replayed === true, j(f3));
+    const f4 = await X.receberFiadoAction(db, dono, { ...base, operation_key: K, received_on: iso(ontem) });
+    check("repetir com a mesma data devolve o gravado", f4.ok && f4.data.replayed === true, j(f4));
+
+    console.log("  (c) teto do valor pago do boleto");
+    const novoBoleto = async () => {
+      const pgBoleto = await cru.emporioSalePayment.create({ data: { tenant_id: t.id, sale_id: venda.id, kind: "boleto", amount: 30 } });
+      return cru.emporioBoleto.create({
+        data: { tenant_id: t.id, sale_id: venda.id, sale_payment_id: pgBoleto.id, customer_id: cliente.id, establishment_id: loja.id, due_on: hoje, amount: 30, status: "aberto" },
+      });
+    };
+    const b1 = await novoBoleto();
+    const p1 = await X.pagarBoletoAction(db, dono, b1.id, { bank_account_id: conta.id, paid_amount: 999999999999.995 });
+    check("paid_amount 999999999999.995 é 422 em paid_amount", !p1.ok && p1.status === 422 && p1.field === "paid_amount", j(p1));
+    const b2 = await novoBoleto();
+    let p2: Dado;
+    try {
+      p2 = await X.pagarBoletoAction(db, dono, b2.id, { bank_account_id: conta.id, paid_amount: 999999999999.99 });
+    } catch (e) {
+      p2 = { ok: false, status: 500, field: "excecao", message: String(e) };
+    }
+    check("paid_amount 999999999999.99 passa da validação do valor", p2.ok || p2.field !== "paid_amount", j(p2));
+  } catch (e) {
+    check("a seção 3 terminou sem exceção", false, e instanceof Error ? e.stack ?? e.message : String(e));
+  } finally {
+    const por = { where: { tenant_id: t.id } };
+    for (const m of ["cashMovement", "emporioCheck", "emporioBoleto", "emporioSalePayment", "emporioSale", "financialPayment", "financialEntry", "emporioCustomer", "establishment", "bankAccount", "user"]) {
+      await cru[m]?.deleteMany(por).catch((e: unknown) => console.log(`  (teardown ${m}: ${e instanceof Error ? e.message.slice(0, 100) : e})`));
+    }
+    await prisma.tenant.delete({ where: { id: t.id } }).catch((e: unknown) => console.log(`  (teardown 3: ${e instanceof Error ? e.message.slice(0, 100) : e})`));
+  }
+}
+
 async function main() {
   const { prisma } = await import("@/lib/prisma");
   console.log("🧾 M128: Módulo 39 (Meu Empório), sobras das dívidas 5.23, 5.25, 5.28 e 5.30\n");
   await secao1();
   await secao2();
+  await secao3();
   await prisma.$disconnect();
   console.log(`\nChecagens: ${total}`);
   console.log(falhas === 0 ? "\n✅ M128 (Módulo 39, Empório): sobras sem a Agromax passaram." : `\n❌ M128 (Módulo 39, Empório): ${falhas} afirmação(ões) falharam.`);

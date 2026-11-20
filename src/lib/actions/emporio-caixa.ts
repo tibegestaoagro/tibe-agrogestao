@@ -384,7 +384,19 @@ export async function receberFiadoAction(
   // §23.2: a chave não é única no banco (um recebimento pode tocar vários
   // lançamentos), então a repetição se resolve por busca.
   const gravado = await recebimentoGravado(db, ator, chave);
-  if (gravado) return gravado;
+  if (gravado) {
+    // Mesma chave com outra data não é repetição: o cliente achou que gravou um recebimento que não é este.
+    const temData = input?.received_on !== undefined && input.received_on !== null && input.received_on !== "";
+    if (gravado.ok && temData) {
+      const lida = lerDataDaBaixa(input.received_on, hojeEmBrasilia());
+      if (!lida.ok) return fail("VALIDATION_ERROR", lida.mensagem, 422, "received_on");
+      const diaGravado = hojeEmBrasilia(new Date(gravado.data.received_at));
+      if (lida.dia.getTime() !== diaGravado.getTime()) {
+        return fail("CONFLICT", `Este recebimento já foi gravado com a data ${dataBr(diaGravado.toISOString())}.`, 409, "received_on");
+      }
+    }
+    return gravado;
+  }
 
   const loja = await acharLojaParaEscrita(db, ator, input?.establishment_id);
   if (!loja.ok) return loja;
@@ -2137,6 +2149,12 @@ export async function compensarChequeAction(
   if (cheque.status !== "depositado" || !cheque.bank_account_id) return FORA_DE_ORDEM(cheque.status);
   const data = await lerDataDaBaixaDoAtor(db, ator, input?.cleared_on, "cleared_on");
   if (!data.ok) return data;
+  if (cheque.deposited_at) {
+    const diaDoDeposito = hojeEmBrasilia(cheque.deposited_at);
+    if (data.data.dia.getTime() < diaDoDeposito.getTime()) {
+      return fail("VALIDATION_ERROR", `A compensação não pode ser antes do depósito (${dataBr(diaDoDeposito.toISOString())}).`, 422, "cleared_on");
+    }
+  }
   try {
     await runSerializableTenantTransaction(db, async (tx) => {
       const agora = data.data.instante(new Date());
@@ -2422,7 +2440,8 @@ export async function pagarBoletoAction(
     return fail("VALIDATION_ERROR", "Escolha a conta bancária onde o boleto foi pago.", 422, "bank_account_id");
   }
   const digitado = input.paid_amount;
-  if (digitado !== undefined && digitado !== null && (typeof digitado !== "number" || !Number.isFinite(digitado) || centavos(digitado) <= 0 || digitado >= 1e12)) {
+  if (digitado !== undefined && digitado !== null && (typeof digitado !== "number" || !Number.isFinite(digitado) || centavos(digitado) <= 0 || Math.round(digitado * 100) >= 1e14)) {
+    // O teto é em centavos crus: `centavos()` arredonda a 12 dígitos e leva 999999999999,99 a 1e14.
     return fail("VALIDATION_ERROR", "Informe o valor pago, maior que zero.", 422, "paid_amount");
   }
   const data = await lerDataDaBaixaDoAtor(db, ator, input.paid_on, "paid_on", boleto.establishment_id);
