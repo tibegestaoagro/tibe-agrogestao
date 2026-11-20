@@ -80,6 +80,18 @@ export default async function VendaPage({ params }: { params: Promise<{ id: stri
   const buscado =
     catalogo && venda.customer_id ? await buscarClientesAction(db, user, { id: venda.customer_id }) : null;
   const clienteDaTroca = buscado?.ok ? (buscado.data.itens[0] ?? null) : null;
+  // D4: o cheque compensado com data depois de hoje ainda não entrou no saldo. A visão da venda não traz o
+  // `cleared_at`, então o dia vem do próprio cheque (lido pelo client escopado).
+  const idsDeCheque = venda.payments.flatMap((p) => (p.check ? [p.check.id] : []));
+  const compensadosDoCheque = idsDeCheque.length
+    ? await db.emporioCheck.findMany({ where: { id: { in: idsDeCheque }, status: "compensado" }, select: { id: true, cleared_at: true } })
+    : [];
+  const diaSp = (d: Date) => new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Sao_Paulo" }).format(d);
+  const hojeSp = diaSp(new Date());
+  const compensaEm = new Map<string, string>();
+  for (const c of compensadosDoCheque) {
+    if (c.cleared_at && diaSp(c.cleared_at) > hojeSp) compensaEm.set(c.id, diaSp(c.cleared_at).slice(5).split("-").reverse().join("/"));
+  }
   const nomeDoItem = new Map(venda.items.map((i) => [i.id, `${i.product_name} (${i.presentation_name})`]));
 
   // Escolha 7: o valor devolvido é proporcional ao que o item pagou (`total`), e o que as devoluções anteriores
@@ -436,6 +448,11 @@ export default async function VendaPage({ params }: { params: Promise<{ id: stri
                       <Badge variant={p.check.status === "compensado" ? "green" : p.check.status.startsWith("devolvido") ? "red" : "amber"}>
                         {CHEQUE_SITUACAO_ROTULO[p.check.status] ?? p.check.status}
                       </Badge>
+                      {compensaEm.has(p.check.id) && (
+                        <Badge variant="amber" className="ml-1">
+                          Compensa em {compensaEm.get(p.check.id)}
+                        </Badge>
+                      )}
                     </>
                   )}
                   {p.boleto && (

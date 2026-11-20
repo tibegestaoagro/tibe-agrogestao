@@ -10,6 +10,9 @@
 #      muda de dia na MESMA <tr> com o valor; a linha carimbada (R$ 40,00) nao mostra "Corrigir a data"
 #   6. Financeiro paga o boleto BOL-DD-2 de R$ 99,90 digitando R$ 100,10 (Q373): valor 0 recusa embaixo do campo; a
 #      linha em Pagos mostra "pago R$ 100,10 (juros R$ 0,20)"; o Resultado da loja mostra "Juros recebidos R$ 0,20"
+#   7c. Agendados na tela (cenario: PIX de fiado de Dd Ana e cheque 000555, ambos para amanha, na conta Dd Cofre):
+#       selo Agendado nos Movimentos e na ficha do cliente, Recebido sem o valor, "Compensa em" na venda do cheque
+#   7d. Gestor da loja: o campo "Data em que caiu" do boleto BOL-DD-4 tem max igual a hoje; o Financeiro nao tem max
 #   7. Celular (390 px): sem rolagem horizontal no extrato e no A receber
 #
 # Os valores estao descritos no cabecalho do cenario (todos na "Dd Loja 1"): fiado de "Dd Maria" R$ 200,00
@@ -19,6 +22,7 @@
 # cenario: scripts/_cenario-emporio-data-da-baixa.ts
 # sessao: financeiro dd-financeiro@teste.local
 # sessao: vendedor dd-vendedor@teste.local
+# sessao: gestor dd-gestor@teste.local
 import datetime
 import re
 
@@ -86,7 +90,8 @@ def abrir_extrato_da_conta():
     href = js("(() => { const tr = Array.from(document.querySelectorAll('main tbody tr')).find(t => t.innerText.includes(" + repr(CONTA) + ")); const a = tr && tr.querySelector('a'); return a ? a.getAttribute('href') : null; })()")
     if not href:
         return False
-    ir(href)
+    # O extrato so lista em Agendados o que cai ate o fim do periodo (D1): o periodo vai ate amanha.
+    ir(href + ("&" if "?" in href else "?") + "ate=" + amanha)
     return True
 
 
@@ -269,6 +274,47 @@ desc = linha_do_resultado("Desconto concedido") or ""
 confere("o Resultado tem a linha Desconto concedido com R$ 0,50", "R$ 0,50" in desc, desc)
 juros = linha_do_resultado("Juros recebidos") or ""
 confere("e a linha Juros recebidos segue com R$ 0,20", "R$ 0,20" in juros, juros)
+
+passo("7c. Agendados na tela: Movimentos, ficha do cliente e venda do cheque")
+entrar("financeiro")
+ir("/emporio/caixa")
+esperar(lambda: "Movimentos" in texto_do_main(), 40)
+movs = js("(() => { const t = Array.from(document.querySelectorAll('main table')).find(t => t.querySelector('thead').innerText.toLowerCase().includes('origem')); return t ? Array.from(t.querySelectorAll('tbody tr')).map(tr => tr.innerText.replace(/\\u00a0/g, ' ').split('\\n').join(' | ')) : []; })()") or []
+agendada = linha_com(movs, "R$ 20,00", "Agendado")
+confere("nos Movimentos, a linha agendada do PIX de R$ 20,00 tem o selo Agendado", agendada is not None, movs)
+comum = linha_com(movs, "R$ 40,00")
+confere("e uma linha de hoje (sem agendar) NAO tem o selo", comum is not None and "Agendado" not in comum, comum)
+
+ana = next((x for x in (lambda d: d.get("items") if isinstance(d, dict) else d)((api("GET", "/api/v1/emporio/customers?q=Dd%20Ana")["body"] or {}).get("data")) or [] if x.get("name") == "Dd Ana"), None)
+confere("acha Dd Ana pela API", ana is not None, ana)
+ir("/emporio/clientes/" + str((ana or {}).get("id")))
+esperar(lambda: "Recebimentos" in texto_do_main(), 40)
+recs = js("(() => { const t = Array.from(document.querySelectorAll('main table')).find(t => t.querySelector('thead').innerText.toLowerCase().includes('forma')); return t ? Array.from(t.querySelectorAll('tbody tr')).map(tr => tr.innerText.replace(/\\u00a0/g, ' ').split('\\n').join(' | ')) : []; })()") or []
+confere("a ficha mostra o PIX de R$ 20,00 com Agendado", linha_com(recs, "Fiado", "R$ 20,00", "Agendado") is not None, recs)
+confere("e o cheque compensado para amanha de R$ 70,00 com Agendado", linha_com(recs, "Cheque", "R$ 70,00", "Agendado") is not None, recs)
+risco = js("Array.from(document.querySelectorAll('main td span.line-through')).map(s => s.innerText.replace(/\\u00a0/g, ' ') + '|' + (s.getAttribute('title') || ''))") or []
+confere("o valor agendado sai riscado com a dica", any("R$ 20,00" in x and "Não entra no Recebido" in x for x in risco), risco)
+recebido = js("(() => { const p = Array.from(document.querySelectorAll('main p')).find(x => x.innerText.trim() === 'Recebido'); return p && p.nextElementSibling ? p.nextElementSibling.innerText.replace(/\\u00a0/g, ' ') : null; })()")
+confere("o Recebido do cliente nao soma o agendado (R$ 0,00)", recebido == "R$ 0,00", recebido)
+venda_href = js("(() => { const r = Array.from(document.querySelectorAll('main tbody tr')).find(tr => tr.innerText.replace(/\\u00a0/g, ' ').includes('Cheque') && tr.innerText.replace(/\\u00a0/g, ' ').includes('R$ 70,00')); const a = r && r.querySelector('a[href*=\"/emporio/vendas/\"]'); return a ? a.getAttribute('href') : null; })()")
+confere("acha o link da venda do cheque", bool(venda_href), venda_href)
+ir(venda_href or "/emporio")
+esperar(lambda: "Cheque nº" in texto_do_main(), 40)
+confere("a venda do cheque mostra Compensa em DD/MM de amanha", ("Compensa em " + br(amanha)[:5]) in texto_do_main(), texto_do_main()[-400:])
+
+passo("7d. Gestor da loja: o campo da data do boleto nao aceita futuro")
+entrar("gestor")
+ir("/emporio/caixa")
+confere("o Gestor abre o boleto BOL-DD-4 em Boleto pago", abrir_pela_linha("BOL-DD-4", "Boleto pago"), texto_principal(200))
+confere("o painel tem o campo da data", tem_campo(CAMPO_DATA), painel()[:200])
+maximo = js("(() => { const raiz = document.querySelector('[role=dialog]'); const l = Array.from(raiz.querySelectorAll('label')).find(x => x.innerText.replace('*','').trim() === " + repr(CAMPO_DATA) + "); const el = l && document.getElementById(l.htmlFor); return el ? el.getAttribute('max') : null; })()")
+confere("o campo tem max igual a hoje", maximo == hoje, maximo)
+confere("a dica diz so para tras", "Até 31 dias para trás." in painel() and "Agendados" not in painel(), painel()[-300:])
+entrar("financeiro")
+ir(RECEBER)
+confere("o Financeiro abre o mesmo boleto", abrir_pela_linha("BOL-DD-4", "Boleto pago"), texto_principal(200))
+maximo = js("(() => { const raiz = document.querySelector('[role=dialog]'); const l = Array.from(raiz.querySelectorAll('label')).find(x => x.innerText.replace('*','').trim() === " + repr(CAMPO_DATA) + "); const el = l && document.getElementById(l.htmlFor); return el ? el.getAttribute('max') : 'sem'; })()")
+confere("o campo do Financeiro NAO tem max", maximo is None, maximo)
 
 passo("8. Celular (390 px): sem rolagem horizontal")
 cdp("Emulation.setDeviceMetricsOverride", width=390, height=800, deviceScaleFactor=2, mobile=True)

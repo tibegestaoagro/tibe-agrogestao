@@ -77,7 +77,14 @@ export function RecebimentosDoCliente({
           <TableBody>
             {itens.map((r) => (
               <TableRow key={`${r.kind}-${r.id}`}>
-                <TableCell>{dataBr(r.occurred_on)}</TableCell>
+                <TableCell>
+                  {dataBr(r.occurred_on)}
+                  {r.scheduled && (
+                    <Badge variant="amber" className="ml-2">
+                      Agendado
+                    </Badge>
+                  )}
+                </TableCell>
                 <TableCell>{r.sale_id ? <VendaLink id={r.sale_id} numero={r.sale_number} /> : "-"}</TableCell>
                 <TableCell>
                   {FORMA[r.kind]}
@@ -89,7 +96,7 @@ export function RecebimentosDoCliente({
                 </TableCell>
                 <TableCell>{r.establishment_name ?? "-"}</TableCell>
                 <TableCell>
-                  {r.kind === "cheque" && r.check_status !== "compensado" ? (
+                  {r.scheduled || (r.kind === "cheque" && r.check_status !== "compensado") ? (
                     <span className="text-texto-secundario line-through" title="Não entra no Recebido">
                       {reaisBr(r.amount)}
                     </span>

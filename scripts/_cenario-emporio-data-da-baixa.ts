@@ -22,6 +22,9 @@ import { papelFinanceiro } from "./_emporio-papel";
  *   - PIX (Q372): duas vendas de "Dd Joao" pagas por PIX na "Dd Banco", de R$ 30,00 (sem carimbo, o roteiro corrige a
  *     data) e de R$ 40,00 (a linha ja CARIMBADA, que nao mostra o botao "Corrigir a data").
  *
+ *   - AGENDADOS (5.30): a conta "Dd Cofre", com um PIX de fiado de "Dd Ana" (R$ 20,00) para amanha e o cheque 000555
+ *     (R$ 70,00) compensado para amanha; e dd-gestor@teste.local (Gestor da Loja 1) com o boleto BOL-DD-4 (R$ 25,00) aberto.
+ *
  * Apaga antes o que rodadas anteriores criaram. Idempotente. `--limpar` so apaga. So banco local:
  * `exigirBancoLocal()` barra o resto. Os dois usuarios ficam na conta (como nos outros cenarios): sao
  * inofensivos e o upsert os reaproveita.
@@ -30,7 +33,7 @@ exigirBancoLocal();
 
 const PREFIXO = "Dd ";
 const SENHA_INUTIL = "sem-senha"; // hash que nenhuma senha produz: a sessao vem do cookie
-const EMAILS = { financeiro: "dd-financeiro@teste.local", vendedor: "dd-vendedor@teste.local" };
+const EMAILS = { financeiro: "dd-financeiro@teste.local", vendedor: "dd-vendedor@teste.local", gestor: "dd-gestor@teste.local" };
 const DIA = 86_400_000;
 
 const hojeStr = new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Sao_Paulo" }).format(new Date());
@@ -156,13 +159,43 @@ async function main() {
 
   const cheque = await prisma.emporioCheck.findFirst({ where: { tenant_id, number: "000444", establishment_id: loja } });
   if (!cheque) throw new Error("O cheque do cenario nao nasceu.");
-  exigir(await cx.depositarChequeAction(db, dono, cheque.id, { bank_account_id: conta }), "depositar o cheque");
+  exigir(await cx.depositarChequeAction(db, dono, cheque.id, { bank_account_id: conta, deposited_on: somaDias(hojeStr, -3) }), "depositar o cheque 3 dias atras (o roteiro compensa anteontem, e compensar antes do deposito e recusado)");
 
   await venda(joao.id, 30, { kind: "pix", bank_account_id: conta });
   await venda(joao.id, 40, { kind: "pix", bank_account_id: conta });
   const carimbada = await prisma.cashMovement.findFirst({ where: { tenant_id, bank_account_id: conta, origin: "venda", amount: 40 } });
   if (!carimbada) throw new Error("O PIX de R$ 40,00 do cenario nao nasceu.");
   await prisma.cashMovement.update({ where: { id: carimbada.id }, data: { reconciled_at: new Date(), reconciled_by_user_id: owner.id } });
+
+  // Agendados (Q371/5.30), numa conta SEPARADA ("Dd Cofre") para o extrato da "Dd Banco" seguir sem Agendados:
+  // um PIX de fiado de "Dd Ana" com data de amanha e um cheque (R$ 70,00) depositado e compensado para amanha.
+  const cofre = (
+    exigir(await cx.criarContaAction(db, dono, { name: `${PREFIXO}Cofre`, bank: "Banco Dd", pix_all_establishments: true } as never), "conta cofre") as { id: string }
+  ).id;
+  const ana = await prisma.emporioCustomer.create({ data: { tenant_id, name: `${PREFIXO}Ana`, person_kind: "pf", phone: "34990000094" } as never });
+  await venda(ana.id, 90, { kind: "fiado", due_date: new Date(`${somaDias(hojeStr, 5)}T12:00:00Z`) });
+  exigir(
+    await cx.receberFiadoAction(db, dono, {
+      operation_key: `cenario-dd-agendado-${Date.now()}`,
+      customer_id: ana.id,
+      establishment_id: loja,
+      amount: 20,
+      kind: "pix",
+      bank_account_id: cofre,
+      received_on: somaDias(hojeStr, 1),
+    }),
+    "PIX de fiado agendado",
+  );
+  await venda(ana.id, 70, { kind: "cheque", check: { number: "000555", bank: "Caixa", good_for: new Date(`${hojeStr}T00:00:00Z`), holder_name: `${PREFIXO}Ana` } });
+  const chequeAna = await prisma.emporioCheck.findFirst({ where: { tenant_id, number: "000555", establishment_id: loja } });
+  if (!chequeAna) throw new Error("O cheque agendado do cenario nao nasceu.");
+  exigir(await cx.depositarChequeAction(db, dono, chequeAna.id, { bank_account_id: cofre }), "depositar o cheque agendado");
+  exigir(await cx.compensarChequeAction(db, dono, chequeAna.id, { cleared_on: somaDias(hojeStr, 1) }), "compensar o cheque para amanha");
+
+  // O Gestor da Loja 1 com um boleto aberto (R$ 25,00): nao agenda, o campo de data tem teto em hoje.
+  const gestor = await usuario(tenant_id, EMAILS.gestor, "Dd Gestor", { emporio_role: "gestor", emporio_only: false });
+  await prisma.userEstablishment.createMany({ data: [{ tenant_id, user_id: gestor.id, establishment_id: loja }] });
+  await venda(joao.id, 25, { kind: "boleto", boleto: { number: "BOL-DD-4", due_on: new Date(`${somaDias(hojeStr, 10)}T00:00:00Z`) } });
 
   console.log("Conta do seed:", tenant_id, "(hoje:", hojeStr + ")");
   console.log("Loja:", loja, "Conta:", conta, "Financeiro:", EMAILS.financeiro, "Vendedor:", EMAILS.vendedor);

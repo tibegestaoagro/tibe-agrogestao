@@ -604,7 +604,14 @@ export default async function CaixaPage({
                 const entrada = m.direction === "entrada";
                 return (
                   <TableRow key={m.id}>
-                    <TableCell>{DATA_HORA.format(new Date(m.occurred_at))}</TableCell>
+                    <TableCell>
+                      {DATA_HORA.format(new Date(m.occurred_at))}
+                      {m.scheduled && (
+                        <Badge variant="amber" className="ml-2">
+                          Agendado
+                        </Badge>
+                      )}
+                    </TableCell>
                     <TableCell>{onde}</TableCell>
                     <TableCell>
                       {ORIGEM_CAIXA_ROTULO[m.origin] ?? m.origin}

@@ -208,7 +208,7 @@ export function BoletosLista({
                 <TableCell>
                   {b.status === "aberto" && podeAgir(b.establishment_id) ? (
                     <div className="flex flex-wrap gap-2">
-                      <BoletoPago boleto={b} contas={contas} podeMudarData={podeAgir(b.establishment_id)} aoMudar={depoisDaAcao} />
+                      <BoletoPago boleto={b} contas={contas} podeMudarData={podeAgir(b.establishment_id)} podeAgendar={ehDinheiro} aoMudar={depoisDaAcao} />
                       <BoletoParaFiado boleto={b} aoMudar={depoisDaAcao} />
                     </div>
                   ) : (
@@ -237,9 +237,12 @@ function BoletoPago({
   boleto,
   contas,
   podeMudarData,
+  podeAgendar,
   aoMudar,
 }: {
   boleto: BoletoView;
+  /** Só quem vê o dinheiro da conta inteira (`ehDinheiro`) agenda para o futuro; o Gestor só registra o que já caiu. */
+  podeAgendar: boolean;
   /** O Gestor da loja do boleto sempre escolheu a data: quem vê o botão já pode (o servidor confere de novo). */
   podeMudarData: boolean;
   contas: { id: string; name: string }[];
@@ -348,13 +351,18 @@ function BoletoPago({
           label="Data em que caiu"
           id={err.idDe("paid_on")}
           error={err.erros.paid_on}
-          hint={`Para o extrato bater com o do banco. Data futura fica em Agendados. Até ${JANELA_DA_BAIXA_DIAS} dias para trás ou para frente.`}
+          hint={
+            podeAgendar
+              ? `Para o extrato bater com o do banco. Data futura fica em Agendados. Até ${JANELA_DA_BAIXA_DIAS} dias para trás ou para frente.`
+              : `Para o extrato bater com o do banco. Até ${JANELA_DA_BAIXA_DIAS} dias para trás.`
+          }
         >
           {({ id, ...aria }) => (
             <Input
               id={id}
               {...aria}
               type="date"
+              max={podeAgendar ? undefined : hoje}
               value={pagoEm || hoje}
               onChange={(e) => {
                 setPagoEm(e.target.value);

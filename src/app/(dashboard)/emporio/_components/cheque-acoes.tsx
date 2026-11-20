@@ -210,7 +210,12 @@ function CompensouCheque({ chequeId, numero, podeMudarData }: { chequeId: string
       err.doServidor(res);
       return;
     }
-    aviso.sucesso(`Cheque ${numero} compensado: o dinheiro entrou na conta.`);
+    const dia = caiuEm || hoje;
+    aviso.sucesso(
+      podeMudarData && dia > hoje
+        ? `Cheque ${numero} compensado: o dinheiro cai na conta em ${dia.split("-").reverse().join("/")}.`
+        : `Cheque ${numero} compensado: o dinheiro entrou na conta.`,
+    );
     setOpen(false);
     setCaiuEm("");
     router.refresh();
