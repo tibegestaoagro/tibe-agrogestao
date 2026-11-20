@@ -19,10 +19,13 @@
 #      barras decodificadas do SVG contra o EAN independente; capturas em alta resolucao
 #      Aviso de barras que nao cabem: no painel (rolo 40 x 15 avisa, 40 x 25 nao) e na escolha das etiquetas
 #   7. Celular (390 px): sem rolagem horizontal nas Etiquetas e nas Configuracoes; sem legenda no balcao
+#   8. Sobras da 5.25: desarquivar com o codigo tomado (recusa na tela), editar o codigo pelo botao Editar, F8 como
+#      Caixa, o Gestor abre as Etiquetas, mais de 2000 etiquetas avisa o teto
 #
 # cenario: scripts/_cenario-emporio-balcao-rapido.ts
 # sessao: owner owner@example.com
 # sessao: gestor br-gestor@teste.local
+# sessao: caixa br-caixa@teste.local
 import json
 import re
 import base64
@@ -696,3 +699,79 @@ confere("a 390 px a legenda existe no DOM mas esta oculta (display none)", lg is
 larg = rolagem_horizontal()
 confere("balcao a 390 px: sem rolagem horizontal", larg[0] <= larg[1], larg)
 cdp("Emulation.clearDeviceMetricsOverride")
+
+# --- 8 ------------------------------------------------------------------------------------------------------------------
+passo("8. Desarquivar com codigo tomado, Editar o codigo, F8 como Caixa, Gestor nas Etiquetas, teto de 2000")
+tela(1280, 900)
+entrar("owner")
+produtos = api("GET", "/api/v1/emporio/products?limit=500")["body"]["data"]
+lista = produtos if isinstance(produtos, list) else (produtos.get("items") or produtos.get("products") or [])
+TOMADO = next((p for p in lista if p["name"] == "Br Tomado"), None)
+confere("acha o produto Br Tomado pela API", TOMADO is not None, len(lista))
+TOMADO_ID = TOMADO["id"] if TOMADO else ""
+CODIGO_TOMADO = "7891000200117"
+
+
+def pres_do_tomado():
+    d = api("GET", "/api/v1/emporio/products/" + TOMADO_ID)["body"]["data"]
+    return {a["name"]: [a.get("barcode"), a.get("archived_at")] for a in d["presentations"]}
+
+
+antes = pres_do_tomado()
+confere("o cenario deixou 'Saco antigo' arquivada e 'Saco novo' ativa com o MESMO codigo", antes.get("Saco antigo", [0, None])[1] is not None and antes.get("Saco novo", [0, 1])[1] is None and antes["Saco antigo"][0] == antes["Saco novo"][0] == CODIGO_TOMADO, antes)
+ir("/emporio/produtos/" + TOMADO_ID)
+DESARQUIVAR = "(() => { const tr = Array.from(document.querySelectorAll('main tbody tr')).find(t => t.innerText.includes('Saco antigo')); const b = tr && Array.from(tr.querySelectorAll('button')).find(x => x.innerText.trim() === 'Desarquivar'); if (!b) return false; b.click(); return true; })()"
+confere("a linha 'Saco antigo' tem o botao Desarquivar", bool(esperar(lambda: js(DESARQUIVAR), 30)))
+
+
+def recusas_na_tela():
+    """A recusa de uma acao sem formulario vai para o aviso de erro (role=alert), nao para o de sucesso (role=status)."""
+    return js("Array.from(document.querySelectorAll('[role=alert]')).map(s => s.innerText.replace(/\\s+/g, ' ')).join(' || ')") or ""
+
+
+recusa = esperar(lambda: recusas_na_tela() if "Br Tomado" in recusas_na_tela() or CODIGO_TOMADO in recusas_na_tela() else "", 20) or ""
+confere("desarquivar com o codigo tomado: a recusa aparece na tela e nomeia o produto dono do codigo", "Br Tomado" in recusa or CODIGO_TOMADO in recusa, recusa or recusas_na_tela())
+time.sleep(1)
+confere("e a apresentacao antiga segue arquivada no servidor", pres_do_tomado()["Saco antigo"][1] is not None, pres_do_tomado())
+
+# Editar o codigo pelo botao Editar: a Br Saco 5 kg nasceu na secao 1 com CODIGO_NOVO.
+CODIGO_EDITADO = com_digito("789100010088")
+ir("/emporio/produtos/" + CADASTRO_ID)
+EDITAR = "(() => { const tr = Array.from(document.querySelectorAll('main tbody tr')).find(t => t.innerText.includes('Br Saco 5 kg')); const b = tr && Array.from(tr.querySelectorAll('button')).find(x => x.innerText.trim() === 'Editar'); if (!b) return false; b.click(); return true; })()"
+confere("abre o painel 'Editar apresentacao' da Br Saco 5 kg", abrir_painel_por(lambda: js(EDITAR)))
+confere("o painel traz o codigo gravado", valor_de("#" + rotulo_comeca(ROTULO_CODIGO)) == CODIGO_NOVO, valor_de("#" + rotulo_comeca(ROTULO_CODIGO)))
+definir("#" + rotulo_comeca(ROTULO_CODIGO), CODIGO_EDITADO)
+enviar_painel()
+confere("salvar fecha o painel", bool(esperar(lambda: not painel_aberto(), 60)))
+time.sleep(1.5)
+confere("o servidor gravou o codigo editado", apresentacoes_do_cadastro().get("Br Saco 5 kg") == CODIGO_EDITADO, apresentacoes_do_cadastro())
+
+# F8 como Caixa. A loja do cenario nao tem vendedor vinculado: o campo Vendedor existe, vazio.
+entrar("caixa")
+confere("o Caixa abre o balcao e escolhe a loja", na_pagina_do_balcao())
+ler_codigo(MILHO_PACOTE)
+focar_seletor(QTD)
+f(8)
+foco = em_foco()
+confere("F8 como Caixa leva o foco ao campo Vendedor (a tela nao quebra)", foco.split("|")[1] == "seller_user_id" and caminho().startswith("/emporio/vender"), [foco, caminho()])
+confere("e a tela segue de pe, com a linha do balcao", itens_do_balcao() == [["Br Milho", "Pacote 1 kg", "1"]], itens_do_balcao())
+
+# O Gestor abre a tela de etiquetas.
+entrar("gestor")
+ir("/emporio/produtos/etiquetas")
+confere("o Gestor abre as Etiquetas (sem 404 nem volta ao inicio)", caminho() == "/emporio/produtos/etiquetas" and tem("Etiquetas") and not eh_404(), [caminho(), texto_principal(120)])
+
+# O teto: 3 produtos com 999 copias passam de 2000.
+ETIQUETAS_MAXIMAS = 2000
+entrar("owner")
+ir("/emporio/produtos/etiquetas")
+js("(() => { const s = document.getElementById('etq-loja'); const alvo = Array.from(s.options).find(o => o.text === " + repr(LOJA) + "); Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(s, alvo.value); s.dispatchEvent(new Event('change', { bubbles: true })); })()")
+time.sleep(1)
+confere("Selecionar todas", clicar("Selecionar todas"))
+time.sleep(0.5)
+for nome_etq in ["Br Etq Oficial", "Br Etq Gerada", "Br Etq Curto"]:
+    js("(() => { const f = " + LINHA + "; const li = f(" + repr(nome_etq) + "); const el = li.querySelector('input:not([type=checkbox])'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, '999'); el.dispatchEvent(new Event('input', { bubbles: true })); })()")
+time.sleep(0.8)
+txt = texto_do_main()
+confere("mais de " + str(ETIQUETAS_MAXIMAS) + " etiquetas: o aviso do teto aparece", ("imprima até " + str(ETIQUETAS_MAXIMAS) + " de cada vez") in txt, txt[-250:])
+confere("e 'Imprimir etiquetas' vira botao desabilitado", js("(() => { const b = " + BOTAO_IMPRIMIR + "; return b.length === 1 && b[0].tagName === 'BUTTON' && b[0].disabled; })()") is True, "")

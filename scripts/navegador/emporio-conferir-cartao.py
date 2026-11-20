@@ -203,9 +203,8 @@ def br(dia_iso):
 
 
 def eh_util(d):
-    # Feriados nacionais fixos (os moveis ficam de fora: nao caem na janela de uma rodada desta frente).
-    fixos = ["01-01", "04-21", "05-01", "09-07", "10-12", "11-02", "11-15", "11-20", "12-25"]
-    return d.weekday() < 5 and d.strftime("%m-%d") not in fixos
+    # Feriados nacionais fixos e moveis, da _lib (Pascoa calculada la, sem ler o app).
+    return d.weekday() < 5 and d.isoformat() not in feriados_nacionais(d.year)
 
 
 def estado_esperado(dia_iso, hoje_iso):

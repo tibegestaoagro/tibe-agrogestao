@@ -112,11 +112,13 @@ def custo_do_mes(loja_id):
 
 # O dia de hoje em Brasilia (UTC-3), como o app conta.
 HOJE = (datetime.datetime.utcnow() - datetime.timedelta(hours=3)).date()
-FERIADOS_FIXOS = {(1, 1), (21, 4), (1, 5), (7, 9), (12, 10), (2, 11), (15, 11), (20, 11), (25, 12)}
+_FERIADOS_POR_ANO = {}
 
 
 def eh_util(d):
-    return d.weekday() < 5 and (d.month, d.day) not in FERIADOS_FIXOS
+    if d.year not in _FERIADOS_POR_ANO:
+        _FERIADOS_POR_ANO[d.year] = feriados_nacionais(d.year)
+    return d.weekday() < 5 and d.isoformat() not in _FERIADOS_POR_ANO[d.year]
 
 
 def proximo_util(d):

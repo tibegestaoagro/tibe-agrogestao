@@ -1,6 +1,8 @@
 import "./_env-local";
 import { execSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 /**
  * Roda a suite inteira, uma por vez, e diz no fim o que passou e o que nao.
@@ -25,6 +27,9 @@ import { readFileSync } from "node:fs";
  */
 
 const PULAR_COM_REDIS = process.argv.includes("--sem-redis");
+
+/** `--so=test:m1,test:m2`: roda so essas (para provar o runner sem rodar tudo). */
+const SO = (process.argv.find((a) => a.startsWith("--so=")) ?? "").slice(5).split(",").filter(Boolean);
 
 /**
  * Teto por suíte. A mais demorada do projeto leva bem menos que isto; o valor
@@ -57,7 +62,24 @@ function suites(): string[] {
   return Object.keys(pkg.scripts)
     .filter((k) => k.startsWith("test:"))
     .filter((k) => !FORA.has(k))
-    .filter((k) => !(PULAR_COM_REDIS && DEPENDEM_DO_REDIS.has(k)));
+    .filter((k) => !(PULAR_COM_REDIS && DEPENDEM_DO_REDIS.has(k)))
+    .filter((k) => SO.length === 0 || SO.includes(k));
+}
+
+/**
+ * A `m123` falhou uma vez dentro do `test:all` e passou nas rodadas seguintes, e o
+ * motivo se perdeu porque a saida de quem falha era jogada fora. Agora toda suite
+ * que falha ou trava deixa a saida (a que saiu ate a morte, se travou) em
+ * `<tmpdir>/tibe-test-all/<suite>.log`.
+ */
+function gravarLog(suite: string, e: unknown): string {
+  const dir = join(tmpdir(), "tibe-test-all");
+  mkdirSync(dir, { recursive: true });
+  const caminho = join(dir, `${suite.replace(/[^a-z0-9_-]/gi, "_")}.log`);
+  const { stdout, stderr, message } = e as { stdout?: string | Buffer; stderr?: string | Buffer; message?: string };
+  const partes = [`# ${suite}`, `# ${message ?? ""}`, "", "## stdout", String(stdout ?? ""), "", "## stderr", String(stderr ?? "")];
+  writeFileSync(caminho, partes.join("\n"), "utf-8");
+  return caminho;
 }
 
 function main() {
@@ -84,6 +106,8 @@ function main() {
   console.log("");
 
   const falharam: string[] = [];
+  const travaram = new Set<string>();
+  const logs = new Map<string, string>();
   const inicio = Date.now();
 
   for (const suite of lista) {
@@ -110,7 +134,9 @@ function main() {
       const estourou = (e as { signal?: string })?.signal === "SIGKILL";
       const motivo = estourou ? "TRAVOU" : "FALHOU";
       console.log(`  ${suite.padEnd(18)} ${motivo} ${Math.round((Date.now() - t0) / 1000)}s`);
-      falharam.push(estourou ? `${suite} (travou)` : suite);
+      falharam.push(suite);
+      if (estourou) travaram.add(suite);
+      logs.set(suite, gravarLog(suite, e));
     }
   }
 
@@ -125,10 +151,11 @@ function main() {
       const nota = DEPENDEM_DO_REDIS.has(s)
         ? "  (usa o Redis compartilhado: pode ser lock da hora, nao regressao)"
         : "";
-      console.log(`  ${s}${nota}`);
+      console.log(`  ${s}${travaram.has(s) ? " (travou)" : ""}${nota}`);
+      console.log(`    saida: ${logs.get(s)}`);
     }
     console.log("");
-    console.log("Para ver o motivo de uma delas: npm run <suite>");
+    console.log("A saida de cada uma esta no log acima. Para rodar de novo: npm run <suite>");
     process.exit(1);
   }
 }

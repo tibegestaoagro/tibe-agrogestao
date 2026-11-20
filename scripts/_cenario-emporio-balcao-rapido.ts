@@ -35,6 +35,7 @@ exigirBancoLocal();
 const PREFIXO = "Br ";
 const SENHA_INUTIL = "sem-senha"; // hash que nenhuma senha produz: a sessao vem do cookie
 const EMAIL_GESTOR = "br-gestor@teste.local";
+const EMAIL_CAIXA = "br-caixa@teste.local";
 const COPIA = join(tmpdir(), "tibe-br-config-original.json");
 
 const CAMPOS_DA_CONFIG = [
@@ -189,7 +190,17 @@ async function main() {
   if (!categoria) throw new Error("A conta do seed nao tem categoria de produto: abra o Estoque uma vez.");
 
   const loja = (exigir(await cat.criarEstabelecimentoAction(db, dono, { name: `${PREFIXO}Loja 1` } as never), "loja") as { id: string }).id;
-  await prisma.userEstablishment.createMany({ data: [{ tenant_id, user_id: gestor.id, establishment_id: loja }] });
+  const caixa = await prisma.user.upsert({
+    where: { email: EMAIL_CAIXA },
+    update: { ...dados, emporio_role: "caixa" as const },
+    create: { ...dados, emporio_role: "caixa" as const, email: EMAIL_CAIXA, name: "Br Caixa", password_hash: SENHA_INUTIL },
+  });
+  await prisma.userEstablishment.createMany({
+    data: [
+      { tenant_id, user_id: gestor.id, establishment_id: loja },
+      { tenant_id, user_id: caixa.id, establishment_id: loja },
+    ],
+  });
 
   const produto = async (nome: string, unidade: "quilograma" | "unidade") =>
     (exigir(await cat.criarProdutoEmporioAction(db, dono, { name: `${PREFIXO}${nome}`, category_id: categoria.id, base_unit: unidade } as never), nome) as { id: string }).id;
@@ -216,6 +227,12 @@ async function main() {
   await apresentacao(await produto("Etq Curto", "unidade"), "Unidade", 1, "96385074", 5.5);
   await apresentacao(await produto("Etq Sem Preco", "unidade"), "Unidade", 1, "9788535902778", null);
   await apresentacao(await produto("Etq Sem Codigo", "unidade"), "Unidade", 1, null, 3);
+
+  // Desarquivar com o codigo tomado: "Saco antigo" (arquivada) tinha 7891000200117; outra apresentacao ativa ficou com ele.
+  const tomado = await produto("Tomado", "unidade");
+  const antiga = await apresentacao(tomado, "Saco antigo", 1, "7891000200117", null);
+  exigir(await cat.arquivarApresentacaoAction(db, dono, antiga, true), "arquivar a apresentacao antiga");
+  await apresentacao(tomado, "Saco novo", 1, "7891000200117", null);
 
   await prisma.emporioCustomer.create({ data: { tenant_id, name: `${PREFIXO}Maria`, person_kind: "pf", phone: "34990000096" } as never });
   await abrirTurnoDeTeste(db, dono, loja);

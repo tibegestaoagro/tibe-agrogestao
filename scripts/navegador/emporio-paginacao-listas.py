@@ -12,9 +12,12 @@
 #   6. Tela inicial do Emporio: os resumos de sempre, sem barra de paginas
 #   7. Curva ABC com tres itens iguais: 33,34 + 33,33 + 33,33 = 100,00 e o seletor de lucro para o Dono
 #   8. 390 px sem rolagem horizontal em Vendas, Compras, Caixa e na ficha do produto
+#   9. Sobras da 5.28: antecipacoes (45) e conferencias (45) paginam pela API; 80 e 100 por pagina em Compras e
+#      Transferencias; o Vendedor nao abre o Relatorios
 #
 # cenario: scripts/_cenario-emporio-paginacao-listas.ts
 # sessao: owner owner@example.com
+# sessao: vendedor pag-vendedor@teste.local
 import re
 import datetime
 
@@ -432,3 +435,51 @@ for nome, url, extra in [
     nv = js("(() => { const n = document.querySelector('nav[aria-label=\"Paginação\"]'); if (!n) return null; const b = n.getBoundingClientRect(); return [Math.round(b.left), Math.round(b.right)]; })()")
     confere("390 px, " + nome + ": a barra de paginas cabe na largura", nv is not None and nv[0] >= 0 and nv[1] <= 390, nv)
 cdp("Emulation.clearDeviceMetricsOverride")
+tela(1280, 900)
+
+# --- 9 ------------------------------------------------------------------------------------------------------------------
+passo("9. Antecipacoes e conferencias (API), 80 e 100 por pagina, o Vendedor e o Relatorios")
+L_CONF = loja_id("Conferencias")
+confere("acha a loja 'Pag Conferencias'", bool(L_CONF), len(lojas))
+
+
+def pagina_api(caminho_api, page, per_page):
+    r = api("GET", caminho_api + ("&" if "?" in caminho_api else "?") + "page=" + str(page) + "&per_page=" + str(per_page))
+    return r["body"] or {}
+
+
+def provar_api(nome, caminho_api):
+    """45 linhas: 20 + 20 + 5 por paginas de 20, 45 numa so de 80 e de 100."""
+    p1, p2, p3 = (pagina_api(caminho_api, k, 20) for k in (1, 2, 3))
+    meta = p1.get("meta") or {}
+    confere(nome + ": pagina 1 de 20 traz 20 linhas e meta.total 45", len(p1.get("data") or []) == 20 and meta.get("total") == 45 and meta.get("per_page") == 20, [len(p1.get("data") or []), meta])
+    confere(nome + ": paginas 2 e 3 trazem 20 e 5 linhas", len(p2.get("data") or []) == 20 and len(p3.get("data") or []) == 5, [len(p2.get("data") or []), len(p3.get("data") or [])])
+    ids = [x["id"] for p in (p1, p2, p3) for x in (p.get("data") or [])]
+    confere(nome + ": as tres paginas juntas trazem 45 ids distintos (nada repete, nada some)", len(ids) == 45 and len(set(ids)) == 45, [len(ids), len(set(ids))])
+    for n in (80, 100):
+        pn = pagina_api(caminho_api, 1, n)
+        confere(nome + ": " + str(n) + " por pagina traz as 45 numa so", len(pn.get("data") or []) == 45 and (pn.get("meta") or {}).get("per_page") == n, [len(pn.get("data") or []), pn.get("meta")])
+    r = api("GET", caminho_api + ("&" if "?" in caminho_api else "?") + "per_page=30")
+    confere(nome + ": tamanho fora de 20, 40, 80 e 100 recusa (422)", r["status"] == 422, r["status"])
+
+
+provar_api("antecipacoes", "/api/v1/emporio/card-anticipations?de=2018-01-01&ate=2018-02-14")
+provar_api("conferencias", "/api/v1/emporio/cash/counts?establishment_id=" + L_CONF)
+
+for nome, rota, loja in [("compras", "/emporio/compras", L_COMPRAS), ("transferencias", "/emporio/transferencias", L_DESTINO)]:
+    for n in (80, 100):
+        ir_lista(rota, loja)
+        confere(nome + ": troca 'Por pagina' para " + str(n), aria_escolher("Por página", str(n) + " por página") is True)
+        esperar(lambda: "por_pagina=" + str(n) in caminho(), 60)
+        esperar_mostrando("Mostrando 1 a 45 de 45")
+        confere(nome + ": " + str(n) + " por pagina mostra as 45 linhas numa pagina so, sem Proxima", "por_pagina=" + str(n) in caminho() and mostrando() == "Mostrando 1 a 45 de 45" and len(linhas("", 0)) == 45 and (nav() is None or item(nav(), "Próxima") is None), [caminho(), mostrando(), len(linhas("", 0)), nav()])
+
+# O Vendedor nao abre o Relatorios: a pagina o devolve ao inicio do Emporio.
+entrar("vendedor")
+ir("/emporio/relatorios")
+confere("o Vendedor em /emporio/relatorios cai no inicio do Emporio", caminho() == "/emporio", caminho())
+st_lucro = api("GET", "/api/v1/emporio/reports/abc?from=" + DIA + "&to=" + DIA + "&kind=products&measure=profit")["status"]
+confere("e a curva por lucro recusa o Vendedor pela API (403)", st_lucro == 403, st_lucro)
+entrar("owner")
+ir("/emporio/relatorios")
+confere("o Dono abre o Relatorios (contraprova: o redirecionamento e do papel, nao da rota)", caminho() == "/emporio/relatorios", caminho())

@@ -23,6 +23,7 @@ import { setTenantFeatureAction } from "@/lib/actions/platform-features";
 exigirBancoLocal();
 
 const PREFIXO = "Pag ";
+const EMAIL_VENDEDOR = "pag-vendedor@teste.local";
 const DIA_ISO = "2026-03-10";
 const HORA = 3_600_000;
 const DIA = 86_400_000;
@@ -43,6 +44,10 @@ async function limpar(tenant_id: string) {
   const ondeHaDinheiro = [{ establishment_id: { in: lojas } }, { manager_establishment_id: { in: lojas } }, { sale_id: { in: vendas } }];
   const movimentos = await prisma.cashMovement.findMany({ where: { tenant_id, OR: ondeHaDinheiro }, select: { cash_transfer_id: true } });
   const transferenciasDeCaixa = [...new Set(movimentos.map((m) => m.cash_transfer_id).filter((x): x is string => !!x))];
+
+  const contas = (await prisma.bankAccount.findMany({ where: { tenant_id, name: { startsWith: PREFIXO } }, select: { id: true } })).map((c) => c.id);
+  await prisma.cardAnticipation.deleteMany({ where: { tenant_id, bank_account_id: { in: contas } } });
+  await prisma.bankAccount.deleteMany({ where: { tenant_id, id: { in: contas } } });
 
   await prisma.emporioAuditLog.deleteMany({
     where: { tenant_id, OR: [{ target_id: { in: [...clientes, ...vendas, ...lancamentos, ...lojas, ...emporio, ...apresentacoes] } }, { establishment_id: { in: lojas } }] },
@@ -215,8 +220,38 @@ async function main() {
     })),
   });
 
+  // --- Antecipacoes: 45, uma por dia a partir de 2018-01-01 (a janela de..ate isola so as do cenario) ---------------
+  const conta = await prisma.bankAccount.create({ data: { tenant_id, name: `${PREFIXO}Conta` } });
+  for (let k = 0; k < 45; k += 1) {
+    await prisma.cardAnticipation.create({
+      data: {
+        tenant_id, bank_account_id: conta.id, operated_on: new Date(Date.UTC(2018, 0, 1 + k)), kind: "pontual",
+        gross_amount: 100, expected_net: 98, received_net: 98, fee_amount: 2,
+      },
+    });
+  }
+
+  // --- Conferencias: 45 contagens numa loja sem turno (o turno gravaria uma a mais), uma por hora -----------------
+  const lojaConferencias = await loja("Conferencias");
+  for (let k = 0; k < 45; k += 1) {
+    await prisma.cashCount.create({
+      data: {
+        tenant_id, establishment_id: lojaConferencias, expected: 10, counted: 10, difference: 0, kind: "livre",
+        counted_at: new Date(agora - (45 - k) * HORA), created_at: new Date(agora - (45 - k) * HORA),
+      },
+    });
+  }
+
+  // --- O Vendedor da loja Curva: o roteiro prova que ele nao abre o Relatorios --------------------------------------
+  const vendedor = await prisma.user.upsert({
+    where: { email: EMAIL_VENDEDOR },
+    update: { active: true, role: "OPERADOR", tenant_id, emporio_keys: [], emporio_role: "vendedor", emporio_only: false },
+    create: { email: EMAIL_VENDEDOR, name: "Pag Vendedor", password_hash: "sem-senha", active: true, role: "OPERADOR", tenant_id, emporio_keys: [], emporio_role: "vendedor", emporio_only: false },
+  });
+
   // --- Curva: tres produtos de faturamento igual ----------------------------------------------------------------
   const lojaCurva = await loja("Curva");
+  await prisma.userEstablishment.create({ data: { tenant_id, user_id: vendedor.id, establishment_id: lojaCurva } });
   const caixaCurva = await caixaDe(lojaCurva);
   const tres: Prod[] = [];
   for (let k = 0; k < 3; k += 1) tres.push(await produto(`Igual ${k}`, 10, 5, [lojaCurva]));

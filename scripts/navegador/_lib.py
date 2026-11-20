@@ -218,6 +218,35 @@ def confere(nome, condicao, detalhe=""):
         _falhas.append(nome)
 
 
+def _pascoa(ano):
+    """Domingo de Pascoa (algoritmo de Meeus, calendario gregoriano)."""
+    import datetime as _dt
+    a = ano % 19
+    b, c = divmod(ano, 100)
+    d, e = divmod(b, 4)
+    f = (b + 8) // 25
+    g = (b - f + 1) // 3
+    h = (19 * a + b - d - g + 15) % 30
+    i, k = divmod(c, 4)
+    l = (32 + 2 * e + 2 * i - h - k) % 7
+    m = (a + 11 * h + 22 * l) // 451
+    mes, dia = divmod(h + l - 7 * m + 114, 31)
+    return _dt.date(ano, mes, dia + 1)
+
+
+def feriados_nacionais(ano):
+    """Feriados nacionais do `ano` como conjunto de 'AAAA-MM-DD': os fixos mais
+    Carnaval (segunda e terca), Sexta-feira Santa e Corpus Christi, com a
+    Pascoa calculada aqui, sem ler o codigo do app."""
+    import datetime as _dt
+    fixos = [(1, 1), (4, 21), (5, 1), (9, 7), (10, 12), (11, 2), (11, 15), (11, 20), (12, 25)]
+    dias = {_dt.date(ano, m, d) for m, d in fixos}
+    p = _pascoa(ano)
+    for delta in (-48, -47, -2, 60):
+        dias.add(p + _dt.timedelta(days=delta))
+    return {d.isoformat() for d in dias}
+
+
 def passo(titulo):
     print("")
     print("== " + titulo)
