@@ -6,6 +6,32 @@
 
 export const ALTURA_MINIMA_DAS_BARRAS_MM = 5;
 
+/** Q361: as medidas de fábrica (modelo de 21 etiquetas na folha; 40 x 25 mm no rolo). Servidor e formulário leem daqui. */
+export const PADRAO_ETIQUETA = {
+  a4: { columns: 3, rows: 7, width: 63.5, height: 38.1, margin_top: 15.15, margin_left: 7.2, gap_x: 2.5, gap_y: 0 },
+  roll: { width: 40, height: 25, columns: 1, gap_x: 2 },
+} as const;
+
+const paraTexto = (n: number): string => String(n).replace(".", ",");
+
+/** As medidas como o formulário as mostra: texto com vírgula decimal, no nome de campo da API. */
+export function etiquetaEmTexto(p: typeof PADRAO_ETIQUETA) {
+  return {
+    label_a4_columns: paraTexto(p.a4.columns),
+    label_a4_rows: paraTexto(p.a4.rows),
+    label_a4_width: paraTexto(p.a4.width),
+    label_a4_height: paraTexto(p.a4.height),
+    label_a4_margin_top: paraTexto(p.a4.margin_top),
+    label_a4_margin_left: paraTexto(p.a4.margin_left),
+    label_a4_gap_x: paraTexto(p.a4.gap_x),
+    label_a4_gap_y: paraTexto(p.a4.gap_y),
+    label_roll_width: paraTexto(p.roll.width),
+    label_roll_height: paraTexto(p.roll.height),
+    label_roll_columns: paraTexto(p.roll.columns),
+    label_roll_gap_x: paraTexto(p.roll.gap_x),
+  };
+}
+
 const PT_EM_MM = 0.3528;
 const FOLGA = 1.2;
 const PAD = 1.4;

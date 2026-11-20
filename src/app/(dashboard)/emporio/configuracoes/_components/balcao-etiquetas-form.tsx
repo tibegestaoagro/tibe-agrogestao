@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useErrosDeFormulario } from "@/components/ui/use-erros-de-formulario";
 import { apiPatch } from "@/lib/client-api";
 import { lerNumeroBr } from "@/lib/numero-br";
-import { alturaMinimaComBarras, cabemBarras, textoSemBarras } from "@/lib/emporio/etiqueta-medidas";
+import { PADRAO_ETIQUETA, alturaMinimaComBarras, cabemBarras, etiquetaEmTexto, textoSemBarras } from "@/lib/emporio/etiqueta-medidas";
 import { ATALHOS_PADRAO, TECLAS_PERMITIDAS } from "@/lib/emporio/atalhos";
 import type { EmporioSettingsView } from "@/lib/actions/emporio-configuracoes";
 import { paraCampo } from "../../_components/formato";
@@ -58,7 +58,7 @@ const ACEITAM_ZERO: CampoDeTexto[] = [
   "label_roll_gap_x",
 ];
 
-/** As mesmas medidas de fábrica do servidor (modelo de 21 etiquetas; 40 x 25 mm no rolo). */
+/** As mesmas medidas de fábrica do servidor: vêm de `PADRAO_ETIQUETA`, um lugar só. */
 const PADRAO: Estado & { show_shortcut_legend: boolean } = {
   shortcut_product: ATALHOS_PADRAO.produto,
   shortcut_customer: ATALHOS_PADRAO.cliente,
@@ -67,18 +67,7 @@ const PADRAO: Estado & { show_shortcut_legend: boolean } = {
   shortcut_close: ATALHOS_PADRAO.fechar,
   show_shortcut_legend: true,
   label_default_format: "a4",
-  label_a4_columns: "3",
-  label_a4_rows: "7",
-  label_a4_width: "63,5",
-  label_a4_height: "38,1",
-  label_a4_margin_top: "15,15",
-  label_a4_margin_left: "7,2",
-  label_a4_gap_x: "2,5",
-  label_a4_gap_y: "0",
-  label_roll_width: "40",
-  label_roll_height: "25",
-  label_roll_columns: "1",
-  label_roll_gap_x: "2",
+  ...etiquetaEmTexto(PADRAO_ETIQUETA),
 };
 
 function estadoDe(c: BalcaoParaForm): Estado & { show_shortcut_legend: boolean } {

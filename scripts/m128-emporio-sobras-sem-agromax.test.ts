@@ -343,6 +343,58 @@ async function secao5() {
   }
 }
 
+async function secao6() {
+  console.log("\n6. Padrão das etiquetas num lugar só (5.25)");
+  const { prisma, prismaForTenant } = await import("@/lib/prisma");
+  const M: Dado = await import("@/lib/emporio/etiqueta-medidas");
+  const { lerNumeroBr } = await import("@/lib/numero-br");
+  const K: Dado = await import("@/lib/actions/emporio-configuracoes");
+  const cru = prisma as Dado;
+
+  const esperado = {
+    a4: { columns: 3, rows: 7, width: 63.5, height: 38.1, margin_top: 15.15, margin_left: 7.2, gap_x: 2.5, gap_y: 0 },
+    roll: { width: 40, height: 25, columns: 1, gap_x: 2 },
+  };
+  check("PADRAO_ETIQUETA tem os valores de fábrica", j(M.PADRAO_ETIQUETA) === j(esperado), j(M.PADRAO_ETIQUETA));
+
+  try {
+    const txt: Record<string, string> = M.etiquetaEmTexto(M.PADRAO_ETIQUETA);
+    const num = (k: string) => lerNumeroBr(txt[k]);
+    const volta = {
+      a4: {
+        columns: num("label_a4_columns"), rows: num("label_a4_rows"), width: num("label_a4_width"), height: num("label_a4_height"),
+        margin_top: num("label_a4_margin_top"), margin_left: num("label_a4_margin_left"), gap_x: num("label_a4_gap_x"), gap_y: num("label_a4_gap_y"),
+      },
+      roll: { width: num("label_roll_width"), height: num("label_roll_height"), columns: num("label_roll_columns"), gap_x: num("label_roll_gap_x") },
+    };
+    check("o padrão do formulário, de volta para número, é o PADRAO_ETIQUETA", j(volta) === j(esperado), j(volta));
+    check("o texto usa vírgula decimal", txt.label_a4_margin_top === "15,15" && txt.label_a4_gap_y === "0", j(txt));
+  } catch (e) {
+    check("a conversão para texto existe", false, e instanceof Error ? e.message : String(e));
+  }
+
+  const stamp = Date.now();
+  const t = await prisma.tenant.create({
+    data: { name: `M128f ${stamp}`, document: `M128F${stamp}`.slice(0, 14), plan: "grupo", status: "trial", trial_ends_at: new Date(Date.now() + DIA) },
+  });
+  try {
+    const u = await prisma.user.create({
+      data: { tenant_id: t.id, name: "M128f dono", email: `m128f-${stamp}@teste.local`, password_hash: "x", role: "OWNER" },
+    });
+    const db: Dado = prismaForTenant(t.id);
+    const r = await K.lerConfiguracoesAction(db, { id: u.id, role: "OWNER" as const });
+    check("conta sem medida gravada devolve o PADRAO_ETIQUETA", r.ok && j(r.data.label_a4) === j(M.PADRAO_ETIQUETA?.a4) && j(r.data.label_roll) === j(M.PADRAO_ETIQUETA?.roll), j(r));
+  } catch (e) {
+    check("a seção 6 terminou sem exceção", false, e instanceof Error ? e.stack ?? e.message : String(e));
+  } finally {
+    const por = { where: { tenant_id: t.id } };
+    for (const m of ["emporioSettings", "user"]) {
+      await cru[m]?.deleteMany(por).catch((e: unknown) => console.log(`  (teardown ${m}: ${e instanceof Error ? e.message.slice(0, 100) : e})`));
+    }
+    await prisma.tenant.delete({ where: { id: t.id } }).catch((e: unknown) => console.log(`  (teardown 6: ${e instanceof Error ? e.message.slice(0, 100) : e})`));
+  }
+}
+
 async function main() {
   const { prisma } = await import("@/lib/prisma");
   console.log("🧾 M128: Módulo 39 (Meu Empório), sobras das dívidas 5.23, 5.25, 5.28 e 5.30\n");
@@ -350,6 +402,7 @@ async function main() {
   await secao2();
   await secao3();
   await secao5();
+  await secao6();
   await prisma.$disconnect();
   console.log(`\nChecagens: ${total}`);
   console.log(falhas === 0 ? "\n✅ M128 (Módulo 39, Empório): sobras sem a Agromax passaram." : `\n❌ M128 (Módulo 39, Empório): ${falhas} afirmação(ões) falharam.`);

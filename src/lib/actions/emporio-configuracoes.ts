@@ -5,6 +5,7 @@ import { exigir, papelDoEmporio, type AtorPapel } from "@/lib/emporio/papel";
 import { dinheiro, diferencas, registrarNoHistorico } from "@/lib/emporio/historico";
 import { decToNum } from "@/lib/serialize";
 import { LIMITE_MAXIMO_DE_FIADO, MENSAGEM_DE_COBRANCA_PADRAO } from "@/lib/emporio/fiado";
+import { PADRAO_ETIQUETA } from "@/lib/emporio/etiqueta-medidas";
 import { ACOES_DE_ATALHO, ATALHOS_PADRAO, TECLAS_PERMITIDAS, type AcaoDeAtalho } from "@/lib/emporio/atalhos";
 
 /**
@@ -101,12 +102,6 @@ type Linha = {
   label_roll_columns: number;
   label_roll_gap_x: unknown;
 } | null;
-
-/** Q361: as medidas de fábrica (modelo de 21 etiquetas na folha; 40 x 25 mm no rolo). */
-const PADRAO_ETIQUETA = {
-  a4: { columns: 3, rows: 7, width: 63.5, height: 38.1, margin_top: 15.15, margin_left: 7.2, gap_x: 2.5, gap_y: 0 },
-  roll: { width: 40, height: 25, columns: 1, gap_x: 2 },
-} as const;
 
 const medida = (v: unknown, padrao: number): number => decToNum(v as never) ?? padrao;
 
