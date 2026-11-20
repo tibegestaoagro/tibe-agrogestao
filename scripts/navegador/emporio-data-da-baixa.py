@@ -293,6 +293,8 @@ recs = js("(() => { const t = Array.from(document.querySelectorAll('main table')
 confere("a ficha mostra o PIX de R$ 20,00 com Agendado", linha_com(recs, "Fiado", "R$ 20,00", "Agendado") is not None, recs)
 confere("e o cheque compensado para amanha de R$ 70,00 com Agendado", linha_com(recs, "Cheque", "R$ 70,00", "Agendado") is not None, recs)
 risco = js("Array.from(document.querySelectorAll('main td span.line-through')).map(s => s.innerText.replace(/\\u00a0/g, ' ') + '|' + (s.getAttribute('title') || ''))") or []
+linha_cheque = linha_com(recs, "Cheque", "R$ 70,00") or ""
+confere("na ficha, o cheque futuro diz Compensa em DD/MM de amanha e NAO Compensado (D4)", ("Compensa em " + br(amanha)[:5]) in linha_cheque and "Compensado" not in linha_cheque, linha_cheque)
 confere("o valor agendado sai riscado com a dica", any("R$ 20,00" in x and "Não entra no Recebido" in x for x in risco), risco)
 recebido = js("(() => { const p = Array.from(document.querySelectorAll('main p')).find(x => x.innerText.trim() === 'Recebido'); return p && p.nextElementSibling ? p.nextElementSibling.innerText.replace(/\\u00a0/g, ' ') : null; })()")
 confere("o Recebido do cliente nao soma o agendado (R$ 0,00)", recebido == "R$ 0,00", recebido)
@@ -301,6 +303,7 @@ confere("acha o link da venda do cheque", bool(venda_href), venda_href)
 ir(venda_href or "/emporio")
 esperar(lambda: "Cheque nº" in texto_do_main(), 40)
 confere("a venda do cheque mostra Compensa em DD/MM de amanha", ("Compensa em " + br(amanha)[:5]) in texto_do_main(), texto_do_main()[-400:])
+confere("e NAO mostra Compensado (D4)", "Compensado" not in texto_do_main(), texto_do_main()[-400:])
 
 passo("7d. Gestor da loja: o campo da data do boleto nao aceita futuro")
 entrar("gestor")

@@ -445,12 +445,12 @@ export default async function VendaPage({ params }: { params: Promise<{ id: stri
                         </span>
                       )}
                       <span className="block text-xs text-texto-secundario">Em nome de {p.check.holder_name}</span>
-                      <Badge variant={p.check.status === "compensado" ? "green" : p.check.status.startsWith("devolvido") ? "red" : "amber"}>
-                        {CHEQUE_SITUACAO_ROTULO[p.check.status] ?? p.check.status}
-                      </Badge>
-                      {compensaEm.has(p.check.id) && (
-                        <Badge variant="amber" className="ml-1">
-                          Compensa em {compensaEm.get(p.check.id)}
+                      {/* D4: compensado com data futura ainda não caiu: âmbar "Compensa em", no lugar do verde "Compensado". */}
+                      {compensaEm.has(p.check.id) ? (
+                        <Badge variant="amber">Compensa em {compensaEm.get(p.check.id)}</Badge>
+                      ) : (
+                        <Badge variant={p.check.status === "compensado" ? "green" : p.check.status.startsWith("devolvido") ? "red" : "amber"}>
+                          {CHEQUE_SITUACAO_ROTULO[p.check.status] ?? p.check.status}
                         </Badge>
                       )}
                     </>

@@ -89,8 +89,10 @@ export function RecebimentosDoCliente({
                 <TableCell>
                   {FORMA[r.kind]}
                   {r.kind === "cheque" && r.check_status && (
-                    <Badge variant={r.check_status === "compensado" ? "green" : "amber"} className="ml-2">
-                      {CHEQUE_SITUACAO_ROTULO[r.check_status] ?? r.check_status}
+                    <Badge variant={r.check_status === "compensado" && !r.scheduled ? "green" : "amber"} className="ml-2">
+                      {r.check_status === "compensado" && r.scheduled
+                        ? `Compensa em ${dataBr(r.occurred_on).slice(0, 5)}`
+                        : (CHEQUE_SITUACAO_ROTULO[r.check_status] ?? r.check_status)}
                     </Badge>
                   )}
                 </TableCell>
