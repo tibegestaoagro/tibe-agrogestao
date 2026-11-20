@@ -38,15 +38,14 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   de R$ 15.020,83 da CAIXA DAMATTA; financeiro zerado com
   `scripts/zerar-financeiro-conta.ts` (494 registros; md5 do que fica conferido).
   Ficaram orçamentos (268), clientes, produtos e estoque. Próxima venda: nº 1.
-- **Branch `emporio-data-da-baixa` pronta, SEM merge** (espera autorização):
-  reunião de 19/11 com a Cláudia (financeiro da Da Mata; vídeo fora do git em
+- **Data da baixa EM PRODUÇÃO** (merge `2123c197`, autorizado pelo usuário na
+  conversa em 19/11; migração aplicada no Neon antes do push): reunião de 19/11 com a Cláudia (financeiro da Da Mata; vídeo fora do git em
   `docs/financeiro-19112026/`). Spec e plano `2026-11-19-emporio-data-da-baixa`
   (Q370 a Q373): baixa com data de hoje menos 31 a mais 31 dias (Financeiro,
   Gerente geral, Dono; o Gestor da loja só data passada no boleto); saldo da
   conta só até hoje, futuro em "Agendados"; "Corrigir a data" do PIX da venda
   no extrato; boleto com valor pago (juros recebidos e desconto concedido no
-  Resultado). **Pede migração no Neon antes do push**
-  (`20261119120000_emporio_boleto_valor_pago`, ADD COLUMN). Suíte `m127`,
+  Resultado). Migração `20261119120000_emporio_boleto_valor_pago`. Suíte `m127`,
   roteiro `emporio-data-da-baixa`. Juiz 7/10, importantes corrigidos; sobras na
   5.30. Depois do deploy: a Laiza e a Cláudia validam contra o extrato do banco.
 - 19/11 em produção: sobras das frentes B, C, D e H (merge `9969bcc9`; Q368
@@ -55,8 +54,8 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   [../superpowers/specs/2026-11-17-emporio-plano-gestaoclick.md](../superpowers/specs/2026-11-17-emporio-plano-gestaoclick.md).
   Em produção: A, B, C, D (sem leitor nem impressora reais; 5.25), H e a
   paginação (`58e077fc`; 5.28). G1 (2.18) e G2 (2.34) esperam a planilha do
-  GestãoClick e o XML de nota. **Próximo passo:** migração no Neon e merge da
-  branch acima; G1 e G2 quando os arquivos chegarem.
+  GestãoClick e o XML de nota. **Próximo passo:** a Laiza e a Cláudia validam a
+  data da baixa; G1 e G2 quando os arquivos chegarem.
 - Em produção desde 16/11: Q325 a Q340 (orçamento com total, cadastro leve,
   CEP, preço do cadastro, PIN, brinde, frete no orçamento; os gestores precisam
   cadastrar o PIN) e o manual (GIFs: roteiro `manual-gifs` e
