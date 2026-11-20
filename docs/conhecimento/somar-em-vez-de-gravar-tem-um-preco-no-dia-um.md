@@ -79,3 +79,25 @@ o campo e a soma concordarem, o que produção nunca garante.
 Ver [[fixture-de-rebanho-precisa-de-situacao-e-dono]], que é a mesma família:
 um registro que nasce sem o campo que a soma precisa não dá erro, só some da
 conta.
+
+## 2026-11-19: mudar a REGRA da soma tem a mesma ponta dos leitores
+
+Na data da baixa do Empório (Q370), o saldo da conta passou a somar só o que
+tem data até hoje (Brasília), e o futuro foi para "Agendados". Nada mudou de
+campo: mudou o filtro. `saldosDasContas` (`src/lib/actions/emporio-caixa.ts`)
+ganhou o filtro primeiro, e a suíte nova passou.
+
+O juiz achou outros quatro leitores do mesmo dinheiro que somavam pela regra
+antiga: o corpo do extrato contava parcela de cartão futura; os Recebidos do
+período somavam o `amount` do boleto em vez do valor pago; o relatório e a
+Projeção não tinham o corte de hoje. Um quinto (a abertura do extrato,
+`antesCartao` em `src/lib/actions/emporio-financeiro.ts`) ficou para a dívida
+5.30 depois da única leva de correções.
+
+| ponta | pergunta | onde se resolve |
+|---|---|---|
+| leitores de regra | quem mais soma este dinheiro, e com qual filtro? | `grep` pelo model e pelo campo somado em toda action de leitura, ANTES do plano |
+
+Quando o plano escreve "toda leitura de saldo segue a mesma regra", ele precisa
+listar as leituras pelo nome. A frase sozinha foi aprovada na revisão por
+tarefa e só caiu no juiz.

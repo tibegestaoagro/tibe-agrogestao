@@ -111,5 +111,14 @@ roteiro.
 **Na fase que cria model, o reinício limpo entra no plano antes da validação
 viva**, e não depois do primeiro 500.
 
+## 2026-11-19: o roteiro de navegador mostrou só "Erro interno"
+
+Na data da baixa, a migração do valor pago no boleto rodou com o `next dev` no
+ar. O roteiro `emporio-data-da-baixa` reprovou com "Erro interno" no rodapé do
+painel, que parece recusa de regra de negócio. O log do servidor dizia
+`Unknown argument paid_amount` (e `bank_account_id`). Reiniciar resolveu, e o
+roteiro passou. Sinal novo: **"Erro interno" numa escrita que usa a coluna
+nova, logo depois da migração, é reinício antes de ser defeito.**
+
 Relacionado: [[validacao-viva-acha-o-que-a-suite-verde-nao-acha]],
 [[turbopack-nao-cria-processo-quando-a-maquina-esta-cheia]].
