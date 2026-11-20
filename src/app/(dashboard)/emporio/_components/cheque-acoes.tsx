@@ -234,7 +234,11 @@ function CompensouCheque({ chequeId, numero, podeMudarData }: { chequeId: string
       onSubmit={submit}
       submitLabel="Sim, compensou"
       pending={loading}
-      error={err.global}
+      // Sem o campo da data (Gestor da loja), a recusa de `cleared_on` (compensar antes do depósito) não tem
+      // onde aparecer embaixo de campo: cai no rodapé.
+      // Sem o campo da data (Gestor da loja), a recusa de `cleared_on` (compensar antes do depósito) não tem
+      // onde aparecer embaixo de campo: cai no rodapé.
+      error={err.global ?? (podeMudarData ? null : (err.erros.cleared_on ?? null))}
       focarCampoId={err.focarCampoId}
       tentativa={err.tentativa}
     >

@@ -197,6 +197,13 @@ async function main() {
   await prisma.userEstablishment.createMany({ data: [{ tenant_id, user_id: gestor.id, establishment_id: loja }] });
   await venda(joao.id, 25, { kind: "boleto", boleto: { number: "BOL-DD-4", due_on: new Date(`${somaDias(hojeStr, 10)}T00:00:00Z`) } });
 
+  // Cheque 000666 (R$ 15,00) depositado com data de daqui a 3 dias: o Gestor, que nao escolhe a data, compensa
+  // "hoje" e o servidor recusa (compensar antes do deposito).
+  await venda(joao.id, 15, { kind: "cheque", check: { number: "000666", bank: "Caixa", good_for: new Date(`${hojeStr}T00:00:00Z`), holder_name: `${PREFIXO}Joao` } });
+  const chequeFuturo = await prisma.emporioCheck.findFirst({ where: { tenant_id, number: "000666", establishment_id: loja } });
+  if (!chequeFuturo) throw new Error("O cheque 000666 do cenario nao nasceu.");
+  exigir(await cx.depositarChequeAction(db, dono, chequeFuturo.id, { bank_account_id: conta, deposited_on: somaDias(hojeStr, 3) }), "depositar o cheque 000666 daqui a 3 dias");
+
   console.log("Conta do seed:", tenant_id, "(hoje:", hojeStr + ")");
   console.log("Loja:", loja, "Conta:", conta, "Financeiro:", EMAILS.financeiro, "Vendedor:", EMAILS.vendedor);
   await prisma.$disconnect();

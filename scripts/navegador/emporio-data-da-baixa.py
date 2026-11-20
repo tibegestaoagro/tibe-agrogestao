@@ -107,7 +107,9 @@ def linha_com(linhas, *trechos):
 
 def botoes_da_linha(trecho):
     """Os botoes da <tr> do extrato que tem `trecho` (o texto de cada um), ou None se a linha nao existe."""
-    return js("(() => { const r = Array.from(document.querySelectorAll('main tbody tr')).find(tr => tr.innerText.replace(/\\u00a0/g, ' ').includes(" + repr(trecho) + ")); return r ? Array.from(r.querySelectorAll('button')).map(b => b.innerText.trim()) : null; })()")
+    # Só as tabelas do extrato (cabeçalho com Data e Valor, a principal e a de Agendados) e só a linha de VENDA:
+    # outra tabela da página (ex.: cheques) pode ter o mesmo valor e nenhum botão.
+    return js("(() => { const ts = Array.from(document.querySelectorAll('main table')).filter(t => { const h = t.querySelector('thead').innerText.toLowerCase(); return h.includes('data') && h.includes('valor'); }); const r = ts.flatMap(t => Array.from(t.querySelectorAll('tbody tr'))).find(tr => { const x = tr.innerText.replace(/\\u00a0/g, ' '); return x.includes(" + repr(trecho) + ") && x.includes('Venda'); }); return r ? Array.from(r.querySelectorAll('button')).map(b => b.innerText.trim()) : null; })()")
 
 
 def linha_da_lista(trecho):
@@ -313,6 +315,13 @@ confere("o painel tem o campo da data", tem_campo(CAMPO_DATA), painel()[:200])
 maximo = js("(() => { const raiz = document.querySelector('[role=dialog]'); const l = Array.from(raiz.querySelectorAll('label')).find(x => x.innerText.replace('*','').trim() === " + repr(CAMPO_DATA) + "); const el = l && document.getElementById(l.htmlFor); return el ? el.getAttribute('max') : null; })()")
 confere("o campo tem max igual a hoje", maximo == hoje, maximo)
 confere("a dica diz so para tras", "Até 31 dias para trás." in painel() and "Agendados" not in painel(), painel()[-300:])
+ir("/emporio/caixa")
+confere("o Gestor ve Compensou no cheque 000666 (depositado daqui a 3 dias)", abrir_pela_linha("R$ 15,00", "Compensou"), texto_principal(200))
+confere("o painel de compensar do Gestor NAO tem o campo da data", not tem_campo(CAMPO_DATA), painel()[:200])
+enviar_painel()
+recusa_rodape = esperar(lambda: "não pode ser antes do depósito" in painel(), 30)
+confere("a recusa de compensar antes do deposito aparece no painel do Gestor", bool(recusa_rodape), painel()[-300:])
+confere("o painel segue aberto", painel_aberto())
 entrar("financeiro")
 ir(RECEBER)
 confere("o Financeiro abre o mesmo boleto", abrir_pela_linha("BOL-DD-4", "Boleto pago"), texto_principal(200))
