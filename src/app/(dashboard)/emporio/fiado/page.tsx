@@ -28,7 +28,8 @@ export default async function FiadoPage() {
 
   const db = await getTenantDb();
   // F6b: receber fiado é do Vendedor da loja para cima.
-  const podeEscrever = pode(await papelDoEmporio(db, user), "vendedor_da_loja");
+  const papel = await papelDoEmporio(db, user);
+  const podeEscrever = pode(papel, "vendedor_da_loja");
   const [lojasRes, fiadoRes, padraoId] = await Promise.all([
     listarEstabelecimentosAction(db, user),
     listarFiadoAction(db, user),
@@ -132,6 +133,7 @@ export default async function FiadoPage() {
                           lojas={lojas}
                           caixas={caixas}
                           usuarioId={user.id}
+                          podeMudarData={pode(papel, "dinheiro")}
                         />
                       </TableCell>
                     )}

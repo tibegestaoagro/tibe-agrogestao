@@ -176,6 +176,7 @@ export function FinanceiroReceber({
                           caixas={soPix ? [] : caixas}
                           usuarioId={usuarioId}
                           soPix={soPix}
+                          podeMudarData={pode(papel, "dinheiro")}
                         />
                       </TableCell>
                     </TableRow>
@@ -254,6 +255,7 @@ export function FinanceiroReceber({
                       podeCompletar={pode(papel, "dinheiro") || pode(papel, "gestor_da_loja", c.establishment_id)}
                       podeDepositar={pode(papel, "chave:depositar_cheque", c.establishment_id) || pode(papel, "dinheiro")}
                       ehAdmin={pode(papel, "gestor_da_loja", c.establishment_id) || pode(papel, "dinheiro")}
+                      podeMudarData={pode(papel, "dinheiro")}
                     />
                   </TableCell>
                 </TableRow>

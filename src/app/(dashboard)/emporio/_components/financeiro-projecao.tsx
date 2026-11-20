@@ -74,12 +74,14 @@ export function FluxoProjetadoTabela({ fluxo }: { fluxo: FluxoProjetadoView }) {
                 {reaisBr(s.receivables.total)}
                 <span className="block text-xs font-normal text-texto-secundario">
                   fiado {reaisBr(s.receivables.fiado)}, cartão {reaisBr(s.receivables.cards)}, cheque {reaisBr(s.receivables.checks)}, boleto {reaisBr(s.receivables.boletos)}
+                  {s.receivables.scheduled > 0 && <>, agendado {reaisBr(s.receivables.scheduled)}</>}
                 </span>
               </TableCell>
               <TableCell>
                 {reaisBr(s.payables.total)}
                 <span className="block text-xs font-normal text-texto-secundario">
                   contas {reaisBr(s.payables.entries)}, fixas estimadas {reaisBr(s.payables.fixed_estimated)}
+                  {s.payables.scheduled > 0 && <>, agendado {reaisBr(s.payables.scheduled)}</>}
                   {s.payables.fixed_estimated > 0 && (
                     <>
                       {" "}

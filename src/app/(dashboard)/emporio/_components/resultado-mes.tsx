@@ -179,6 +179,20 @@ export function ResultadoMes({ r }: { r: ResultadoDaLojaView }) {
             valor={reaisBr(r.anticipation_costs)}
             nota="O custo de receber o cartão antes do prazo: despesa financeira, fora da margem"
           />
+          {r.boleto_interest > 0 && (
+            <Linha
+              rotulo="(+) Juros recebidos"
+              valor={reaisBr(r.boleto_interest)}
+              nota="O que o banco recebeu a mais do cliente em boleto pago com juros: entra no resultado"
+            />
+          )}
+          {r.boleto_discount > 0 && (
+            <Linha
+              rotulo="(-) Desconto concedido"
+              valor={reaisBr(r.boleto_discount)}
+              nota="O que se aceitou a menos em boleto pago com desconto: sai do resultado"
+            />
+          )}
           <Linha rotulo="= Resultado" forte valor={reaisBr(r.result)} tom={tomDoResultado} />
         </div>
       </section>

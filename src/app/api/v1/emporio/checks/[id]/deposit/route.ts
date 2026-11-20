@@ -3,12 +3,14 @@ import { apiErroDeZod } from "@/lib/api";
 import { readJson } from "@/lib/api-guard";
 import { withApi } from "@/lib/route";
 import { depositarChequeAction } from "@/lib/actions/emporio-caixa";
+import { dataIso } from "@/lib/emporio/venda-schema";
 import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
 
 /** POST /api/v1/emporio/checks/:id/deposit  { bank_account_id }: recebido para depositado (OPERADOR para cima). */
 
 const schema = z.object({
   bank_account_id: z.string({ error: "Escolha a conta do depósito." }).min(1, "Escolha a conta do depósito."),
+  deposited_on: dataIso.nullish(),
 });
 
 type Props = { params: Promise<{ id: string }> };

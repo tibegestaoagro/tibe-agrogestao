@@ -1813,6 +1813,8 @@ model EmporioBoleto {
   bank_account_id      String?
   paid_on              DateTime?           @db.Date
   paid_at              DateTime?
+  /// Valor que o banco de fato recebeu; nulo vale `amount`. A diferença é juros ou desconto no Resultado.
+  paid_amount          Decimal?            @db.Decimal(14, 2)
   sent_to_fiado_at     DateTime?
   fiado_reason         String?
   updated_by_user_id   String?

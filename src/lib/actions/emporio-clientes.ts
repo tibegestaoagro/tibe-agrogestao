@@ -579,7 +579,7 @@ async function leituraFinanceiraDoCliente(
         sale_number: b.sale.number,
         establishment_id: b.establishment_id,
         establishment_name: b.establishment.name,
-        amount: Number(b.amount),
+        amount: Number(b.paid_amount ?? b.amount),
       })),
     ...cheques.map((c): RecebimentoView => ({
       id: c.id,

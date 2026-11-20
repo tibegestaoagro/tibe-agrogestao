@@ -4,7 +4,7 @@ import { readJson } from "@/lib/api-guard";
 import { withApi } from "@/lib/route";
 import { receberFiadoAction } from "@/lib/actions/emporio-caixa";
 import { guardEmporio } from "@/lib/emporio/rota";
-import { caixaDoTurno, chaveDeOperacao } from "@/lib/emporio/venda-schema";
+import { caixaDoTurno, chaveDeOperacao, dataIso } from "@/lib/emporio/venda-schema";
 
 /** POST /api/v1/emporio/receivables/receive  recebe pagamento de fiado (chave de operação): wrapper fino. */
 
@@ -17,6 +17,7 @@ const schema = z.object({
   entry_id: z.string().nullish(),
   bank_account_id: z.string().nullish(),
   cash_register_id: caixaDoTurno,
+  received_on: dataIso.nullish(),
 });
 
 async function POSTHandler(request: Request) {

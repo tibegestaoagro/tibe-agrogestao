@@ -3,6 +3,8 @@ import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { decToNum } from "@/lib/serialize";
 import { exigir } from "@/lib/emporio/papel";
 import { hojeEmBrasilia } from "@/lib/emporio/cartao";
+import { fimDeHojeEmBrasilia } from "@/lib/emporio/data-da-baixa";
+import { inicioDoDiaEmSaoPaulo } from "@/lib/dia-calendario";
 import { CRITERIOS_AUTOMATICOS, ehCriterioAutomatico } from "@/lib/emporio/rateio";
 import { compararMeses, diaDoMes, mesDaData, primeiroDia, somarMeses, textoDoMes, type MesCivil } from "@/lib/emporio/mes";
 import { semanasDaJanela } from "@/lib/emporio/projecao";
@@ -33,8 +35,9 @@ export type SemanaProjetadaView = {
   numero: number;
   de: string;
   ate: string;
-  receivables: { fiado: number; cards: number; checks: number; boletos: number; total: number };
-  payables: { entries: number; fixed_estimated: number; total: number };
+  /** `scheduled`: movimento da conta com data futura (baixa agendada); entra no saldo quando o dia chega. */
+  receivables: { fiado: number; cards: number; checks: number; boletos: number; scheduled: number; total: number };
+  payables: { entries: number; fixed_estimated: number; scheduled: number; total: number };
   net: number;
   closing_balance: number;
 };
@@ -85,7 +88,7 @@ export async function lerFluxoProjetadoAction(
     const i = semanas.findIndex((s) => d <= s.ate);
     return i < 0 ? -1 : i;
   };
-  const zeros = () => semanas.map(() => ({ fiado: 0, cards: 0, checks: 0, boletos: 0, entries: 0, fixed: 0 }));
+  const zeros = () => semanas.map(() => ({ fiado: 0, cards: 0, checks: 0, boletos: 0, entries: 0, fixed: 0, sched_in: 0, sched_out: 0 }));
   const acc = zeros();
 
   const ondeLoja = lojaId
@@ -96,6 +99,21 @@ export async function lerFluxoProjetadoAction(
 
   const posicoes = await lerPosicoes(db, { lojaId, visiveis, comContas: !lojaId });
   const abertura = posicoes.reduce((s, p) => s + centavos(p.balance), 0);
+
+  // As baixas agendadas (data depois de hoje) já são dinheiro certo: entram na semana da data. A conta é da rede inteira.
+  if (!lojaId) {
+    const agendados = await db.cashMovement.findMany({
+      where: { bank_account_id: { not: null }, occurred_at: { gte: fimDeHojeEmBrasilia() } },
+      select: { occurred_at: true, amount: true, direction: true },
+    });
+    for (const m of agendados) {
+      const i = semanaDoDia(dia(inicioDoDiaEmSaoPaulo(m.occurred_at)));
+      if (i < 0) continue;
+      const v = centavos(decToNum(m.amount) ?? 0);
+      if (m.direction === "entrada") acc[i].sched_in += v;
+      else acc[i].sched_out += v;
+    }
+  }
 
   const abertas = await entradasAbertas(db, { emporio_customer_id: { not: null }, ...ondeLoja });
   for (const e of abertas) {
@@ -159,15 +177,15 @@ export async function lerFluxoProjetadoAction(
   let saldo = abertura;
   const weeks = semanas.map((s, i): SemanaProjetadaView => {
     const a = acc[i];
-    const rec = a.fiado + a.cards + a.checks + a.boletos;
-    const pag = a.entries + a.fixed;
+    const rec = a.fiado + a.cards + a.checks + a.boletos + a.sched_in;
+    const pag = a.entries + a.fixed + a.sched_out;
     saldo += rec - pag;
     return {
       numero: s.numero,
       de: s.de,
       ate: s.ate,
-      receivables: { fiado: a.fiado / 100, cards: a.cards / 100, checks: a.checks / 100, boletos: a.boletos / 100, total: rec / 100 },
-      payables: { entries: a.entries / 100, fixed_estimated: a.fixed / 100, total: pag / 100 },
+      receivables: { fiado: a.fiado / 100, cards: a.cards / 100, checks: a.checks / 100, boletos: a.boletos / 100, scheduled: a.sched_in / 100, total: rec / 100 },
+      payables: { entries: a.entries / 100, fixed_estimated: a.fixed / 100, scheduled: a.sched_out / 100, total: pag / 100 },
       net: (rec - pag) / 100,
       closing_balance: saldo / 100,
     };

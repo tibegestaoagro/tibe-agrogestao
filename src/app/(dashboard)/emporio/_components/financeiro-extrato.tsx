@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/table";
 
 import { CarimboBotao } from "./carimbo-botao";
+import { CorrigirDataBotao } from "./corrigir-data-botao";
 import { NomeDoCliente, VendaLink } from "./amarras";
 import { PeriodoFiltro, enderecoComPeriodo } from "./periodo-filtro";
 
@@ -196,11 +197,16 @@ export function ExtratoDoLugar({
                   </TableCell>
                   {comCarimbo && (
                     <TableCell>
-                      <CarimboBotao
-                        kind={l.kind}
-                        id={l.id}
-                        carimbadoEm={l.reconciled_at ? diaMesEmBrasilia(l.reconciled_at) : null}
-                      />
+                      <div className="flex flex-wrap items-center gap-2">
+                        <CarimboBotao
+                          kind={l.kind}
+                          id={l.id}
+                          carimbadoEm={l.reconciled_at ? diaMesEmBrasilia(l.reconciled_at) : null}
+                        />
+                        {l.kind === "movimento" && l.origin === "venda" && !l.reconciled_at && (
+                          <CorrigirDataBotao id={l.id} diaAtual={l.occurred_on} />
+                        )}
+                      </div>
                     </TableCell>
                   )}
                 </TableRow>
@@ -208,6 +214,50 @@ export function ExtratoDoLugar({
             })}
           </TableBody>
         </Table>
+      )}
+      {ehConta && extrato.scheduled.length > 0 && (
+        <section className="space-y-2">
+          <h3 className="text-base font-semibold text-texto">Agendados</h3>
+          <p className="text-sm text-texto-secundario">
+            Baixas com data depois de hoje. Ficam fora do saldo e entram sozinhas quando o dia chega.
+          </p>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Data</TableHead>
+                <TableHead>O quê</TableHead>
+                <TableHead>Valor</TableHead>
+                {comCarimbo && <TableHead>Ações</TableHead>}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {extrato.scheduled.map((l) => {
+                const entrada = l.direction === "entrada";
+                return (
+                  <TableRow key={`agendado-${l.id}`}>
+                    <TableCell>{dataBr(l.occurred_on)}</TableCell>
+                    <TableCell className="text-sm">
+                      {l.description}
+                      {l.establishment_name && (
+                        <span className="block text-xs text-texto-secundario">{l.establishment_name}</span>
+                      )}
+                    </TableCell>
+                    <TableCell className={entrada ? "text-sucesso-tinta" : "text-perigo-tinta"}>
+                      {entrada ? "+" : "-"} {reaisBr(l.amount)}
+                    </TableCell>
+                    {comCarimbo && (
+                      <TableCell>
+                        {l.kind === "movimento" && l.origin === "venda" && !l.reconciled_at && (
+                          <CorrigirDataBotao id={l.id} diaAtual={l.occurred_on} />
+                        )}
+                      </TableCell>
+                    )}
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </section>
       )}
     </div>
   );

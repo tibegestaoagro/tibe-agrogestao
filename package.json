@@ -107,6 +107,7 @@
     "test:m124": "tsx scripts/m124-emporio-curva-abc.test.ts",
     "test:m125": "tsx scripts/m125-emporio-paginacao-listas.test.ts",
     "test:m126": "tsx scripts/m126-emporio-transacao-na-distancia.test.ts",
+    "test:m127": "tsx scripts/m127-emporio-data-da-baixa.test.ts",
     "test:isolation": "tsx scripts/tenant-isolation.test.ts",
     "test:docs-api": "tsx scripts/docs-api-completeness.test.ts",
     "test:nav": "tsx scripts/nav-build.test.ts",

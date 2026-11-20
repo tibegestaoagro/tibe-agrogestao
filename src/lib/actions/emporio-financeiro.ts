@@ -3,12 +3,15 @@ import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { decToNum } from "@/lib/serialize";
 import { exigir, exigirUma } from "@/lib/emporio/papel";
 import { hojeEmBrasilia } from "@/lib/emporio/cartao";
+import { fimDeHojeEmBrasilia } from "@/lib/emporio/data-da-baixa";
 import { dataCalendario, inicioDoDiaEmSaoPaulo, periodoDeDatasEmSaoPaulo } from "@/lib/dia-calendario";
 import { conferirPeriodo, type Faixa, type Periodo } from "@/lib/emporio/periodo";
 import { dinheiro, registrarNoHistorico } from "@/lib/emporio/historico";
+import { dataBr } from "@/lib/emporio/datas";
 import { lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
 import {
   entradasAbertas,
+  lerDataDaBaixaDoAtor,
   listarBoletosAction,
   listarChequesAction,
   listarFiadoAction,
@@ -180,6 +183,8 @@ export type ExtratoView = {
   account: { id: string; name: string; bank: string | null } | null;
   opening_balance: number;
   lines: ExtratoLinhaView[];
+  /** Só conta: os movimentos com data depois de hoje (Agendado). Ficam fora de `lines` e do saldo corrido; entram sozinhos quando o dia chega. */
+  scheduled: ExtratoLinhaView[];
   closing_balance: number;
   /** Linhas de conta sem carimbo no período e a soma dos valores absolutos, antes do filtro `apenas_sem_carimbo`. */
   unreconciled_count: number;
@@ -473,10 +478,14 @@ async function recebidosNoPeriodo(
   periodo: Periodo,
   hoje: Date,
 ): Promise<RecebimentoView[]> {
-  const { since, until } = periodoDeDatasEmSaoPaulo(periodo.de, periodo.ate);
+  const { since, until: untilDoPeriodo } = periodoDeDatasEmSaoPaulo(periodo.de, periodo.ate);
+  // Baixa com data futura (Q370) ainda não entrou: nenhum recebimento passa de hoje.
+  const ultimoInstanteDeHoje = new Date(fimDeHojeEmBrasilia().getTime() - 1);
+  const until = untilDoPeriodo && untilDoPeriodo.getTime() < ultimoInstanteDeHoje.getTime() ? untilDoPeriodo : ultimoInstanteDeHoje;
   const deDia = dataCalendario(periodo.de);
-  const ateDia = dataCalendario(periodo.ate);
-  const ateCartao = ateDia.getTime() < hoje.getTime() ? ateDia : hoje;
+  const ateDoPeriodo = dataCalendario(periodo.ate);
+  const ateDia = ateDoPeriodo.getTime() < hoje.getTime() ? ateDoPeriodo : hoje;
+  const ateCartao = ateDia;
   const nome = { select: { name: true } };
 
   const [fiados, cheques, boletos, cartoes] = await Promise.all([
@@ -548,7 +557,7 @@ async function recebidosNoPeriodo(
       sale_number: b.sale.number,
       establishment_id: b.establishment_id,
       establishment_name: b.establishment.name,
-      amount: decToNum(b.amount) ?? 0,
+      amount: decToNum(b.paid_amount ?? b.amount) ?? 0,
     })),
     ...cartoes.map((p): RecebimentoView => ({
       id: p.id,
@@ -564,6 +573,45 @@ async function recebidosNoPeriodo(
     })),
   ];
   return linhas.sort((a, b) => b.occurred_on.localeCompare(a.occurred_on) || b.id.localeCompare(a.id));
+}
+
+type MovimentoDoExtrato = {
+  id: string;
+  occurred_at: Date;
+  direction: "entrada" | "saida";
+  amount: unknown;
+  origin: string;
+  notes: string | null;
+  establishment_id: string | null;
+  manager_establishment_id: string | null;
+  sale_id: string | null;
+  establishment: { name: string } | null;
+  sale: { number: number; customer_id: string | null; customer: { name: string } | null; establishment: { name: string } } | null;
+};
+
+/** Um movimento como linha do extrato. `nomeDoLugar` é a loja da gerência quando o lugar é a gerência. */
+function linhaDeMovimento(
+  m: MovimentoDoExtrato,
+  nomeDoLugar: string,
+  carimbo: { reconciled_at: string | null; reconciled_by: string | null },
+): ExtratoLinhaView {
+  return {
+    kind: "movimento",
+    id: m.id,
+    occurred_on: dia(inicioDoDiaEmSaoPaulo(m.occurred_at)),
+    direction: m.direction,
+    amount: decToNum(m.amount as never) ?? 0,
+    origin: m.origin,
+    // O movimento da gerência grava `manager_establishment_id`, não `establishment_id`: a loja é a do lugar.
+    establishment_id: m.establishment_id ?? m.manager_establishment_id ?? null,
+    establishment_name: m.establishment?.name ?? (m.manager_establishment_id ? nomeDoLugar : null) ?? m.sale?.establishment.name ?? null,
+    description: descricaoDoMovimento(m),
+    customer_name: m.sale?.customer?.name ?? null,
+    sale_number: m.sale?.number ?? null,
+    sale_id: m.sale_id,
+    customer_id: m.sale?.customer_id ?? null,
+    ...carimbo,
+  };
 }
 
 /**
@@ -648,10 +696,16 @@ export async function lerExtratoAction(
   const desde = new Date(deDia.getTime() + MEIA_NOITE_SP_EM_UTC_MS);
   const ate = new Date(ateDia.getTime() + DIA_MS + MEIA_NOITE_SP_EM_UTC_MS);
 
-  const [antes, antesCartao, movs, parcelas] = await Promise.all([
+  // O saldo só conta movimento com data até hoje: o de data futura é "Agendado" e fica de fora das linhas.
+  const fimDeHoje = fimDeHojeEmBrasilia();
+  // A parcela de cartão futura também não entra no corpo nem no fechamento: bate com `saldosDasContas`.
+  const hojeDia = hojeEmBrasilia();
+  const teto =(d: Date) => (d.getTime() < fimDeHoje.getTime() ? d : fimDeHoje);
+
+  const [antes, antesCartao, movs, parcelas, agendados] = await Promise.all([
     db.cashMovement.groupBy({
       by: ["direction"],
-      where: { ...ondeMovimentos, occurred_at: { lt: desde } },
+      where: { ...ondeMovimentos, occurred_at: { lt: teto(desde) } },
       _sum: { amount: true },
     }),
     conta
@@ -661,7 +715,7 @@ export async function lerExtratoAction(
         })
       : null,
     db.cashMovement.findMany({
-      where: { ...ondeMovimentos, occurred_at: { gte: desde, lt: ate } },
+      where: { ...ondeMovimentos, occurred_at: { gte: desde, lt: teto(ate) } },
       include: {
         establishment: { select: { name: true } },
         // O PIX e a transferência caem na conta sem loja: a venda diz a loja e o cliente da linha.
@@ -671,13 +725,23 @@ export async function lerExtratoAction(
     }),
     conta
       ? db.cardReceivable.findMany({
-          where: { bank_account_id: conta.id, canceled_at: null, effective_on: { gte: deDia, lte: ateDia } },
+          where: { bank_account_id: conta.id, canceled_at: null, effective_on: { gte: deDia, lte: ateDia.getTime() < hojeDia.getTime() ? ateDia : hojeDia } },
           include: {
             establishment: { select: { name: true } },
             acquirer: { select: { name: true } },
             sale: { select: { number: true, customer_id: true, customer: { select: { name: true } } } },
           },
           orderBy: [{ effective_on: "asc" }, { installment: "asc" }],
+        })
+      : [],
+    conta
+      ? db.cashMovement.findMany({
+          where: { ...ondeMovimentos, occurred_at: { gte: fimDeHoje } },
+          include: {
+            establishment: { select: { name: true } },
+            sale: { select: { number: true, customer_id: true, customer: { select: { name: true } }, establishment: { select: { name: true } } } },
+          },
+          orderBy: [{ occurred_at: "asc" }, { created_at: "asc" }],
         })
       : [],
   ]);
@@ -691,7 +755,7 @@ export async function lerExtratoAction(
   // Quem carimbou, por nome (só conta tem carimbo; gaveta e gerência nunca o têm).
   const idsCarimbadores = [
     ...new Set(
-      [...movs, ...parcelas].map((l) => l.reconciled_by_user_id).filter((u): u is string => typeof u === "string" && !!u),
+      [...movs, ...agendados, ...parcelas].map((l) => l.reconciled_by_user_id).filter((u): u is string => typeof u === "string" && !!u),
     ),
   ];
   const nomes = new Map<string, string>(
@@ -704,25 +768,10 @@ export async function lerExtratoAction(
     reconciled_by: r.reconciled_at && r.reconciled_by_user_id ? (nomes.get(r.reconciled_by_user_id) ?? null) : null,
   });
 
+  const linhaDoMovimento = (m: (typeof movs)[number]): ExtratoLinhaView => linhaDeMovimento(m, lugar.name, carimbo(m));
+
   const todas: ExtratoLinhaView[] = [
-    ...movs.map((m): ExtratoLinhaView => ({
-      kind: "movimento",
-      id: m.id,
-      occurred_on: dia(inicioDoDiaEmSaoPaulo(m.occurred_at)),
-      direction: m.direction,
-      amount: decToNum(m.amount) ?? 0,
-      origin: m.origin,
-      // O movimento da gerência grava `manager_establishment_id`, não `establishment_id`: a loja é a do lugar.
-      establishment_id: m.establishment_id ?? m.manager_establishment_id ?? null,
-      establishment_name:
-        m.establishment?.name ?? (m.manager_establishment_id ? lugar.name : null) ?? m.sale?.establishment.name ?? null,
-      description: descricaoDoMovimento(m),
-      customer_name: m.sale?.customer?.name ?? null,
-      sale_number: m.sale?.number ?? null,
-      sale_id: m.sale_id,
-      customer_id: m.sale?.customer_id ?? null,
-      ...carimbo(m),
-    })),
+    ...movs.map(linhaDoMovimento),
     ...parcelas.map((p): ExtratoLinhaView => ({
       kind: "cartao",
       id: p.id,
@@ -770,6 +819,7 @@ export async function lerExtratoAction(
     account: conta ? { id: conta.id, name: conta.name, bank: conta.bank } : null,
     opening_balance: abertura / 100,
     lines: linhas,
+    scheduled: agendados.map(linhaDoMovimento),
     closing_balance: (abertura + variacao) / 100,
     unreconciled_count: semCarimbo.length,
     unreconciled_total: semCarimbo.reduce((s, l) => s + centavos(Math.abs(l.amount)), 0) / 100,
@@ -896,4 +946,55 @@ export async function descarimbarLinhaAction(
   });
   if (!limpou) return fail("SEM_CARIMBO", "Esta linha não tem carimbo.", 409, "id");
   return ok({ kind: input.kind, id });
+}
+
+/**
+ * Q372: o PIX e a transferência da venda caem na conta no ato; o Financeiro corrige o dia da linha
+ * quando o dinheiro caiu em outro. Só a linha de conta com origem `venda` e sem carimbo: fiado, boleto
+ * e cheque escolhem a data na baixa, e despesa, compra e transferência guardam a data em outro registro.
+ */
+export async function corrigirDataDoMovimentoAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  id: string,
+  input: { occurred_on: string | Date },
+): Promise<ActionResult<ExtratoLinhaView>> {
+  const neg = await exigir(db, ator, "dinheiro", "corrigir a data do extrato");
+  if (neg) return neg;
+  const movId = typeof id === "string" ? id.trim() : "";
+  if (!movId) return fail("VALIDATION_ERROR", "Escolha a linha.", 422, "id");
+  const m = await db.cashMovement.findFirst({
+    where: { id: movId },
+    include: {
+      establishment: { select: { name: true } },
+      sale: { select: { number: true, customer_id: true, customer: { select: { name: true } }, establishment: { select: { name: true } } } },
+    },
+  });
+  if (!m) return fail("NOT_FOUND", "Linha não encontrada.", 404, "id");
+  if (m.reconciled_at) return fail("JA_CARIMBADA", "Tire o carimbo antes de corrigir a data.", 409, "occurred_on");
+  if (!m.bank_account_id || m.origin !== "venda") {
+    return fail("LINHA_NAO_CORRIGIVEL", "Só a data do PIX ou da transferência da venda se corrige aqui.", 422, "occurred_on");
+  }
+  const bruta = input?.occurred_on as unknown;
+  if (bruta === null || bruta === undefined || (typeof bruta === "string" && !bruta.trim())) {
+    return fail("VALIDATION_ERROR", "Informe a data em que o dinheiro caiu.", 422, "occurred_on");
+  }
+  const data = await lerDataDaBaixaDoAtor(db, ator, bruta, "occurred_on");
+  if (!data.ok) return data;
+  const novo = data.data.instante(new Date());
+  const de = dia(inicioDoDiaEmSaoPaulo(m.occurred_at));
+
+  const gravou = await db.$transaction(async (tx) => {
+    const r = await tx.cashMovement.updateMany({ where: { id: m.id, reconciled_at: null }, data: { occurred_at: novo } });
+    if (r.count === 0) return false;
+    await registrarNoHistorico(tx, ator, {
+      action: "financeiro.data_corrigida",
+      target_type: "conta",
+      target_id: m.bank_account_id,
+      summary: `Corrigiu a data do recebimento da venda nº ${m.sale?.number ?? "?"} de ${dataBr(de)} para ${dataBr(dia(data.data.dia))}`,
+    });
+    return true;
+  });
+  if (!gravou) return fail("JA_CARIMBADA", "Tire o carimbo antes de corrigir a data.", 409, "occurred_on");
+  return ok(linhaDeMovimento({ ...m, occurred_at: novo }, "", { reconciled_at: null, reconciled_by: null }));
 }

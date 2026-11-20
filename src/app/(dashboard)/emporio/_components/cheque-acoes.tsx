@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
 import { FormSheet } from "@/components/ui/form-sheet";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Select,
   SelectTrigger,
@@ -17,6 +16,8 @@ import {
 import { useErrosDeFormulario } from "@/components/ui/use-erros-de-formulario";
 import { useAviso } from "@/components/ui/toast";
 import { apiPost } from "@/lib/client-api";
+import { JANELA_DA_BAIXA_DIAS } from "@/lib/emporio/data-da-baixa";
+import { diaDeHoje } from "./venda-estado";
 import { CompletarChequeForm, type ChequeParaCompletar } from "./completar-cheque-form";
 
 /**
@@ -39,7 +40,10 @@ export function ChequeAcoes({
   podeDepositar,
   podeCompletar,
   ehAdmin,
+  podeMudarData = false,
 }: {
+  /** Q371: só o Financeiro, o Gerente geral e o Dono escolhem a data da baixa. O servidor confere de novo. */
+  podeMudarData?: boolean;
   chequeId: string;
   cheque: ChequeParaCompletar;
   situacao: string;
@@ -59,8 +63,8 @@ export function ChequeAcoes({
   return (
     <div className="flex flex-wrap gap-2">
       {completa && <CompletarChequeForm cheque={cheque} />}
-      {deposita && <DepositarCheque chequeId={chequeId} numero={numero} contas={contas} />}
-      {depositado && ehAdmin && <CompensouCheque chequeId={chequeId} numero={numero} />}
+      {deposita && <DepositarCheque chequeId={chequeId} numero={numero} contas={contas} podeMudarData={podeMudarData} />}
+      {depositado && ehAdmin && <CompensouCheque chequeId={chequeId} numero={numero} podeMudarData={podeMudarData} />}
       {ehAdmin && (naCarteira || depositado) && <VoltouCheque chequeId={chequeId} numero={numero} />}
     </div>
   );
@@ -68,16 +72,18 @@ export function ChequeAcoes({
 
 // ----- Depositar -----
 
-const ORDEM_DEPOSITO = ["bank_account_id"] as const;
+const ORDEM_DEPOSITO = ["bank_account_id", "deposited_on"] as const;
 
 function DepositarCheque({
   chequeId,
   numero,
   contas,
+  podeMudarData,
 }: {
   chequeId: string;
   numero: string;
   contas: { id: string; name: string }[];
+  podeMudarData: boolean;
 }) {
   const router = useRouter();
   const aviso = useAviso();
@@ -85,6 +91,8 @@ function DepositarCheque({
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [conta, setConta] = useState("");
+  const [depositadoEm, setDepositadoEm] = useState("");
+  const hoje = diaDeHoje();
 
   async function submit() {
     if (!conta) {
@@ -94,7 +102,10 @@ function DepositarCheque({
     }
     err.limparTudo();
     setLoading(true);
-    const res = await apiPost(`/api/v1/emporio/checks/${chequeId}/deposit`, { bank_account_id: conta });
+    const res = await apiPost(`/api/v1/emporio/checks/${chequeId}/deposit`, {
+      bank_account_id: conta,
+      ...(podeMudarData ? { deposited_on: depositadoEm || hoje } : {}),
+    });
     setLoading(false);
     if (!res.ok) {
       err.doServidor(res);
@@ -102,6 +113,7 @@ function DepositarCheque({
     }
     aviso.sucesso(`Cheque ${numero} depositado.`);
     setOpen(false);
+    setDepositadoEm("");
     router.refresh();
   }
 
@@ -148,34 +160,101 @@ function DepositarCheque({
           </Select>
         )}
       </Field>
+      {podeMudarData && (
+        <Field
+          label="Data do depósito"
+          id={err.idDe("deposited_on")}
+          error={err.erros.deposited_on}
+          hint={`Até ${JANELA_DA_BAIXA_DIAS} dias para trás ou para frente.`}
+        >
+          {({ id, ...aria }) => (
+            <Input
+              id={id}
+              {...aria}
+              type="date"
+              value={depositadoEm || hoje}
+              onChange={(e) => {
+                setDepositadoEm(e.target.value);
+                err.limparCampo("deposited_on");
+              }}
+            />
+          )}
+        </Field>
+      )}
     </FormSheet>
   );
 }
 
 // ----- Compensou -----
 
-/** Sem campo para preencher: a confirmação é um diálogo, e a recusa vai para o aviso. */
-function CompensouCheque({ chequeId, numero }: { chequeId: string; numero: string }) {
+const ORDEM_COMPENSOU = ["cleared_on"] as const;
+
+function CompensouCheque({ chequeId, numero, podeMudarData }: { chequeId: string; numero: string; podeMudarData: boolean }) {
   const router = useRouter();
   const aviso = useAviso();
+  const err = useErrosDeFormulario(ORDEM_COMPENSOU, `compensou-${chequeId}`);
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [caiuEm, setCaiuEm] = useState("");
+  const hoje = diaDeHoje();
 
-  async function compensar() {
-    const res = await apiPost(`/api/v1/emporio/checks/${chequeId}/clear`);
-    if (res.ok) {
-      aviso.sucesso(`Cheque ${numero} compensado: o dinheiro entrou na conta.`);
-      router.refresh();
-    } else aviso.erro(res.message);
+  async function submit() {
+    err.limparTudo();
+    setLoading(true);
+    const res = await apiPost(
+      `/api/v1/emporio/checks/${chequeId}/clear`,
+      podeMudarData ? { cleared_on: caiuEm || hoje } : undefined,
+    );
+    setLoading(false);
+    if (!res.ok) {
+      err.doServidor(res);
+      return;
+    }
+    aviso.sucesso(`Cheque ${numero} compensado: o dinheiro entrou na conta.`);
+    setOpen(false);
+    setCaiuEm("");
+    router.refresh();
   }
 
   return (
-    <ConfirmDialog
-      gatilho={<Button size="sm">Compensou</Button>}
-      titulo={`Cheque ${numero} compensou?`}
-      descricao="O valor entra como saldo na conta onde o cheque foi depositado. Confirme só depois de ver o dinheiro no extrato."
-      rotuloConfirmar="Sim, compensou"
-      destrutivo={false}
-      aoConfirmar={compensar}
-    />
+    <FormSheet
+      trigger={<Button size="sm">Compensou</Button>}
+      title={`Cheque ${numero} compensou?`}
+      description="O valor entra como saldo na conta onde o cheque foi depositado. Confirme só depois de ver o dinheiro no extrato."
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o);
+        if (!o) err.limparTudo();
+      }}
+      onSubmit={submit}
+      submitLabel="Sim, compensou"
+      pending={loading}
+      error={err.global}
+      focarCampoId={err.focarCampoId}
+      tentativa={err.tentativa}
+    >
+      {podeMudarData && (
+        <Field
+          label="Data em que caiu"
+          id={err.idDe("cleared_on")}
+          error={err.erros.cleared_on}
+          hint={`Para o extrato bater com o do banco. Até ${JANELA_DA_BAIXA_DIAS} dias para trás ou para frente.`}
+        >
+          {({ id, ...aria }) => (
+            <Input
+              id={id}
+              {...aria}
+              type="date"
+              value={caiuEm || hoje}
+              onChange={(e) => {
+                setCaiuEm(e.target.value);
+                err.limparCampo("cleared_on");
+              }}
+            />
+          )}
+        </Field>
+      )}
+    </FormSheet>
   );
 }
 

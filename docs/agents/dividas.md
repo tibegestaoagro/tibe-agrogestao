@@ -329,6 +329,28 @@ Registrado em 07/11/2026, na branch `emporio-entrega-e-romaneio` (plano 3 de 3).
   a seção 3 confere o `field` mas não a mensagem exata do principal incompleto e
   do "outro" sem bairro.
 
+### 5.30 Empório, data da baixa (Q370 a Q373): o que ficou para depois
+
+Registrado em 19/11/2026, na branch `emporio-data-da-baixa` (plano
+`docs/superpowers/plans/2026-11-19-emporio-data-da-baixa.md`; juiz 7/10, os
+quatro importantes corrigidos numa leva).
+- **Abertura do extrato com período inteiramente futuro:** `antesCartao`
+  (`emporio-financeiro.ts`, `effective_on: { lt: deDia }`) não é limitado a hoje,
+  então um período que começa depois de amanhã soma na abertura as parcelas de
+  cartão futuras, e o fechamento fica acima do saldo da conta. Ajuste de uma
+  linha (`lt: min(deDia, amanhã)`) e um caso na `m127`.
+- O `scheduled` do extrato traz todos os futuros da conta, sem olhar o período.
+- Listas de história sem marca de agendado (`emporio-caixa.ts` ~304 e ~1514,
+  `emporio-clientes.ts` ~523, `emporio-despesas.ts` ~1856).
+- Cheque compensado com data futura fica "compensado" com o dinheiro só
+  agendado; não há ordem entre depósito e compensação.
+- O replay da `operation_key` do fiado devolve o gravado sem ler a data nova.
+- O teto de 1e12 do valor pago não é fechado em centavos (999999999999,995).
+- Sem teste de extrato de período futuro nem da virada de fuso com `agora`
+  injetado; `saldosDasContas` não aceita `agora`.
+- O formulário do boleto oferece data futura ao Gestor da loja, e o servidor
+  recusa com 403 (ele só escolhe data passada).
+
 ### 5.29 Empório, sobras das frentes B, C, D e H (Q368, Q369): o que ficou para depois
 
 Registrado em 19/11/2026, na branch `emporio-sobras-gestaoclick` (plano

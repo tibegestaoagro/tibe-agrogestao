@@ -76,6 +76,7 @@ next-env.d.ts
 /docs/preco-custo-produto/
 /docs/financeiro-reuniao/
 /docs/correcao-caixa/
+/docs/financeiro-19112026/
 
 # Quadros brutos dos GIFs do manual (scripts/navegador/manual-gifs.py): so os GIFs montados sao versionados
 /.cache/manual-gifs/

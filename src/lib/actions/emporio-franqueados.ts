@@ -5,6 +5,7 @@ import type { Ator } from "@/lib/actions/emporio-catalogo";
 import { saldoDoCaixa, saldosDasContas } from "@/lib/actions/emporio-caixa";
 import { exigir } from "@/lib/emporio/papel";
 import { dinheiro, diferencas, registrarNoHistorico } from "@/lib/emporio/historico";
+import { fimDeHojeEmBrasilia } from "@/lib/emporio/data-da-baixa";
 import { resolverTurno } from "@/lib/emporio/turno";
 import { runSerializableTenantTransaction, type TenantTransactionClient } from "@/lib/financial";
 import { decToNum, isoOrNull } from "@/lib/serialize";
@@ -348,6 +349,9 @@ export async function pagarFranqueadoAction(
   const quando = input.paid_at ?? new Date();
   if (!(quando instanceof Date) || Number.isNaN(quando.getTime())) {
     return fail("VALIDATION_ERROR", "Informe uma data de pagamento válida.", 422, "paid_at");
+  }
+  if (quando.getTime() >= fimDeHojeEmBrasilia().getTime()) {
+    return fail("VALIDATION_ERROR", "A data não pode ser futura.", 422, "paid_at");
   }
 
   const pf = input.paid_from;
