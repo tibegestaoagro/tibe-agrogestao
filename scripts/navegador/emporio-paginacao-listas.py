@@ -317,6 +317,30 @@ esperar_mostrando("Mostrando 1 a 20 de", ENT)
 confere("caixa: mudar as entregas para a pagina 1 NAO mexe nos movimentos (seguem em 41 a ..., URL com pagina_mov=3 e sem pagina_ent)", mostrando(ENT).startswith("Mostrando 1 a 20 de") and mostrando(MOV).startswith("Mostrando 41 a") and "pagina_mov=3" in caminho() and "pagina_ent" not in caminho(), [mostrando(ENT), mostrando(MOV), caminho()])
 confere("caixa: as entregas voltam a R$ 500,00 a R$ 519,00 (a mais antiga primeiro)", valores(ENT, 1) == [float(500 + k) for k in range(20)], valores(ENT, 1))
 
+# Ordem e tamanho dos Movimentos (divida 5.28): ordem_mov e por_pagina_mov na URL, a pagina de Movimentos volta a 1.
+ir_caixa("?pagina_mov=2")
+esperar_mostrando("Mostrando 21 a 40 de", MOV)
+desc_p2 = linhas(MOV)
+confere("caixa: 'Ordem' dos movimentos estando na pagina 2 (Mais antigos primeiro)", aria_escolher("Ordem", "Mais antigos primeiro") is True)
+esperar(lambda: "ordem_mov=asc" in caminho(), 60)
+esperar_mostrando("Mostrando 1 a 20 de", MOV)
+asc_p1 = linhas(MOV)
+confere("caixa: ordem_mov=asc volta os movimentos a pagina 1 (URL sem pagina_mov), 20 linhas", "ordem_mov=asc" in caminho() and "?pagina_mov" not in caminho() and "&pagina_mov" not in caminho() and len(asc_p1) == 20, [caminho(), len(asc_p1)])
+ir_caixa("?por_pagina_mov=100")
+esperar_mostrando("Mostrando 1 a", MOV)
+desc_todos = linhas(MOV)
+ir_caixa("?por_pagina_mov=100&ordem_mov=asc")
+esperar_mostrando("Mostrando 1 a", MOV)
+asc_todos = linhas(MOV)
+confere("caixa: a ordem crescente inverte a primeira linha dos movimentos (a primeira de asc nao e a primeira de desc)", len(asc_todos) > 0 and asc_todos[0] != desc_todos[0], [asc_todos[:1], desc_todos[:1]])
+confere("caixa: a primeira linha em ordem crescente e a ultima em ordem decrescente (tamanho 100 cobre os movimentos)", TM > 100 or asc_todos[0] == desc_todos[-1], [asc_todos[:1], desc_todos[-1:], TM])
+ir_caixa("?pagina_mov=3")
+esperar_mostrando("Mostrando 41 a", MOV)
+confere("caixa: 'Por pagina' dos movimentos 40 estando na pagina 3", aria_escolher("Por página", "40 por página") is True)
+esperar(lambda: "por_pagina_mov=40" in caminho(), 60)
+esperar_mostrando("Mostrando 1 a 40 de", MOV)
+confere("caixa: por_pagina_mov=40 volta a pagina 1 (URL sem pagina_mov), 40 linhas, entregas ainda em 20", "?pagina_mov" not in caminho() and "&pagina_mov" not in caminho() and len(linhas(MOV)) == 40 and len(linhas(ENT)) == 20, [caminho(), len(linhas(MOV)), len(linhas(ENT))])
+
 # --- 5b -----------------------------------------------------------------------------------------------------------------
 # Achado do juiz (18/11): a aba Esperando das Aprovacoes cortava em 200 em silencio. Os 25 pedidos do cenario
 # (R$ 700 a 724) sao os pendentes mais antigos da conta: a pagina 1 comeca no R$ 700, a 2 traz o R$ 720.
@@ -331,7 +355,23 @@ esperar(lambda: mostrando().startswith("Mostrando 21 a"), 60)
 texto2 = texto_do_main().replace(" ", " ")
 confere("aprovacoes: pagina 2 'Mostrando 21 a ...', com o R$ 720,00 e sem o R$ 700,00, URL com pagina=2", mostrando().startswith("Mostrando 21 a") and "R$ 720,00" in texto2 and "R$ 700,00" not in texto2 and "pagina=2" in caminho(), [mostrando(), caminho()])
 
-# --- 6 ------------------------------------------------------------------------------------------------------------------
+# Divida 5.28: 'Por pagina' na aba Esperando (so ele: sem 'Ordem', a fila e sempre do mais antigo).
+def cartoes_de_pedido():
+    return js("document.querySelectorAll('main li.rounded-lg').length") or 0
+
+
+ir("/emporio/financeiro/aprovacoes?status=pendente&pagina=2")
+esperar(lambda: mostrando().startswith("Mostrando 21 a"), 60)
+confere("aprovacoes: o seletor 'Por pagina' esta na tela e o 'Ordem' nao", bool(js("!!document.querySelector('[aria-label=\"Por página\"]') && !document.querySelector('[aria-label=\"Ordem\"]')")))
+confere("aprovacoes: troca 'Por pagina' para 40 estando na pagina 2", aria_escolher("Por página", "40 por página") is True)
+esperar(lambda: "por_pagina=40" in caminho(), 60)
+esperar(lambda: mostrando().startswith("Mostrando 1 a"), 60)
+time.sleep(0.8)
+n_pedidos = cartoes_de_pedido()
+texto40 = texto_do_main().replace(chr(160), " ")
+confere("aprovacoes: 40 por pagina volta a pagina 1 (URL sem 'pagina=' solto) e mostra mais de 20 pedidos (inclui R$ 700,00 e R$ 720,00)", "pagina=" not in caminho().replace("por_pagina=", "") and n_pedidos > 20 and "R$ 700,00" in texto40 and "R$ 720,00" in texto40, [caminho(), n_pedidos, mostrando()])
+
+# --- 6------------------------------------------------------------------------------------------------------------------
 passo("6. Tela inicial do Emporio: os resumos de sempre")
 ir("/emporio")
 esperar(lambda: "Meu Empório" in texto_do_main(), 60)

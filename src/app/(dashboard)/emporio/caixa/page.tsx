@@ -33,6 +33,8 @@ import { AbrirTurnoForm } from "../_components/abrir-turno-form";
 import { SangriaForm } from "../_components/sangria-form";
 import { EncerrarTurnoForm } from "../_components/encerrar-turno-form";
 import { Paginacao, paginaDaUrl } from "../_components/paginacao";
+import { PaginacaoDaUrl } from "../_components/paginacao-da-url";
+import { lerPaginacaoDaUrl } from "../_components/paginacao-opcoes";
 import { ConfirmarEntregaForm } from "../_components/confirmar-entrega-form";
 import { TransferirCaixaForm, type PontaOpcao } from "../_components/transferir-caixa-form";
 import { CHEQUE_SITUACAO_ROTULO, ORIGEM_CAIXA_ROTULO } from "../_components/venda-rotulos";
@@ -51,12 +53,15 @@ const POR_PAGINA_CAIXA = 20;
 export default async function CaixaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ pagina_ent?: string; pagina_mov?: string }>;
+  searchParams: Promise<{ pagina_ent?: string; pagina_mov?: string; ordem_mov?: string; por_pagina_mov?: string }>;
 }) {
   const user = await requireFeaturePage("emporio");
-  const { pagina_ent: paginaEntDaUrl, pagina_mov: paginaMovDaUrl } = await searchParams;
+  const { pagina_ent: paginaEntDaUrl, pagina_mov: paginaMovDaUrl, ordem_mov: ordemMovDaUrl, por_pagina_mov: porPaginaMovDaUrl } =
+    await searchParams;
   const paginaEnt = paginaDaUrl(paginaEntDaUrl);
   const paginaMov = paginaDaUrl(paginaMovDaUrl);
+  // Valor inválido na URL cai no padrão (mais recentes primeiro, 20 por página).
+  const { ordem: ordemMov, porPagina: porPaginaMov } = lerPaginacaoDaUrl({ ordem: ordemMovDaUrl, por_pagina: porPaginaMovDaUrl });
   const db = await getTenantDb();
   // F6b: cada botão decide pelo papel do Empório, a mesma regra que o servidor aplica.
   const papel = await papelDoEmporio(db, user);
@@ -70,7 +75,7 @@ export default async function CaixaPage({
   const mexeNaConta = ehConta || ehDinheiro;
 
   const [caixaRes, boletosRes, contasRes, contasDoBanco, implantados, comTurno, entregasRes, padraoId] = await Promise.all([
-    lerCaixaAction(db, user, { mov_page: paginaMov, mov_per_page: POR_PAGINA_CAIXA }),
+    lerCaixaAction(db, user, { mov_page: paginaMov, mov_per_page: porPaginaMov, mov_order: ordemMov }),
     listarBoletosAction(db, user, { status: "aberto" }),
     veContas ? listarContasAction(db, user, { incluir_arquivadas: true }) : Promise.resolve(null),
     // Depositar cheque é do Vendedor com a chave, que não lista contas
@@ -126,6 +131,8 @@ export default async function CaixaPage({
     const p = new URLSearchParams();
     if (ent > 1) p.set("pagina_ent", String(ent));
     if (mov > 1) p.set("pagina_mov", String(mov));
+    if (ordemMov !== "desc") p.set("ordem_mov", ordemMov);
+    if (porPaginaMov !== 20) p.set("por_pagina_mov", String(porPaginaMov));
     const texto = p.toString();
     return texto ? `/emporio/caixa?${texto}` : "/emporio/caixa";
   };
@@ -574,7 +581,16 @@ export default async function CaixaPage({
       )}
 
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold text-texto">Movimentos</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold text-texto">Movimentos</h2>
+          <PaginacaoDaUrl
+            ordem={ordemMov}
+            porPagina={porPaginaMov}
+            chaveOrdem="ordem_mov"
+            chavePorPagina="por_pagina_mov"
+            chavePagina="pagina_mov"
+          />
+        </div>
         {caixa.movements.length === 0 ? (
           <EmptyState titulo="Nenhum movimento ainda">
             Vendas, recebimentos de fiado e devoluções aparecem aqui.

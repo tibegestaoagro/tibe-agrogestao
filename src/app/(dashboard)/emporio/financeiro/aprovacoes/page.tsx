@@ -9,6 +9,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { FinanceiroAbas } from "../../_components/financeiro-abas";
 import { FinanceiroAprovacoes } from "../../_components/financeiro-aprovacoes";
 import { Paginacao, paginaDaUrl } from "../../_components/paginacao";
+import { PaginacaoDaUrl } from "../../_components/paginacao-da-url";
+import { lerPaginacaoDaUrl } from "../../_components/paginacao-opcoes";
 import { cn } from "@/lib/utils";
 
 const FILTROS = [
@@ -20,10 +22,12 @@ const FILTROS = [
 export default async function FinanceiroAprovacoesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; before?: string; before_id?: string; pagina?: string }>;
+  searchParams: Promise<{ status?: string; before?: string; before_id?: string; pagina?: string; por_pagina?: string }>;
 }) {
   const user = await requireFeaturePage("emporio");
-  const { status: statusDaUrl = "", before = "", before_id: beforeId = "", pagina } = await searchParams;
+  const { status: statusDaUrl = "", before = "", before_id: beforeId = "", pagina, por_pagina: porPaginaDaUrl } = await searchParams;
+  // Só o tamanho: a fila de pendentes é sempre do mais antigo, e "Decididos" anda por cursor.
+  const { porPagina } = lerPaginacaoDaUrl({ por_pagina: porPaginaDaUrl });
   const db = await getTenantDb();
   const papel = await papelDoEmporio(db, user);
   if (!veAPagina(papel, "/emporio/financeiro")) notFound();
@@ -33,7 +37,7 @@ export default async function FinanceiroAprovacoesPage({
     db,
     user,
     status === "pendente"
-      ? { status: "pendente", page: paginaDaUrl(pagina), per_page: 20 }
+      ? { status: "pendente", page: paginaDaUrl(pagina), per_page: porPagina }
       : { status: "decididos", before: before || undefined, before_id: (before && beforeId) || undefined },
   );
   const pedidos = res.ok ? res.data.linhas : [];
@@ -72,6 +76,9 @@ export default async function FinanceiroAprovacoesPage({
         ))}
       </nav>
 
+      {status === "pendente" && (
+        <PaginacaoDaUrl porPagina={porPagina} chavePorPagina="por_pagina" chavePagina="pagina" />
+      )}
       {res.ok ? (
         <FinanceiroAprovacoes pedidos={pedidos} podeDecidir={pode(papel, "conta")} decididos={status === "decididos"} />
       ) : (
@@ -82,7 +89,9 @@ export default async function FinanceiroAprovacoesPage({
           page={res.data.page}
           perPage={res.data.per_page}
           total={res.data.total}
-          hrefDe={(n) => (n > 1 ? `/emporio/financeiro/aprovacoes?status=pendente&pagina=${n}` : "/emporio/financeiro/aprovacoes?status=pendente")}
+          hrefDe={(n) =>
+            `/emporio/financeiro/aprovacoes?status=pendente${porPagina !== 20 ? `&por_pagina=${porPagina}` : ""}${n > 1 ? `&pagina=${n}` : ""}`
+          }
         />
       )}
       {status === "decididos" && ultimo && ultimoPedido ? (

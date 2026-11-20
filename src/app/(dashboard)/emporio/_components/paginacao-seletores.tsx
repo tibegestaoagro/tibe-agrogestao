@@ -16,25 +16,28 @@ export function PaginacaoSeletores({
   onOrdem,
   onPorPagina,
 }: {
-  ordem: string;
+  /** Sem `ordem` (e `onOrdem`), o seletor "Ordem" não aparece: só o "Por página". */
+  ordem?: string;
   porPagina: number;
-  onOrdem: (ordem: string) => void;
+  onOrdem?: (ordem: string) => void;
   onPorPagina: (porPagina: number) => void;
 }) {
   return (
     <>
-      <Select value={ordem} onValueChange={onOrdem}>
-        <SelectTrigger aria-label="Ordem">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {ORDENS_DO_ORCAMENTO.map((o) => (
-            <SelectItem key={o.valor} value={o.valor}>
-              {o.rotulo}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      {ordem !== undefined && onOrdem && (
+        <Select value={ordem} onValueChange={onOrdem}>
+          <SelectTrigger aria-label="Ordem">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {ORDENS_DO_ORCAMENTO.map((o) => (
+              <SelectItem key={o.valor} value={o.valor}>
+                {o.rotulo}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
 
       <Select value={String(porPagina)} onValueChange={(v) => onPorPagina(Number(v))}>
         <SelectTrigger aria-label="Por página">
