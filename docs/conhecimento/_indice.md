@@ -110,6 +110,8 @@ grep -rl "^tipo: armadilha" docs/conhecimento/
 | [a transação que passa local cai em produção pela distância até o banco](a-transacao-que-passa-local-cai-em-producao-pela-distancia-ate-o-banco.md) | armadilha | editar venda nunca funcionou em produção: 60 consultas a 120 ms (Vercel EUA, Neon SP) passavam dos 5 s do Prisma |
 | [o guarda-bash lê "vercel" como deploy até no nome do arquivo](o-guarda-bash-le-vercel-como-deploy-ate-no-nome-do-arquivo.md) | armadilha | `git add vercel.json` e linha "Vercel:" na mensagem viram deploy; `git add -u` e "Infra:" |
 | [apagar dado de cliente se prova pela digital do que fica](apagar-dado-de-cliente-se-prova-pela-digital-do-que-fica.md) | decisao | o md5 do que fica pegou o SET NULL nos orçamentos que a contagem não via; ensaio local, contagem, confirmação, gravação |
+| [o teste que monta o dado no banco aprova o que a action nunca grava](o-teste-que-monta-o-dado-no-banco-aprova-o-que-a-action-nunca-grava.md) | licao | o boleto agendado passava na `m128` com `paid_at` futuro criado à mão; a action grava o futuro em `paid_on` |
+| [o roteiro que procura pelo texto pega o primeiro da página](o-roteiro-que-procura-pelo-texto-pega-o-primeiro-da-pagina.md) | armadilha | 7 falhas no Desfazer da antecipação eram o "Desfazer" de uma parcela conferida; procure dentro do bloco |
 
 ⚠️ **`[[wikilink]]` para nota que não existe reprova o `npm run check`**
 (conferência 13). É o que impede esta pasta de virar um cemitério de links

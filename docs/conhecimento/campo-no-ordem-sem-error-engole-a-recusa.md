@@ -55,6 +55,24 @@ que já existia sobre ele não impediu.
 - A **conferência 15** do `npm run check` reprova isso desde 31/08, campo por
   campo, com linha de base vazia.
 
+## 2026-11-20: o campo que só existe para alguns papéis
+
+No Compensou do cheque (`cheque-acoes.tsx`), `cleared_on` está no
+`ORDEM_COMPENSOU` e o `<Field>` tem `error=`, mas só é renderizado para quem
+pode mudar a data. O Gestor da loja não vê o campo. Quando a recusa nova
+"A compensação não pode ser antes do depósito" chegou em `cleared_on`, ela foi
+para `erros.cleared_on`, que nenhum elemento na tela do Gestor mostrava: o
+botão parava de girar e nada aparecia. A **conferência 15 aprovou**, porque o
+`<Field>`, quando existe, passa `error=`.
+
+O juiz achou; a suíte e a revisão por tarefa não. A correção: sem o campo, a
+recusa dele vai ao rodapé (`err.global ?? (podeMudarData ? null :
+err.erros.cleared_on ?? null)`).
+
+**Regra nova:** campo renderizado só para alguns papéis precisa de destino para
+a recusa quando não está na tela. Ao criar uma recusa no servidor, pergunte
+quem pode receber esse `field` e se todos esses papéis veem o campo.
+
 ## Relacionado
 
 - [[portao-mede-a-relacao-que-lhe-deram]]
