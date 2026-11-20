@@ -585,7 +585,8 @@ async function leituraFinanceiraDoCliente(
         establishment_id: b.establishment_id,
         establishment_name: b.establishment.name,
         amount: Number(b.paid_amount ?? b.amount),
-        scheduled: agendado(b.paid_at),
+        // O dia em que o dinheiro caiu (`paid_on`, o mesmo da linha) decide; `paid_at` é o instante do registro.
+        scheduled: b.paid_on ? b.paid_on.getTime() > hoje.getTime() : agendado(b.paid_at),
       })),
     ...cheques.map((c): RecebimentoView => ({
       id: c.id,

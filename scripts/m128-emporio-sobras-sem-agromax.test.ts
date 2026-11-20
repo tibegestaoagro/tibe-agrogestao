@@ -154,13 +154,20 @@ async function secao2() {
     const venda = await cru.emporioSale.create({
       data: { tenant_id: t.id, establishment_id: loja.id, customer_id: cliente.id, operation_key: `m128b-${stamp}`, number: 1, sold_at: new Date(), net_amount: 80 },
     });
-    const pgBoleto = await cru.emporioSalePayment.create({ data: { tenant_id: t.id, sale_id: venda.id, kind: "boleto", amount: 30 } });
-    const boleto = await cru.emporioBoleto.create({
-      data: {
-        tenant_id: t.id, sale_id: venda.id, sale_payment_id: pgBoleto.id, customer_id: cliente.id, establishment_id: loja.id,
-        due_on: hoje, amount: 30, status: "pago", bank_account_id: conta.id, paid_on: amanha, paid_at: meioDia(amanha),
-      },
-    });
+    // Os dois boletos são pagos PELA action (paid_at = agora, paid_on = o dia escolhido), como a tela faz.
+    const novoBoleto = async (valor: number) => {
+      const pg = await cru.emporioSalePayment.create({ data: { tenant_id: t.id, sale_id: venda.id, kind: "boleto", amount: valor } });
+      return cru.emporioBoleto.create({
+        data: { tenant_id: t.id, sale_id: venda.id, sale_payment_id: pg.id, customer_id: cliente.id, establishment_id: loja.id, due_on: hoje, amount: valor, status: "aberto" },
+      });
+    };
+    const boleto = await novoBoleto(30);
+    const boletoHoje = await novoBoleto(5);
+    const iso = (d: Date) => d.toISOString().slice(0, 10);
+    const pAmanha = await X.pagarBoletoAction(db, dono, boleto.id, { bank_account_id: conta.id, paid_on: iso(amanha) });
+    check("pagar o boleto com a data de amanhã passa", pAmanha.ok, j(pAmanha));
+    const pHoje = await X.pagarBoletoAction(db, dono, boletoHoje.id, { bank_account_id: conta.id, paid_on: iso(hoje) });
+    check("pagar o boleto com a data de hoje passa", pHoje.ok, j(pHoje));
     const pgCheque = await cru.emporioSalePayment.create({ data: { tenant_id: t.id, sale_id: venda.id, kind: "cheque", amount: 50 } });
     const cheque = await cru.emporioCheck.create({
       data: {
@@ -185,12 +192,14 @@ async function secao2() {
       const i = (id: string) => rc.data.items.find((x: Dado) => x.id === id);
       check("fiado de hoje: scheduled false", i(movHoje.id)?.scheduled === false, j(i(movHoje.id)));
       check("fiado de amanhã: scheduled true", i(movAmanha.id)?.scheduled === true, j(i(movAmanha.id)));
-      check("boleto pago com paid_on de amanhã: scheduled true", i(boleto.id)?.scheduled === true, j(i(boleto.id)));
+      check("boleto pago pela action com paid_on de amanhã: scheduled true", i(boleto.id)?.scheduled === true, j(i(boleto.id)));
+      check("a linha do boleto mostra o dia da baixa (amanhã)", i(boleto.id)?.occurred_on === iso(amanha), j(i(boleto.id)));
+      check("boleto pago hoje: scheduled false", i(boletoHoje.id)?.scheduled === false, j(i(boletoHoje.id)));
       check("cheque compensado com cleared_on de amanhã: scheduled true", i(cheque.id)?.scheduled === true, j(i(cheque.id)));
     }
     const ficha = await CL.lerFicha(db, dono, cliente.id);
     check("a ficha devolve ok", ficha.ok, j(ficha));
-    if (ficha.ok) check("o Recebido soma só o fiado de hoje (10), sem os agendados", ficha.data.resumo.recebido === 10, String(ficha.data.resumo.recebido));
+    if (ficha.ok) check("o Recebido soma o fiado de hoje (10) e o boleto de hoje (5), sem os agendados", ficha.data.resumo.recebido === 15, String(ficha.data.resumo.recebido));
   } catch (e) {
     check("a seção 2 terminou sem exceção", false, e instanceof Error ? e.stack ?? e.message : String(e));
   } finally {

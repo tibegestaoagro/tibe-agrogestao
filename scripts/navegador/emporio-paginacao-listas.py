@@ -374,7 +374,7 @@ n_pedidos = cartoes_de_pedido()
 texto40 = texto_do_main().replace(chr(160), " ")
 confere("aprovacoes: 40 por pagina volta a pagina 1 (URL sem 'pagina=' solto) e mostra mais de 20 pedidos (inclui R$ 700,00 e R$ 720,00)", "pagina=" not in caminho().replace("por_pagina=", "") and n_pedidos > 20 and "R$ 700,00" in texto40 and "R$ 720,00" in texto40, [caminho(), n_pedidos, mostrando()])
 
-# --- 6------------------------------------------------------------------------------------------------------------------
+# --- 6 ------------------------------------------------------------------------------------------------------------------
 passo("6. Tela inicial do Emporio: os resumos de sempre")
 ir("/emporio")
 esperar(lambda: "Meu Empório" in texto_do_main(), 60)
