@@ -1450,13 +1450,15 @@ export async function lerCaixaAction(
     /** Só os movimentos paginam. Sem `mov_page` nem `mov_per_page`, vale o corte antigo de `limit` (100). */
     mov_page?: number;
     mov_per_page?: number;
+    /** Ordem dos movimentos por data: "desc" (padrão, o mais novo primeiro) ou "asc". */
+    mov_order?: "asc" | "desc";
   } = {},
 ): Promise<ActionResult<CaixaView>> {
   const modoPaginado = opts.mov_page !== undefined || opts.mov_per_page !== undefined;
   const pg = lerPagina(
-    { page: opts.mov_page, per_page: opts.mov_per_page, limit: modoPaginado ? undefined : (opts.limit && opts.limit > 0 ? opts.limit : 100) },
+    { page: opts.mov_page, per_page: opts.mov_per_page, order: opts.mov_order, limit: modoPaginado ? undefined : (opts.limit && opts.limit > 0 ? opts.limit : 100) },
     "movimentos",
-    { page: "mov_page", per_page: "mov_per_page", order: "order" },
+    { page: "mov_page", per_page: "mov_per_page", order: "mov_order" },
   );
   if (!pg.ok) return pg;
   const visiveis = await lojasDoAtor(db, ator);
@@ -1575,7 +1577,7 @@ export async function lerCaixaAction(
   const movs = await db.cashMovement.findMany({
     where: onde,
     include: { sale: { select: { number: true } } },
-    orderBy: [{ occurred_at: "desc" }, { created_at: "desc" }, { id: "desc" }],
+    orderBy: [{ occurred_at: pg.data.order }, { created_at: pg.data.order }, { id: pg.data.order }],
     skip: recorte.skip,
     take: recorte.take,
   });

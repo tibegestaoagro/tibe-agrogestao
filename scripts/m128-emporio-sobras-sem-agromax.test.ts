@@ -295,12 +295,61 @@ async function secao3() {
   }
 }
 
+async function secao5() {
+  console.log("\n5. Ordem dos Movimentos do caixa (5.28)");
+  const { prisma, prismaForTenant, scoped } = await import("@/lib/prisma");
+  const X: Dado = await import("@/lib/actions/emporio-caixa");
+  const cru = prisma as Dado;
+
+  const stamp = Date.now();
+  const t = await prisma.tenant.create({
+    data: { name: `M128e ${stamp}`, document: `M128E${stamp}`.slice(0, 14), plan: "grupo", status: "trial", trial_ends_at: new Date(Date.now() + DIA) },
+  });
+  try {
+    const u = await prisma.user.create({
+      data: { tenant_id: t.id, name: "M128e dono", email: `m128e-${stamp}@teste.local`, password_hash: "x", role: "OWNER" },
+    });
+    const dono = { id: u.id, role: "OWNER" as const };
+    const db: Dado = prismaForTenant(t.id);
+    const conta = await db.bankAccount.create({ data: scoped({ name: `M128e Conta ${stamp}` }) });
+    const mov = (dias: number, notes: string) =>
+      db.cashMovement.create({
+        data: scoped({ bank_account_id: conta.id, direction: "entrada", origin: "implantacao", amount: 10, occurred_at: new Date(Date.now() - dias * DIA), notes }),
+      });
+    const velho = await mov(3, "mais antigo");
+    await mov(2, "meio");
+    const novo = await mov(1, "mais novo");
+
+    const ids = (r: Dado) => (r.ok ? r.data.movements.map((m: Dado) => m.id) : []);
+    const asc = await X.lerCaixaAction(db, dono, { bank_account_id: conta.id, mov_order: "asc" });
+    check("mov_order asc devolve ok", asc.ok, j(asc));
+    check("asc: o mais antigo vem primeiro e o mais novo por último", ids(asc)[0] === velho.id && ids(asc)[2] === novo.id, j(ids(asc)));
+    const padrao = await X.lerCaixaAction(db, dono, { bank_account_id: conta.id });
+    check("sem mov_order: o mais novo vem primeiro", ids(padrao)[0] === novo.id && ids(padrao)[2] === velho.id, j(ids(padrao)));
+    const desc = await X.lerCaixaAction(db, dono, { bank_account_id: conta.id, mov_order: "desc" });
+    check("desc: o mais novo vem primeiro", ids(desc)[0] === novo.id, j(ids(desc)));
+    const pag = await X.lerCaixaAction(db, dono, { bank_account_id: conta.id, mov_order: "asc", mov_page: 1, mov_per_page: 20 });
+    check("asc com paginação: o mais antigo vem primeiro", ids(pag)[0] === velho.id, j(ids(pag)));
+    const ruim = await X.lerCaixaAction(db, dono, { bank_account_id: conta.id, mov_order: "sideways" });
+    check("valor inválido é 422 em mov_order, em português", !ruim.ok && ruim.status === 422 && ruim.field === "mov_order" && /ordem/i.test(ruim.message), j(ruim));
+  } catch (e) {
+    check("a seção 5 terminou sem exceção", false, e instanceof Error ? e.stack ?? e.message : String(e));
+  } finally {
+    const por = { where: { tenant_id: t.id } };
+    for (const m of ["cashMovement", "bankAccount", "user"]) {
+      await cru[m]?.deleteMany(por).catch((e: unknown) => console.log(`  (teardown ${m}: ${e instanceof Error ? e.message.slice(0, 100) : e})`));
+    }
+    await prisma.tenant.delete({ where: { id: t.id } }).catch((e: unknown) => console.log(`  (teardown 5: ${e instanceof Error ? e.message.slice(0, 100) : e})`));
+  }
+}
+
 async function main() {
   const { prisma } = await import("@/lib/prisma");
   console.log("🧾 M128: Módulo 39 (Meu Empório), sobras das dívidas 5.23, 5.25, 5.28 e 5.30\n");
   await secao1();
   await secao2();
   await secao3();
+  await secao5();
   await prisma.$disconnect();
   console.log(`\nChecagens: ${total}`);
   console.log(falhas === 0 ? "\n✅ M128 (Módulo 39, Empório): sobras sem a Agromax passaram." : `\n❌ M128 (Módulo 39, Empório): ${falhas} afirmação(ões) falharam.`);
