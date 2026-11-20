@@ -478,8 +478,11 @@ for nome, rota, loja in [("compras", "/emporio/compras", L_COMPRAS), ("transfere
 entrar("vendedor")
 ir("/emporio/relatorios")
 confere("o Vendedor em /emporio/relatorios cai no inicio do Emporio", caminho() == "/emporio", caminho())
+# Duas portas recusam o Vendedor (a do relatorio e a do lucro, as duas com as mesmas permissoes): o faturamento prova
+# a primeira, o lucro prova que nenhuma das duas deixa passar.
+st_receita = api("GET", "/api/v1/emporio/reports/abc?from=" + DIA + "&to=" + DIA + "&kind=products&measure=revenue")["status"]
 st_lucro = api("GET", "/api/v1/emporio/reports/abc?from=" + DIA + "&to=" + DIA + "&kind=products&measure=profit")["status"]
-confere("e a curva por lucro recusa o Vendedor pela API (403)", st_lucro == 403, st_lucro)
+confere("e a curva recusa o Vendedor pela API (403) em faturamento e em lucro", st_receita == 403 and st_lucro == 403, [st_receita, st_lucro])
 entrar("owner")
 ir("/emporio/relatorios")
 confere("o Dono abre o Relatorios (contraprova: o redirecionamento e do papel, nao da rota)", caminho() == "/emporio/relatorios", caminho())

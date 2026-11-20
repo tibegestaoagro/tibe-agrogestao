@@ -753,13 +753,15 @@ ler_codigo(MILHO_PACOTE)
 focar_seletor(QTD)
 f(8)
 foco = em_foco()
-confere("F8 como Caixa leva o foco ao campo Vendedor (a tela nao quebra)", foco.split("|")[1] == "seller_user_id" and caminho().startswith("/emporio/vender"), [foco, caminho()])
+confere("F8 como Caixa leva o foco ao campo Vendedor (a tela nao quebra)", foco.count("|") >= 1 and foco.split("|")[1] == "seller_user_id" and caminho().startswith("/emporio/vender"), [foco, caminho()])
 confere("e a tela segue de pe, com a linha do balcao", itens_do_balcao() == [["Br Milho", "Pacote 1 kg", "1"]], itens_do_balcao())
 
 # O Gestor abre a tela de etiquetas.
 entrar("gestor")
 ir("/emporio/produtos/etiquetas")
-confere("o Gestor abre as Etiquetas (sem 404 nem volta ao inicio)", caminho() == "/emporio/produtos/etiquetas" and tem("Etiquetas") and not eh_404(), [caminho(), texto_principal(120)])
+tem_escolha = bool(esperar(lambda: js("!!document.getElementById('etq-loja')"), 30))
+titulo_h1 = js("(document.querySelector('main h1') || { innerText: '' }).innerText.trim()") or ""
+confere("o Gestor abre as Etiquetas (a propria tela: h1 'Etiquetas' e o seletor de loja, nao so o menu)", caminho() == "/emporio/produtos/etiquetas" and titulo_h1 == "Etiquetas" and tem_escolha and not eh_404(), [caminho(), titulo_h1, tem_escolha])
 
 # O teto: 3 produtos com 999 copias passam de 2000.
 ETIQUETAS_MAXIMAS = 2000

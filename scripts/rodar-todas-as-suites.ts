@@ -24,6 +24,7 @@ import { join } from "node:path";
  * Uso:
  *   DATABASE_URL="postgresql://tibe:tibe@127.0.0.1:55432/tibe_dev?schema=public" npm run test:all
  *   npm run test:all -- --sem-redis    (pula as tres que dependem do Redis)
+ *   npm run test:all -- --so=test:m1,test:m2    (roda so essas)
  */
 
 const PULAR_COM_REDIS = process.argv.includes("--sem-redis");
@@ -136,7 +137,13 @@ function main() {
       console.log(`  ${suite.padEnd(18)} ${motivo} ${Math.round((Date.now() - t0) / 1000)}s`);
       falharam.push(suite);
       if (estourou) travaram.add(suite);
-      logs.set(suite, gravarLog(suite, e));
+      try {
+        logs.set(suite, gravarLog(suite, e));
+      } catch (erroDoLog) {
+        // Nao gravar o log nunca pode derrubar o runner: so avisa.
+        logs.set(suite, `(nao foi possivel gravar o log: ${(erroDoLog as Error).message})`);
+        console.warn(`  aviso: log de ${suite} nao gravado: ${(erroDoLog as Error).message}`);
+      }
     }
   }
 

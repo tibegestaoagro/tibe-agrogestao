@@ -331,7 +331,8 @@ confere("a API: anticipation_costs " + str(total_custo), custo_do_mes(loja["id"]
 
 passo("9. Desfazer: o saldo e a linha do Resultado voltam")
 ir("/emporio/financeiro/receber?loja=" + loja["id"])
-confere("abre Desfazer", clicar("Desfazer"))
+# O Desfazer da operacao, nao o da conferencia de cada parcela (que vem antes no DOM): o bloco da linha 'Pontual'.
+confere("abre Desfazer da antecipacao pontual", clicar_no_bloco("Pontual", "Desfazer"))
 time.sleep(1.5)
 confere("o diálogo explica o que volta", "voltam à data prevista" in texto_da_pagina(), texto_da_pagina()[-400:])
 confere("confirma 'Desfazer antecipação'", clicar("Desfazer antecipação"))
