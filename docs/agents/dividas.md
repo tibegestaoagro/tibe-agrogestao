@@ -329,27 +329,66 @@ Registrado em 07/11/2026, na branch `emporio-entrega-e-romaneio` (plano 3 de 3).
   a seção 3 confere o `field` mas não a mensagem exata do principal incompleto e
   do "outro" sem bairro.
 
+### 5.31 Empório, sobras sem a Agromax: o que ficou para depois
+
+Registrado em 20/11/2026, na branch `emporio-sobras-sem-agromax` (plano
+`docs/superpowers/plans/2026-11-20-emporio-sobras-sem-agromax.md`, suíte
+`m128`). Ela fechou das 5.23, 5.25, 5.28 e 5.30 tudo o que não depende de
+equipamento real. Juiz 6/10, os dois importantes corrigidos numa leva: o
+boleto pago com data futura não ficava agendado na ficha do cliente (agora
+decide pelo `paid_on`) e a recusa da compensação antes do depósito ficava muda
+para o Gestor da loja (agora vai ao rodapé).
+
+Decisões do coordenador, a confirmar pelo usuário: D1 "Agendados" do extrato
+só até o fim do período (os de depois ficam na Projeção); D2 compensar antes
+do dia do depósito é recusado (422); D3 repetir o recebimento do fiado com
+outra data devolve 409; D4 cheque compensado com data futura mostra
+"Compensa em DD/MM" (âmbar) no lugar de "Compensado"; D5 a lista de pagamentos
+das Despesas não ganha marca (conta a pagar já recusa data futura); D6 o teste
+da migração Q353 que segura linhas fecha sem código (`test:all` roda uma suíte
+por vez, e a `m121` não está no CI); D7 padrão de 20 linhas na API e lucro da
+curva ficam como estão.
+
+- **Decisão a confirmar:** fiado ou cheque recebido com data futura sai do
+  "Em aberto" e ainda não entra no "Recebido" da ficha do cliente até o dia
+  chegar; a linha aparece riscada, mas a soma dos dois cartões não fecha
+  nesse intervalo.
+- **Produto (vem de antes):** a parcela conferida pela antecipação mostra
+  "Desfazer a conferência", e a action sempre recusa
+  (`emporio-conferencia-cartao.ts` ~369).
+- **Suítes que supõem dia útil (vem de antes):** `m98` e `m100` falham em
+  feriado (20/11/2026, Consciência Negra), porque a parcela de cartão "de
+  hoje" vai para o próximo dia útil. O sistema está certo; o teste não.
+- O teto do valor pago aceita 999.999.999.999,99, e `centavos()` grava
+  1e14 num `Decimal(14,2)`: erro do Prisma, não 422. Valor irreal.
+- O replay do fiado com outra data devolve 409 sem conferir o papel de quem
+  chama (um Caixa recebe 409, não 403). Não grava nada.
+- `viewDoMovimento` chama `fimDeHojeEmBrasilia()` a cada linha; uma leitura
+  que atravessa a meia-noite de Brasília pode marcar duas linhas do mesmo dia
+  de jeitos diferentes.
+- A página da venda lê `cleared_at` direto de `emporioCheck` (escopado) e tem
+  o próprio cálculo do dia em Brasília: duplicação, porque o `PagamentoView`
+  não traz o campo.
+- O 20 literal em `hrefDoCaixa` e nas Aprovações, ao lado de
+  `POR_PAGINA_CAIXA`. `etiquetaEmTexto` tipado como `typeof PADRAO_ETIQUETA`
+  (literais `as const`).
+- Cobertura: `lerExtratoAction` com `agora` sem teste direto; dois checks
+  fracos na `m128` seção 1; a seção 6 prova a ida e volta da conversão, não
+  que o formulário a use; o aviso do cheque com data futura não tem passo
+  de roteiro; o passo "primeira de asc igual à última de desc" é pulado no dev
+  (o caixa tem mais de 100 movimentos). Os passos do Vendedor no Relatórios e
+  na curva foram provados com plantio só para esse papel.
+
 ### 5.30 Empório, data da baixa (Q370 a Q373): o que ficou para depois
 
 Registrado em 19/11/2026, na branch `emporio-data-da-baixa` (plano
 `docs/superpowers/plans/2026-11-19-emporio-data-da-baixa.md`; juiz 7/10, os
-quatro importantes corrigidos numa leva).
-- **Abertura do extrato com período inteiramente futuro:** `antesCartao`
-  (`emporio-financeiro.ts`, `effective_on: { lt: deDia }`) não é limitado a hoje,
-  então um período que começa depois de amanhã soma na abertura as parcelas de
-  cartão futuras, e o fechamento fica acima do saldo da conta. Ajuste de uma
-  linha (`lt: min(deDia, amanhã)`) e um caso na `m127`.
-- O `scheduled` do extrato traz todos os futuros da conta, sem olhar o período.
-- Listas de história sem marca de agendado (`emporio-caixa.ts` ~304 e ~1514,
-  `emporio-clientes.ts` ~523, `emporio-despesas.ts` ~1856).
-- Cheque compensado com data futura fica "compensado" com o dinheiro só
-  agendado; não há ordem entre depósito e compensação.
-- O replay da `operation_key` do fiado devolve o gravado sem ler a data nova.
-- O teto de 1e12 do valor pago não é fechado em centavos (999999999999,995).
-- Sem teste de extrato de período futuro nem da virada de fuso com `agora`
-  injetado; `saldosDasContas` não aceita `agora`.
-- O formulário do boleto oferece data futura ao Gestor da loja, e o servidor
-  recusa com 403 (ele só escolhe data passada).
+quatro importantes corrigidos numa leva). **Fechada em 20/11/2026** pela 5.31:
+abertura do extrato limitada a hoje, Agendados do período, marca de agendado
+nos Movimentos e na ficha do cliente, ordem entre depósito e compensação,
+replay do fiado com data nova, teto em centavos, `agora` injetado no extrato e
+no saldo, e o Gestor só com data passada no boleto (decisão do usuário em
+20/11). A lista de pagamentos das Despesas ficou sem marca (D5).
 
 ### 5.29 Empório, sobras das frentes B, C, D e H (Q368, Q369): o que ficou para depois
 
@@ -389,13 +428,11 @@ seletor de lucro). Juiz sem bloqueante; os dois importantes (desempate por id e
 pendentes das Aprovações) corrigidos.
 - **Lucro da curva diferente do Resultado** é decisão do usuário (venda menos
   custo), não defeito; a tela e o manual dizem isso.
-- **Movimentos do caixa** paginam sem troca de ordem, e os pendentes das
-  Aprovações vão de 20 em 20 sem seletor de tamanho.
 - **API:** quem chama as listas sem `page` nem `limit` recebe 20 linhas (antes,
-  até 200); o `meta.total` diz quantos há.
-- **Fora do navegador (só na `m125`):** antecipações, conferências e 80 e 100
-  por página em Compras e Transferências; o 403 do lucro (Vendedor e Caixa
-  nem abrem o Relatórios).
+  até 200); o `meta.total` diz quantos há. Fica assim (D7 da 5.31).
+- Fechados em 20/11/2026 pela 5.31: ordem dos Movimentos do caixa, tamanho da
+  página nas Aprovações, e no roteiro antecipações, conferências, 80 e 100 por
+  página em Compras e Transferências e o Vendedor fora do Relatórios.
 
 ### 5.25 Empório, balcão rápido (frente D, Q357 a Q361): o que ficou para depois
 
@@ -407,19 +444,15 @@ lista com esta frente.
   O roteiro simula o leitor pela busca e mede a página em mm; as barras foram
   conferidas contra um codificador EAN independente, e o usuário recebeu a
   imagem para ler com o celular.
-- **Fora do roteiro (só na `m123`):** corrida de dois cadastros, desarquivar
-  com código tomado, editar o código pelo botão Editar, F8 sem Vendedor (Caixa)
-  e o Gestor na tela de etiquetas.
-- **O teto de 2000 etiquetas** passou a ser avisado na tela, sem roteiro que o
-  exercite.
+- **A corrida de dois cadastros** fica só na `m123` (não cabe em roteiro).
 - **A `m123` falhou uma vez dentro do `test:all`** (18/11, 125/126) e passou
-  nas sete rodadas seguintes (cinco sozinha, uma depois da `m122`, e o
-  `test:all` de novo, 126/126). O `test:all` não guarda a saída, então o
-  motivo não foi visto; suspeita: a seção da corrida (transação serializável)
-  sob carga. Se repetir, rodar `npm run test:m123` logo em seguida e guardar a
-  saída.
-- Os padrões do "Voltar ao padrão" estão copiados no cliente
-  (`balcao-etiquetas-form.tsx`); mudar o padrão no servidor pede mudar lá também.
+  nas sete rodadas seguintes; suspeita: a seção da corrida sob carga. Desde
+  20/11 o `test:all` guarda a saída de toda suíte que falha em
+  `<tmpdir>/tibe-test-all/<suíte>.log`: se repetir, o log diz o motivo.
+- Fechados em 20/11/2026 pela 5.31: no roteiro, desarquivar com código tomado,
+  editar o código pelo Editar, F8 como Caixa, o Gestor nas etiquetas e o aviso
+  do teto de 2000; o padrão das medidas num lugar só
+  (`src/lib/emporio/etiqueta-medidas.ts`).
 
 ### 5.24 Empório, cheque em duas etapas (frente C, Q354 a Q356): o que ficou para depois
 
@@ -433,12 +466,10 @@ os achados importantes corrigidos). A 2.73 saiu da lista com esta frente.
 
 Registrado em 17/11/2026, depois do merge `cc8a614` (juiz 8/10, achados
 corrigidos).
-- O teste da migração Q353 (seção 14c da `m121`) roda os UPDATE do arquivo
-  sobre o banco de dev inteiro, dentro de uma transação desfeita: correto, mas
-  segura as linhas de outras suítes enquanto roda.
-- Feriado móvel fica fora da conta independente do roteiro (só os fixos); hoje
-  não muda nada, mas numa semana de Carnaval ou Corpus Christi o roteiro pode
-  esperar a data errada.
+**Fechada em 20/11/2026** pela 5.31: os roteiros do cartão contam os feriados
+móveis (`feriados_nacionais(ano)` em `scripts/navegador/_lib.py`, Páscoa pelo
+algoritmo de Meeus). O teste da migração Q353 que segura linhas fecha sem
+código (D6: o `test:all` roda uma suíte por vez, e a `m121` não está no CI).
 
 ### 5.18 Empório, manual e cenário de demonstração: o que a revisão deixou para depois
 

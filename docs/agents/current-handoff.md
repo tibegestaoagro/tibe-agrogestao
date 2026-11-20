@@ -25,31 +25,32 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-19. **Transação de 30 s, região gru1 e taxas
-  encerradas EM PRODUÇÃO** (merge `7569a5e5`, autorizado pelo usuário na
-  conversa em 19/11; sem migração; `X-Vercel-Id: gru1::gru1` conferido).
-  Central do Milho: (1) editar venda dava "Erro interno" (transação acima dos
-  5 s do Prisma, ~120 ms por consulta até o Neon): `transactionOptions` de 30 s
-  em `src/lib/prisma.ts` (`test:m126`) e `regions: ["gru1"]`; (2) taxas
-  encerradas escondidas sem aviso: aviso e Editar na encerrada sem venda
-  (roteiro `emporio-taxas-encerradas`). Falta a Central editar de novo as
-  vendas nº 1, 2 e 4 e estender a taxa de crédito à vista da LOJA MOC.
+- Atualizado em: 2026-11-20. **Sobras sem a Agromax: em produção após o
+  merge, sem migração** (branch `emporio-sobras-sem-agromax`, plano
+  `2026-11-20-emporio-sobras-sem-agromax`, suíte `m128`). Fechou das 5.23,
+  5.25, 5.28 e 5.30 o que não depende de equipamento: agendado nos Movimentos,
+  na ficha do cliente e na venda ("Compensa em DD/MM"), extrato e saldo com
+  `agora`, compensar antes do depósito recusado, fiado repetido com outra data
+  em 409, Gestor só com data passada no boleto (decisão do usuário em 20/11),
+  ordem dos Movimentos e tamanho das Aprovações, padrão das etiquetas num lugar
+  só, feriados móveis e mais passos nos roteiros, e o `test:all` guarda o log
+  de quem falha. Juiz 6/10, os dois importantes corrigidos; sobras e as
+  decisões D1 a D7 (a confirmar pelo usuário) na 5.31.
+- 19/11 em produção: transação de 30 s e região gru1 (merge `7569a5e5`;
+  `test:m126`) e taxas encerradas com aviso. Falta a Central do Milho editar de
+  novo as vendas nº 1, 2 e 4 e estender a taxa de crédito à vista da LOJA MOC.
 - 19/11, escritas em produção autorizadas, na Da Mata: apagado o saldo inicial
   de R$ 15.020,83 da CAIXA DAMATTA; financeiro zerado com
   `scripts/zerar-financeiro-conta.ts` (494 registros; md5 do que fica conferido).
   Ficaram orçamentos (268), clientes, produtos e estoque. Próxima venda: nº 1.
-- **Data da baixa EM PRODUÇÃO** (merge `2123c197`, autorizado pelo usuário na
-  conversa em 19/11; migração aplicada no Neon antes do push): reunião de 19/11 com a Cláudia (financeiro da Da Mata; vídeo fora do git em
-  `docs/financeiro-19112026/`). Spec e plano `2026-11-19-emporio-data-da-baixa`
-  (Q370 a Q373): baixa com data de hoje menos 31 a mais 31 dias (Financeiro,
-  Gerente geral, Dono; o Gestor da loja só data passada no boleto); saldo da
-  conta só até hoje, futuro em "Agendados"; "Corrigir a data" do PIX da venda
-  no extrato; boleto com valor pago (juros recebidos e desconto concedido no
-  Resultado). Migração `20261119120000_emporio_boleto_valor_pago`. Suíte `m127`,
-  roteiro `emporio-data-da-baixa`. Juiz 7/10, importantes corrigidos; sobras na
-  5.30. Depois do deploy: a Laiza e a Cláudia validam contra o extrato do banco.
-- 19/11 em produção: sobras das frentes B, C, D e H (merge `9969bcc9`; Q368
-  estorno da conferida pelo valor que caiu, Q369 ordem da carteira; sobras 5.29).
+- **Data da baixa em produção desde 19/11** (merge `2123c197`, migração
+  `20261119120000_emporio_boleto_valor_pago`; spec e plano
+  `2026-11-19-emporio-data-da-baixa`, Q370 a Q373, suíte `m127`): baixa de hoje
+  menos 31 a mais 31 dias, saldo só até hoje e futuro em "Agendados",
+  "Corrigir a data" do PIX, boleto com valor pago. Vídeo da reunião com a
+  Cláudia fora do git (`docs/financeiro-19112026/`). A Laiza e a Cláudia
+  validam contra o extrato do banco.
+- 19/11 em produção: sobras das frentes B, C, D e H (merge `9969bcc9`; 5.29).
 - Plano do GestãoClick (Q341 a Q344):
   [../superpowers/specs/2026-11-17-emporio-plano-gestaoclick.md](../superpowers/specs/2026-11-17-emporio-plano-gestaoclick.md).
   Em produção: A, B, C, D (sem leitor nem impressora reais; 5.25), H e a
