@@ -627,11 +627,11 @@ async function lojaPresaNaConta(db: TenantPrismaClient, contaId: string, ficam: 
  * cartão não canceladas que já caíram (`effective_on` até hoje em Brasília, pelo `effective_net`).
  * Nada disso é gravado: a data decide, sem job.
  */
-export async function saldosDasContas(db: TenantPrismaClient): Promise<Map<string, number>> {
+export async function saldosDasContas(db: TenantPrismaClient, agora: Date = new Date()): Promise<Map<string, number>> {
   const linhas = await db.cashMovement.groupBy({
     by: ["bank_account_id", "direction"],
     // Movimento com data de amanhã em diante é "Agendado": entra no saldo quando o dia chega, sem job.
-    where: { bank_account_id: { not: null }, occurred_at: { lt: fimDeHojeEmBrasilia() } },
+    where: { bank_account_id: { not: null }, occurred_at: { lt: fimDeHojeEmBrasilia(agora) } },
     _sum: { amount: true },
   });
   const mapa = new Map<string, number>();
@@ -642,7 +642,7 @@ export async function saldosDasContas(db: TenantPrismaClient): Promise<Map<strin
   }
   const caidas = await db.cardReceivable.groupBy({
     by: ["bank_account_id"],
-    where: { canceled_at: null, effective_on: { lte: hojeEmBrasilia() } },
+    where: { canceled_at: null, effective_on: { lte: hojeEmBrasilia(agora) } },
     _sum: { effective_net: true },
   });
   for (const c of caidas) {

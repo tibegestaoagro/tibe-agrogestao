@@ -642,6 +642,7 @@ export async function lerExtratoAction(
   db: TenantPrismaClient,
   ator: Ator,
   input: { lugar: LugarDoExtrato; de: Date; ate: Date; apenas_sem_carimbo?: boolean },
+  agora: Date = new Date(),
 ): Promise<ActionResult<ExtratoView>> {
   const kind = input?.lugar?.kind;
   if (kind !== "conta" && kind !== "gaveta" && kind !== "gerencia") {
@@ -697,9 +698,10 @@ export async function lerExtratoAction(
   const ate = new Date(ateDia.getTime() + DIA_MS + MEIA_NOITE_SP_EM_UTC_MS);
 
   // O saldo só conta movimento com data até hoje: o de data futura é "Agendado" e fica de fora das linhas.
-  const fimDeHoje = fimDeHojeEmBrasilia();
+  const fimDeHoje = fimDeHojeEmBrasilia(agora);
   // A parcela de cartão futura também não entra no corpo nem no fechamento: bate com `saldosDasContas`.
-  const hojeDia = hojeEmBrasilia();
+  const hojeDia = hojeEmBrasilia(agora);
+  const amanhaDia = new Date(hojeDia.getTime() + DIA_MS);
   const teto =(d: Date) => (d.getTime() < fimDeHoje.getTime() ? d : fimDeHoje);
 
   const [antes, antesCartao, movs, parcelas, agendados] = await Promise.all([
@@ -710,7 +712,7 @@ export async function lerExtratoAction(
     }),
     conta
       ? db.cardReceivable.aggregate({
-          where: { bank_account_id: conta.id, canceled_at: null, effective_on: { lt: deDia } },
+          where: { bank_account_id: conta.id, canceled_at: null, effective_on: { lt: deDia.getTime() < amanhaDia.getTime() ? deDia : amanhaDia } },
           _sum: { effective_net: true },
         })
       : null,
@@ -736,7 +738,7 @@ export async function lerExtratoAction(
       : [],
     conta
       ? db.cashMovement.findMany({
-          where: { ...ondeMovimentos, occurred_at: { gte: fimDeHoje } },
+          where: { ...ondeMovimentos, occurred_at: { gte: fimDeHoje, lt: ate } },
           include: {
             establishment: { select: { name: true } },
             sale: { select: { number: true, customer_id: true, customer: { select: { name: true } }, establishment: { select: { name: true } } } },
