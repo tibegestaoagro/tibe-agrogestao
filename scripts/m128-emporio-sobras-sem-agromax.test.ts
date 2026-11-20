@@ -113,10 +113,100 @@ async function secao1() {
   }
 }
 
+async function secao2() {
+  console.log("\n2. Marca de agendado nas listas (5.30)");
+  const { prisma, prismaForTenant, scoped } = await import("@/lib/prisma");
+  const { hojeEmBrasilia } = await import("@/lib/emporio/cartao");
+  const C: Dado = await import("@/lib/actions/emporio-catalogo");
+  const X: Dado = await import("@/lib/actions/emporio-caixa");
+  const CL: Dado = await import("@/lib/actions/emporio-clientes");
+  const cru = prisma as Dado;
+
+  const hoje = hojeEmBrasilia();
+  const amanha = new Date(hoje.getTime() + DIA);
+  const meioDia = (d: Date) => new Date(d.getTime() + 15 * 3_600_000);
+  const stamp = Date.now();
+  const t = await prisma.tenant.create({
+    data: { name: `M128b ${stamp}`, document: `M128B${stamp}`.slice(0, 14), plan: "grupo", status: "trial", trial_ends_at: new Date(Date.now() + DIA) },
+  });
+  try {
+    const u = await prisma.user.create({
+      data: { tenant_id: t.id, name: "M128b dono", email: `m128b-${stamp}@teste.local`, password_hash: "x", role: "OWNER" },
+    });
+    const dono = { id: u.id, role: "OWNER" as const };
+    const db: Dado = prismaForTenant(t.id);
+    const loja = (await C.criarEstabelecimentoAction(db, dono, { name: "M128b Loja", kind: "ponto_venda" })).data;
+    const conta = await db.bankAccount.create({ data: scoped({ name: `M128b Conta ${stamp}` }) });
+    const cliente = await cru.emporioCustomer.create({ data: { tenant_id: t.id, name: "M128b Cliente" } });
+
+    const entrada = await cru.financialEntry.create({
+      data: { tenant_id: t.id, entry_type: "income", amount: 100, status: "pending", emporio_customer_id: cliente.id, establishment_id: loja.id },
+    });
+    const baixa = async (quando: Date, valor: number, notes: string) => {
+      const fp = await cru.financialPayment.create({ data: { tenant_id: t.id, entry_id: entrada.id, amount: valor, paid_at: quando, method: "pix" } });
+      return cru.cashMovement.create({
+        data: { tenant_id: t.id, bank_account_id: conta.id, direction: "entrada", origin: "recebimento_fiado", amount: valor, occurred_at: quando, financial_payment_id: fp.id, notes },
+      });
+    };
+    const movHoje = await baixa(new Date(), 10, "fiado de hoje");
+    const movAmanha = await baixa(meioDia(amanha), 20, "fiado de amanhã");
+
+    const venda = await cru.emporioSale.create({
+      data: { tenant_id: t.id, establishment_id: loja.id, customer_id: cliente.id, operation_key: `m128b-${stamp}`, number: 1, sold_at: new Date(), net_amount: 80 },
+    });
+    const pgBoleto = await cru.emporioSalePayment.create({ data: { tenant_id: t.id, sale_id: venda.id, kind: "boleto", amount: 30 } });
+    const boleto = await cru.emporioBoleto.create({
+      data: {
+        tenant_id: t.id, sale_id: venda.id, sale_payment_id: pgBoleto.id, customer_id: cliente.id, establishment_id: loja.id,
+        due_on: hoje, amount: 30, status: "pago", bank_account_id: conta.id, paid_on: amanha, paid_at: meioDia(amanha),
+      },
+    });
+    const pgCheque = await cru.emporioSalePayment.create({ data: { tenant_id: t.id, sale_id: venda.id, kind: "cheque", amount: 50 } });
+    const cheque = await cru.emporioCheck.create({
+      data: {
+        tenant_id: t.id, sale_id: venda.id, sale_payment_id: pgCheque.id, customer_id: cliente.id, establishment_id: loja.id,
+        holder_name: "M128b Cliente", amount: 50, status: "compensado", bank_account_id: conta.id, cleared_at: meioDia(amanha),
+      },
+    });
+
+    console.log("  (a) lista de movimentos do caixa");
+    const cx = await X.lerCaixaAction(db, dono, { bank_account_id: conta.id });
+    check("lerCaixaAction devolve ok", cx.ok, j(cx));
+    if (cx.ok) {
+      const m = (id: string) => cx.data.movements.find((x: Dado) => x.id === id);
+      check("o PIX de fiado de hoje vem com scheduled false", m(movHoje.id)?.scheduled === false, j(m(movHoje.id)?.scheduled));
+      check("o PIX de fiado de amanhã vem com scheduled true", m(movAmanha.id)?.scheduled === true, j(m(movAmanha.id)?.scheduled));
+    }
+
+    console.log("  (b) recebimentos do cliente");
+    const rc = await CL.listarRecebimentosDoClienteAction(db, dono, cliente.id);
+    check("a lista do cliente devolve ok", rc.ok, j(rc));
+    if (rc.ok) {
+      const i = (id: string) => rc.data.items.find((x: Dado) => x.id === id);
+      check("fiado de hoje: scheduled false", i(movHoje.id)?.scheduled === false, j(i(movHoje.id)));
+      check("fiado de amanhã: scheduled true", i(movAmanha.id)?.scheduled === true, j(i(movAmanha.id)));
+      check("boleto pago com paid_on de amanhã: scheduled true", i(boleto.id)?.scheduled === true, j(i(boleto.id)));
+      check("cheque compensado com cleared_on de amanhã: scheduled true", i(cheque.id)?.scheduled === true, j(i(cheque.id)));
+    }
+    const ficha = await CL.lerFicha(db, dono, cliente.id);
+    check("a ficha devolve ok", ficha.ok, j(ficha));
+    if (ficha.ok) check("o Recebido soma só o fiado de hoje (10), sem os agendados", ficha.data.resumo.recebido === 10, String(ficha.data.resumo.recebido));
+  } catch (e) {
+    check("a seção 2 terminou sem exceção", false, e instanceof Error ? e.stack ?? e.message : String(e));
+  } finally {
+    const por = { where: { tenant_id: t.id } };
+    for (const m of ["cashMovement", "emporioCheck", "emporioBoleto", "emporioSalePayment", "emporioSale", "financialPayment", "financialEntry", "emporioCustomer", "establishment", "bankAccount", "user"]) {
+      await cru[m]?.deleteMany(por).catch((e: unknown) => console.log(`  (teardown ${m}: ${e instanceof Error ? e.message.slice(0, 100) : e})`));
+    }
+    await prisma.tenant.delete({ where: { id: t.id } }).catch((e: unknown) => console.log(`  (teardown 2: ${e instanceof Error ? e.message.slice(0, 100) : e})`));
+  }
+}
+
 async function main() {
   const { prisma } = await import("@/lib/prisma");
   console.log("🧾 M128: Módulo 39 (Meu Empório), sobras das dívidas 5.23, 5.25, 5.28 e 5.30\n");
   await secao1();
+  await secao2();
   await prisma.$disconnect();
   console.log(`\nChecagens: ${total}`);
   console.log(falhas === 0 ? "\n✅ M128 (Módulo 39, Empório): sobras sem a Agromax passaram." : `\n❌ M128 (Módulo 39, Empório): ${falhas} afirmação(ões) falharam.`);

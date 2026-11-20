@@ -1084,6 +1084,8 @@ export type MovimentoDeCaixaView = {
   manager_establishment_id: string | null;
   cash_handover_id: string | null;
   notes: string | null;
+  /** A data do movimento é depois de hoje em Brasília: agendado, ainda não entrou no saldo. */
+  scheduled: boolean;
   /** Frente A: o número da venda do movimento (só na leitura do caixa), para "Venda nº X". */
   sale_number?: number | null;
 };
@@ -1135,6 +1137,7 @@ function viewDoMovimento(m: MovimentoRow): MovimentoDeCaixaView {
     manager_establishment_id: m.manager_establishment_id,
     cash_handover_id: m.cash_handover_id,
     notes: m.notes,
+    scheduled: m.occurred_at.getTime() >= fimDeHojeEmBrasilia().getTime(),
   };
 }
 

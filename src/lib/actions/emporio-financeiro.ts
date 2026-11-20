@@ -138,6 +138,8 @@ export type RecebimentoView = {
   amount: number;
   /** Só no cheque: a situação dele. */
   check_status?: string;
+  /** Só na ficha do cliente: a baixa tem data depois de hoje (agendada) e não soma no Recebido. */
+  scheduled?: boolean;
 };
 
 export type AReceberView = {

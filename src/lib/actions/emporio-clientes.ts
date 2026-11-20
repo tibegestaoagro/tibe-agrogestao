@@ -4,6 +4,7 @@ import type { EmporioCustomer, Prisma } from "@/generated/prisma/client";
 import { lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
 import { formatarNumero } from "@/lib/emporio/numeracao";
 import { hojeEmBrasilia } from "@/lib/emporio/cartao";
+import { fimDeHojeEmBrasilia } from "@/lib/emporio/data-da-baixa";
 import { ehDataCalendario, inicioDoDiaEmSaoPaulo } from "@/lib/dia-calendario";
 import { listarFiadoAction } from "@/lib/actions/emporio-caixa";
 import type { RecebimentoView } from "@/lib/actions/emporio-financeiro";
@@ -500,6 +501,8 @@ async function leituraFinanceiraDoCliente(
   const visiveis = await lojasDoAtor(db, ator);
   const daLoja = visiveis ? { establishment_id: { in: [...visiveis] } } : {};
   const hoje = hojeEmBrasilia();
+  const fimDeHoje = fimDeHojeEmBrasilia();
+  const agendado = (quando: Date | null) => quando !== null && quando.getTime() >= fimDeHoje.getTime();
   const nome = { select: { name: true } };
   const vendaViva = { status: "concluida" as const };
 
@@ -551,6 +554,7 @@ async function leituraFinanceiraDoCliente(
       establishment_id: p.sale.establishment_id,
       establishment_name: p.sale.establishment.name,
       amount: Number(p.amount),
+      scheduled: false,
     })),
     ...fiados.map((m): RecebimentoView => {
       const e = m.financial_payment?.entry;
@@ -565,6 +569,7 @@ async function leituraFinanceiraDoCliente(
         establishment_id: e?.establishment_id ?? null,
         establishment_name: e?.establishment?.name ?? null,
         amount: Number(m.amount),
+        scheduled: agendado(m.occurred_at),
       };
     }),
     ...boletos
@@ -580,6 +585,7 @@ async function leituraFinanceiraDoCliente(
         establishment_id: b.establishment_id,
         establishment_name: b.establishment.name,
         amount: Number(b.paid_amount ?? b.amount),
+        scheduled: agendado(b.paid_at),
       })),
     ...cheques.map((c): RecebimentoView => ({
       id: c.id,
@@ -593,6 +599,7 @@ async function leituraFinanceiraDoCliente(
       establishment_name: c.establishment.name,
       amount: Number(c.amount),
       check_status: c.status,
+      scheduled: c.status === "compensado" && agendado(c.cleared_at),
     })),
     // A devolução em dinheiro entra como linha negativa, para a lista somar o mesmo que o cartão Recebido.
     ...devolucoes.map((d): RecebimentoView => ({
@@ -606,12 +613,13 @@ async function leituraFinanceiraDoCliente(
       establishment_id: d.sale.establishment_id,
       establishment_name: d.sale.establishment.name,
       amount: -Number(d.amount),
+      scheduled: false,
     })),
   ];
   itens.sort((a, b) => b.occurred_on.localeCompare(a.occurred_on) || b.id.localeCompare(a.id));
 
   const recebidoCent = itens
-    .filter((i) => i.kind !== "cheque" || i.check_status === "compensado")
+    .filter((i) => !i.scheduled && (i.kind !== "cheque" || i.check_status === "compensado"))
     .reduce((s, i) => s + centavos(i.amount), 0);
 
   const hojeIso = diaIso(hoje);
