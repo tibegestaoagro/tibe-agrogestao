@@ -110,7 +110,8 @@ export function DevolucaoItens({
                 {i.product_name} <span className="text-sm font-normal text-texto-secundario">({i.presentation_name})</span>
               </p>
               <p className="text-xs text-texto-secundario">
-                Pode devolver {numeroBr(i.returnable_qty)} (o item foi pago {reaisBr(i.total_cent / 100)})
+                Pode devolver {numeroBr(i.returnable_qty)} (o item foi pago {reaisBr((i.total_cent + i.parte_credito_cent) / 100)}
+                {i.parte_credito_cent > 0 ? `, inclui ${reaisBr(i.parte_credito_cent / 100)} de crédito do franqueado` : ""})
               </p>
             </div>
             <MoneyInput
