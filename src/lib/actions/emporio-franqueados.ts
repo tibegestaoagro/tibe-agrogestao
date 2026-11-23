@@ -271,6 +271,25 @@ export async function listarFranqueadosAction(
   return ok(linhas.map((l) => serializar(l, saldos.get(l.id) ?? 0)));
 }
 
+/**
+ * Q378: a leitura da venda e do orçamento. Quem vende (o Caixa inclusive) escolhe o franqueado e digita o
+ * crédito, então precisa do nome. Devolve só `id` e `name` dos ativos: saldo, telefone e extrato seguem
+ * em `listarFranqueadosAction` e `lerFranqueadoAction`, que o Caixa não enxerga.
+ */
+export async function listarFranqueadosParaVendaAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+): Promise<ActionResult<{ id: string; name: string }[]>> {
+  const neg = await exigir(db, ator, "vendedor_da_loja", "escolher o franqueado da venda");
+  if (neg) return neg;
+  const linhas = await db.emporioFranchisee.findMany({
+    where: { archived_at: null },
+    select: { id: true, name: true },
+    orderBy: [{ name: "asc" }, { id: "asc" }],
+  });
+  return ok(linhas);
+}
+
 export async function lerFranqueadoAction(
   db: TenantPrismaClient,
   ator: Ator,

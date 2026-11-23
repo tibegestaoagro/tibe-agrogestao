@@ -8,7 +8,7 @@ import { lerOrcamentoAction, type OrcamentoView } from "@/lib/actions/emporio-or
 import { lerVendaAction, type VendaView } from "@/lib/actions/emporio-vendas";
 import { lerConfiguracoesAction } from "@/lib/actions/emporio-configuracoes";
 import { ATALHOS_PADRAO } from "@/lib/emporio/atalhos";
-import { listarFranqueadosAction } from "@/lib/actions/emporio-franqueados";
+import { listarFranqueadosParaVendaAction } from "@/lib/actions/emporio-franqueados";
 import { buscarClientesAction } from "@/lib/actions/emporio-clientes";
 import { consumidorFinalEscolhido, type ClienteEscolhido } from "@/lib/emporio/cliente-escolhido";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -76,8 +76,9 @@ export default async function VenderPage({
   const ehCaixa = (await papelDoEmporio(db, user)).papel === "caixa";
 
   // Os franqueados ativos para o crédito da venda. O perfil que não os enxerga recebe a lista vazia: os campos somem.
-  const franqueadosRes = podeVender ? await listarFranqueadosAction(db, user) : null;
-  const franqueados = franqueadosRes?.ok ? franqueadosRes.data.map((f) => ({ id: f.id, name: f.name })) : [];
+  // Q378: a leitura da venda serve ao Caixa também (a aba Franqueados, com saldo, segue fora dele).
+  const franqueadosRes = podeVender ? await listarFranqueadosParaVendaAction(db, user) : null;
+  const franqueados = franqueadosRes?.ok ? franqueadosRes.data : [];
 
   // As teclas dos atalhos e a legenda: leitura livre a quem vende (a escrita é da conta). Sem leitura, os padrões.
   const configuracoes = podeVender ? await lerConfiguracoesAction(db, user) : null;
