@@ -613,7 +613,8 @@ async function leituraFinanceiraDoCliente(
       sale_number: d.sale.number,
       establishment_id: d.sale.establishment_id,
       establishment_name: d.sale.establishment.name,
-      amount: -Number(d.amount),
+      // O cliente recebe o item mais a parte do crédito do franqueado (Q379): é isso que sai do Recebido.
+      amount: -(centavos(Number(d.amount)) + centavos(Number(d.franchisee_credit))) / 100,
       scheduled: false,
     })),
   ];

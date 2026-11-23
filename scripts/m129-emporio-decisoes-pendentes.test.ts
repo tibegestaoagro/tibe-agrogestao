@@ -390,6 +390,31 @@ async function secao4() {
       check("a diferença devolvida na gaveta é 26 (66 menos a venda nova de 40)", (await saidaDe(tr.data.devolucao.id)) === 26, String(await saidaDe(tr.data.devolucao.id)));
     }
     check("saldo do franqueado 4", (await saldo(ff)).balance === 4);
+
+    console.log("  (g) ficha do cliente: o valor devolvido é o que o cliente recebeu (item mais crédito)");
+    const CL: Dado = await import("@/lib/actions/emporio-clientes");
+    const fg = await franqueado("Gil");
+    const clienteG = await db.emporioCustomer.create({ data: scoped({ name: "M129d Cliente G" }) });
+    const rg = await V.venderAction(db, dono, {
+      operation_key: chave("venda-g"), establishment_id: loja.id, customer_id: clienteG.id, cash_register_id: turno.cash_register_id,
+      items: [item(p60), item(p40)], payments: [dinheiroDe(110)], franchisee_id: fg, franchisee_credit: 10,
+    });
+    check("a venda com crédito passa", rg.ok, j(rg));
+    if (rg.ok) {
+      const dg = await devolver(rg.data.id, itemDe(rg.data, p60.id), 1);
+      check("devolver o item de 60 passa", dg.ok, j(dg));
+      const rec = await CL.listarRecebimentosDoClienteAction(db, dono, clienteG.id);
+      const linha = rec.ok ? rec.data.items.find((i: Dado) => i.kind === "devolucao") : undefined;
+      check("a linha de devolução da ficha mostra -66", !!linha && linha.amount === -66, j(linha?.amount));
+      const fgRes = await CL.lerFicha(db, dono, clienteG.id);
+      check("a ficha devolve ok", fgRes.ok, j(fgRes));
+      if (fgRes.ok) {
+        const r = fgRes.data.resumo;
+        check("o Recebido é o pago menos o devolvido (110 - 66 = 44)", r.recebido === 44, String(r.recebido));
+        check("o Em aberto é 0", r.em_aberto === 0, String(r.em_aberto));
+        check("o total comprado segue em valor de item (100 - 60 = 40, o crédito não é mercadoria)", r.total_comprado === 40, String(r.total_comprado));
+      }
+    }
   } catch (e) {
     check("a seção 4 terminou sem exceção", false, e instanceof Error ? e.stack ?? e.message : String(e));
   } finally {

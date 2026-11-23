@@ -643,10 +643,16 @@ async function secao4() {
   const qPrinA = await orcar(pfA.id, { for_delivery: true, delivery_address_kind: "principal" });
   const f5 = await vender(tokOwner, { customer_id: pfB.id, quote_id: qPrinA });
   check(
-    "orçamento principal do cliente A faturado com o cliente B: a cópia é o principal de B",
-    f5.status === 201 && f5.corpo?.data?.customer_id === pfB.id && f5.corpo?.data?.delivery_address?.street === "Rua do B"
-      && f5.corpo?.data?.delivery_address?.district === "Bairro B",
+    "orçamento do cliente A faturado com o cliente B: 422 em customer_id (Q382, a venda fica com o cliente do orçamento)",
+    f5.status === 422 && f5.corpo?.error?.field === "customer_id",
     `${f5.status} ${j(f5.corpo)}`,
+  );
+  check("a recusa deixa o orçamento aberto (sale_id nulo)", (await prisma.emporioQuote.findUnique({ where: { id: qPrinA } }))?.sale_id === null);
+  const f5a = await vender(tokOwner, { customer_id: pfA.id, quote_id: qPrinA });
+  check(
+    "orçamento principal do cliente A faturado com o cliente A: a cópia é o principal de A, de agora",
+    f5a.status === 201 && f5a.corpo?.data?.customer_id === pfA.id && f5a.corpo?.data?.delivery_address?.street === "Rua Nova A",
+    `${f5a.status} ${j(f5a.corpo)}`,
   );
 
   console.log("  o cliente ficou sem CPF depois do orçamento");
