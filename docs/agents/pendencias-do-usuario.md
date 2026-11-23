@@ -354,8 +354,13 @@ Registradas antes da limpeza da Da Mata para a Agromax; confirme se ainda
 valem antes de abrir branch:
 
 - o reforço vindo da gerência deve esperar o gestor confirmar, como a sangria?
+  Decidido em 23/11 (Q381): fica sem confirmação; a contagem na abertura é a
+  confirmação.
 - as pontas da Q187: amarrar o cliente da venda ao do orçamento, o preço orçado
-  valer para qualquer quantidade, e o `sold_at` retroativo pela API;
+  valer para qualquer quantidade, e o `sold_at` retroativo pela API. Decidido
+  em 23/11 (Q382, Q383, Q384): a venda fica com o cliente do orçamento, o
+  preço orçado vale pela validade de hoje e o orçamento recusa apresentação
+  repetida; as pontas (c) e (e) ficam como estão;
 - imprimir um cupom de 58 e de 80 mm na bobina da loja e um A4;
 - o teste de cliente de
   [roteiro-teste-emporio-cliente.md](roteiro-teste-emporio-cliente.md): receber
@@ -373,4 +378,5 @@ valem antes de abrir branch:
 - A Agromax: conferir as 5 parcelas de cartão dos últimos 7 dias que a frente B
   deixou "A conferir" (R$ 31.451,90 em 17/11/2026).
 - Decidir se cancelar uma venda com parcela já conferida desfaz a conferência
-  (dívida 5.23).
+  (dívida 5.23). Decidido em 23/11 (Q376): fica como está, a conferência fica
+  como história.

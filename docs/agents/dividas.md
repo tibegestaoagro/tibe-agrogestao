@@ -329,6 +329,22 @@ Registrado em 07/11/2026, na branch `emporio-entrega-e-romaneio` (plano 3 de 3).
   a seção 3 confere o `field` mas não a mensagem exata do principal incompleto e
   do "outro" sem bairro.
 
+### 5.32 Empório, decisões pendentes de 23/11 (Q374 a Q384): o que ficou para depois
+
+Registrado em 23/11/2026, na branch `emporio-decisoes-pendentes` (spec
+`docs/superpowers/specs/2026-11-23-emporio-decisoes-pendentes.md`).
+
+- **A migração `20261123120000_emporio_devolucao_credito_franqueado` precisa ir
+  ao Neon no merge** (invariante 3: migração antes do push, URL Direct).
+- A ficha do cliente mostra o comprado em valor de item e o recebido com o
+  crédito do franqueado, o que pode surpreender numa venda com crédito. É
+  coerente com a Q303; hoje nenhuma venda de produção tem crédito.
+- A checagem de linha repetida do orçamento roda depois da precificação:
+  numa entrada com apresentação repetida e outro defeito, o outro erro aparece
+  primeiro.
+- A fixture do `m100` reimplementa a regra de vencimento do cartão em vez de
+  chamar a do sistema; se a regra mudar, a fixture precisa mudar junto.
+
 ### 5.31 Empório, sobras sem a Agromax: o que ficou para depois
 
 Registrado em 20/11/2026, na branch `emporio-sobras-sem-agromax` (plano
@@ -339,7 +355,11 @@ boleto pago com data futura não ficava agendado na ficha do cliente (agora
 decide pelo `paid_on`) e a recusa da compensação antes do depósito ficava muda
 para o Gestor da loja (agora vai ao rodapé).
 
-Decisões do coordenador, a confirmar pelo usuário: D1 "Agendados" do extrato
+**D1 a D7 confirmadas pelo usuário em 23/11/2026 (Q374)**, e as sobras abaixo
+marcadas "Fechado" saíram na branch `emporio-decisoes-pendentes` (spec
+`docs/superpowers/specs/2026-11-23-emporio-decisoes-pendentes.md`).
+
+Decisões do coordenador, confirmadas em 23/11: D1 "Agendados" do extrato
 só até o fim do período (os de depois ficam na Projeção); D2 compensar antes
 do dia do depósito é recusado (422); D3 repetir o recebimento do fiado com
 outra data devolve 409; D4 cheque compensado com data futura mostra
@@ -349,29 +369,24 @@ da migração Q353 que segura linhas fecha sem código (`test:all` roda uma suí
 por vez, e a `m121` não está no CI); D7 padrão de 20 linhas na API e lucro da
 curva ficam como estão.
 
-- **Decisão a confirmar:** fiado ou cheque recebido com data futura sai do
-  "Em aberto" e ainda não entra no "Recebido" da ficha do cliente até o dia
-  chegar; a linha aparece riscada, mas a soma dos dois cartões não fecha
-  nesse intervalo.
-- **Produto (vem de antes):** a parcela conferida pela antecipação mostra
-  "Desfazer a conferência", e a action sempre recusa
-  (`emporio-conferencia-cartao.ts` ~369).
-- **Suítes que supõem dia útil (vem de antes):** `m98` e `m100` falham em
-  feriado (20/11/2026, Consciência Negra), porque a parcela de cartão "de
-  hoje" vai para o próximo dia útil. O sistema está certo; o teste não.
-- O teto do valor pago aceita 999.999.999.999,99, e `centavos()` grava
-  1e14 num `Decimal(14,2)`: erro do Prisma, não 422. Valor irreal.
-- O replay do fiado com outra data devolve 409 sem conferir o papel de quem
-  chama (um Caixa recebe 409, não 403). Não grava nada.
-- `viewDoMovimento` chama `fimDeHojeEmBrasilia()` a cada linha; uma leitura
-  que atravessa a meia-noite de Brasília pode marcar duas linhas do mesmo dia
-  de jeitos diferentes.
+- **Fechado (Q375):** fiado, cheque compensado ou boleto pago com data futura
+  continua no "Em aberto" da ficha do cliente até o dia chegar, marcado
+  "Agendado"; a soma dos cartões fecha.
+- **Fechado (Q377):** a parcela conferida pela antecipação não mostra mais o
+  botão "Desfazer a conferência" (a action sempre recusava); a tela diz para
+  desfazer a antecipação.
+- **Fechado:** as suítes `m98` e `m100` não supõem mais que hoje é dia útil.
+- **Fechado:** o teto do valor pago do boleto não deixa mais o `centavos()`
+  estourar o `Decimal(14,2)`.
+- **Fechado:** o replay do fiado com outra data confere o papel antes do 409.
+- **Fechado:** `viewDoMovimento` não chama mais `fimDeHojeEmBrasilia()` a cada
+  linha (o dia de hoje vale uma vez por leitura).
+- **Fechado:** o 20 literal em `hrefDoCaixa` e nas Aprovações saiu.
 - A página da venda lê `cleared_at` direto de `emporioCheck` (escopado) e tem
   o próprio cálculo do dia em Brasília: duplicação, porque o `PagamentoView`
   não traz o campo.
-- O 20 literal em `hrefDoCaixa` e nas Aprovações, ao lado de
-  `POR_PAGINA_CAIXA`. `etiquetaEmTexto` tipado como `typeof PADRAO_ETIQUETA`
-  (literais `as const`).
+- `etiquetaEmTexto` tipado como `typeof PADRAO_ETIQUETA` (literais
+  `as const`).
 - Cobertura: `lerExtratoAction` com `agora` sem teste direto; dois checks
   fracos na `m128` seção 1; a seção 6 prova a ida e volta da conversão, não
   que o formulário a use; o aviso do cheque com data futura não tem passo
