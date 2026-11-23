@@ -743,7 +743,7 @@ export function Balcao({
             comFrete={modo === "venda"}
             freteNoOrcamento={modo === "orcamento"}
             descontoNoTotal
-            clienteTravado={modo === "venda" && !!orcamento}
+            clienteTravado={modo === "venda" && (!!orcamento || !!edicao?.venda.quote)}
             autorizacaoHerdada={
               !!orcamento?.discount_authorized_by_user_id || !!edicao?.venda.discount_authorized_by_user_id
             }
