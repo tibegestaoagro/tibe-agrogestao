@@ -177,6 +177,9 @@ passo("1. Franqueados: menu, cadastro curto, recusa do telefone, ficha")
 confere("o menu do Empório tem Franqueados", "/emporio/franqueados" in menu(), [h for h in menu() if h.startswith("/emporio")])
 ir("/emporio/franqueados")
 confere("a tela abre", caminho() == "/emporio/franqueados" and tem("Franqueados"), texto_principal(200))
+# Em dev, a pagina pode seguir "loading" por muito tempo: clicar antes da hidratacao nao abre nada.
+hidratou = esperar(lambda: js("document.readyState === 'complete' && Array.from(document.querySelectorAll('button')).some(b => b.innerText.trim() === 'Novo franqueado' && Object.keys(b).some(k => k.startsWith('__reactProps')))"), 90)
+confere("a tela hidratou", bool(hidratou))
 confere("abre Novo franqueado", bool(esperar(lambda: clicar("Novo franqueado"), 30)))
 time.sleep(1.5)
 confere("painel abriu", painel_aberto())
@@ -458,6 +461,18 @@ confere("Q379: o saldo do franqueado caiu R$ 6,00 (o crédito na proporção)", 
 ir("/emporio/franqueados/" + FID)
 linha_ext = esperar(lambda: linha_da_tabela_com("valor", "Devolução da venda nº " + NUMERO4), 40)
 confere("Q379: o extrato do franqueado mostra 'Devolução da venda nº " + NUMERO4 + "' negativa de R$ 6,00", bool(linha_ext) and "Devolução" in linha_ext and "- R$ 6,00" in linha_ext, linha_ext)
+
+passo("11b. Resultado da loja depois da devolução: recebido sem abater, devolvido em linha própria, líquido")
+ir("/emporio/resultado?loja=" + loja_id)
+js("document.querySelectorAll('main details').forEach(d => { d.open = true; })")
+time.sleep(0.5)
+bloco = js("(() => { const t = (document.querySelector('main') || document.body).innerText.replace(/\\u00a0/g, ' '); const i = t.indexOf('Créditos de franqueado (repasse)'); return i < 0 ? '' : t.slice(i, i + 700); })()") or ""
+print("   bloco: " + bloco.replace("\n", " | "))
+confere("Q379: o bloco de repasse existe", bloco != "", texto_do_main()[:600])
+confere("Q379: Recebido nas vendas R$ 20,00 (as vendas, sem abater a devolução de R$ 6,00)", bool(re.search(r"Recebido nas vendas\s*\n?\s*R\$ 20,00", bloco)), bloco)
+confere("Q379: Devolvido nas devoluções R$ 6,00 em linha própria", bool(re.search(r"Devolvido nas devoluções\s*\n?\s*R\$ 6,00", bloco)), bloco)
+confere("Q379: Pago aos franqueados R$ 5,00", bool(re.search(r"Pago aos franqueados\s*\n?\s*R\$ 5,00", bloco)), bloco)
+confere("Q379: o líquido do bloco é R$ 9,00 (20 menos 6 menos 5)", bool(re.search(r"^Créditos de franqueado \(repasse\)[\s\S]{0,200}?R\$ 9,00", bloco)), bloco)
 
 # --- 9. Celular --------------------------------------------------------------------------------------
 passo("9. Celular (360 px): balcão e ficha sem rolagem horizontal")
