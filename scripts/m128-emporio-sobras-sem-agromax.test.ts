@@ -292,7 +292,8 @@ async function secao3() {
     } catch (e) {
       p2 = { ok: false, status: 500, field: "excecao", message: String(e) };
     }
-    check("paid_amount 999999999999.99 passa da validação do valor", p2.ok || p2.field !== "paid_amount", j(p2));
+    // Decisão da 5.31 (fechada na m129 seção 7): o teto é o que cabe em Decimal(14,2) depois de arredondar.
+    check("paid_amount 999999999999.99 é 422 em paid_amount (não estoura no Prisma)", !p2.ok && p2.status === 422 && p2.field === "paid_amount", j(p2));
   } catch (e) {
     check("a seção 3 terminou sem exceção", false, e instanceof Error ? e.stack ?? e.message : String(e));
   } finally {

@@ -10,7 +10,7 @@ import { FinanceiroAbas } from "../../_components/financeiro-abas";
 import { FinanceiroAprovacoes } from "../../_components/financeiro-aprovacoes";
 import { Paginacao, paginaDaUrl } from "../../_components/paginacao";
 import { PaginacaoDaUrl } from "../../_components/paginacao-da-url";
-import { lerPaginacaoDaUrl } from "../../_components/paginacao-opcoes";
+import { TAMANHOS_DE_PAGINA, lerPaginacaoDaUrl } from "../../_components/paginacao-opcoes";
 import { cn } from "@/lib/utils";
 
 const FILTROS = [
@@ -90,7 +90,7 @@ export default async function FinanceiroAprovacoesPage({
           perPage={res.data.per_page}
           total={res.data.total}
           hrefDe={(n) =>
-            `/emporio/financeiro/aprovacoes?status=pendente${porPagina !== 20 ? `&por_pagina=${porPagina}` : ""}${n > 1 ? `&pagina=${n}` : ""}`
+            `/emporio/financeiro/aprovacoes?status=pendente${porPagina !== TAMANHOS_DE_PAGINA[0] ? `&por_pagina=${porPagina}` : ""}${n > 1 ? `&pagina=${n}` : ""}`
           }
         />
       )}

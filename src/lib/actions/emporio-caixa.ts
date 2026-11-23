@@ -388,10 +388,11 @@ export async function receberFiadoAction(
     // Mesma chave com outra data não é repetição: o cliente achou que gravou um recebimento que não é este.
     const temData = input?.received_on !== undefined && input.received_on !== null && input.received_on !== "";
     if (gravado.ok && temData) {
-      const lida = lerDataDaBaixa(input.received_on, hojeEmBrasilia());
-      if (!lida.ok) return fail("VALIDATION_ERROR", lida.mensagem, 422, "received_on");
+      // O papel vem antes do 409: quem não muda a data de um recebimento recebe 403 na repetição, como na primeira vez.
+      const lida = await lerDataDaBaixaDoAtor(db, ator, input.received_on, "received_on");
+      if (!lida.ok) return lida;
       const diaGravado = hojeEmBrasilia(new Date(gravado.data.received_at));
-      if (lida.dia.getTime() !== diaGravado.getTime()) {
+      if (lida.data.dia.getTime() !== diaGravado.getTime()) {
         return fail("CONFLICT", `Este recebimento já foi gravado com a data ${dataBr(diaGravado.toISOString())}.`, 409, "received_on");
       }
     }
@@ -1126,7 +1127,8 @@ type MovimentoRow = {
   sale?: { number: number } | null;
 };
 
-function viewDoMovimento(m: MovimentoRow): MovimentoDeCaixaView {
+/** `fimDeHoje` é calculado uma vez por leitura: uma leitura que atravessa a meia-noite não marca duas linhas do mesmo dia de jeitos diferentes. */
+function viewDoMovimento(m: MovimentoRow, fimDeHoje: Date = fimDeHojeEmBrasilia()): MovimentoDeCaixaView {
   return {
     ...(m.sale !== undefined ? { sale_number: m.sale?.number ?? null } : {}),
     id: m.id,
@@ -1149,7 +1151,7 @@ function viewDoMovimento(m: MovimentoRow): MovimentoDeCaixaView {
     manager_establishment_id: m.manager_establishment_id,
     cash_handover_id: m.cash_handover_id,
     notes: m.notes,
-    scheduled: m.occurred_at.getTime() >= fimDeHojeEmBrasilia().getTime(),
+    scheduled: m.occurred_at.getTime() >= fimDeHoje.getTime(),
   };
 }
 
@@ -1594,7 +1596,7 @@ export async function lerCaixaAction(
     accounts: contas,
     card_receivables: parcelas,
     checks: ordenarCarteira(carteira).map(viewDoCheque),
-    movements: movs.map(viewDoMovimento),
+    movements: ((fimDeHoje) => movs.map((m) => viewDoMovimento(m, fimDeHoje)))(fimDeHojeEmBrasilia()),
     movimentos_total: movimentosTotal,
     movimentos_page: recorte.page,
     movimentos_per_page: pg.data.porPagina,
@@ -2445,6 +2447,10 @@ export async function pagarBoletoAction(
   if (digitado !== undefined && digitado !== null && (typeof digitado !== "number" || !Number.isFinite(digitado) || centavos(digitado) <= 0 || Math.round(digitado * 100) >= 1e14)) {
     // O teto é em centavos crus: `centavos()` arredonda a 12 dígitos e leva 999999999999,99 a 1e14.
     return fail("VALIDATION_ERROR", "Informe o valor pago, maior que zero.", 422, "paid_amount");
+  }
+  // O teto é o que cabe em Decimal(14,2) depois de arredondar: o `centavos()` leva 999999999999,99 a 1e14.
+  if (digitado !== undefined && digitado !== null && centavos(digitado) >= 1e14) {
+    return fail("VALIDATION_ERROR", "O valor pago é maior que o sistema aceita.", 422, "paid_amount");
   }
   const data = await lerDataDaBaixaDoAtor(db, ator, input.paid_on, "paid_on", boleto.establishment_id);
   if (!data.ok) return data;

@@ -422,6 +422,76 @@ async function secao4() {
   }
 }
 
+async function secao5() {
+  console.log("\n5. Franqueado no Caixa: escolhe o franqueado e digita o crédito na venda (Q378)");
+  const { prisma, prismaForTenant, scoped } = await import("@/lib/prisma");
+  const C: Dado = await import("@/lib/actions/emporio-catalogo");
+  const E: Dado = await import("@/lib/actions/emporio-estoque");
+  const V: Dado = await import("@/lib/actions/emporio-vendas");
+  const FR: Dado = await import("@/lib/actions/emporio-franqueados");
+  const { abrirTurnoDeTeste } = await import("./_emporio-turno");
+  const { vincularTodas } = await import("./_emporio-papel");
+
+  const stamp = Date.now();
+  const t = await prisma.tenant.create({
+    data: { name: `M129e ${stamp}`, document: `M129E${stamp}`.slice(0, 14), plan: "grupo", status: "trial", trial_ends_at: new Date(Date.now() + DIA) },
+  });
+  try {
+    const u = await prisma.user.create({
+      data: { tenant_id: t.id, name: "M129e dono", email: `m129e-${stamp}@teste.local`, password_hash: "x", role: "OWNER", ...papelDeFixture("OWNER") },
+    });
+    const dono = { id: u.id, role: "OWNER" as const };
+    const uc = await prisma.user.create({
+      data: { tenant_id: t.id, name: "M129e caixa", email: `m129e-cx-${stamp}@teste.local`, password_hash: "x", role: "OPERADOR", emporio_role: "caixa", emporio_only: false, emporio_keys: [] },
+    });
+    const caixa = { id: uc.id, role: "OPERADOR" as const };
+    const db: Dado = prismaForTenant(t.id);
+    const cat = await db.productCategory.create({ data: scoped({ name: "M129e categoria" }) });
+    const loja = (await C.criarEstabelecimentoAction(db, dono, { name: "M129e Loja", kind: "ponto_venda" })).data;
+    await vincularTodas(prisma as Dado, t.id, [uc.id], [loja.id]);
+    const turno = await abrirTurnoDeTeste(db, dono, loja.id);
+    const prod = (await C.criarProdutoEmporioAction(db, dono, { name: `M129e Milho ${stamp}`, category_id: cat.id, base_unit: "saca", content_qty: 20, content_unit: "quilograma" })).data;
+    const ap = prod.presentations[0].id as string;
+    await C.definirPrecoAction(db, dono, { establishment_id: loja.id, presentation_id: ap, price: 100 });
+    await E.implantarEstoqueAction(db, dono, { establishment_id: loja.id, emporio_product_id: prod.id, sealed: [], loose_qty: 50, unit_cost: 10 });
+    const cliente = await db.emporioCustomer.create({ data: scoped({ name: "M129e Cliente" }) });
+
+    const ativo = (await FR.cadastrarFranqueadoAction(db, dono, { name: "M129e Ativo", phone: "11999990001" })).data;
+    const arq = (await FR.cadastrarFranqueadoAction(db, dono, { name: "M129e Arquivado", phone: "11999990002" })).data;
+    const ra = await FR.arquivarFranqueadoAction(db, dono, arq.id, true);
+    check("arquivar o segundo franqueado pela action passa", ra.ok, j(ra));
+
+    const lista = await FR.listarFranqueadosParaVendaAction(db, caixa);
+    check("o Caixa lê a lista da venda", lista.ok, j(lista));
+    if (lista.ok) {
+      check("só o ativo vem (o arquivado não)", lista.data.length === 1 && lista.data[0].id === ativo.id, j(lista.data));
+      check("cada item tem só id e name", j(Object.keys(lista.data[0]).sort()) === j(["id", "name"]), j(Object.keys(lista.data[0])));
+    }
+    const daAba = await FR.listarFranqueadosAction(db, caixa);
+    check("a aba Franqueados segue recusando o Caixa", !daAba.ok && daAba.status === 403, j(daAba));
+    const ficha = await FR.lerFranqueadoAction(db, caixa, ativo.id);
+    check("a ficha (saldo e extrato) segue recusando o Caixa", !ficha.ok && ficha.status === 403, j(ficha));
+    const doDono = await FR.listarFranqueadosParaVendaAction(db, dono);
+    check("o dono lê a mesma lista", doDono.ok && doDono.data.length === 1, j(doDono));
+
+    const rv = await V.venderAction(db, caixa, {
+      operation_key: `m129e-${stamp}`, establishment_id: loja.id, customer_id: cliente.id, cash_register_id: turno.cash_register_id,
+      seller_user_id: dono.id, franchisee_id: ativo.id, franchisee_credit: 10,
+      items: [{ emporio_product_id: prod.id, presentation_id: ap, quantity: 1 }],
+      payments: [{ kind: "dinheiro", amount: 110 }],
+    });
+    check("a venda pelo Caixa com franqueado e crédito grava", rv.ok, j(rv));
+    if (rv.ok) {
+      const venda = await db.emporioSale.findFirst({ where: { id: rv.data.id } });
+      check("a venda guarda o franqueado e o crédito 10", venda?.franchisee_id === ativo.id && Number(venda?.franchisee_credit) === 10, j([venda?.franchisee_id, String(venda?.franchisee_credit)]));
+    }
+  } catch (e) {
+    check("a seção 5 terminou sem exceção", false, e instanceof Error ? e.stack ?? e.message : String(e));
+  } finally {
+    await limparTenant(t.id, "5");
+  }
+}
+
 async function secao6() {
   console.log("\n6. Parcela conferida pela antecipação: o desfazer some, a explicação aparece (Q377)");
   const { prisma, prismaForTenant, scoped } = await import("@/lib/prisma");
@@ -514,13 +584,88 @@ async function secao6() {
   }
 }
 
+async function secao7() {
+  console.log("\n7. Sobras da 5.31: teto do valor pago do boleto e papel antes do 409 do fiado");
+  const { prisma, prismaForTenant, scoped } = await import("@/lib/prisma");
+  const { hojeEmBrasilia } = await import("@/lib/emporio/cartao");
+  const C: Dado = await import("@/lib/actions/emporio-catalogo");
+  const E: Dado = await import("@/lib/actions/emporio-estoque");
+  const V: Dado = await import("@/lib/actions/emporio-vendas");
+  const X: Dado = await import("@/lib/actions/emporio-caixa");
+  const { vincularTodas } = await import("./_emporio-papel");
+  const { abrirTurnoDeTeste } = await import("./_emporio-turno");
+
+  const hoje = hojeEmBrasilia();
+  const ontem = new Date(hoje.getTime() - DIA);
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  const stamp = Date.now();
+  const t = await prisma.tenant.create({
+    data: { name: `M129g ${stamp}`, document: `M129G${stamp}`.slice(0, 14), plan: "grupo", status: "trial", trial_ends_at: new Date(Date.now() + DIA) },
+  });
+  try {
+    const u = await prisma.user.create({
+      data: { tenant_id: t.id, name: "M129g dono", email: `m129g-${stamp}@teste.local`, password_hash: "x", role: "OWNER", ...papelDeFixture("OWNER") },
+    });
+    const uc = await prisma.user.create({
+      data: { tenant_id: t.id, name: "M129g caixa", email: `m129g-cx-${stamp}@teste.local`, password_hash: "x", role: "OPERADOR", emporio_role: "caixa", emporio_keys: [] },
+    });
+    const dono = { id: u.id, role: "OWNER" as const };
+    const caixa = { id: uc.id, role: "OPERADOR" as const };
+    const db: Dado = prismaForTenant(t.id);
+    const cat = await db.productCategory.create({ data: scoped({ name: "M129g categoria" }) });
+    const loja = (await C.criarEstabelecimentoAction(db, dono, { name: "M129g Loja", kind: "ponto_venda" })).data;
+    await vincularTodas(prisma as Dado, t.id, [uc.id], [loja.id]);
+    const turno = await abrirTurnoDeTeste(db, dono, loja.id);
+    const conta = (await X.criarContaAction(db, dono, { name: `M129g Conta ${stamp}`, bank: "B" })).data.id as string;
+    const prod = (await C.criarProdutoEmporioAction(db, dono, { name: `M129g Milho ${stamp}`, category_id: cat.id, base_unit: "saca", content_qty: 20, content_unit: "quilograma" })).data;
+    const ap = prod.presentations[0].id as string;
+    await C.definirPrecoAction(db, dono, { establishment_id: loja.id, presentation_id: ap, price: 150 });
+    await E.implantarEstoqueAction(db, dono, { establishment_id: loja.id, emporio_product_id: prod.id, sealed: [], loose_qty: 50, unit_cost: 10 });
+
+    const cliente = await db.emporioCustomer.create({ data: scoped({ name: "M129g Cliente" }) });
+    const rv = await V.venderAction(db, dono, {
+      operation_key: `m129g-${stamp}`, establishment_id: loja.id, customer_id: cliente.id, cash_register_id: turno.cash_register_id,
+      items: [{ emporio_product_id: prod.id, presentation_id: ap, quantity: 1 }],
+      payments: [{ kind: "fiado", amount: 130, due_date: hoje }, { kind: "boleto", amount: 20, boleto: { due_on: hoje } }],
+    });
+    if (!rv.ok) throw new Error(`venda: ${j(rv)}`);
+    const boleto = await db.emporioBoleto.findFirst({ where: { customer_id: cliente.id } });
+    const entrada = await db.financialEntry.findFirst({ where: { emporio_customer_id: cliente.id } });
+
+    console.log("  (a) teto do valor pago do boleto");
+    const alto = await X.pagarBoletoAction(db, dono, boleto.id, { bank_account_id: conta, paid_amount: 999999999999.99 });
+    check("999.999.999.999,99 é recusado com 422 no campo paid_amount", !alto.ok && alto.status === 422 && alto.field === "paid_amount", j(alto));
+    const depois = await db.emporioBoleto.findFirst({ where: { id: boleto.id } });
+    check("o boleto segue aberto", depois.status === "aberto", String(depois.status));
+    const ok1 = await X.pagarBoletoAction(db, dono, boleto.id, { bank_account_id: conta, paid_amount: 20.5 });
+    check("um valor normal (20,50) ainda paga", ok1.ok, j(ok1));
+
+    console.log("  (b) replay do fiado com outra data: o papel vem antes do 409");
+    const base = { operation_key: `m129g-fiado-${stamp}`, customer_id: cliente.id, establishment_id: loja.id, amount: 40, kind: "pix", bank_account_id: conta, entry_id: entrada.id };
+    const rf = await X.receberFiadoAction(db, dono, { ...base, received_on: iso(hoje) });
+    check("receber o fiado pela action passa", rf.ok, j(rf));
+    const rc = await X.receberFiadoAction(db, caixa, { ...base, received_on: iso(ontem) });
+    check("o Caixa que repete com outra data recebe 403", !rc.ok && rc.status === 403 && rc.field === "received_on", j(rc));
+    const rd = await X.receberFiadoAction(db, dono, { ...base, received_on: iso(ontem) });
+    check("o Dono que repete com outra data recebe 409", !rd.ok && rd.status === 409, j(rd));
+    const rm = await X.receberFiadoAction(db, caixa, { ...base, received_on: iso(hoje) });
+    check("o Caixa que repete com a mesma data recebe a repetição (ok)", rm.ok && rm.data.replayed === true, j(rm));
+  } catch (e) {
+    check("a seção 7 terminou sem exceção", false, e instanceof Error ? e.stack ?? e.message : String(e));
+  } finally {
+    await limparTenant(t.id, "7");
+  }
+}
+
 async function main() {
   const { prisma } = await import("@/lib/prisma");
   console.log("🧾 M129: Módulo 39 (Meu Empório), decisões de 23/11\n");
   await secao2();
   await secao3();
   await secao4();
+  await secao5();
   await secao6();
+  await secao7();
   await prisma.$disconnect();
   console.log(`\nChecagens: ${total}`);
   console.log(falhas === 0 ? "\n✅ M129 (Módulo 39, decisões de 23/11): passou." : `\n❌ M129 (Módulo 39, decisões de 23/11): ${falhas} afirmação(ões) falharam.`);

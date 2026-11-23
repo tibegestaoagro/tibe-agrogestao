@@ -132,7 +132,7 @@ export default async function CaixaPage({
     if (ent > 1) p.set("pagina_ent", String(ent));
     if (mov > 1) p.set("pagina_mov", String(mov));
     if (ordemMov !== "desc") p.set("ordem_mov", ordemMov);
-    if (porPaginaMov !== 20) p.set("por_pagina_mov", String(porPaginaMov));
+    if (porPaginaMov !== POR_PAGINA_CAIXA) p.set("por_pagina_mov", String(porPaginaMov));
     const texto = p.toString();
     return texto ? `/emporio/caixa?${texto}` : "/emporio/caixa";
   };
