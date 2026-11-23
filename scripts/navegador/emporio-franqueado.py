@@ -474,6 +474,76 @@ confere("Q379: Devolvido nas devoluções R$ 6,00 em linha própria", bool(re.se
 confere("Q379: Pago aos franqueados R$ 5,00", bool(re.search(r"Pago aos franqueados\s*\n?\s*R\$ 5,00", bloco)), bloco)
 confere("Q379: o líquido do bloco é R$ 9,00 (20 menos 6 menos 5)", bool(re.search(r"^Créditos de franqueado \(repasse\)[\s\S]{0,200}?R\$ 9,00", bloco)), bloco)
 
+# --- 12. Ficha do cliente: o recebido inclui o credito do franqueado (Q386) ------------------------------
+def linha_do_credito_na_ficha():
+    """A <p> 'O recebido inclui ...' (so ela, nao o primeiro texto da pagina), com o que vem logo antes dela."""
+    return js("(() => { const p = Array.from(document.querySelectorAll('main p')).find(x => x.innerText.trim().startsWith('O recebido inclui')); if (!p) return null; const antes = p.previousElementSibling; return { texto: p.innerText.replace(/\\u00a0/g, ' ').trim(), logo_apos_os_cartoes: !!antes && antes.tagName === 'SECTION' && antes.innerText.includes('Recebido') }; })()")
+
+
+def criar_cliente(nome, telefone):
+    r = api("POST", "/api/v1/emporio/customers", {"person_kind": "pf", "name": nome, "phone": telefone})
+    return ((r["body"] or {}).get("data") or {}).get("id") or ""
+
+
+def vender_para_cliente(nome, com_credito):
+    abrir_balcao()
+    adicionar(RACAO, "Fq Ra", "1", 1)
+    adicionar(SAL, "Fq Sal", "1", 2)
+    confere("escolhe o cliente " + nome, escolher_cliente(nome) is True)
+    if com_credito:
+        franqueado_e_credito("10")
+        pagar_dinheiro("110")
+    else:
+        pagar_dinheiro("100")
+    resumo = fechar_venda()
+    esperado = "Venda registrada: R$ 100,00 + crédito do franqueado R$ 10,00" if com_credito else "Venda registrada: R$ 100,00"
+    confere("a venda para " + nome + " sai", esperado in resumo, resumo[:300])
+    return id_da_venda()
+
+
+passo("12. Q386: ficha do cliente diz quanto do recebido é crédito do franqueado (líquido da devolução)")
+entrar("owner")
+# O cenário não apaga clientes: nome único por rodada, senão o seletor acha o da rodada anterior.
+SUFIXO = str(int(time.time()))
+CLIENTE_COM = "Fq Cliente Com Credito " + SUFIXO
+CLIENTE_SEM = "Fq Cliente Sem Credito " + SUFIXO
+ID_COM = criar_cliente(CLIENTE_COM, "3833331111")
+ID_SEM = criar_cliente(CLIENTE_SEM, "3833332222")
+confere("Q386: os dois clientes foram criados pela API", ID_COM != "" and ID_SEM != "", [ID_COM, ID_SEM])
+VENDA_COM = vender_para_cliente(CLIENTE_COM, True)
+VENDA_SEM = vender_para_cliente(CLIENTE_SEM, False)
+confere("Q386: as duas vendas têm link", VENDA_COM != "" and VENDA_SEM != "", [VENDA_COM, VENDA_SEM])
+
+ir("/emporio/clientes/" + ID_COM)
+confere("Q386: a ficha do cliente com crédito abre", esperar(lambda: tem(CLIENTE_COM), 60), texto_principal(200))
+linha_fq = linha_do_credito_na_ficha()
+print("   ficha com crédito: " + str(linha_fq))
+confere("Q386: a ficha mostra 'O recebido inclui R$ 10,00 de crédito do franqueado.' (antes da devolução)", bool(linha_fq) and linha_fq["texto"] == "O recebido inclui R$ 10,00 de crédito do franqueado.", linha_fq)
+confere("Q386: a linha vem logo abaixo dos cartões de resumo", bool(linha_fq) and linha_fq["logo_apos_os_cartoes"], linha_fq)
+
+# Devolve o item de R$ 60,00: o crédito devolvido (R$ 6,00) sai do líquido (10 menos 6 = 4).
+ir("/emporio/vendas/" + VENDA_COM)
+confere("Q386: abre Devolver na venda do cliente", bool(esperar(lambda: clicar("Devolver"), 30)))
+time.sleep(1.5)
+confere("Q386: o painel de devolução abriu", painel_aberto())
+confere("Q386: devolve 1 da ração", preencher_aria("Quantidade devolvida de " + RACAO, "1") != "SEM CAMPO")
+time.sleep(0.8)
+enviar_painel()
+confere("Q386: o painel de devolução fecha", esperar(lambda: not painel_aberto(), 60), texto_do_painel()[:300])
+linha_dev = esperar(lambda: linha_da_tabela_com("itens", "1 × " + RACAO), 40)
+confere("Q386: a devolução de R$ 66,00 consta na venda", bool(linha_dev) and "inclui R$ 6,00 do crédito do franqueado" in linha_dev, linha_dev)
+
+ir("/emporio/clientes/" + ID_COM)
+confere("Q386: a ficha reabre", esperar(lambda: tem(CLIENTE_COM), 60), texto_principal(200))
+linha_fq = linha_do_credito_na_ficha()
+print("   ficha depois da devolução: " + str(linha_fq))
+confere("Q386: depois da devolução a linha diz R$ 4,00 (crédito das vendas concluídas menos o devolvido)", bool(linha_fq) and linha_fq["texto"] == "O recebido inclui R$ 4,00 de crédito do franqueado.", linha_fq)
+
+ir("/emporio/clientes/" + ID_SEM)
+confere("Q386: a ficha do cliente sem crédito abre", esperar(lambda: tem(CLIENTE_SEM), 60), texto_principal(200))
+confere("Q386: a ficha mostra a venda dele (a página carregou os cartões)", esperar(lambda: tem("Recebido"), 30), texto_principal(300))
+confere("Q386: sem crédito, a linha 'O recebido inclui' NÃO aparece", linha_do_credito_na_ficha() is None and "crédito do franqueado" not in texto_do_main(), texto_do_main()[:500])
+
 # --- 9. Celular --------------------------------------------------------------------------------------
 passo("9. Celular (360 px): balcão e ficha sem rolagem horizontal")
 cdp("Emulation.setDeviceMetricsOverride", width=360, height=800, deviceScaleFactor=2, mobile=True)
