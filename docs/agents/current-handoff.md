@@ -25,19 +25,22 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-20. **Sobras sem a Agromax: em produção após o
-  merge, sem migração** (branch `emporio-sobras-sem-agromax`, plano
-  `2026-11-20-emporio-sobras-sem-agromax`, suíte `m128`). Fechou das 5.23,
-  5.25, 5.28 e 5.30 o que não depende de equipamento: agendado nos Movimentos,
-  na ficha do cliente e na venda ("Compensa em DD/MM"), extrato e saldo com
-  `agora`, compensar antes do depósito recusado, fiado repetido com outra data
-  em 409, Gestor só com data passada no boleto (decisão do usuário em 20/11),
-  ordem dos Movimentos e tamanho das Aprovações, padrão das etiquetas num lugar
-  só, feriados móveis e mais passos nos roteiros, e o `test:all` guarda o log
-  de quem falha. Juiz 6/10, os dois importantes corrigidos; sobras e as
-  decisões D1 a D7 (a confirmar pelo usuário) na 5.31.
-- 19/11 em produção: transação de 30 s e região gru1 (merge `7569a5e5`;
-  `test:m126`) e taxas encerradas com aviso. Falta a Central do Milho editar de
+- Atualizado em: 2026-11-23. **Decisões pendentes do Empório: pronto na
+  branch `emporio-decisoes-pendentes`, NÃO mergeado** (spec e plano
+  `2026-11-23-emporio-decisoes-pendentes`, Q374 a Q385, suíte `m129`).
+  ⚠️ Tem migração: `20261123120000_emporio_devolucao_credito_franqueado`
+  (coluna `franchisee_credit` em `EmporioSaleReturn`), aplicada só no Docker.
+  **Antes do push na main, aplicar no Neon (URL Direct), com autorização.**
+  Entregue: D1 a D7 confirmadas; ficha conta agendado no Em aberto e não no
+  Vencido (Q375, Q385); antecipação esconde o Desfazer da parcela (Q377); Caixa
+  escolhe o franqueado (Q378); devolução com crédito devolve o valor do papel e
+  tira o crédito em proporção, centavo acumulado (Q379); loja arca a taxa do
+  cartão (Q380); orçamento trava o cliente, validade por hoje, recusa linha
+  repetida (Q382 a Q384). `test:all` 132/132; juiz 8/10, os 6 menores
+  corrigidos; roteiros franqueado, orçamento, antecipação e data da baixa
+  provados nos dois sentidos. Sobras em 5.32 do `dividas.md`.
+- Em produção: 20/11 sobras sem a Agromax (`m128`); 19/11 transação de 30 s e
+  gru1 (`m126`), taxas encerradas com aviso e sobras B, C, D e H (5.29). Falta a Central do Milho editar de
   novo as vendas nº 1, 2 e 4 e estender a taxa de crédito à vista da LOJA MOC.
 - 19/11, escritas em produção autorizadas, na Da Mata: apagado o saldo inicial
   de R$ 15.020,83 da CAIXA DAMATTA; financeiro zerado com
@@ -50,7 +53,6 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   "Corrigir a data" do PIX, boleto com valor pago. Vídeo da reunião com a
   Cláudia fora do git (`docs/financeiro-19112026/`). A Laiza e a Cláudia
   validam contra o extrato do banco.
-- 19/11 em produção: sobras das frentes B, C, D e H (merge `9969bcc9`; 5.29).
 - Plano do GestãoClick (Q341 a Q344):
   [../superpowers/specs/2026-11-17-emporio-plano-gestaoclick.md](../superpowers/specs/2026-11-17-emporio-plano-gestaoclick.md).
   Em produção: A, B, C, D (sem leitor nem impressora reais; 5.25), H e a
@@ -68,9 +70,9 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 ### Abertas das entregas de 09 a 13/11 (todas em produção)
 
 - Contas PIX (Q310 a Q318): na Da Mata só a `CAIXA DAMATTA - PIX - 1076-6`.
-- Franqueado (Q300 a Q309): o Caixa escolhe franqueado? devolução com
-  crédito? taxa do cartão sobre o crédito? ⚠️ Cancelar compra anterior a uma
-  contagem faz a contagem tirar a mais (candidato a dívida).
+- Franqueado (Q300 a Q309): as três decisões respondidas em 23/11 (Q378 a
+  Q380, na branch acima). ⚠️ Cancelar compra anterior a uma contagem faz a
+  contagem tirar a mais (candidato a dívida).
 - Cartão (Q250 a Q267): abertas 2.60, 2.62, 2.63; a entrega 4 depende do
   extrato real da Stone.
 
@@ -81,8 +83,8 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
    os produtos de granel. Vídeo em `docs/financeiro-reuniao/` (fora do git).
    Contas PIX: a Agromax cadastra as contas PIX das lojas e do site (CNPJ,
    favorecido, onde vale) e define a padrão de cada loja.
-   Franqueado: o usuário responde as três decisões abertas (Caixa, devolução,
-   taxa do cartão) e a Agromax testa. A Agromax testa o custo único (contar,
+   Franqueado: depois do merge da branch de 23/11, a Agromax testa (Caixa
+   escolhe, devolução com crédito). A Agromax testa o custo único (contar,
    depois lançar a compra).
 1. Na Agromax: criar a regra por apresentação (FRANQUIA) e editar e cancelar um orçamento real; conferir o boleto e o "Em nome de" numa venda real.
 2. Na Agromax (usuário, pelas telas): Stone, taxas do mês, regra de dia útil
@@ -195,6 +197,4 @@ relatórios em [agente-whatsapp/](agente-whatsapp/), detalhe em
 
 ## Últimas rodadas
 
-- 18/11: frentes C, D e H (cheque em duas etapas, balcão rápido, curva ABC e
-  paginação dos orçamentos) e a paginação das listas (5.26, 5.27) em produção,
-  autorizadas na conversa.
+- 23/11: decisões pendentes do Empório na branch (18/11 e 20/11 no histórico).
