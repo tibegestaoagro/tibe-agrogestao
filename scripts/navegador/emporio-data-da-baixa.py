@@ -300,7 +300,13 @@ confere("na ficha, o cheque futuro diz Compensa em DD/MM de amanha e NAO Compens
 confere("o valor agendado sai riscado com a dica", any("R$ 20,00" in x and "Não entra no Recebido" in x for x in risco), risco)
 recebido = js("(() => { const p = Array.from(document.querySelectorAll('main p')).find(x => x.innerText.trim() === 'Recebido'); return p && p.nextElementSibling ? p.nextElementSibling.innerText.replace(/\\u00a0/g, ' ') : null; })()")
 confere("o Recebido do cliente nao soma o agendado (R$ 0,00)", recebido == "R$ 0,00", recebido)
-venda_href = js("(() => { const r = Array.from(document.querySelectorAll('main tbody tr')).find(tr => tr.innerText.replace(/\\u00a0/g, ' ').includes('Cheque') && tr.innerText.replace(/\\u00a0/g, ' ').includes('R$ 70,00')); const a = r && r.querySelector('a[href*=\"/emporio/vendas/\"]'); return a ? a.getAttribute('href') : null; })()")
+# Q375: o recebimento com data futura ainda nao caiu: segue no Em aberto ate o dia chegar. Dd Ana deve R$ 70,00 do
+# fiado de R$ 90,00 (o PIX de R$ 20,00 agendado ja quitou a conta), mais o PIX agendado (R$ 20,00) e o cheque
+# compensado para amanha (R$ 70,00): R$ 160,00. Sem a Q375 o card mostraria so os R$ 70,00 do fiado.
+em_aberto = js("(() => { const p = Array.from(document.querySelectorAll('main p')).find(x => x.innerText.trim() === 'Em aberto'); return p && p.nextElementSibling ? p.nextElementSibling.innerText.replace(/\\u00a0/g, ' ') : null; })()")
+confere("Q375: o Em aberto do cliente soma o fiado (R$ 70,00) e os dois agendados (R$ 20,00 e R$ 70,00): R$ 160,00", em_aberto == "R$ 160,00", em_aberto)
+confere("Q375: e o Recebido segue em R$ 0,00 com o mesmo agendado no Em aberto", recebido == "R$ 0,00" and em_aberto != recebido, [em_aberto, recebido])
+venda_href =js("(() => { const r = Array.from(document.querySelectorAll('main tbody tr')).find(tr => tr.innerText.replace(/\\u00a0/g, ' ').includes('Cheque') && tr.innerText.replace(/\\u00a0/g, ' ').includes('R$ 70,00')); const a = r && r.querySelector('a[href*=\"/emporio/vendas/\"]'); return a ? a.getAttribute('href') : null; })()")
 confere("acha o link da venda do cheque", bool(venda_href), venda_href)
 ir(venda_href or "/emporio")
 esperar(lambda: "Cheque nº" in texto_do_main(), 40)

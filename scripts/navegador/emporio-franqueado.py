@@ -15,6 +15,7 @@
 #
 # cenario: scripts/_cenario-emporio-franqueado.ts
 # sessao: owner owner@example.com
+# sessao: caixa fq-caixa@teste.local
 
 import re
 
@@ -213,7 +214,8 @@ confere("o crédito não ficou com recusa", erro_do_campo("Crédito do franquead
 
 # --- 2. Balcao ------------------------------------------------------------------------------
 passo("2. Balcão: franqueado e crédito, Total a pagar, Falta, venda fechada")
-confere("escolhe o franqueado " + FRANQUEADO, escolher("Franqueado (opcional)", FRANQUEADO) is True)
+r_escolha = escolher("Franqueado (opcional)", FRANQUEADO)
+confere("escolhe o franqueado " + FRANQUEADO, r_escolha is True, r_escolha)
 confere("a recusa some ao escolher", esperar(lambda: erro_do_campo("Franqueado (opcional)") == "", 10))
 principal = texto_do_main()
 confere("o total a pagar passa a R$ 110,00", "Total a pagar: R$ 110,00" in principal.replace("\n", " ") or "Total a pagar R$ 110,00" in principal.replace("\n", " "), principal[-700:])
@@ -399,6 +401,63 @@ ir("/emporio/resultado?loja=" + loja_id)
 js("document.querySelectorAll('main details').forEach(d => { d.open = true; })")
 pagina = texto_do_main()
 confere("o Resultado passa a Recebido nas vendas R$ 10,00", bool(re.search(r"Recebido nas vendas\s*\n?\s*R\$ 10,00", pagina)), pagina[:1500])
+
+# --- 10. Caixa escolhe o franqueado (Q378) ---------------------------------------------------------------
+def tem_rotulo(rotulo):
+    return bool(js("(() => { const l = Array.from(document.querySelectorAll('main label')).find(x => x.innerText.replace('*','').trim() === " + repr(rotulo) + "); return !!(l && document.getElementById(l.htmlFor)); })()"))
+
+
+def linha_da_tabela_com(cabecalho, trecho):
+    """O texto da <tr> da tabela cujo cabecalho tem `cabecalho` e cuja linha tem `trecho` (colunas separadas por ' | ')."""
+    return js("(() => { const t = Array.from(document.querySelectorAll('main table')).find(t => t.querySelector('thead').innerText.toLowerCase().includes(" + repr(cabecalho) + ")); const r = t && Array.from(t.querySelectorAll('tbody tr')).find(x => x.innerText.replace(/\\u00a0/g, ' ').includes(" + repr(trecho) + ")); return r ? Array.from(r.children).map(c => c.innerText.replace(/\\u00a0/g, ' ').replace(/\\n/g, ' ').trim()).join(' | ') : ''; })()") or ""
+
+
+passo("10. Q378: com sessão de Caixa, o campo do franqueado aparece na venda e o crédito vale")
+entrar("caixa")
+ir("/emporio/vender")
+confere("o balcão abre para o Caixa", caminho() == "/emporio/vender" and tem("Fechar a venda"), caminho())
+if tem_rotulo("Loja"):
+    confere("escolhe " + LOJA, escolher("Loja", LOJA) is True)
+adicionar(RACAO, "Fq Ra", "1", 1)
+adicionar(SAL, "Fq Sal", "1", 2)
+confere("escolhe Consumidor final", escolher_cliente("Consumidor final") is True)
+confere("Q378: o Caixa VÊ o campo Franqueado (opcional)", esperar(lambda: tem_rotulo("Franqueado (opcional)"), 20), texto_principal(400))
+confere("Q378: o Caixa VÊ o campo Crédito do franqueado (R$)", tem_rotulo("Crédito do franqueado (R$)"), texto_principal(400))
+confere("o Caixa escolhe o franqueado " + FRANQUEADO + " (a lista não vem vazia)", escolher("Franqueado (opcional)", FRANQUEADO) is True)
+confere("o Caixa digita o crédito 10", preencher("Crédito do franqueado (R$)", "10") not in ("SEM ROTULO", "SEM CAMPO"))
+time.sleep(0.5)
+principal = texto_do_main()
+confere("o total a pagar do Caixa passa a R$ 110,00 com o crédito R$ 10,00", "Crédito do franqueado R$ 10,00" in principal and "R$ 110,00" in principal, principal[-600:])
+confere("o Caixa escolhe o vendedor (o campo é obrigatório para ele)", escolher("Vendedor", "Owner Da Mata") is True)
+pagar_dinheiro("110")
+resumo = fechar_venda()
+confere("a venda do Caixa sai: R$ 100,00 + crédito do franqueado R$ 10,00", "Venda registrada: R$ 100,00 + crédito do franqueado R$ 10,00" in resumo, resumo[:300])
+VENDA4 = id_da_venda()
+confere("o resumo tem o link da venda", VENDA4 != "", VENDA4)
+
+passo("11. Q379: devolver o item de R$ 60,00 da venda com crédito: o cliente recebe R$ 66,00")
+entrar("owner")
+ir("/emporio/vendas/" + VENDA4)
+v4 = api("GET", "/api/v1/emporio/sales/" + VENDA4)["body"]["data"]
+NUMERO4 = str(v4.get("number"))
+confere("a API da venda do Caixa guardou o franqueado e o crédito 10", v4.get("franchisee_credit") == 10 and bool(v4.get("franchisee_id")), [v4.get("franchisee_id"), v4.get("franchisee_credit")])
+saldo_antes = saldo_pela_api(FID)
+confere("abre Devolver", bool(esperar(lambda: clicar("Devolver"), 30)))
+time.sleep(1.5)
+confere("o painel de devolução abriu", painel_aberto())
+confere("devolve 1 da ração (o item de R$ 60,00)", preencher_aria("Quantidade devolvida de " + RACAO, "1") != "SEM CAMPO")
+time.sleep(0.8)
+painel_txt = texto_do_painel()
+confere("Q379: a prévia mostra R$ 66,00 (o valor do papel)", "R$ 66,00" in painel_txt, painel_txt[:500])
+confere("Q379: a prévia explica: Itens R$ 60,00 mais R$ 6,00 do crédito do franqueado", "Itens R$ 60,00 mais R$ 6,00 do crédito do franqueado" in painel_txt, painel_txt[:500])
+enviar_painel()
+confere("o painel de devolução fecha", esperar(lambda: not painel_aberto(), 60), erro_do_campo("Como devolver o valor") or erro_do_campo("Valor a devolver"))
+linha_dev = esperar(lambda: linha_da_tabela_com("itens", "1 × " + RACAO), 40)
+confere("Q379: a tabela de devoluções mostra R$ 66,00 com 'inclui R$ 6,00 do crédito do franqueado'", bool(linha_dev) and "R$ 66,00" in linha_dev and "inclui R$ 6,00 do crédito do franqueado" in linha_dev, linha_dev)
+confere("Q379: o saldo do franqueado caiu R$ 6,00 (o crédito na proporção)", abs((saldo_antes or 0) - (saldo_pela_api(FID) or 0) - 6) < 0.005, [saldo_antes, saldo_pela_api(FID)])
+ir("/emporio/franqueados/" + FID)
+linha_ext = esperar(lambda: linha_da_tabela_com("valor", "Devolução da venda nº " + NUMERO4), 40)
+confere("Q379: o extrato do franqueado mostra 'Devolução da venda nº " + NUMERO4 + "' negativa de R$ 6,00", bool(linha_ext) and "Devolução" in linha_ext and "- R$ 6,00" in linha_ext, linha_ext)
 
 # --- 9. Celular --------------------------------------------------------------------------------------
 passo("9. Celular (360 px): balcão e ficha sem rolagem horizontal")

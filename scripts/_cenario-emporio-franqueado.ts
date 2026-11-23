@@ -46,6 +46,10 @@ async function limpar(tenant_id: string) {
   await prisma.emporioFranchiseePayment.deleteMany({ where: { tenant_id, id: { in: pagamentos } } });
   await prisma.cashCount.deleteMany({ where: { tenant_id, establishment_id: { in: lojas } } });
   await prisma.stockMovement.deleteMany({ where: { tenant_id, OR: [{ establishment_id: { in: lojas } }, { product_id: { in: produtos } }] } });
+  // Q379: o roteiro devolve um item de uma venda com credito; a devolucao segura os itens da venda.
+  const devolucoes = (await prisma.emporioSaleReturn.findMany({ where: { tenant_id, sale_id: { in: vendas } }, select: { id: true } })).map((d) => d.id);
+  await prisma.emporioSaleReturnItem.deleteMany({ where: { tenant_id, return_id: { in: devolucoes } } });
+  await prisma.emporioSaleReturn.deleteMany({ where: { tenant_id, id: { in: devolucoes } } });
   await prisma.emporioSalePayment.deleteMany({ where: { tenant_id, sale_id: { in: vendas } } });
   await prisma.financialPayment.deleteMany({ where: { tenant_id, entry_id: { in: lancamentos } } });
   await prisma.financialEntry.deleteMany({ where: { tenant_id, id: { in: lancamentos } } });
@@ -90,6 +94,15 @@ async function main() {
   if (!categoria) throw new Error("A conta do seed nao tem categoria de produto: abra o Estoque uma vez.");
 
   const loja = exigir(await cat.criarEstabelecimentoAction(db, dono, { name: `${PREFIXO}Loja`, max_discount_pct: 10 }), "loja") as { id: string };
+
+  // Q378: um Caixa da loja (sessao sem senha) para o roteiro provar que o Caixa escolhe o franqueado e digita o credito.
+  const caixaDados = { active: true, role: "OPERADOR" as const, tenant_id, emporio_role: "caixa" as const, emporio_only: false, emporio_keys: [] as string[] };
+  const caixaUser = await prisma.user.upsert({
+    where: { email: "fq-caixa@teste.local" },
+    update: caixaDados,
+    create: { ...caixaDados, email: "fq-caixa@teste.local", name: "Fq Caixa", password_hash: "sem-senha" },
+  });
+  await prisma.userEstablishment.createMany({ data: [{ tenant_id, user_id: caixaUser.id, establishment_id: loja.id }] });
 
   async function produto(nome: string, preco: number, estoque: number) {
     const id = (exigir(await cat.criarProdutoEmporioAction(db, dono, { name: `${PREFIXO}${nome}`, category_id: categoria!.id, base_unit: "quilograma" } as never), nome) as { id: string }).id;

@@ -314,6 +314,19 @@ secao = texto_do_main()
 confere("a seção Antecipações lista a operação: Pontual, R$ 280,00, R$ 11,00, ao mês", all(t in secao for t in ["Pontual", "Automática", "R$ 280,00", "R$ 11,00", "ao mês", "Stone Ant", "Rede Ant"]), secao[-900:])
 confere("as 6 parcelas aparecem antecipadas (3 da Rede Ant e 3 da Stone Ant)", linhas_antecipada() == 6, linhas_antecipada())
 
+def parcelas_da_stone():
+    """As <tr> da tabela Cartões a receber (cabeçalho com Adquirente) da Stone Ant: o texto e os botões de cada uma."""
+    return js("(() => { const t = Array.from(document.querySelectorAll('main table')).find(t => t.querySelector('thead').innerText.toLowerCase().includes('adquirente')); if (!t) return null; return Array.from(t.querySelectorAll('tbody tr')).filter(tr => tr.innerText.includes('Stone Ant')).map(tr => ({ txt: tr.innerText.replace(/\\u00a0/g, ' ').replace(/\\n/g, ' | '), botoes: Array.from(tr.querySelectorAll('button')).map(b => b.innerText.trim()) })); })()")
+
+
+AVISO_ANTECIPADA = "Conferida pela antecipação: para desfazer, desfaça a antecipação."
+
+passo("6b. Q377: a parcela conferida pela antecipação não oferece Desfazer a conferência, e diz como desfazer")
+stone = parcelas_da_stone() or []
+confere("a tabela Cartões a receber tem as 3 parcelas da Stone Ant", len(stone) == 3, stone)
+confere("Q377: cada parcela da Stone Ant mostra o aviso 'Conferida pela antecipação: para desfazer, desfaça a antecipação.'", len(stone) == 3 and all(AVISO_ANTECIPADA in p["txt"] for p in stone), [p["txt"][-160:] for p in stone])
+confere("Q377: nenhuma delas tem o botão 'Desfazer a conferência' (nem outro Desfazer)", len(stone) == 3 and all(not any("Desfazer" in b for b in p["botoes"]) for p in stone), [p["botoes"] for p in stone])
+
 passo("7. O saldo da conta: R$ 280,00 (o líquido efetivo), não R$ 291,00")
 confere("a API: saldo da Ant Banco R$ 280,00", saldo_da_conta() == 280, saldo_da_conta())
 ir("/emporio/financeiro/caixa?loja=" + loja["id"])
@@ -341,6 +354,8 @@ confere("a automática segue valendo", len(automaticas(loja["id"])) == 1 and aut
 confere("a API: saldo da Ant Banco volta a R$ 0,00", saldo_da_conta() == 0, saldo_da_conta())
 ir("/emporio/financeiro/receber?loja=" + loja["id"])
 confere("a tela mostra 'Desfeita' e só as 3 parcelas da Rede Ant seguem antecipadas", tem("Desfeita") and linhas_antecipada() == 3, linhas_antecipada())
+stone = parcelas_da_stone() or []
+confere("Q377: desfeita a antecipação, as parcelas da Stone Ant já não trazem o aviso nem a conferência", len(stone) == 3 and all(AVISO_ANTECIPADA not in p["txt"] and "Desfazer" not in " ".join(p["botoes"]) for p in stone), [p["txt"][-160:] for p in stone])
 confere("a API: anticipation_costs fica só com a automática (" + str(custo_auto) + ")", custo_do_mes(loja["id"]) == custo_auto, custo_do_mes(loja["id"]))
 ir("/emporio/resultado?loja=" + loja["id"])
 confere("o Resultado mostra a linha só com " + em_reais(custo_auto), linha_do_resultado(em_reais(custo_auto)) and not linha_do_resultado(em_reais(total_custo)), texto_principal(3000))
