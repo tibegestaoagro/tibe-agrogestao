@@ -72,7 +72,10 @@ export function DevolverForm({
   const mostrarCaixa = saiDaGaveta && (abertos.length !== 1 || !!err.erros.cash_register_id);
 
   const lido = montarDevolvidos(itens, escolha);
-  const totalCent = lido.ok ? lido.totalCent : 0;
+  const itensCent = lido.ok ? lido.totalCent : 0;
+  const creditoCent = lido.ok ? lido.creditoCent : 0;
+  // Q379: o cliente recebe o valor dos itens mais a parte do crédito do franqueado que cabia neles.
+  const totalCent = itensCent + creditoCent;
 
   async function submit() {
     const novos: Partial<Record<Campo, string>> = {};
@@ -142,9 +145,14 @@ export function DevolverForm({
 
       <Field label="Valor a devolver" id={err.idDe("amount")} error={err.erros.amount}>
         {({ id, ...aria }) => (
-          <p id={id} tabIndex={-1} {...aria} className="text-lg font-semibold text-texto">
-            {reaisBr(totalCent / 100)}
-          </p>
+          <div id={id} tabIndex={-1} {...aria}>
+            <p className="text-lg font-semibold text-texto">{reaisBr(totalCent / 100)}</p>
+            {creditoCent > 0 && (
+              <p className="text-xs text-texto-secundario">
+                Itens {reaisBr(itensCent / 100)} mais {reaisBr(creditoCent / 100)} do crédito do franqueado.
+              </p>
+            )}
+          </div>
         )}
       </Field>
 

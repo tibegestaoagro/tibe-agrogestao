@@ -62,7 +62,7 @@ import {
   type RegraDiaUtil,
 } from "@/lib/emporio/cartao";
 import { somarDiasUteis } from "@/lib/emporio/dia-util";
-import { ratearCreditoNosItens } from "@/lib/emporio/rateio-impresso";
+import { creditoDaDevolucaoCent, parteDoCreditoPorItemCent } from "@/lib/emporio/rateio-impresso";
 import {
   INCLUDE_PRODUTO,
   lacradoEfetivo,
@@ -2702,19 +2702,15 @@ type LinhaDevolucao = {
  * por item que o papel do cliente usa (`emporio-impressao`): o crédito some do papel e vira valor do item.
  */
 function parteDoCreditoPorItem(venda: VendaParaDevolver): Map<string, number> {
-  const partes = new Map<string, number>();
-  const creditoCent = centavos(decToNum(venda.franchisee_credit) ?? 0);
-  const exato = (n: number) => Math.round(Number((n * 100).toPrecision(12)));
-  const totais = venda.items.map((i) => {
-    const q = decToNum(i.quantity) ?? 0;
-    const praticado = decToNum(i.unit_price) ?? 0;
-    const sugerido = decToNum(i.suggested_price);
-    const preco = sugerido != null && praticado < sugerido ? sugerido : praticado;
-    return (exato(q * praticado) + exato((preco - praticado) * q));
-  });
-  const rateados = ratearCreditoNosItens(totais, creditoCent);
-  venda.items.forEach((i, k) => partes.set(i.id, rateados[k] - totais[k]));
-  return partes;
+  return parteDoCreditoPorItemCent(
+    venda.items.map((i) => ({
+      id: i.id,
+      quantity: decToNum(i.quantity) ?? 0,
+      unit_price: decToNum(i.unit_price) ?? 0,
+      suggested_price: decToNum(i.suggested_price),
+    })),
+    centavos(decToNum(venda.franchisee_credit) ?? 0),
+  );
 }
 
 function validarItensDevolvidos(
@@ -2776,9 +2772,7 @@ function validarItensDevolvidos(
     // Q379: devolvido até agora = round(parte x quantidade acumulada / vendida); esta devolução leva a diferença.
     // Tudo devolvido fecha exato na parte do item, sem sobra nem falta de centavo.
     const parte = partesDoCredito.get(item.id) ?? 0;
-    const acumulado = arred3(devolvido + quantity);
-    const ate = (qtd: number) => (qtd >= vendido ? parte : Math.round((parte * qtd) / vendido));
-    const creditoCent = ate(acumulado) - ate(devolvido);
+    const creditoCent = creditoDaDevolucaoCent(parte, vendido, devolvido, quantity);
     linhas.push({ item, quantity, base_qty, valorCent, creditoCent, loss_reason: motivo });
   }
   return ok({

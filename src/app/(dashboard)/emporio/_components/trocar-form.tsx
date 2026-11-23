@@ -85,7 +85,7 @@ export function TrocarForm({
   const mostrarCaixa = abertos.length !== 1 || !!err.erros.cash_register_id;
 
   const devolvidos = montarDevolvidos(itensDevolviveis, escolha);
-  const devolvidoCent = devolvidos.ok ? devolvidos.totalCent : 0;
+  const devolvidoCent = devolvidos.ok ? devolvidos.totalCent + devolvidos.creditoCent : 0;
   const v = useVenda({
     produtos,
     precos,

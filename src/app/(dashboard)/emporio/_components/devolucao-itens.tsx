@@ -9,6 +9,7 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { lerNumeroBr, reaisBr } from "@/lib/numero-br";
+import { creditoDaDevolucaoCent } from "@/lib/emporio/rateio-impresso";
 import { MOTIVO_PERDA_ROTULO, numeroBr } from "./formato";
 
 /**
@@ -30,6 +31,10 @@ export type ItemDevolvivel = {
   sold_qty: number;
   /** O que as devoluções anteriores já reembolsaram do item, com a mesma conta do servidor, em centavos. */
   ja_reembolsado_cent: number;
+  /** Q379: a parte do crédito do franqueado que cabe no item (rateio do papel), em centavos. 0 sem crédito. */
+  parte_credito_cent: number;
+  /** A quantidade que as devoluções anteriores já levaram do item. */
+  devolvida_qty: number;
 };
 
 const arred3 = (n: number) => Math.round(n * 1000) / 1000;
@@ -50,13 +55,21 @@ const VOLTA = "__volta__";
 export type EscolhaDevolucao = { qtds: Record<string, string>; avarias: Record<string, string> };
 
 export type DevolvidosMontados =
-  | { ok: true; itens: { sale_item_id: string; quantity: number; loss_reason: string | null }[]; totalCent: number }
+  | {
+      ok: true;
+      itens: { sale_item_id: string; quantity: number; loss_reason: string | null }[];
+      /** O valor dos itens. O cliente recebe `totalCent + creditoCent`. */
+      totalCent: number;
+      /** Q379: a parte do crédito do franqueado que volta junto, pela mesma conta do servidor. */
+      creditoCent: number;
+    }
   | { ok: false; erro: string };
 
 /** Lê a escolha da tela e confere o que dá para conferir sem o servidor. */
 export function montarDevolvidos(itens: ItemDevolvivel[], escolha: EscolhaDevolucao): DevolvidosMontados {
   const saida: { sale_item_id: string; quantity: number; loss_reason: string | null }[] = [];
   let total = 0;
+  let credito = 0;
   for (const i of itens) {
     const bruto = escolha.qtds[i.id] ?? "";
     if (bruto.trim() === "") continue;
@@ -71,9 +84,10 @@ export function montarDevolvidos(itens: ItemDevolvivel[], escolha: EscolhaDevolu
     const motivo = escolha.avarias[i.id];
     saida.push({ sale_item_id: i.id, quantity: q, loss_reason: motivo && motivo !== VOLTA ? motivo : null });
     total += valorDevolvidoCent(i, q);
+    credito += creditoDaDevolucaoCent(i.parte_credito_cent, i.sold_qty, i.devolvida_qty, q);
   }
   if (saida.length === 0) return { ok: false, erro: "Informe a quantidade de ao menos um item." };
-  return { ok: true, itens: saida, totalCent: total };
+  return { ok: true, itens: saida, totalCent: total, creditoCent: credito };
 }
 
 export function DevolucaoItens({

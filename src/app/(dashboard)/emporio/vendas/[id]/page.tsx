@@ -12,6 +12,7 @@ import { formatarNumero } from "@/lib/emporio/numeracao";
 import { ROTULO_DA_ORIGEM } from "@/lib/emporio/frete";
 import { linhaDoEndereco } from "@/lib/emporio/pedido-para-entrega";
 import { reaisBr } from "@/lib/numero-br";
+import { parteDoCreditoPorItemCent } from "@/lib/emporio/rateio-impresso";
 import { pesoBr, textoDoPesoTotal } from "@/lib/emporio/peso";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -96,6 +97,11 @@ export default async function VendaPage({ params }: { params: Promise<{ id: stri
 
   // Escolha 7: o valor devolvido é proporcional ao que o item pagou (`total`), e o que as devoluções anteriores
   // já reembolsaram sai da mesma conta do servidor, para a última fração fechar o que sobra.
+  // Q379: a parte do crédito do franqueado em cada item, pelo mesmo rateio do servidor (itens na ordem do papel).
+  const partesDoCredito = parteDoCreditoPorItemCent(
+    [...venda.items].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)),
+    Math.round(venda.franchisee_credit * 100),
+  );
   const itensDevolviveis = devolviveis.map((i) => {
     const totalCent = Math.round(i.total * 100);
     const jaReembolsadoCent = venda.returns
@@ -111,6 +117,8 @@ export default async function VendaPage({ params }: { params: Promise<{ id: stri
       total_cent: totalCent,
       sold_qty: i.quantity,
       ja_reembolsado_cent: jaReembolsadoCent,
+      parte_credito_cent: partesDoCredito.get(i.id) ?? 0,
+      devolvida_qty: i.returned_qty,
     };
   });
 
@@ -510,7 +518,14 @@ export default async function VendaPage({ params }: { params: Promise<{ id: stri
                       .join("; ")}
                     {d.reason && <span className="block text-xs text-texto-secundario">{d.reason}</span>}
                   </TableCell>
-                  <TableCell>{reaisBr(d.amount)}</TableCell>
+                  <TableCell>
+                    {reaisBr(Math.round((d.amount + d.franchisee_credit) * 100) / 100)}
+                    {d.franchisee_credit > 0 && (
+                      <span className="block text-xs text-texto-secundario">
+                        inclui {reaisBr(d.franchisee_credit)} do crédito do franqueado
+                      </span>
+                    )}
+                  </TableCell>
                   <TableCell>
                     {REEMBOLSO[d.refund_kind] ?? d.refund_kind}
                     {d.exchange_sale_id && (

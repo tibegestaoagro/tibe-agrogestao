@@ -151,18 +151,22 @@ export default async function FranqueadoFichaPage({ params }: { params: Promise<
               </TableRow>
             </TableHeader>
             <TableBody>
-              {f.statement.map((l) => (
-                <TableRow key={l.kind === "credito" ? `c-${l.sale_id}` : `p-${l.payment_id}`}>
+              {f.statement.map((l, k) => (
+                <TableRow key={l.kind === "pagamento" ? `p-${l.payment_id}` : `${l.kind === "credito" ? "c" : "d"}-${l.sale_id}-${k}`}>
                   <TableCell>{dataBr(l.date)}</TableCell>
                   <TableCell>
-                    <Badge variant={l.kind === "credito" ? "green" : "blue"}>
-                      {l.kind === "credito" ? "Crédito" : "Pagamento"}
+                    <Badge variant={l.kind === "credito" ? "green" : l.kind === "devolucao" ? "amber" : "blue"}>
+                      {l.kind === "credito" ? "Crédito" : l.kind === "devolucao" ? "Devolução" : "Pagamento"}
                     </Badge>
                   </TableCell>
                   <TableCell className="max-w-xs text-sm">
                     {l.kind === "credito" ? (
                       <Link href={`/emporio/vendas/${l.sale_id}`} className="text-texto-marca hover:underline">
                         Venda {l.sale_number}
+                      </Link>
+                    ) : l.kind === "devolucao" ? (
+                      <Link href={`/emporio/vendas/${l.sale_id}`} className="text-texto-marca hover:underline">
+                        Devolução da venda nº {l.sale_number}
                       </Link>
                     ) : (
                       <>
@@ -171,8 +175,8 @@ export default async function FranqueadoFichaPage({ params }: { params: Promise<
                       </>
                     )}
                   </TableCell>
-                  <TableCell className={l.kind === "pagamento" ? "text-texto-secundario" : undefined}>
-                    {l.kind === "pagamento" ? `- ${reaisBr(l.amount)}` : reaisBr(l.amount)}
+                  <TableCell className={l.kind === "credito" ? undefined : "text-texto-secundario"}>
+                    {l.kind === "credito" ? reaisBr(l.amount) : `- ${reaisBr(Math.abs(l.amount))}`}
                   </TableCell>
                 </TableRow>
               ))}
