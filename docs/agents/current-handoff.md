@@ -38,10 +38,11 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   cartão (Q380); orçamento trava o cliente, validade por hoje, recusa linha
   repetida (Q382 a Q384). `test:all` 132/132; juiz 8/10, os 6 menores
   corrigidos; roteiros franqueado, orçamento, antecipação e data da baixa
-  provados nos dois sentidos. Sobras em 5.32 do `dividas.md`.
+  provados nos dois sentidos. Branch `next-16-4-6-sobras-5-32`: Next 16.4.6
+  (7 avisos do audit), 5.32 fechada, ficha diz o crédito do franqueado (Q386).
 - Em produção: 20/11 sobras sem a Agromax (`m128`); 19/11 transação de 30 s e
-  gru1 (`m126`), taxas encerradas com aviso e sobras B, C, D e H (5.29). Falta a Central do Milho editar de
-  novo as vendas nº 1, 2 e 4 e estender a taxa de crédito à vista da LOJA MOC.
+  gru1 (`m126`), taxas com aviso, sobras B, C, D e H (5.29). Falta a Central
+  do Milho editar as vendas 1, 2 e 4 e a taxa de crédito à vista da LOJA MOC.
 - 19/11, escritas em produção autorizadas, na Da Mata: apagado o saldo inicial
   de R$ 15.020,83 da CAIXA DAMATTA; financeiro zerado com
   `scripts/zerar-financeiro-conta.ts` (494 registros; md5 do que fica conferido).
@@ -50,15 +51,14 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   `20261119120000_emporio_boleto_valor_pago`; spec e plano
   `2026-11-19-emporio-data-da-baixa`, Q370 a Q373, suíte `m127`): baixa de hoje
   menos 31 a mais 31 dias, saldo só até hoje e futuro em "Agendados",
-  "Corrigir a data" do PIX, boleto com valor pago. Vídeo da reunião com a
-  Cláudia fora do git (`docs/financeiro-19112026/`). A Laiza e a Cláudia
-  validam contra o extrato do banco.
+  "Corrigir a data" do PIX, boleto com valor pago. Vídeo fora do git
+  (`docs/financeiro-19112026/`).
 - Plano do GestãoClick (Q341 a Q344):
   [../superpowers/specs/2026-11-17-emporio-plano-gestaoclick.md](../superpowers/specs/2026-11-17-emporio-plano-gestaoclick.md).
   Em produção: A, B, C, D (sem leitor nem impressora reais; 5.25), H e a
   paginação (`58e077fc`; 5.28). G1 (2.18) e G2 (2.34) esperam a planilha do
-  GestãoClick e o XML de nota. **Próximo passo:** a Laiza e a Cláudia validam a
-  data da baixa; G1 e G2 quando os arquivos chegarem.
+  GestãoClick e o XML de nota. **Próximo:** Laiza e Cláudia validam a data da
+  baixa contra o extrato do banco; G1 e G2 quando os arquivos chegarem.
 - Em produção desde 16/11: Q325 a Q340 (orçamento com total, cadastro leve,
   CEP, preço do cadastro, PIN, brinde, frete no orçamento; os gestores precisam
   cadastrar o PIN) e o manual (GIFs: roteiro `manual-gifs` e
