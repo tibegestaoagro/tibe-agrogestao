@@ -43,6 +43,7 @@ export const INCLUDE_CARTAO = {
   bank_account: { select: { name: true } },
   acquirer: { select: { name: true } },
   sale: { select: { number: true, customer_id: true, customer: { select: { name: true } } } },
+  anticipation: { select: { kind: true, undone_at: true, created_at: true } },
 } as const;
 
 export type ParcelaComJuncoes = Prisma.CardReceivableGetPayload<{ include: typeof INCLUDE_CARTAO }>;
@@ -75,6 +76,7 @@ export function viewDoCartao(p: ParcelaComJuncoes, hoje: Date): CartaoAReceberVi
     customer_id: p.sale.customer_id,
     customer_name: p.sale.customer?.name ?? null,
     status: estadoDaParcela(p, hoje),
+    conferida_pela_antecipacao: conferidaPelaAntecipacaoViva(p, p.anticipation),
     confirmed_net: conferidoCent === null ? null : reais(conferidoCent),
     adjustment: p.reconciled_at ? reais((conferidoCent ?? efetivoCent) - efetivoCent) : null,
   };
@@ -339,6 +341,17 @@ export async function conferirDiaAction(
 export const conferidaPelaAntecipacao = (p: { reconciled_at: Date | null }, op: { created_at: Date }): boolean =>
   p.reconciled_at !== null && p.reconciled_at.getTime() === op.created_at.getTime();
 
+/**
+ * A conferência que só some desfazendo a antecipação (Q377): antecipação pontual, não desfeita, e o carimbo da
+ * parcela é o da própria operação. É a condição da recusa do desfazer e da tela, para os dois não divergirem.
+ */
+export function conferidaPelaAntecipacaoViva(
+  p: { reconciled_at: Date | null },
+  op: { kind: string; undone_at: Date | null; created_at: Date } | null,
+): boolean {
+  return op !== null && op.kind === "pontual" && op.undone_at === null && conferidaPelaAntecipacao(p, op);
+}
+
 export async function desfazerConferenciaAction(
   db: TenantPrismaClient,
   ator: Ator,
@@ -366,7 +379,7 @@ export async function desfazerConferenciaAction(
       if (!p.reconciled_at) {
         throw new AbortarConferencia(fail("NAO_CONFERIDA", "Esta parcela não está conferida.", 409, "id"));
       }
-      if (p.anticipation && p.anticipation.kind === "pontual" && p.anticipation.undone_at === null && conferidaPelaAntecipacao(p, p.anticipation)) {
+      if (conferidaPelaAntecipacaoViva(p, p.anticipation)) {
         throw new AbortarConferencia(
           fail(
             "CONFERIDA_PELA_ANTECIPACAO",

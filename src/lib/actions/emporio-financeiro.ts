@@ -109,6 +109,8 @@ export type CartaoAReceberView = {
   customer_name: string | null;
   /** Frente B: o estado da parcela, o que caiu de fato (nulo sem conferência) e a diferença com sinal (nula sem conferência; 0 se conferida sem diferença). */
   status: EstadoDaParcela;
+  /** Q377: conferida pela antecipação pontual viva. A conferência só some desfazendo a antecipação, então a tela troca o Desfazer por uma explicação. */
+  conferida_pela_antecipacao: boolean;
   confirmed_net: number | null;
   adjustment: number | null;
 };

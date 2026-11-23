@@ -242,11 +242,104 @@ async function secao3() {
   }
 }
 
+async function secao6() {
+  console.log("\n6. Parcela conferida pela antecipação: o desfazer some, a explicação aparece (Q377)");
+  const { prisma, prismaForTenant, scoped } = await import("@/lib/prisma");
+  const { hojeEmBrasilia } = await import("@/lib/emporio/cartao");
+  const C: Dado = await import("@/lib/actions/emporio-catalogo");
+  const E: Dado = await import("@/lib/actions/emporio-estoque");
+  const V: Dado = await import("@/lib/actions/emporio-vendas");
+  const X: Dado = await import("@/lib/actions/emporio-caixa");
+  const K: Dado = await import("@/lib/actions/emporio-cartoes");
+  const F: Dado = await import("@/lib/actions/emporio-financeiro");
+  const CC: Dado = await import("@/lib/actions/emporio-conferencia-cartao");
+  const AN: Dado = await import("@/lib/actions/emporio-antecipacao");
+  const { abrirTurnoDeTeste } = await import("./_emporio-turno");
+
+  const hoje = hojeEmBrasilia();
+  const stamp = Date.now();
+  const t = await prisma.tenant.create({
+    data: { name: `M129f ${stamp}`, document: `M129F${stamp}`.slice(0, 14), plan: "grupo", status: "trial", trial_ends_at: new Date(Date.now() + DIA) },
+  });
+  try {
+    const u = await prisma.user.create({
+      data: { tenant_id: t.id, name: "M129f dono", email: `m129f-${stamp}@teste.local`, password_hash: "x", role: "OWNER", ...papelDeFixture("OWNER") },
+    });
+    const dono = { id: u.id, role: "OWNER" as const };
+    const db: Dado = prismaForTenant(t.id);
+    const cru: Dado = prisma;
+    const cat = await db.productCategory.create({ data: scoped({ name: "M129f categoria" }) });
+    const loja = (await C.criarEstabelecimentoAction(db, dono, { name: "M129f Loja", kind: "ponto_venda" })).data;
+    const turno = await abrirTurnoDeTeste(db, dono, loja.id);
+    const conta = (await X.criarContaAction(db, dono, { name: `M129f Conta ${stamp}`, bank: "B" })).data.id as string;
+    const adq = (await K.criarAdquirenteAction(db, dono, { name: `M129f Adq ${stamp}` })).data.id as string;
+    const taxa = await K.criarTaxaAction(db, dono, {
+      establishment_id: loja.id, acquirer_id: adq, brand: "qualquer", kind: "credito_vista", installments_from: 1, installments_to: 1,
+      fee_pct: 2, days: 30, bank_account_id: conta, valid_from: new Date("2020-01-01T12:00:00.000Z"),
+    });
+    if (!taxa.ok) throw new Error(`taxa: ${j(taxa)}`);
+    const prod = (await C.criarProdutoEmporioAction(db, dono, { name: `M129f Milho ${stamp}`, category_id: cat.id, base_unit: "saca", content_qty: 20, content_unit: "quilograma" })).data;
+    const ap = prod.presentations[0].id as string;
+    await C.definirPrecoAction(db, dono, { establishment_id: loja.id, presentation_id: ap, price: 100 });
+    await E.implantarEstoqueAction(db, dono, { establishment_id: loja.id, emporio_product_id: prod.id, sealed: [], loose_qty: 50, unit_cost: 10 });
+
+    const cliente = await db.emporioCustomer.create({ data: scoped({ name: "M129f Cliente" }) });
+    let k = 0;
+    const vender = async () => {
+      const r = await V.venderAction(db, dono, {
+        operation_key: `m129f-${stamp}-${(k += 1)}`, establishment_id: loja.id, customer_id: cliente.id, cash_register_id: turno.cash_register_id,
+        items: [{ emporio_product_id: prod.id, presentation_id: ap, quantity: 1 }],
+        payments: [{ kind: "credito_vista", amount: 100, acquirer_id: adq, brand: "visa_master" }],
+      });
+      if (!r.ok) throw new Error(`venda: ${j(r)}`);
+      const linhas = await cru.cardReceivable.findMany({ where: { sale_id: r.data.id } });
+      if (linhas.length !== 1) throw new Error(`esperava 1 parcela, vieram ${linhas.length}`);
+      return linhas[0].id as string;
+    };
+    const daLista = async (id: string) => {
+      const r = await F.listarContasAReceberAction(db, dono, {});
+      if (!r.ok) throw new Error(`a receber: ${j(r)}`);
+      return r.data.cards.find((c: Dado) => c.id === id);
+    };
+
+    console.log("  (a) conferida pela antecipação pontual");
+    const pa = await vender();
+    const opa = await AN.anteciparAction(db, dono, { receivable_ids: [pa], operated_on: hoje, received_net: 95 });
+    check("antecipar pela action passa", opa.ok, j(opa));
+    const va = await daLista(pa);
+    check("a parcela está conferida", va?.status === "conferida", j(va?.status));
+    check("conferida_pela_antecipacao é verdadeiro", va?.conferida_pela_antecipacao === true, j(va?.conferida_pela_antecipacao));
+    const da = await CC.desfazerConferenciaAction(db, dono, pa, { reason: "teste" });
+    check("a action recusa com o mesmo critério (CONFERIDA_PELA_ANTECIPACAO)", !da.ok && da.code === "CONFERIDA_PELA_ANTECIPACAO", j(da));
+
+    console.log("  (b) conferida à mão");
+    const pb = await vender();
+    await cru.cardReceivable.update({ where: { id: pb }, data: { effective_on: new Date(hoje.getTime() - 2 * DIA) } });
+    const cb = await CC.conferirParcelaAction(db, dono, pb, { received_amount: 97 });
+    check("conferir pela action passa", cb.ok, j(cb));
+    check("conferida_pela_antecipacao é falso (e presente)", cb.ok && cb.data.conferida_pela_antecipacao === false, j(cb.ok ? cb.data.conferida_pela_antecipacao : cb));
+    const vb = await daLista(pb);
+    check("na lista também: conferida e falso", vb?.status === "conferida" && vb?.conferida_pela_antecipacao === false, j([vb?.status, vb?.conferida_pela_antecipacao]));
+
+    console.log("  (c) antecipação desfeita");
+    const opId = opa.ok ? (opa.data.id as string) : "x";
+    const dd = await AN.desfazerAntecipacaoAction(db, dono, opId);
+    check("desfazer a antecipação pela action passa", dd.ok, j(dd));
+    const vc = await daLista(pa);
+    check("a parcela volta sem conferência e o campo é falso", vc?.status !== "conferida" && vc?.conferida_pela_antecipacao === false, j([vc?.status, vc?.conferida_pela_antecipacao]));
+  } catch (e) {
+    check("a seção 6 terminou sem exceção", false, e instanceof Error ? e.stack ?? e.message : String(e));
+  } finally {
+    await limparTenant(t.id, "6");
+  }
+}
+
 async function main() {
   const { prisma } = await import("@/lib/prisma");
   console.log("🧾 M129: Módulo 39 (Meu Empório), decisões de 23/11\n");
   await secao2();
   await secao3();
+  await secao6();
   await prisma.$disconnect();
   console.log(`\nChecagens: ${total}`);
   console.log(falhas === 0 ? "\n✅ M129 (Módulo 39, decisões de 23/11): passou." : `\n❌ M129 (Módulo 39, decisões de 23/11): ${falhas} afirmação(ões) falharam.`);

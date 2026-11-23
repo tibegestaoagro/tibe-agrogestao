@@ -238,7 +238,12 @@ export function CartoesAReceber({
                     {podeConferir && (
                       <TableCell>
                         {(p.status === "a_conferir" || p.status === "atrasada") && <ConferirParcelaForm parcela={p} />}
-                        {p.status === "conferida" && <DesfazerConferenciaForm parcela={p} />}
+                        {p.status === "conferida" &&
+                          (p.conferida_pela_antecipacao ? (
+                            <p className="text-xs text-texto-secundario">Conferida pela antecipação: para desfazer, desfaça a antecipação.</p>
+                          ) : (
+                            <DesfazerConferenciaForm parcela={p} />
+                          ))}
                       </TableCell>
                     )}
                   </TableRow>
