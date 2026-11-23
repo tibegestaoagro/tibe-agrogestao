@@ -627,7 +627,11 @@ async function leituraFinanceiraDoCliente(
   const doFiado = fiado.ok ? fiado.data[0] : undefined;
   const carteira = cheques.filter((c) => c.status === "recebido" || c.status === "depositado");
   const abertos = boletos.filter((b) => b.status === "aberto");
+  // Q375: o recebimento com data futura ainda não caiu: segue no Em aberto até o dia chegar. O fiado
+  // agendado já saiu do `owed` (a conta quita na gravação), e o cheque e o boleto saíram da carteira.
+  const agendadoCent = itens.filter((i) => i.scheduled).reduce((s, i) => s + centavos(i.amount), 0);
   const emAbertoCent =
+    agendadoCent +
     centavos(doFiado?.owed ?? 0) +
     carteira.reduce((s, c) => s + centavos(Number(c.amount)), 0) +
     abertos.reduce((s, b) => s + centavos(Number(b.amount)), 0);

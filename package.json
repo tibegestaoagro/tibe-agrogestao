@@ -109,6 +109,7 @@
     "test:m126": "tsx scripts/m126-emporio-transacao-na-distancia.test.ts",
     "test:m127": "tsx scripts/m127-emporio-data-da-baixa.test.ts",
     "test:m128": "tsx scripts/m128-emporio-sobras-sem-agromax.test.ts",
+    "test:m129": "tsx scripts/m129-emporio-decisoes-pendentes.test.ts",
     "test:isolation": "tsx scripts/tenant-isolation.test.ts",
     "test:docs-api": "tsx scripts/docs-api-completeness.test.ts",
     "test:nav": "tsx scripts/nav-build.test.ts",
