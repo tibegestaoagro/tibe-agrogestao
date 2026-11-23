@@ -25,12 +25,12 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-23. **Decisões pendentes do Empório: pronto na
-  branch `emporio-decisoes-pendentes`, NÃO mergeado** (spec e plano
-  `2026-11-23-emporio-decisoes-pendentes`, Q374 a Q385, suíte `m129`).
-  ⚠️ Tem migração: `20261123120000_emporio_devolucao_credito_franqueado`
-  (coluna `franchisee_credit` em `EmporioSaleReturn`), aplicada só no Docker.
-  **Antes do push na main, aplicar no Neon (URL Direct), com autorização.**
+- Atualizado em: 2026-11-23. **Decisões pendentes do Empório: em produção
+  desde 23/11** (merge `576c0f13`, autorizado na conversa, deploy conferido;
+  spec e plano `2026-11-23-emporio-decisoes-pendentes`, Q374 a Q385, suíte
+  `m129`). Migração `20261123120000_emporio_devolucao_credito_franqueado`
+  (coluna `franchisee_credit` em `EmporioSaleReturn`) aplicada no Neon antes
+  do push; `migrate status` em dia.
   Entregue: D1 a D7 confirmadas; ficha conta agendado no Em aberto e não no
   Vencido (Q375, Q385); antecipação esconde o Desfazer da parcela (Q377); Caixa
   escolhe o franqueado (Q378); devolução com crédito devolve o valor do papel e
@@ -70,8 +70,8 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 ### Abertas das entregas de 09 a 13/11 (todas em produção)
 
 - Contas PIX (Q310 a Q318): na Da Mata só a `CAIXA DAMATTA - PIX - 1076-6`.
-- Franqueado (Q300 a Q309): as três decisões respondidas em 23/11 (Q378 a
-  Q380, na branch acima). ⚠️ Cancelar compra anterior a uma contagem faz a
+- Franqueado (Q300 a Q309): as três decisões em produção desde 23/11 (Q378 a
+  Q380). ⚠️ Cancelar compra anterior a uma contagem faz a
   contagem tirar a mais (candidato a dívida).
 - Cartão (Q250 a Q267): abertas 2.60, 2.62, 2.63; a entrega 4 depende do
   extrato real da Stone.
@@ -83,7 +83,7 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
    os produtos de granel. Vídeo em `docs/financeiro-reuniao/` (fora do git).
    Contas PIX: a Agromax cadastra as contas PIX das lojas e do site (CNPJ,
    favorecido, onde vale) e define a padrão de cada loja.
-   Franqueado: depois do merge da branch de 23/11, a Agromax testa (Caixa
+   Franqueado: em produção desde 23/11, a Agromax testa (Caixa
    escolhe, devolução com crédito). A Agromax testa o custo único (contar,
    depois lançar a compra).
 1. Na Agromax: criar a regra por apresentação (FRANQUIA) e editar e cancelar um orçamento real; conferir o boleto e o "Em nome de" numa venda real.
@@ -197,4 +197,4 @@ relatórios em [agente-whatsapp/](agente-whatsapp/), detalhe em
 
 ## Últimas rodadas
 
-- 23/11: decisões pendentes do Empório na branch (18/11 e 20/11 no histórico).
+- 23/11: decisões pendentes do Empório em produção, Neon, merge e push autorizados na conversa (18/11 e 20/11 no histórico).
