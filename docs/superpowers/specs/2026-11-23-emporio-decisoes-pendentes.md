@@ -1,4 +1,4 @@
-# Empório: as decisões pendentes de 23/11 (Q374 a Q384)
+# Empório: as decisões pendentes de 23/11 (Q374 a Q385)
 
 Origem: conversa de 23/11/2026 com o usuário sobre as demandas em aberto
 (dívida 5.31, pendências do Empório de 05/11, decisões do franqueado de 13/11 e
@@ -46,6 +46,7 @@ produção (só leitura).
 | Q382 | Venda nascida de orçamento **fica com o cliente do orçamento**; outro cliente é recusado (422, `customer_id`) | Q187 (b) |
 | Q383 | O preço orçado vale se o orçamento estiver **válido hoje**, qualquer que seja o `sold_at` enviado | Q187 (a) |
 | Q384 | O orçamento **recusa a mesma apresentação em duas linhas** (422), ao salvar e ao editar | Q187 (d); nenhum orçamento de produção é afetado |
+| Q385 | Recebimento **agendado** (data de hoje em diante) de uma dívida já vencida **sai do Vencido**: aparece só no Em aberto, com o selo Agendado, até o dia chegar | Decisão do usuário em 23/11, sobre a Q375; é o comportamento do código |
 
 As pontas (c) e (e) da Q187 ficam como estão: orçamento sem vendedor usa a
 regra normal, e a troca anula o `quote_id` da venda nova.

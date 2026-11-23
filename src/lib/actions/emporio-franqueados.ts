@@ -327,7 +327,8 @@ export async function lerFranqueadoAction(
     ...devolucoes.map((d): StatementLine => ({
       kind: "devolucao",
       date: d.returned_at.toISOString(),
-      amount: -(decToNum(d.franchisee_credit) ?? 0),
+      // Positivo como o pagamento: o `kind` diz o efeito (credito soma; pagamento e devolucao subtraem).
+      amount: decToNum(d.franchisee_credit) ?? 0,
       sale_id: d.sale.id,
       sale_number: d.sale.number,
       payment_id: null,

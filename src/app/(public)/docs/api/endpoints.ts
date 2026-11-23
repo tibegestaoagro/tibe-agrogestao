@@ -958,7 +958,7 @@ export const GROUPS: Group[] = [
         method: "GET",
         path: "/api/v1/emporio/franchisees/:id",
         auth: "Sessão · emporio:read · dono, gerente geral, gestor e vendedor (o caixa: 403 `FORBIDDEN`) · perfil emporio · recurso `emporio` liberado",
-        description: "O franqueado com o extrato (Q304): `statement` por data, com `kind` `credito` (uma venda não cancelada com crédito: `sale_id`, `sale_number`) ou `pagamento` (`payment_id`, `paid_from` com a loja ou a conta de onde saiu, `notes`). Outra conta ou inexistente: 404.",
+        description: "O franqueado com o extrato (Q304): `statement` por data, com `kind` `credito` (uma venda não cancelada com crédito: `sale_id`, `sale_number`), `pagamento` (`payment_id`, `paid_from` com a loja ou a conta de onde saiu, `notes`) ou `devolucao` (o crédito que voltou ao cliente numa devolução da venda, Q379: `sale_id`, `sale_number`). O `amount` é sempre positivo e o `kind` diz o efeito: `credito` soma ao saldo, `pagamento` e `devolucao` subtraem. `balance` = créditos menos pagamentos menos devoluções. Outra conta ou inexistente: 404.",
         response: `200
 { "data": { "id": "cl...", "name": "João da Franquia", "phone": "(38) 99999-0000", "document": null, "notes": null, "archived_at": null, "balance": 6, "statement": [{ "kind": "credito", "date": "2026-11-11T14:00:00.000Z", "amount": 10, "sale_id": "cl...", "sale_number": 12, "payment_id": null, "paid_from": null, "notes": null }, { "kind": "pagamento", "date": "2026-11-12T10:00:00.000Z", "amount": 4, "sale_id": null, "sale_number": null, "payment_id": "cl...", "paid_from": { "establishment_id": "cl...", "establishment_name": "AGROMAX", "bank_account_id": null, "bank_account_name": null }, "notes": null }] }, "meta": {} }`,
       },

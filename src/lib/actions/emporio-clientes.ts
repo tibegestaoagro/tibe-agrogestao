@@ -487,7 +487,9 @@ const diaIso = (d: Date) => d.toISOString().slice(0, 10);
  * O lado financeiro do cliente (Q347), nas lojas que o ator vê.
  *
  * Em aberto: fiado aberto (o saldo de cada lançamento, parcelas de acordo inclusive), cheques em
- * carteira (recebido ou depositado) e boletos abertos. Vencido: a parte disso com data antes de hoje.
+ * carteira (recebido ou depositado) e boletos abertos. Vencido: a parte disso com data antes de hoje,
+ * SEM o que tem recebimento agendado (data de hoje em diante): dívida já vencida com recebimento
+ * agendado sai do Vencido e fica só no Em aberto, com o selo Agendado (Q385).
  * Recebido: os pagamentos da venda em dinheiro, PIX e cartão (na data da venda), os recebimentos de
  * fiado, os boletos pagos e os cheques compensados; cheque em carteira ou devolvido não conta, venda
  * cancelada não conta, e a devolução em dinheiro abate. `itens` é a lista dos recebimentos (o cheque

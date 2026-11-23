@@ -130,6 +130,32 @@ async function secao2() {
       check("o Recebido soma os três (90)", r.recebido === 90, String(r.recebido));
       check("em aberto mais recebido é o total vendido (150)", r.em_aberto + r.recebido === 150, `${r.em_aberto} + ${r.recebido}`);
     }
+
+    console.log("  (c) Q385: dívida já vencida, recebida inteira com data futura, sai do Vencido e fica no Em aberto");
+    const venc = await db.emporioCustomer.create({ data: scoped({ name: "M129b vencido" }) });
+    const rvv = await V.venderAction(db, dono, {
+      operation_key: `m129b-venc-${stamp}`, establishment_id: loja.id, customer_id: venc.id, cash_register_id: turno.cash_register_id,
+      items: [{ emporio_product_id: prod.id, presentation_id: ap, quantity: 1 }],
+      payments: [{ kind: "fiado", amount: 150, due_date: hoje }],
+    });
+    check("a venda no fiado passa", rvv.ok, j(rvv));
+    const entradaV = await db.financialEntry.findFirst({ where: { emporio_customer_id: venc.id } });
+    await db.financialEntry.update({ where: { id: entradaV.id }, data: { due_date: new Date(hoje.getTime() - 3 * DIA) } });
+    const antesV = await CL.lerFicha(db, dono, venc.id);
+    check("antes do recebimento, o fiado de 150 está vencido", antesV.ok && antesV.data.resumo.vencido === 150, j(antesV.ok ? antesV.data.resumo : antesV));
+    const rfv = await X.receberFiadoAction(db, dono, {
+      operation_key: `m129b-venc-rec-${stamp}`, customer_id: venc.id, establishment_id: loja.id, amount: 150, kind: "pix",
+      bank_account_id: conta, entry_id: entradaV.id, received_on: iso(amanha),
+    });
+    check("receber o fiado inteiro com data de amanhã passa", rfv.ok, j(rfv));
+    const depoisV = await CL.lerFicha(db, dono, venc.id);
+    check("a ficha devolve ok", depoisV.ok, j(depoisV));
+    if (depoisV.ok) {
+      const r = depoisV.data.resumo;
+      check("o Em aberto inclui o valor agendado (150)", r.em_aberto === 150, String(r.em_aberto));
+      check("o Vencido sai: 0 (o agendado só aparece no Em aberto)", r.vencido === 0, String(r.vencido));
+      check("o Recebido ainda não conta: 0", r.recebido === 0, String(r.recebido));
+    }
   } catch (e) {
     check("a seção 2 terminou sem exceção", false, e instanceof Error ? e.stack ?? e.message : String(e));
   } finally {
@@ -329,9 +355,9 @@ async function secao4() {
     check("tudo devolvido: saldo 0", sa.balance === 0, String(sa.balance));
     const linhasDev = sa.statement.filter((l: Dado) => l.kind === "devolucao");
     check(
-      "o extrato tem duas linhas de devolução da venda, negativas (-6 e -4)",
+      "o extrato tem duas linhas de devolução da venda, com valor positivo (4 e 6): o kind diz que reduz o saldo",
       linhasDev.length === 2 && linhasDev.every((l: Dado) => l.sale_id === va.id && l.sale_number === va.number) &&
-        linhasDev.map((l: Dado) => l.amount).sort((x: number, y: number) => x - y).join() === "-6,-4",
+        linhasDev.map((l: Dado) => l.amount).sort((x: number, y: number) => x - y).join() === "4,6",
       j(linhasDev),
     );
     const hist = await db.emporioAuditLog.findMany({ where: { action: "venda.devolver", target_id: va.id } });
@@ -349,6 +375,21 @@ async function secao4() {
       check("a soma é exatamente a parte do item (10,00)", Math.round((b1.data.franchisee_credit + b2.data.franchisee_credit) * 100) === 1000);
     }
     check("saldo 0", (await saldo(fb)).balance === 0);
+
+    console.log("  (b2) devolver 1, 1 e 1 de 3 com crédito 10,00: o centavo acumulado fecha na última (Q379)");
+    const fb2 = await franqueado("Bia");
+    const vb2 = await vender([item(p30, 3)], dinheiroDe(100), { franchisee_id: fb2, franchisee_credit: 10 });
+    const t1 = await devolver(vb2.id, vb2.items[0].id, 1);
+    const t2 = await devolver(vb2.id, vb2.items[0].id, 1);
+    const t3 = await devolver(vb2.id, vb2.items[0].id, 1);
+    check("as três passam", t1.ok && t2.ok && t3.ok, j([t1, t2, t3]));
+    if (t1.ok && t2.ok && t3.ok) {
+      const partes = [t1, t2, t3].map((x) => x.data.franchisee_credit as number);
+      // O arredondamento ingênuo (round(10 * q / 3) em cada uma) daria 3,33 + 3,33 + 3,33 = 9,99.
+      check("as partes são 3,33, 3,34 e 3,33", partes.join() === "3.33,3.34,3.33", partes.join());
+      check("a soma é exatamente 10,00", partes.reduce((s, x) => s + Math.round(x * 100), 0) === 1000, partes.join());
+    }
+    check("saldo 0 depois das três", (await saldo(fb2)).balance === 0, String((await saldo(fb2)).balance));
 
     console.log("  (c) venda sem crédito: nada muda");
     const vc = await vender([item(p60)], dinheiroDe(60));
@@ -415,6 +456,28 @@ async function secao4() {
         check("o total comprado segue em valor de item (100 - 60 = 40, o crédito não é mercadoria)", r.total_comprado === 40, String(r.total_comprado));
       }
     }
+
+    console.log("  (h) Resultado do mês: o crédito devolvido é linha própria, nunca um recebido negativo");
+    const Res: Dado = await import("@/lib/actions/emporio-resultado");
+    const { hojeEmBrasilia } = await import("@/lib/emporio/cartao");
+    const mes = hojeEmBrasilia().toISOString().slice(0, 7);
+    const lerCredito = async () => {
+      const r = await Res.resultadoDaLojaAction(db, dono, { establishment_id: loja.id, month: mes });
+      if (!r.ok) throw new Error(`resultado: ${j(r)}`);
+      return r.data.franchisee_credit as { received: number; returned: number; paid: number };
+    };
+    const devolvidoEsperado = (await db.emporioSaleReturn.findMany({ select: { franchisee_credit: true } }))
+      .reduce((s: number, d: Dado) => s + Math.round(Number(d.franchisee_credit) * 100), 0);
+    const recebidoEsperado = (await db.emporioSale.findMany({ where: { status: "concluida" }, select: { franchisee_credit: true } }))
+      .reduce((s: number, v: Dado) => s + Math.round(Number(v.franchisee_credit) * 100), 0);
+    const antes = await lerCredito();
+    check("o recebido é só o das vendas (sem abater devolução)", Math.round(antes.received * 100) === recebidoEsperado, j([antes, recebidoEsperado]));
+    check("o devolvido é o das devoluções, positivo", Math.round(antes.returned * 100) === devolvidoEsperado && antes.returned > 0, j([antes, devolvidoEsperado]));
+    // O mês das devoluções sem nenhuma venda com crédito: as vendas vão para 40 dias atrás.
+    await db.emporioSale.updateMany({ data: { sold_at: new Date(Date.now() - 40 * DIA) } });
+    const semVenda = await lerCredito();
+    check("mês só com devoluções: recebido 0 (não negativo)", semVenda.received === 0, j(semVenda));
+    check("mês só com devoluções: o devolvido segue como linha própria", Math.round(semVenda.returned * 100) === devolvidoEsperado, j([semVenda, devolvidoEsperado]));
   } catch (e) {
     check("a seção 4 terminou sem exceção", false, e instanceof Error ? e.stack ?? e.message : String(e));
   } finally {

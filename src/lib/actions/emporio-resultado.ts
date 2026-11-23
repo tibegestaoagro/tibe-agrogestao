@@ -67,7 +67,7 @@ export type LojaDoResultadoView = {
   /** Frete de entrega (repasse): já dentro de `result`. */
   freight: { received: number; paid: number; difference: number };
   /** Q303: crédito de franqueado (repasse): informativo, fora de `result`. */
-  franchisee_credit: { received: number; paid: number };
+  franchisee_credit: { received: number; returned: number; paid: number };
   /** Despesa financeira "Antecipação de recebíveis" do mês: fora da margem, já dentro de `result`. */
   anticipation_costs: number;
   boleto_interest: number;
@@ -122,7 +122,7 @@ export type ResultadoDaLojaView = {
    * não cancelados da loja). Só informativo: o saldo é do franqueado, nada disso entra em vendas, custo,
    * margem nem `result`.
    */
-  franchisee_credit: { received: number; paid: number };
+  franchisee_credit: { received: number; returned: number; paid: number };
   /** Antecipação de recebíveis (despesa financeira): subtraída de `result`, fora da margem e de `variable_expenses`. */
   anticipation_costs: number;
   /** Q373: juros recebidos nos boletos pagos a mais no mês (pelo `paid_on`): somados a `result`. */
@@ -208,10 +208,10 @@ async function margemDaJanela(db: TenantPrismaClient, lojaId: string, j: Janela)
   const freteRecebidoCent = vendas.reduce((s, v) => s + centavos(decToNum(v.freight_amount) ?? 0), 0);
   const fretePagoCent = fretes.reduce((s, f) => s + centavos(decToNum(f.amount) ?? 0), 0);
   // Q303: o crédito do franqueado só é informado (recebido nas vendas, pago no período); não toca o resultado.
-  // Q379: o crédito devolvido com as devoluções do período sai do recebido, pela data da devolução (como o faturamento).
-  const creditoRecebidoCent =
-    vendas.reduce((s, v) => s + centavos(decToNum(v.franchisee_credit) ?? 0), 0) -
-    devolucoes.reduce((s, d) => s + centavos(decToNum(d.franchisee_credit) ?? 0), 0);
+  // Q379: o crédito devolvido com as devoluções do período é uma linha própria (`returned`, positivo), pela data
+  // da devolução (como o faturamento); nunca um "recebido" negativo. O líquido é recebido - devolvido - pago.
+  const creditoRecebidoCent = vendas.reduce((s, v) => s + centavos(decToNum(v.franchisee_credit) ?? 0), 0);
+  const creditoDevolvidoCent = devolucoes.reduce((s, d) => s + centavos(decToNum(d.franchisee_credit) ?? 0), 0);
   const pagamentosDeCredito = await db.emporioFranchiseePayment.findMany({
     where: { establishment_id: lojaId, canceled_at: null, paid_at: { gte: j.de, lt: j.ate } },
     select: { amount: true },
@@ -259,6 +259,7 @@ async function margemDaJanela(db: TenantPrismaClient, lojaId: string, j: Janela)
     freteRecebidoCent,
     fretePagoCent,
     creditoRecebidoCent,
+    creditoDevolvidoCent,
     creditoPagoCent,
     itensEstimados,
     embalagensProvisorias,
@@ -283,6 +284,7 @@ function somarMargens(ms: Margem[]): Margem {
     freteRecebidoCent: soma((m) => m.freteRecebidoCent),
     fretePagoCent: soma((m) => m.fretePagoCent),
     creditoRecebidoCent: soma((m) => m.creditoRecebidoCent),
+    creditoDevolvidoCent: soma((m) => m.creditoDevolvidoCent),
     creditoPagoCent: soma((m) => m.creditoPagoCent),
     itensEstimados: soma((m) => m.itensEstimados),
     embalagensProvisorias: soma((m) => m.embalagensProvisorias),
@@ -656,7 +658,7 @@ export async function resultadoDaLojaAction(
       paid: reais(m.fretePagoCent),
       difference: reais(freteDifCent),
     },
-    franchisee_credit: { received: reais(m.creditoRecebidoCent), paid: reais(creditoPagoCent) },
+    franchisee_credit: { received: reais(m.creditoRecebidoCent), returned: reais(m.creditoDevolvidoCent), paid: reais(creditoPagoCent) },
     anticipation_costs: reais(antecipacaoCent),
     boleto_interest: reais(boletoJurosCent),
     boleto_discount: reais(boletoDescontoCent),
@@ -683,7 +685,7 @@ export async function resultadoDaLojaAction(
           paid: reais(a.m.fretePagoCent),
           difference: reais(a.m.freteRecebidoCent - a.m.fretePagoCent),
         },
-        franchisee_credit: { received: reais(a.m.creditoRecebidoCent), paid: reais(a.m.creditoPagoCent) },
+        franchisee_credit: { received: reais(a.m.creditoRecebidoCent), returned: reais(a.m.creditoDevolvidoCent), paid: reais(a.m.creditoPagoCent) },
         anticipation_costs: reais(a.antecipacaoCent),
         boleto_interest: reais(a.boletoJurosCent),
         boleto_discount: reais(a.boletoDescontoCent),
