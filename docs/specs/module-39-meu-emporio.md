@@ -399,6 +399,7 @@ cliente real com as duas coisas vai precisar.
 | Q383 | O preço orçado vale se o orçamento estiver **válido hoje**, qualquer que seja o `sold_at` enviado. Detalhe em [a spec de 23/11](../superpowers/specs/2026-11-23-emporio-decisoes-pendentes.md) | Q187 (a) |
 | Q384 | O orçamento **recusa a mesma apresentação em duas linhas** (422, `items`), ao salvar e ao editar. Detalhe em [a spec de 23/11](../superpowers/specs/2026-11-23-emporio-decisoes-pendentes.md) | Q187 (d); nenhum orçamento de produção é afetado |
 | Q385 | Recebimento **agendado** (data de hoje em diante) de uma dívida já vencida **sai do Vencido** da ficha do cliente: fica só no Em aberto, com o selo Agendado. Detalhe em [a spec de 23/11](../superpowers/specs/2026-11-23-emporio-decisoes-pendentes.md) | Decisão do usuário em 23/11, sobre a Q375; é o comportamento do código |
+| Q386 | Com crédito de franqueado nas compras do cliente, a ficha mostra, perto do Recebido, a linha "O recebido inclui R$ X de crédito do franqueado." X é a soma do crédito das vendas não canceladas, líquida do crédito devolvido nas devoluções (`resumo.credito_franqueado`, campo aditivo). Os números existentes não mudam; sem crédito, nada aparece | Decisão do usuário em 23/11, sobre a Q303 (o Recebido inclui o crédito) |
 
 Design do desfazer acordo, do aviso por email e do recálculo do mês (Q275 a Q277) em
 [../superpowers/specs/2026-11-09-emporio-acordo-aviso-rateio-design.md](../superpowers/specs/2026-11-09-emporio-acordo-aviso-rateio-design.md).

@@ -595,6 +595,23 @@ async function prepararCorpo(
   if (!Array.isArray(input.items) || input.items.length === 0) {
     return fail("VALIDATION_ERROR", "Inclua ao menos um item no orçamento.", 422, "items");
   }
+
+  // Q384: a mesma apresentação em duas linhas é recusada; a pessoa junta numa só.
+  // Roda antes da precificação: a linha repetida é o primeiro erro a mostrar.
+  const vistas = new Set<string>();
+  for (const i of input.items) {
+    const apId = typeof i?.presentation_id === "string" ? i.presentation_id : "";
+    if (!apId) continue;
+    if (vistas.has(apId)) {
+      const repetido = typeof i.emporio_product_id === "string" && i.emporio_product_id
+        ? await db.emporioProduct.findFirst({ where: { id: i.emporio_product_id }, select: { product: { select: { name: true } } } })
+        : null;
+      const nome = repetido?.product.name ?? "A mesma apresentação";
+      return fail("VALIDATION_ERROR", `${nome} aparece em duas linhas: junte numa só.`, 422, "items");
+    }
+    vistas.add(apId);
+  }
+
   const precificados = await precificarItens(
     db,
     ator,
@@ -607,15 +624,6 @@ async function prepararCorpo(
     },
   );
   if (!precificados.ok) return precificados;
-
-  // Q384: a mesma apresentação em duas linhas é recusada; a pessoa junta numa só.
-  const vistas = new Set<string>();
-  for (const i of precificados.data.itens) {
-    if (vistas.has(i.presentation_id)) {
-      return fail("VALIDATION_ERROR", `${i.produto.product.name} aparece em duas linhas: junte numa só.`, 422, "items");
-    }
-    vistas.add(i.presentation_id);
-  }
 
   const notes = typeof input.notes === "string" && input.notes.trim() ? input.notes.trim() : null;
   return ok({

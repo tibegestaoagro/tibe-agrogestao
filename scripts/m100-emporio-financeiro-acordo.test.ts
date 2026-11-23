@@ -986,9 +986,10 @@ async function secao4() {
   const cli = await cliente(A, "Carimbo cartao");
   // A parcela vence no próximo dia útil depois da venda (days: 1) e o carimbo só aceita parcela que já caiu.
   // Ontem serve em dia útil; em feriado ou fim de semana recua até a parcela cair em hoje ou antes.
-  const { proximoDiaUtil } = await import("@/lib/emporio/dia-util");
+  // O vencimento vem da função do sistema (`datasDasParcelas`), a mesma que grava a parcela.
+  const { datasDasParcelas } = await import("@/lib/emporio/cartao");
   let diaVenda = new Date(`${somaDias(hojeStr, -1)}T12:00:00.000Z`);
-  while (proximoDiaUtil(new Date(Date.UTC(diaVenda.getUTCFullYear(), diaVenda.getUTCMonth(), diaVenda.getUTCDate() + 1))).toISOString().slice(0, 10) > hojeStr) {
+  while (datasDasParcelas(diaVenda, 1, 1)[0].toISOString().slice(0, 10) > hojeStr) {
     diaVenda = new Date(diaVenda.getTime() - DIA);
   }
   await vender(A, cli, 10, [{ kind: "credito_vista", amount: 100 }], { sold_at: diaVenda });

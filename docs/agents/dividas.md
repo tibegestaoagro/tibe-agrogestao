@@ -331,19 +331,22 @@ Registrado em 07/11/2026, na branch `emporio-entrega-e-romaneio` (plano 3 de 3).
 
 ### 5.32 Empório, decisões pendentes de 23/11 (Q374 a Q384): o que ficou para depois
 
-Registrado em 23/11/2026, na branch `emporio-decisoes-pendentes` (spec
-`docs/superpowers/specs/2026-11-23-emporio-decisoes-pendentes.md`).
+Registrado em 23/11/2026 (spec
+`docs/superpowers/specs/2026-11-23-emporio-decisoes-pendentes.md`), em produção
+desde 23/11. As sobras abaixo saíram na branch `next-16-4-6-sobras-5-32`.
 
-- **A migração `20261123120000_emporio_devolucao_credito_franqueado` precisa ir
-  ao Neon no merge** (invariante 3: migração antes do push, URL Direct).
-- A ficha do cliente mostra o comprado em valor de item e o recebido com o
-  crédito do franqueado, o que pode surpreender numa venda com crédito. É
-  coerente com a Q303; hoje nenhuma venda de produção tem crédito.
-- A checagem de linha repetida do orçamento roda depois da precificação:
-  numa entrada com apresentação repetida e outro defeito, o outro erro aparece
-  primeiro.
-- A fixture do `m100` reimplementa a regra de vencimento do cartão em vez de
-  chamar a do sistema; se a regra mudar, a fixture precisa mudar junto.
+- **Fechado em 23/11:** a migração
+  `20261123120000_emporio_devolucao_credito_franqueado` foi aplicada no Neon
+  antes do push do merge `576c0f13` (invariante 3).
+- **Fechado em 23/11 (Q386):** a ficha do cliente mostra, perto do Recebido, a
+  linha "O recebido inclui R$ X de crédito do franqueado." quando há crédito
+  (`resumo.credito_franqueado`, líquido das devoluções, campo aditivo); os
+  números existentes não mudam. Era a surpresa de comprado em valor de item e
+  recebido com o crédito (coerente com a Q303).
+- **Fechado em 23/11:** a checagem de linha repetida do orçamento (Q384) agora
+  roda antes da precificação; o teste da `m129` usa repetida mais quantidade zero.
+- **Fechado em 23/11:** a fixture do `m100` chama `datasDasParcelas`, a função do
+  sistema, em vez de reimplementar o vencimento do cartão.
 
 ### 5.31 Empório, sobras sem a Agromax: o que ficou para depois
 

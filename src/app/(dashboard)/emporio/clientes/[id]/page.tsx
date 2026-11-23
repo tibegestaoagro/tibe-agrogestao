@@ -245,6 +245,11 @@ export default async function ClienteFichaPage({ params }: { params: Promise<{ i
           <p className="text-xl font-semibold text-texto">{reaisBr(c.resumo.recebido)}</p>
         </div>
       </section>
+      {c.resumo.credito_franqueado > 0 && (
+        <p className="-mt-3 text-sm text-texto-secundario">
+          O recebido inclui {reaisBr(c.resumo.credito_franqueado)} de crédito do franqueado.
+        </p>
+      )}
 
       {credito && (
         <CreditoDoCliente

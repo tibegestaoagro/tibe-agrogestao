@@ -254,6 +254,15 @@ async function secao3() {
       j(rs),
     );
     check("nenhum orçamento gravado com a chave", (await db.emporioQuote.count({ where: { operation_key: { contains: "-dup-" } } })) === 0);
+    // Linha repetida E uma linha que a precificação recusaria (quantidade zero): a repetida vem primeiro.
+    const rdp = await O.salvarOrcamentoAction(db, dono, {
+      operation_key: chave("dup2"), establishment_id: loja.id, customer_id: A.id, items: [item(0), item(2)],
+    });
+    check(
+      "repetida com quantidade zero: recusa a linha repetida, não a quantidade",
+      !rdp.ok && rdp.status === 422 && rdp.field === "items" && rdp.message === `${prod.name ?? `M129c Milho ${stamp}`} aparece em duas linhas: junte numa só.`,
+      j(rdp),
+    );
     const qe = await orcar();
     const re = await O.editarOrcamentoAction(db, dono, qe.id, { establishment_id: loja.id, customer_id: A.id, items: dup });
     check("editar para isso: 422 em items", !re.ok && re.status === 422 && re.field === "items", j(re));
@@ -408,6 +417,26 @@ async function secao4() {
     const dd = await devolver(vd.id, itemDe(vd, p60.id), 1);
     check("devolver passa", dd.ok, j(dd));
     check("saldo -6", (await saldo(fd)).balance === -6, String((await saldo(fd)).balance));
+
+    console.log("  (d2) a ficha do cliente diz quanto do Recebido é crédito do franqueado (Q386)");
+    const CLX: Dado = await import("@/lib/actions/emporio-clientes");
+    const comCredito = await db.emporioCustomer.create({ data: scoped({ name: "M129d Com credito" }) });
+    const semCredito = await db.emporioCustomer.create({ data: scoped({ name: "M129d Sem credito" }) });
+    const fq = await franqueado("Quita");
+    const vq = await vender([item(p60), item(p40)], dinheiroDe(110), { franchisee_id: fq, franchisee_credit: 10, customer_id: comCredito.id });
+    const fichaAntes = await CLX.lerFicha(db, dono, comCredito.id, 100);
+    check("a ficha lê", fichaAntes.ok, j(fichaAntes));
+    if (fichaAntes.ok) check("sem devolução: o crédito é 10", fichaAntes.data.resumo.credito_franqueado === 10, String(fichaAntes.data.resumo.credito_franqueado));
+    const dq = await devolver(vq.id, itemDe(vq, p60.id), 1);
+    check("devolução parcial (o item de 60) passa", dq.ok, j(dq));
+    const fichaDepois = await CLX.lerFicha(db, dono, comCredito.id, 100);
+    if (fichaDepois.ok) {
+      check("com a devolução parcial no meio: 10 menos 6 = 4", fichaDepois.data.resumo.credito_franqueado === 4, String(fichaDepois.data.resumo.credito_franqueado));
+      check("o Recebido segue o de antes (110 menos os 66 devolvidos = 44)", fichaDepois.data.resumo.recebido === 44, String(fichaDepois.data.resumo.recebido));
+    } else check("a ficha lê depois da devolução", false, j(fichaDepois));
+    await vender([item(p30)], dinheiroDe(30), { customer_id: semCredito.id });
+    const fichaSem = await CLX.lerFicha(db, dono, semCredito.id, 100);
+    check("cliente sem crédito: credito_franqueado é 0", fichaSem.ok && fichaSem.data.resumo.credito_franqueado === 0, j(fichaSem.ok ? fichaSem.data.resumo : fichaSem));
 
     console.log("  (e) abater do fiado leva o valor com a parte do crédito");
     const fe = await franqueado("Edu");

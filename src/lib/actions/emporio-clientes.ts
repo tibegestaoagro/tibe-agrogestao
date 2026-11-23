@@ -299,6 +299,8 @@ export type ClienteFichaView = ClienteView & {
     em_aberto: number;
     vencido: number;
     recebido: number;
+    /** Q386: quanto do `recebido` é crédito do franqueado (vendas não canceladas, líquido das devoluções). Zero sem crédito. */
+    credito_franqueado: number;
   };
   vendas: {
     id: string;
@@ -721,6 +723,13 @@ export async function lerFicha(
   const concluidas = { customer_id: id, status: "concluida" as const, ...daLoja };
   const vendido = await db.emporioSale.aggregate({ where: concluidas, _sum: { net_amount: true }, _max: { sold_at: true } });
   const devolvido = await db.emporioSaleReturn.aggregate({ where: { sale: concluidas }, _sum: { amount: true } });
+  // Q386: o crédito do franqueado que está dentro do Recebido: o das vendas não canceladas, menos o devolvido.
+  const creditoVendido = await db.emporioSale.aggregate({ where: concluidas, _sum: { franchisee_credit: true } });
+  const creditoDevolvido = await db.emporioSaleReturn.aggregate({ where: { sale: concluidas }, _sum: { franchisee_credit: true } });
+  const creditoCent = Math.max(
+    0,
+    centavos(Number(creditoVendido._sum.franchisee_credit ?? 0)) - centavos(Number(creditoDevolvido._sum.franchisee_credit ?? 0)),
+  );
   const ativas = await db.emporioSale.count({ where: { ...concluidas, returns: { none: {} } } });
   const donos = [...new Set(vendas.map((v) => v.seller_user_id ?? v.sold_by_user_id).filter((u): u is string => !!u))];
   const usuarios = donos.length ? await db.user.findMany({ where: { id: { in: donos } }, select: { id: true, name: true } }) : [];
@@ -762,6 +771,7 @@ export async function lerFicha(
       em_aberto: financeiro.emAbertoCent / 100,
       vencido: financeiro.vencidoCent / 100,
       recebido: financeiro.recebidoCent / 100,
+      credito_franqueado: creditoCent / 100,
     },
     vendas: linhas,
     orcamentos: orcamentos.map((q) => ({
