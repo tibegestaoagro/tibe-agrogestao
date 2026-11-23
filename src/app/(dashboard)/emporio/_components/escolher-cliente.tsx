@@ -47,7 +47,10 @@ export function EscolherCliente({
   onEscolher,
   permitirCadastro = true,
   aviso = null,
+  travado = false,
 }: {
+  /** Venda que nasce de orçamento: o cliente é o do orçamento, sem "Trocar" (Q382). */
+  travado?: boolean;
   campo: CampoDoField;
   consumidorFinal: { id: string; name: string };
   valor: ClienteEscolhido | null;
@@ -114,9 +117,13 @@ export function EscolherCliente({
                 </p>
               )}
             </div>
-            <Button type="button" variant="outline" size="sm" aria-label="Trocar cliente" onClick={() => setJanela(true)}>
-              Trocar
-            </Button>
+            {travado ? (
+              <p className="text-xs text-texto-secundario">Cliente do orçamento</p>
+            ) : (
+              <Button type="button" variant="outline" size="sm" aria-label="Trocar cliente" onClick={() => setJanela(true)}>
+                Trocar
+              </Button>
+            )}
           </div>
           {pendencia && (
             <div className="flex flex-wrap items-center gap-2 rounded-md bg-atencao-suave px-3 py-2 text-sm text-atencao-tinta">

@@ -497,7 +497,10 @@ export function VendaCampos({
   depoisDoFrete,
   descontoNoTotal,
   autorizacaoHerdada,
+  clienteTravado,
 }: {
+  /** Q382: venda que nasce de orçamento: o cliente é o do orçamento e não se troca. */
+  clienteTravado?: boolean;
   /** Q329: o campo "Desconto no total (R$)": só o balcão e o orçamento (a troca não tem). */
   descontoNoTotal?: boolean;
   /** O desconto já vem autorizado (orçamento autorizado, venda editada): a tela não pede de novo antes de o servidor recusar. */
@@ -831,6 +834,7 @@ export function VendaCampos({
             }}
             permitirCadastro={!!permitirCadastro}
             aviso={avisoDoCliente ?? null}
+            travado={!!clienteTravado}
           />
         )}
       </Field>

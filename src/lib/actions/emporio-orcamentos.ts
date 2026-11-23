@@ -608,6 +608,15 @@ async function prepararCorpo(
   );
   if (!precificados.ok) return precificados;
 
+  // Q384: a mesma apresentação em duas linhas é recusada; a pessoa junta numa só.
+  const vistas = new Set<string>();
+  for (const i of precificados.data.itens) {
+    if (vistas.has(i.presentation_id)) {
+      return fail("VALIDATION_ERROR", `${i.produto.product.name} aparece em duas linhas: junte numa só.`, 422, "items");
+    }
+    vistas.add(i.presentation_id);
+  }
+
   const notes = typeof input.notes === "string" && input.notes.trim() ? input.notes.trim() : null;
   return ok({
     vendedor: vendedor.data,

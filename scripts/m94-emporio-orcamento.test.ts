@@ -598,10 +598,10 @@ async function secao3(c: Dado) {
   const qD2 = await orcarP(); // orçado a 30
   await db.emporioQuote.update({ where: { id: qD2.id }, data: { valid_until: ontem } });
   await precoHoje(33);
-  const vD2 = await faturar(vend1, qD2.id, 60, { sold_at: new Date(`${ymd(ontem)}T23:50:00-03:00`) });
+  const vD2 = await faturar(vend1, qD2.id, 66, { sold_at: new Date(`${ymd(ontem)}T23:50:00-03:00`) });
   check(
-    "válido até ontem, venda lançada ontem às 23h50: vale o orçado 30 (a validade é contra o dia da venda)",
-    vD2.ok && vD2.data.items[0].suggested_price === 30,
+    "válido até ontem, venda lançada ontem às 23h50: vencido, vale o de hoje 33 (Q383: só o dia de hoje decide, não o sold_at)",
+    vD2.ok && vD2.data.items[0].suggested_price === 33,
     j(vD2.ok ? vD2.data.items : vD2),
   );
   const qD3 = await orcarP(); // orçado a 33

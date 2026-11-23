@@ -907,19 +907,20 @@ type OrcamentoAFaturar = {
   franchisee_credit: number;
   /** Q326: o frete do orçamento; a venda herda quando o corpo não traz `freight_amount`. */
   freight_amount: number;
+  /** Q382: o cliente do orçamento é o da venda; trocá-lo é recusado. */
+  customer_id: string;
+  customer_name: string;
 };
 
 /**
  * Entrega 4: o orçamento que a venda vai faturar, conferido fora da transação
  * (a corrida é barrada dentro dela, em `gravarVenda`). A validade é contra o dia
- * da venda em Brasília, não contra agora: a venda lançada às 23h50 do último dia
- * ainda leva o preço orçado.
+ * de hoje em Brasília (Q383), nunca contra o `sold_at` enviado.
  */
 async function orcamentoAFaturar(
   db: TenantPrismaClient,
   lojaId: string,
   quoteId: unknown,
-  soldAt: Date,
   /** A edição da venda (Q249): o orçamento ainda preso à venda que ela vai substituir vale. */
   substituindo: string | null = null,
 ): Promise<ActionResult<OrcamentoAFaturar>> {
@@ -932,6 +933,8 @@ async function orcamentoAFaturar(
       number: true,
       establishment_id: true,
       seller_user_id: true,
+      customer_id: true,
+      customer: { select: { name: true } },
       valid_until: true,
       canceled_at: true,
       discount_authorized_by_user_id: true,
@@ -976,9 +979,11 @@ async function orcamentoAFaturar(
     franchisee_credit: decToNum(q.franchisee_credit) ?? 0,
     freight_amount: decToNum(q.freight_amount) ?? 0,
   };
+  const cliente = { customer_id: q.customer_id, customer_name: q.customer.name };
   // Vencido: os itens do orçamento seguem a regra normal, sem referência nem autorização herdada.
-  if (hojeEmBrasilia(soldAt).getTime() > q.valid_until.getTime()) {
-    return ok({ quote, vendedor: q.seller_user_id, precificacao: null, pedido, ...franquia });
+  // Q383: só o dia de hoje em Brasília decide; o `sold_at` enviado não prolonga a validade.
+  if (hojeEmBrasilia(new Date()).getTime() > q.valid_until.getTime()) {
+    return ok({ quote, vendedor: q.seller_user_id, precificacao: null, pedido, ...cliente, ...franquia });
   }
   const precos = await db.presentationPrice.findMany({
     where: { establishment_id: lojaId, presentation_id: { in: q.items.map((i) => i.presentation_id) } },
@@ -1030,6 +1035,7 @@ async function orcamentoAFaturar(
       pct: baseOrcCent > 0 ? (descOrcCent / baseOrcCent) * 100 : 0,
     },
     pedido,
+    ...cliente,
     ...franquia,
   });
 }
@@ -1111,7 +1117,7 @@ async function prepararVenda(
   // Entrega 4: o orçamento faturado (a troca nunca chega aqui com um).
   let orcamento: OrcamentoAFaturar | null = null;
   if (input.quote_id != null && input.quote_id !== "") {
-    const r = await orcamentoAFaturar(db, loja.data.id, input.quote_id, soldAt, opts.substituindo ?? null);
+    const r = await orcamentoAFaturar(db, loja.data.id, input.quote_id, opts.substituindo ?? null);
     if (!r.ok) return r;
     orcamento = r.data;
   }
@@ -1144,7 +1150,18 @@ async function prepararVenda(
 
   // Toda venda tem cliente (design 2026-11-03-emporio-cliente-nome-menu): quem não quer se
   // identificar entra como Consumidor final, que não toma fiado nem cheque.
-  if (input.customer_id == null || input.customer_id === "") {
+  // Q382: a venda do orçamento é do cliente dele. Sem `customer_id` assume o do orçamento; com outro, recusa.
+  const clienteDoCorpo = input.customer_id == null || input.customer_id === "" ? null : String(input.customer_id);
+  if (orcamento && clienteDoCorpo !== null && clienteDoCorpo !== orcamento.customer_id) {
+    return fail(
+      "VALIDATION_ERROR",
+      `Esta venda vem do orçamento de ${orcamento.customer_name}: o cliente não pode ser trocado.`,
+      422,
+      "customer_id",
+    );
+  }
+  const clienteId = clienteDoCorpo ?? orcamento?.customer_id ?? null;
+  if (clienteId === null) {
     return fail(
       "VALIDATION_ERROR",
       "Escolha o cliente da venda. Quem não quer se identificar entra como Consumidor final.",
@@ -1153,7 +1170,7 @@ async function prepararVenda(
     );
   }
   const cliente = await db.emporioCustomer.findFirst({
-    where: { id: String(input.customer_id) },
+    where: { id: clienteId },
     select: CAMPOS_DO_CLIENTE_DA_VENDA,
   });
   if (!cliente || cliente.archived_at) return fail("VALIDATION_ERROR", "Escolha um cliente ativo.", 422, "customer_id");
