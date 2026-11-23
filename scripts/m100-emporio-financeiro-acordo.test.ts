@@ -984,7 +984,14 @@ async function secao4() {
   const regra = await Cx.definirRegraCartaoAction(A.db, A.owner, { establishment_id: A.L1, kind: "credito_vista", fee_pct: 2, days: 1, bank_account_id: A.conta });
   if (!regra.ok) throw new Error(`regra de cartão: ${j(regra)}`);
   const cli = await cliente(A, "Carimbo cartao");
-  await vender(A, cli, 10, [{ kind: "credito_vista", amount: 100 }], { sold_at: new Date(Date.now() - DIA) });
+  // A parcela vence no próximo dia útil depois da venda (days: 1) e o carimbo só aceita parcela que já caiu.
+  // Ontem serve em dia útil; em feriado ou fim de semana recua até a parcela cair em hoje ou antes.
+  const { proximoDiaUtil } = await import("@/lib/emporio/dia-util");
+  let diaVenda = new Date(`${somaDias(hojeStr, -1)}T12:00:00.000Z`);
+  while (proximoDiaUtil(new Date(Date.UTC(diaVenda.getUTCFullYear(), diaVenda.getUTCMonth(), diaVenda.getUTCDate() + 1))).toISOString().slice(0, 10) > hojeStr) {
+    diaVenda = new Date(diaVenda.getTime() - DIA);
+  }
+  await vender(A, cli, 10, [{ kind: "credito_vista", amount: 100 }], { sold_at: diaVenda });
   const cartao = (await A.db.cardReceivable.findFirst({ where: { bank_account_id: A.conta, canceled_at: null } })) as Dado;
   check("(fixture) existe a parcela de cartão da conta", !!cartao?.id, j(cartao));
   const movs = (await A.db.cashMovement.findMany({ where: { bank_account_id: A.conta }, orderBy: { created_at: "asc" } })) as Dado[];

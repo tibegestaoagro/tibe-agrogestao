@@ -680,10 +680,13 @@ async function secao5() {
   const eV = await entradaDaCompra(A, cV.corpo?.data?.id);
   const cartao = (await A.db.cardReceivable.findFirst({ where: { bank_account_id: A.conta, canceled_at: null } })) as Dado;
   // A regra padrão da adquirente é o próximo dia útil: no fim de semana a parcela vence na segunda.
-  const { proximoDiaUtil } = await import("@/lib/emporio/dia-util");
+  const { proximoDiaUtil, ehDiaUtil } = await import("@/lib/emporio/dia-util");
   const vencimentoEsperado = proximoDiaUtil(new Date(`${hojeStr}T00:00:00.000Z`)).toISOString().slice(0, 10);
   check("(fixture) a parcela de cartão vence hoje (ou no próximo dia útil)", !!cartao && diaDe(cartao.expected_on) === vencimentoEsperado, j(cartao));
   const cartaoNet = n(cartao?.net_amount);
+  // Em feriado ou fim de semana a parcela de hoje vence no próximo dia útil: ainda não caiu, então
+  // "vence hoje", "received" e a linha do extrato (janela de ontem a amanhã) não a enxergam. O sistema está certo.
+  const cartaoCaiHoje = ehDiaUtil(new Date(`${hojeStr}T00:00:00.000Z`));
 
   console.log("  Hoje");
   const hj = await chamar(A.tok.fin, R.today, "GET", "emporio/finance/today");
@@ -711,7 +714,8 @@ async function secao5() {
   const rd = h?.receivables_due;
   check("receivables_due.fiado: 1 cliente e 30 vencidos", rd?.fiado?.count === 1 && perto(rd?.fiado?.total, 30), j(rd?.fiado));
   check("receivables_due.checks: 1 cheque de 50 bom para hoje", rd?.checks?.count === 1 && perto(rd?.checks?.total, 50), j(rd?.checks));
-  check("receivables_due.cards: 1 parcela, o líquido que vence hoje", rd?.cards?.count === 1 && perto(rd?.cards?.total, cartaoNet), j({ c: rd?.cards, esperado: cartaoNet }));
+  check("receivables_due.cards: 1 parcela, o líquido que vence hoje (nenhuma se hoje não é dia útil)",
+    rd?.cards?.count === (cartaoCaiHoje ? 1 : 0) && perto(rd?.cards?.total, cartaoCaiHoje ? cartaoNet : 0), j({ c: rd?.cards, esperado: cartaoNet, cartaoCaiHoje }));
   check("overdue_fiado: 1 cliente e 30", h?.overdue_fiado?.customers === 1 && perto(h?.overdue_fiado?.total, 30), j(h?.overdue_fiado));
 
   const filtro = await chamar(A.tok.fin, R.today, "GET", `emporio/finance/today?establishment_id=${A.L2}`);
@@ -732,7 +736,7 @@ async function secao5() {
   check("cartões a receber: a parcela com os campos do contrato",
     rcd?.cards?.length === 1 && cd?.installment === 1 && cd?.installments === 1 && cd?.bank_account_id === A.conta && cd?.establishment_id === A.L1
     && perto(n(cd?.gross_amount), 100) && perto(n(cd?.net_amount), cartaoNet) && typeof cd?.expected_on === "string" && typeof cd?.bank_account_name === "string" && typeof cd?.establishment_name === "string", j(cd));
-  check("received é verdadeiro quando expected_on <= hoje", cd?.received === true, j(cd));
+  check("received é verdadeiro quando expected_on <= hoje (falso se a parcela ficou para o próximo dia útil)", cd?.received === cartaoCaiHoje, j(cd));
   const rcL2 = await chamar(A.tok.fin, R.receivables, "GET", `emporio/finance/receivables?establishment_id=${A.L2}`);
   check("receivables filtrado pela L2 não traz o cheque nem o cartão da L1", rcL2.status === 200 && rcL2.corpo?.data?.checks?.length === 0 && rcL2.corpo?.data?.cards?.length === 0, j(rcL2.corpo));
 
@@ -773,8 +777,8 @@ async function secao5() {
   const linhas = (x?.lines ?? []) as Dado[];
   check("o extrato lista o movimento de Pix recebido (kind movimento, entrada, 10)", linhas.some((l) => l.kind === "movimento" && l.direction === "entrada" && perto(n(l.amount), 10)), j(linhas));
   const lc = linhas.find((l) => l.kind === "cartao");
-  check("o extrato lista a parcela de cartão como linha igual (kind cartao, entrada, líquido, origin cartao)",
-    !!lc && lc.direction === "entrada" && perto(n(lc.amount), cartaoNet) && lc.origin === "cartao", j(lc));
+  check("o extrato lista a parcela de cartão como linha igual (kind cartao, entrada, líquido, origin cartao); sem linha se ainda não caiu",
+    cartaoCaiHoje ? !!lc && lc.direction === "entrada" && perto(n(lc.amount), cartaoNet) && lc.origin === "cartao" : !lc, j(lc));
   check("o extrato lista o saldo inicial e os pagamentos de compra da conta", linhas.some((l) => l.direction === "saida") && linhas.some((l) => perto(n(l.amount), 1000)), j(linhas.map((l) => [l.kind, l.direction, l.amount, l.origin])));
   check("as linhas vêm ordenadas por data", linhas.every((l, i) => i === 0 || String(linhas[i - 1].occurred_on) <= String(l.occurred_on)), j(linhas.map((l) => l.occurred_on)));
   const soma = linhas.reduce((s, l) => s + (l.direction === "entrada" ? n(l.amount) : -n(l.amount)), 0);
