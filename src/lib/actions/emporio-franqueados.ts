@@ -13,8 +13,8 @@ import { decToNum, isoOrNull } from "@/lib/serialize";
 /**
  * O franqueado do Empório (Q300, Q304, Q305): cadastro curto da conta (nome e telefone) e o
  * crédito interno que ele acumula nas vendas. O saldo nunca é gravado (invariante 2): é a soma
- * de `EmporioSale.franchisee_credit` das vendas ativas menos a de `EmporioFranchiseePayment`
- * ativos, e pode ficar negativo (venda cancelada depois de paga). O crédito não é despesa:
+ * de `EmporioSale.franchisee_credit` das vendas ativas, menos o `franchisee_credit` das devoluções
+ * delas (Q379), menos a de `EmporioFranchiseePayment` ativos, e pode ficar negativo (venda cancelada depois de paga). O crédito não é despesa:
  * o pagamento não cria `FinancialEntry`, só a saída de caixa.
  */
 
@@ -36,7 +36,8 @@ export type FranchiseeView = {
 };
 
 export type StatementLine = {
-  kind: "credito" | "pagamento";
+  /** `devolucao` (Q379): o crédito que voltou com uma devolução, com o valor negativo. */
+  kind: "credito" | "pagamento" | "devolucao";
   date: string;
   amount: number;
   sale_id: string | null;
@@ -113,6 +114,15 @@ async function saldosEmCentavos(db: TenantPrismaClient, ids: string[]): Promise<
   });
   for (const c of creditos) {
     if (c.franchisee_id) saldos.set(c.franchisee_id, (saldos.get(c.franchisee_id) ?? 0) + centavos(decToNum(c._sum.franchisee_credit) ?? 0));
+  }
+  // Q379: a devolução tira do franqueado a parte do crédito que voltou ao cliente.
+  const devolvidos = await db.emporioSaleReturn.findMany({
+    where: { franchisee_credit: { gt: 0 }, sale: { franchisee_id: { in: ids }, canceled_at: null } },
+    select: { franchisee_credit: true, sale: { select: { franchisee_id: true } } },
+  });
+  for (const d of devolvidos) {
+    const fid = d.sale.franchisee_id;
+    if (fid) saldos.set(fid, (saldos.get(fid) ?? 0) - centavos(decToNum(d.franchisee_credit) ?? 0));
   }
   const pagos = await db.emporioFranchiseePayment.groupBy({
     by: ["franchisee_id"],
@@ -279,6 +289,10 @@ export async function lerFranqueadoAction(
     where: { franchisee_id: id, canceled_at: null },
     include: { establishment: { select: { name: true } }, bank_account: { select: { name: true } } },
   });
+  const devolucoes = await db.emporioSaleReturn.findMany({
+    where: { franchisee_credit: { gt: 0 }, sale: { franchisee_id: id, canceled_at: null } },
+    select: { franchisee_credit: true, returned_at: true, sale: { select: { id: true, number: true } } },
+  });
 
   const linhas: StatementLine[] = [
     ...vendas.map((v): StatementLine => ({
@@ -287,6 +301,16 @@ export async function lerFranqueadoAction(
       amount: decToNum(v.franchisee_credit) ?? 0,
       sale_id: v.id,
       sale_number: v.number,
+      payment_id: null,
+      paid_from: null,
+      notes: null,
+    })),
+    ...devolucoes.map((d): StatementLine => ({
+      kind: "devolucao",
+      date: d.returned_at.toISOString(),
+      amount: -(decToNum(d.franchisee_credit) ?? 0),
+      sale_id: d.sale.id,
+      sale_number: d.sale.number,
       payment_id: null,
       paid_from: null,
       notes: null,

@@ -242,6 +242,161 @@ async function secao3() {
   }
 }
 
+async function secao4() {
+  console.log("\n4. Devolução tira o crédito do franqueado na proporção do que voltou (Q379)");
+  const { prisma, prismaForTenant, scoped } = await import("@/lib/prisma");
+  const C: Dado = await import("@/lib/actions/emporio-catalogo");
+  const E: Dado = await import("@/lib/actions/emporio-estoque");
+  const V: Dado = await import("@/lib/actions/emporio-vendas");
+  const FR: Dado = await import("@/lib/actions/emporio-franqueados");
+  const { abrirTurnoDeTeste } = await import("./_emporio-turno");
+
+  const stamp = Date.now();
+  const t = await prisma.tenant.create({
+    data: { name: `M129d ${stamp}`, document: `M129D${stamp}`.slice(0, 14), plan: "grupo", status: "trial", trial_ends_at: new Date(Date.now() + DIA) },
+  });
+  try {
+    const u = await prisma.user.create({
+      data: { tenant_id: t.id, name: "M129d dono", email: `m129d-${stamp}@teste.local`, password_hash: "x", role: "OWNER", ...papelDeFixture("OWNER") },
+    });
+    const dono = { id: u.id, role: "OWNER" as const };
+    const db: Dado = prismaForTenant(t.id);
+    const cat = await db.productCategory.create({ data: scoped({ name: "M129d categoria" }) });
+    const loja = (await C.criarEstabelecimentoAction(db, dono, { name: "M129d Loja", kind: "ponto_venda" })).data;
+    const turno = await abrirTurnoDeTeste(db, dono, loja.id);
+    const produto = async (nome: string, preco: number) => {
+      const p = (await C.criarProdutoEmporioAction(db, dono, { name: `M129d ${nome} ${stamp}`, category_id: cat.id, base_unit: "saca", content_qty: 20, content_unit: "quilograma" })).data;
+      const ap = p.presentations[0].id as string;
+      await C.definirPrecoAction(db, dono, { establishment_id: loja.id, presentation_id: ap, price: preco });
+      await E.implantarEstoqueAction(db, dono, { establishment_id: loja.id, emporio_product_id: p.id, sealed: [], loose_qty: 100, unit_cost: 1 });
+      return { id: p.id as string, ap };
+    };
+    const p60 = await produto("A", 60);
+    const p40 = await produto("B", 40);
+    const p30 = await produto("C", 30);
+    const item = (p: { id: string; ap: string }, q = 1) => ({ emporio_product_id: p.id, presentation_id: p.ap, quantity: q });
+    const franqueado = async (nome: string) => {
+      const r = await FR.cadastrarFranqueadoAction(db, dono, { name: `M129d ${nome}`, phone: "11999990000" });
+      if (!r.ok) throw new Error(`franqueado: ${j(r)}`);
+      return r.data.id as string;
+    };
+    const cliente = await db.emporioCustomer.create({ data: scoped({ name: "M129d Cliente" }) });
+    let k = 0;
+    const chave = (s: string) => `m129d-${stamp}-${s}-${(k += 1)}`;
+    const vender = async (items: Dado[], pagamento: Dado, extra: Dado = {}) => {
+      const r = await V.venderAction(db, dono, {
+        operation_key: chave("venda"), establishment_id: loja.id, customer_id: cliente.id, cash_register_id: turno.cash_register_id,
+        items, payments: [pagamento], ...extra,
+      });
+      if (!r.ok) throw new Error(`venda: ${j(r)}`);
+      return r.data;
+    };
+    const dinheiroDe = (amount: number) => ({ kind: "dinheiro", amount });
+    const devolver = (saleId: string, saleItemId: string, quantity: number, refund_kind = "dinheiro") =>
+      V.devolverAction(db, dono, saleId, {
+        operation_key: chave("dev"), refund_kind, items: [{ sale_item_id: saleItemId, quantity }], cash_register_id: turno.cash_register_id,
+      });
+    const saidaDe = async (devolucaoId: string) => {
+      const m = await db.cashMovement.findMany({ where: { sale_return_id: devolucaoId, direction: "saida" } });
+      return m.reduce((s: number, x: Dado) => s + Number(x.amount), 0);
+    };
+    const saldo = async (id: string) => {
+      const r = await FR.lerFranqueadoAction(db, dono, id);
+      if (!r.ok) throw new Error(`franqueado: ${j(r)}`);
+      return r.data as Dado;
+    };
+    const itemDe = (venda: Dado, produtoId: string) => venda.items.find((i: Dado) => i.emporio_product_id === produtoId).id as string;
+
+    console.log("  (a) venda de 60 + 40 com crédito 10: devolver um item e depois o outro");
+    const fa = await franqueado("Ana");
+    const va = await vender([item(p60), item(p40)], dinheiroDe(110), { franchisee_id: fa, franchisee_credit: 10 });
+    check("o saldo começa em 10", (await saldo(fa)).balance === 10);
+    const d1 = await devolver(va.id, itemDe(va, p60.id), 1);
+    check("devolver o item de 60 passa", d1.ok, j(d1));
+    if (d1.ok) {
+      check("amount segue sendo o valor do item (60)", d1.data.amount === 60, String(d1.data.amount));
+      check("franchisee_credit da devolução é 6", d1.data.franchisee_credit === 6, String(d1.data.franchisee_credit));
+      check("o cliente recebe 66 (saída de caixa)", (await saidaDe(d1.data.id)) === 66, String(await saidaDe(d1.data.id)));
+    }
+    check("o franqueado perde 6: saldo 4", (await saldo(fa)).balance === 4, String((await saldo(fa)).balance));
+    const d2 = await devolver(va.id, itemDe(va, p40.id), 1);
+    check("devolver o item de 40 passa", d2.ok, j(d2));
+    if (d2.ok) {
+      check("franchisee_credit da devolução é 4", d2.data.franchisee_credit === 4, String(d2.data.franchisee_credit));
+      check("o cliente recebe 44", (await saidaDe(d2.data.id)) === 44, String(await saidaDe(d2.data.id)));
+    }
+    const sa = await saldo(fa);
+    check("tudo devolvido: saldo 0", sa.balance === 0, String(sa.balance));
+    const linhasDev = sa.statement.filter((l: Dado) => l.kind === "devolucao");
+    check(
+      "o extrato tem duas linhas de devolução da venda, negativas (-6 e -4)",
+      linhasDev.length === 2 && linhasDev.every((l: Dado) => l.sale_id === va.id && l.sale_number === va.number) &&
+        linhasDev.map((l: Dado) => l.amount).sort((x: number, y: number) => x - y).join() === "-6,-4",
+      j(linhasDev),
+    );
+    const hist = await db.emporioAuditLog.findMany({ where: { action: "venda.devolver", target_id: va.id } });
+    check("o histórico da devolução cita a parte do crédito", hist.length === 2 && hist.every((h: Dado) => String(h.summary).includes("crédito do franqueado")), j(hist.map((h: Dado) => h.summary)));
+
+    console.log("  (b) devolução parcial em duas vezes: 1 de 3 e depois 2 de 3");
+    const fb = await franqueado("Beto");
+    const vb = await vender([item(p30, 3)], dinheiroDe(100), { franchisee_id: fb, franchisee_credit: 10 });
+    const b1 = await devolver(vb.id, vb.items[0].id, 1);
+    const b2 = await devolver(vb.id, vb.items[0].id, 2);
+    check("as duas passam", b1.ok && b2.ok, j([b1, b2]));
+    if (b1.ok && b2.ok) {
+      check("a primeira leva 3,33 (um terço de 10, no centavo)", b1.data.franchisee_credit === 3.33, String(b1.data.franchisee_credit));
+      check("a segunda leva o resto: 6,67", b2.data.franchisee_credit === 6.67, String(b2.data.franchisee_credit));
+      check("a soma é exatamente a parte do item (10,00)", Math.round((b1.data.franchisee_credit + b2.data.franchisee_credit) * 100) === 1000);
+    }
+    check("saldo 0", (await saldo(fb)).balance === 0);
+
+    console.log("  (c) venda sem crédito: nada muda");
+    const vc = await vender([item(p60)], dinheiroDe(60));
+    const c1 = await devolver(vc.id, vc.items[0].id, 1);
+    check("a devolução passa", c1.ok, j(c1));
+    if (c1.ok) {
+      check("franchisee_credit 0", c1.data.franchisee_credit === 0, String(c1.data.franchisee_credit));
+      check("o cliente recebe 60", (await saidaDe(c1.data.id)) === 60);
+    }
+
+    console.log("  (d) crédito já pago ao franqueado: o saldo fica negativo (Q305)");
+    const fd = await franqueado("Duda");
+    const vd = await vender([item(p60), item(p40)], dinheiroDe(110), { franchisee_id: fd, franchisee_credit: 10 });
+    const pg = await FR.pagarFranqueadoAction(db, dono, fd, { operation_key: chave("pag"), amount: 10, paid_from: { establishment_id: loja.id, cash_register_id: turno.cash_register_id } });
+    check("pagar o crédito pela action passa", pg.ok, j(pg));
+    const dd = await devolver(vd.id, itemDe(vd, p60.id), 1);
+    check("devolver passa", dd.ok, j(dd));
+    check("saldo -6", (await saldo(fd)).balance === -6, String((await saldo(fd)).balance));
+
+    console.log("  (e) abater do fiado leva o valor com a parte do crédito");
+    const fe = await franqueado("Edu");
+    const ve = await vender([item(p60), item(p40)], { kind: "fiado", amount: 110, due_date: new Date(Date.now() + 30 * DIA) }, { franchisee_id: fe, franchisee_credit: 10 });
+    const e1 = await devolver(ve.id, itemDe(ve, p60.id), 1, "abater_fiado");
+    check("abater passa", e1.ok, j(e1));
+    const lanc = await db.financialEntry.findFirst({ where: { related_module: "emporio", entry_type: "income", related_id: ve.id } });
+    check("o fiado da venda caiu de 110 para 44", lanc && Number(lanc.amount) === 44, j(lanc?.amount));
+    check("saldo do franqueado 4", (await saldo(fe)).balance === 4);
+
+    console.log("  (f) troca: o valor que abate a venda nova leva a parte do crédito");
+    const ff = await franqueado("Fabi");
+    const vf = await vender([item(p60), item(p40)], dinheiroDe(110), { franchisee_id: ff, franchisee_credit: 10 });
+    const tr = await V.trocarAction(db, dono, vf.id, {
+      operation_key: chave("troca"), items_devolvidos: [{ sale_item_id: itemDe(vf, p60.id), quantity: 1 }], cash_register_id: turno.cash_register_id,
+      venda: { customer_id: cliente.id, establishment_id: loja.id, items: [item(p40)], payments: [] },
+    });
+    check("a troca passa", tr.ok, j(tr));
+    if (tr.ok) {
+      check("a devolução da troca leva crédito 6", tr.data.devolucao.franchisee_credit === 6, String(tr.data.devolucao.franchisee_credit));
+      check("a diferença devolvida na gaveta é 26 (66 menos a venda nova de 40)", (await saidaDe(tr.data.devolucao.id)) === 26, String(await saidaDe(tr.data.devolucao.id)));
+    }
+    check("saldo do franqueado 4", (await saldo(ff)).balance === 4);
+  } catch (e) {
+    check("a seção 4 terminou sem exceção", false, e instanceof Error ? e.stack ?? e.message : String(e));
+  } finally {
+    await limparTenant(t.id, "4");
+  }
+}
+
 async function secao6() {
   console.log("\n6. Parcela conferida pela antecipação: o desfazer some, a explicação aparece (Q377)");
   const { prisma, prismaForTenant, scoped } = await import("@/lib/prisma");
@@ -339,6 +494,7 @@ async function main() {
   console.log("🧾 M129: Módulo 39 (Meu Empório), decisões de 23/11\n");
   await secao2();
   await secao3();
+  await secao4();
   await secao6();
   await prisma.$disconnect();
   console.log(`\nChecagens: ${total}`);

@@ -168,6 +168,7 @@ async function carregarVendasDoPeriodo(db: TenantPrismaClient, ator: Ator, input
   const devolucoes = await db.emporioSaleReturn.findMany({
     where: { returned_at: janela, sale: { establishment_id: { in: lojaIds }, status: "concluida" } },
     select: {
+      franchisee_credit: true,
       sale: { select: { establishment_id: true, seller_user_id: true, customer_id: true, origin: true } },
       items: {
         select: {
@@ -256,6 +257,10 @@ export async function relatorioDeVendasAction(
     soma(porLoja, d.sale.establishment_id).cent -= devolvido;
     origemTotal[d.sale.origin].cent -= devolvido;
     (origemDaLoja.get(d.sale.establishment_id) as Record<Origem, SomaOrigem>)[d.sale.origin].cent -= devolvido;
+    // Q379: o crédito do franqueado devolvido sai do repasse mostrado por origem.
+    const creditoDevolvido = centavos(decToNum(d.franchisee_credit) ?? 0);
+    origemTotal[d.sale.origin].creditCent -= creditoDevolvido;
+    (origemDaLoja.get(d.sale.establishment_id) as Record<Origem, SomaOrigem>)[d.sale.origin].creditCent -= creditoDevolvido;
   }
 
   // Nomes: o vendedor desativado continua com o nome dele.

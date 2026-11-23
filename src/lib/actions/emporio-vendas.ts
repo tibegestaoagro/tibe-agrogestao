@@ -62,6 +62,7 @@ import {
   type RegraDiaUtil,
 } from "@/lib/emporio/cartao";
 import { somarDiasUteis } from "@/lib/emporio/dia-util";
+import { ratearCreditoNosItens } from "@/lib/emporio/rateio-impresso";
 import {
   INCLUDE_PRODUTO,
   lacradoEfetivo,
@@ -246,7 +247,10 @@ export type DevolucaoView = {
   sale_id: string;
   operation_key: string;
   refund_kind: string;
+  /** O valor dos itens devolvidos. */
   amount: number;
+  /** Q379: a parte do crédito do franqueado que voltou com os itens. O cliente recebe `amount + franchisee_credit`. */
+  franchisee_credit: number;
   returned_at: string;
   returned_by_user_id: string | null;
   reason: string | null;
@@ -368,6 +372,7 @@ function viewDaDevolucao(r: VendaRow["returns"][number]): DevolucaoView {
     operation_key: r.operation_key,
     refund_kind: r.refund_kind,
     amount: decToNum(r.amount) ?? 0,
+    franchisee_credit: decToNum(r.franchisee_credit) ?? 0,
     returned_at: r.returned_at.toISOString(),
     returned_by_user_id: r.returned_by_user_id,
     reason: r.reason,
@@ -2667,6 +2672,7 @@ export type DevolucaoItemInput = { sale_item_id: string; quantity: number; loss_
 
 const INCLUDE_VENDA_DEVOLUCAO = {
   items: {
+    orderBy: { id: "asc" },
     include: {
       return_items: { select: { quantity: true } },
       emporio_product: { include: INCLUDE_PRODUTO },
@@ -2686,15 +2692,41 @@ type LinhaDevolucao = {
   quantity: number;
   base_qty: number;
   valorCent: number;
+  /** Q379: a parte do crédito do franqueado que volta com esta linha (rateio do papel). */
+  creditoCent: number;
   loss_reason: (typeof MOTIVOS_DE_PERDA)[number] | null;
 };
 
-function validarItensDevolvidos(venda: VendaParaDevolver, entrada: unknown): ActionResult<{ linhas: LinhaDevolucao[]; totalCent: number }> {
+/**
+ * Q379: a parte do crédito do franqueado que cabe em cada item, pelo MESMO rateio e pelos mesmos totais
+ * por item que o papel do cliente usa (`emporio-impressao`): o crédito some do papel e vira valor do item.
+ */
+function parteDoCreditoPorItem(venda: VendaParaDevolver): Map<string, number> {
+  const partes = new Map<string, number>();
+  const creditoCent = centavos(decToNum(venda.franchisee_credit) ?? 0);
+  const exato = (n: number) => Math.round(Number((n * 100).toPrecision(12)));
+  const totais = venda.items.map((i) => {
+    const q = decToNum(i.quantity) ?? 0;
+    const praticado = decToNum(i.unit_price) ?? 0;
+    const sugerido = decToNum(i.suggested_price);
+    const preco = sugerido != null && praticado < sugerido ? sugerido : praticado;
+    return (exato(q * praticado) + exato((preco - praticado) * q));
+  });
+  const rateados = ratearCreditoNosItens(totais, creditoCent);
+  venda.items.forEach((i, k) => partes.set(i.id, rateados[k] - totais[k]));
+  return partes;
+}
+
+function validarItensDevolvidos(
+  venda: VendaParaDevolver,
+  entrada: unknown,
+): ActionResult<{ linhas: LinhaDevolucao[]; totalCent: number; creditoCent: number }> {
   if (!Array.isArray(entrada) || entrada.length === 0) {
     return fail("VALIDATION_ERROR", "Escolha ao menos um item para devolver.", 422, "items");
   }
   const vistos = new Set<string>();
   const linhas: LinhaDevolucao[] = [];
+  const partesDoCredito = parteDoCreditoPorItem(venda);
   for (const raw of entrada as Partial<DevolucaoItemInput>[]) {
     const item = venda.items.find((i) => i.id === raw?.sale_item_id);
     if (!item) return fail("VALIDATION_ERROR", "Um dos itens não pertence a essa venda.", 422, "items");
@@ -2741,10 +2773,28 @@ function validarItensDevolvidos(venda: VendaParaDevolver, entrada: unknown): Act
     );
     const valorCent =
       quantity === sobra ? Math.max(0, totalDoItemCent - jaReembolsadoCent) : Math.round((totalDoItemCent * quantity) / vendido);
-    linhas.push({ item, quantity, base_qty, valorCent, loss_reason: motivo });
+    // Q379: devolvido até agora = round(parte x quantidade acumulada / vendida); esta devolução leva a diferença.
+    // Tudo devolvido fecha exato na parte do item, sem sobra nem falta de centavo.
+    const parte = partesDoCredito.get(item.id) ?? 0;
+    const acumulado = arred3(devolvido + quantity);
+    const ate = (qtd: number) => (qtd >= vendido ? parte : Math.round((parte * qtd) / vendido));
+    const creditoCent = ate(acumulado) - ate(devolvido);
+    linhas.push({ item, quantity, base_qty, valorCent, creditoCent, loss_reason: motivo });
   }
-  return ok({ linhas, totalCent: linhas.reduce((s, l) => s + l.valorCent, 0) });
+  return ok({
+    linhas,
+    totalCent: linhas.reduce((s, l) => s + l.valorCent, 0),
+    creditoCent: linhas.reduce((s, l) => s + l.creditoCent, 0),
+  });
 }
+
+/** Q379: o histórico diz quanto do valor devolvido era a parte do crédito do franqueado. */
+const fraseDoCreditoDevolvido = (creditoCent: number) =>
+  creditoCent > 0 ? `, com ${dinheiro(creditoCent / 100)} de crédito do franqueado` : "";
+
+/** O que já voltou ao cliente: os itens mais a parte do crédito do franqueado (Q379). */
+const reembolsadoCent = (soma: { amount: Prisma.Decimal | null; franchisee_credit: Prisma.Decimal | null }) =>
+  centavos(decToNum(soma.amount) ?? 0) + centavos(decToNum(soma.franchisee_credit) ?? 0);
 
 /**
  * Grava a devolução dentro de uma transação aberta: a linha da devolução, a
@@ -2760,20 +2810,27 @@ async function gravarDevolucao(
   d: {
     chave: string;
     refund_kind: "dinheiro" | "abater_fiado" | "troca";
+    /** O valor dos itens devolvidos (`amount` da devolução). */
     totalCent: number;
+    /** Q379: a parte do crédito do franqueado que volta junto; o cliente recebe `totalCent + creditoCent`. */
+    creditoCent: number;
     reason: string | null;
     /** O turno de onde sai o dinheiro: obrigatório quando `refund_kind` é dinheiro. */
     turno?: TurnoResolvido | null;
   },
 ): Promise<string> {
   const agora = new Date();
-  const total = d.totalCent / 100;
+  // O que o cliente recebe: os itens mais a parte do crédito rateada neles (Q379). É este o valor de todo
+  // movimento de dinheiro, abatimento e despesa abaixo; `amount` da devolução continua sendo só os itens.
+  const reembolsoCent = d.totalCent + d.creditoCent;
+  const total = reembolsoCent / 100;
   const devolucao = await tx.emporioSaleReturn.create({
     data: scoped({
       sale_id: venda.id,
       operation_key: d.chave,
       refund_kind: d.refund_kind,
-      amount: total,
+      amount: d.totalCent / 100,
+      franchisee_credit: d.creditoCent / 100,
       returned_at: agora,
       returned_by_user_id: ator.id,
       reason: d.reason,
@@ -2823,7 +2880,7 @@ async function gravarDevolucao(
       where: { related_module: "emporio", entry_type: "income", related_id: venda.id },
     });
     if (lancamento?.agreement_id) {
-      await abaterNoAcordo(tx, lancamento.agreement_id, d.totalCent, total, agora);
+      await abaterNoAcordo(tx, lancamento.agreement_id, reembolsoCent, total, agora);
       return devolucao.id;
     }
     if (!lancamento || lancamento.status === "cancelled") {
@@ -2832,7 +2889,7 @@ async function gravarDevolucao(
     const pagos = await tx.financialPayment.aggregate({ where: { entry_id: lancamento.id }, _sum: { amount: true } });
     const valorCent = centavos(decToNum(lancamento.amount) ?? 0);
     const abertoCent = valorCent - centavos(decToNum(pagos._sum.amount) ?? 0);
-    if (d.totalCent > abertoCent) {
+    if (reembolsoCent > abertoCent) {
       throw new AbortarVenda(
         fail(
           "VALIDATION_ERROR",
@@ -2844,7 +2901,7 @@ async function gravarDevolucao(
         ),
       );
     }
-    const novoCent = valorCent - d.totalCent;
+    const novoCent = valorCent - reembolsoCent;
     const pagoCent = valorCent - abertoCent;
     await tx.financialEntry.update({
       where: { id: lancamento.id },
@@ -2880,7 +2937,7 @@ async function gravarDevolucao(
     : null;
   const jaVoltou = await tx.emporioSaleReturn.aggregate({
     where: { sale_id: venda.id, refund_kind: { in: ["dinheiro", "troca"] }, id: { not: devolucao.id } },
-    _sum: { amount: true },
+    _sum: { amount: true, franchisee_credit: true },
   });
   // O recebido das parcelas é do acordo inteiro, então o que já voltou em dinheiro ou troca também é contado no
   // acordo inteiro (todas as vendas que entraram nele): senão duas vendas dividiriam o mesmo recebido em dobro.
@@ -2893,9 +2950,9 @@ async function gravarDevolucao(
     const vendasDoAcordo = origensDoAcordo.map((o) => o.related_id).filter((x): x is string => !!x);
     const voltouNoAcordo = await tx.emporioSaleReturn.aggregate({
       where: { sale_id: { in: vendasDoAcordo }, refund_kind: { in: ["dinheiro", "troca"] }, id: { not: devolucao.id } },
-      _sum: { amount: true },
+      _sum: { amount: true, franchisee_credit: true },
     });
-    jaVoltouNoAcordoCent = centavos(decToNum(voltouNoAcordo._sum.amount) ?? 0);
+    jaVoltouNoAcordoCent = reembolsadoCent(voltouNoAcordo._sum);
   }
   // Fora de acordo: o pago nesta venda. Em acordo: o pago em todas as origens e parcelas do acordo (a
   // própria origem desta venda tem `agreement_id`, então já está na soma).
@@ -2905,11 +2962,11 @@ async function gravarDevolucao(
   // Venda em acordo: teto = min(valor da venda - já voltou desta venda, pago no acordo inteiro - já voltou em TODAS as vendas do acordo).
   const tetoCent = receita?.agreement_id
     ? Math.min(
-        centavos(decToNum(receita.amount) ?? 0) - centavos(decToNum(jaVoltou._sum.amount) ?? 0),
+        centavos(decToNum(receita.amount) ?? 0) - reembolsadoCent(jaVoltou._sum),
         recebidoCent - jaVoltouNoAcordoCent,
       )
-    : recebidoCent - centavos(decToNum(jaVoltou._sum.amount) ?? 0);
-  if (d.totalCent > tetoCent) {
+    : recebidoCent - reembolsadoCent(jaVoltou._sum);
+  if (reembolsoCent > tetoCent) {
     throw new AbortarVenda(
       fail(
         "VALIDATION_ERROR",
@@ -3073,6 +3130,7 @@ export async function devolverAction(
         chave,
         refund_kind: input.refund_kind as "dinheiro" | "abater_fiado",
         totalCent: rev.data.totalCent,
+        creditoCent: rev.data.creditoCent,
         reason: motivo,
         turno,
       });
@@ -3088,7 +3146,7 @@ export async function devolverAction(
         establishment_id: atual.establishment_id,
         target_type: "venda",
         target_id: atual.id,
-        summary: `Devolveu ${dinheiro(rev.data.totalCent / 100)} (${frasItens(rev.data.linhas.length)}) de uma venda da ${await nomeDaLoja(tx, atual.establishment_id)}, ${
+        summary: `Devolveu ${dinheiro((rev.data.totalCent + rev.data.creditoCent) / 100)}${fraseDoCreditoDevolvido(rev.data.creditoCent)} (${frasItens(rev.data.linhas.length)}) de uma venda da ${await nomeDaLoja(tx, atual.establishment_id)}, ${
           input.refund_kind === "dinheiro"
             ? "em dinheiro"
             : emAcordo?.agreement
@@ -3183,7 +3241,7 @@ export async function trocarAction(
     cash_register_id: pedidoDeCaixa(input.cash_register_id) ?? pedidoDeCaixa(input.venda?.cash_register_id),
   };
   const prep = await prepararVenda(db, ator, novaVenda, {
-    valorTroca: itens.data.totalCent / 100,
+    valorTroca: (itens.data.totalCent + itens.data.creditoCent) / 100,
     vendedorHerdado: origem.seller_user_id,
   });
   if (!prep.ok) return prep;
@@ -3200,6 +3258,7 @@ export async function trocarAction(
         chave,
         refund_kind: "troca",
         totalCent: rev.data.totalCent,
+        creditoCent: rev.data.creditoCent,
         reason: motivo,
       });
       await gravarVenda(tx, ator, prep.data, turno, { exchange_return_id: devolucaoId });
@@ -3208,11 +3267,11 @@ export async function trocarAction(
         establishment_id: atual.establishment_id,
         target_type: "venda",
         target_id: atual.id,
-        summary: `Trocou itens de uma venda da ${prep.data.loja.name}: devolveu ${dinheiro(rev.data.totalCent / 100)} e vendeu ${dinheiro(prep.data.net)}${fraseDoAutorizador(prep.data.autorizou_nome)}`,
+        summary: `Trocou itens de uma venda da ${prep.data.loja.name}: devolveu ${dinheiro((rev.data.totalCent + rev.data.creditoCent) / 100)}${fraseDoCreditoDevolvido(rev.data.creditoCent)} e vendeu ${dinheiro(prep.data.net)}${fraseDoAutorizador(prep.data.autorizou_nome)}`,
       });
 
       // Se o devolvido passa da venda nova, a diferença sai da gaveta.
-      const sobraCent = rev.data.totalCent - centavos(prep.data.troca);
+      const sobraCent = rev.data.totalCent + rev.data.creditoCent - centavos(prep.data.troca);
       if (sobraCent > 0) {
         await tx.cashMovement.create({
           data: scoped({

@@ -2100,6 +2100,8 @@ model EmporioSaleReturn {
   operation_key       String
   refund_kind         EmporioRefundKind
   amount              Decimal           @db.Decimal(14, 2)
+  /// Q379: a parte do crédito do franqueado que voltou com os itens (rateio do papel). `amount` segue sendo o valor dos itens; o cliente recebe `amount + franchisee_credit`.
+  franchisee_credit   Decimal           @default(0) @db.Decimal(14, 2)
   returned_at         DateTime
   returned_by_user_id String?
   reason              String?

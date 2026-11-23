@@ -165,6 +165,7 @@ async function margemDaJanela(db: TenantPrismaClient, lojaId: string, j: Janela)
     where: { returned_at: { gte: j.de, lt: j.ate }, sale: { establishment_id: lojaId } },
     select: {
       amount: true,
+      franchisee_credit: true,
       returned_at: true,
       items: { select: { base_qty: true, sale_item: { select: { unit_cost: true } } } },
     },
@@ -207,7 +208,10 @@ async function margemDaJanela(db: TenantPrismaClient, lojaId: string, j: Janela)
   const freteRecebidoCent = vendas.reduce((s, v) => s + centavos(decToNum(v.freight_amount) ?? 0), 0);
   const fretePagoCent = fretes.reduce((s, f) => s + centavos(decToNum(f.amount) ?? 0), 0);
   // Q303: o crédito do franqueado só é informado (recebido nas vendas, pago no período); não toca o resultado.
-  const creditoRecebidoCent = vendas.reduce((s, v) => s + centavos(decToNum(v.franchisee_credit) ?? 0), 0);
+  // Q379: o crédito devolvido com as devoluções do período sai do recebido, pela data da devolução (como o faturamento).
+  const creditoRecebidoCent =
+    vendas.reduce((s, v) => s + centavos(decToNum(v.franchisee_credit) ?? 0), 0) -
+    devolucoes.reduce((s, d) => s + centavos(decToNum(d.franchisee_credit) ?? 0), 0);
   const pagamentosDeCredito = await db.emporioFranchiseePayment.findMany({
     where: { establishment_id: lojaId, canceled_at: null, paid_at: { gte: j.de, lt: j.ate } },
     select: { amount: true },
