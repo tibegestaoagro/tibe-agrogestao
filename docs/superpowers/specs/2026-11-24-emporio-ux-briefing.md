@@ -60,6 +60,73 @@ então propor.
   lojas. Mudança de navegação mexe na rotina de gente real: vale combinar a
   transição (por exemplo, o manual e os GIFs precisam acompanhar).
 
+## Entrevista de 24/11 (decisões do usuário)
+
+1. **Estatísticas** no lugar dos dois "Relatórios": junta Relatórios do menu,
+   Financeiro > Relatórios, Resultado e Projeção. Para gestor, dono e
+   financeiro (o caixa não vê). Abertura por assunto (Vendas, Dinheiro,
+   Resultado) com o detalhe a um clique. Dentro dela, uma parte de
+   **Relatórios para imprimir**.
+2. **Cabeçalho das telas:** sai o "Meu Empório" acima do título. Caminho
+   clicável só em tela que fica dentro de outra (`Financeiro > A pagar`). O
+   texto de apresentação vira um **(i)**: balão ao passar o mouse; no celular,
+   abre no toque e fecha ao tocar fora. Aviso que muda o que a pessoa faz
+   continua visível. O (i) pode trazer o link "Ver no manual" para a seção
+   certa do `/manual`.
+3. **Caixa e balcão:** abrem o caixa e vão direto para Vender. Proposta
+   aceita: o caixa entra direto em Vender, e o caixa fechado aparece logo no
+   topo da tela, com o botão "Abrir o caixa".
+4. **Gestor:** abre o sistema só quando precisa. O Início vira: avisos que
+   pedem ação (somem se não houver), números de hoje, atalhos (Estatísticas,
+   Produtos, Estoque e afins). Avisos aceitos: produto zerado ou abaixo do
+   mínimo; fiado vencido; conta a pagar vencendo ou vencida; aprovação
+   pendente; orçamento perto de vencer; caixa de ontem aberto; boleto ou
+   cheque vencido sem baixa. Por papel: gestor vê estoque, orçamento e caixa;
+   financeiro vê fiado, contas, aprovações, boletos e a conferência com o
+   banco; dono vê todos.
+5. **"Carimbo" vira "Conferir com o banco"** ("Sem carimbo" vira "A conferir
+   com o banco"). Laiza e Cláudia vão usar com constância. Leva um (i) com o
+   link para o manual.
+6. **Menu pelo que a pessoa vai fazer (opção A):** Início · Vender (em
+   destaque) · Vendas (Vendas, Orçamentos, Clientes, Fiado, Franqueados) ·
+   Estoque (Produtos, Estoque, Compras, Transferências, Fornecedores) ·
+   Dinheiro (Hoje, Caixa, A receber, A pagar, Aprovações) · Estatísticas ·
+   Ajustes (Lojas, Equipe, Histórico, Configurações).
+7. **Telas repetidas:** Despesas entra em Dinheiro > A pagar (abas Contas,
+   Despesas fixas, Vendeu, Pagou). Caixa e Posição de caixa viram Dinheiro >
+   Caixa (o caixa segue vendo a gaveta da loja dele). Fiado fica em Vendas,
+   para o balcão, e ganha **busca** (o caixa procura pela pessoa); Cobrança
+   entra em Dinheiro > A receber, para o financeiro.
+8. **Empório separado do Tibé: fica para depois** (opção B). O Empório segue
+   como sub-menu do Tibé nesta frente; casca, marca e entrada próprias serão
+   planejadas noutra frente.
+9. **Grupos do menu abrem e fecham** (terceiro nível, dentro de "Meu
+   Empório"): o grupo da tela atual vem aberto e o menu lembra o que a pessoa
+   deixou aberto.
+10. A Agromax e a Central do Milho ainda estão alinhando mudanças; o usuário
+   passa depois. O usuário tem mais telas confusas para mostrar.
+
+## Diagnóstico de 24/11 (fotos de 45 telas, gestor, caixa e dono)
+
+Nota de Nielsen 20/40. Detector do Impeccable: zero achados. Achados
+conferidos no código:
+
+1. Vender: formulário único com 14+ campos de peso igual; opcionais sempre
+   abertos. Proposta: produto, itens, cliente, pagamento; resto em "Mais
+   opções" recolhido.
+2. O campo Caixa em Vender só aparece no fechamento (`balcao.tsx`,
+   `mostrarCaixa`).
+3. O seletor "Todas as propriedades" do Tibé aparece em toda tela do Empório.
+4. Produtos e Estoque sem paginação (101 linhas); A pagar com 159 comissões
+   miúdas.
+5. Sem permissão: umas telas voltam ao Início (`redirect`), Financeiro e
+   Histórico dão o 404 do Next em inglês (`notFound`). Cabeçalho copiado à mão
+   em 35 telas, filtros de padrões diferentes.
+6. A receber empilha 4 tabelas (Fiado, Cheques, Boletos, Cartões).
+
+Fotos e roteiro descartável fora do git (`scripts/navegador/ux-tour-emporio.py`,
+não versionado).
+
 ## Limites desta frente
 
 - Só o Empório. Nada fora de `src/app/(dashboard)/emporio/`, dos componentes
