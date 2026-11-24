@@ -119,3 +119,21 @@ eventos. O clique caía num botão morto. Saída: esperar `readyState` igual a
 No mesmo dia, um `timeout` que matou o `tsx` do `npm run navegador` deixou o
 daemon do browser-harness órfão, e toda página passou a recarregar em laço
 (o mesmo sintoma do oitavo e do nono atritos). Matar o daemon órfão resolveu.
+
+## Acréscimo de 2026-11-24: o clique por coordenada cai no vazio se a tela ainda rola
+
+Décimo terceiro atrito, no passo 2 do `emporio-franqueado` (3 falhas em 12
+rodadas): `escolher` devolvia "SEM OPCAO", e parecia que a lista de
+franqueados não carregava. Na falha, a página estava hidratada, o gatilho
+tinha `aria-expanded=false` e não havia opção nenhuma: o clique nem tinha
+acertado. O passo anterior termina numa recusa, e o balcão rola sozinho
+(`scrollIntoView` suave) até o campo recusado; a coordenada foi medida no meio
+da rolagem. Saída em `scripts/navegador/_lib.py` (`_abrir_select`): só seguir
+com `aria-expanded=true`, e remedir e clicar de novo até abrir. Regra geral:
+depois de clicar por coordenada, confira o efeito do clique, não só o passo
+seguinte.
+
+Na mesma investigação, o `next dev` se reiniciou sozinho por memória
+("approaching the used memory threshold") no meio de rodadas seguidas, e
+derrubou passos que não tinham nada a ver. Em laço de várias rodadas,
+reinicie o dev entre elas.

@@ -25,12 +25,14 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-23. **Decisões pendentes do Empório: em produção
-  desde 23/11** (merge `576c0f13`, autorizado na conversa, deploy conferido;
-  spec e plano `2026-11-23-emporio-decisoes-pendentes`, Q374 a Q385, suíte
-  `m129`). Migração `20261123120000_emporio_devolucao_credito_franqueado`
-  (coluna `franchisee_credit` em `EmporioSaleReturn`) aplicada no Neon antes
-  do push; `migrate status` em dia.
+- Atualizado em: 2026-11-24. **Branch `lint-avisos-passo-2`, NÃO publicada**
+  (`e00faf05`, `682e6e8b`; a `main` local tem o cofre `4b1f5443`, também sem
+  push): lint de 30 avisos para 0, travado em `--max-warnings 0`; passo 2 do
+  roteiro franqueado estável (`_abrir_select`, 6 de 6). As 9 suítes tocadas
+  verdes, `check` 0. Merge e push esperam autorização.
+- **Decisões pendentes do Empório: em produção desde 23/11** (merge
+  `576c0f13`; spec e plano `2026-11-23-emporio-decisoes-pendentes`, Q374 a
+  Q385, suíte `m129`; migração `20261123120000_...franqueado` no Neon).
   Entregue: D1 a D7 confirmadas; ficha conta agendado no Em aberto e não no
   Vencido (Q375, Q385); antecipação esconde o Desfazer da parcela (Q377); Caixa
   escolhe o franqueado (Q378); devolução com crédito devolve o valor do papel e
@@ -176,8 +178,7 @@ relatórios em [agente-whatsapp/](agente-whatsapp/), detalhe em
 
 - Os containers `tibe-pg` e `tibe-redis` caem sozinhos. Se uma suíte travar sem
   mensagem, rode `docker ps` antes de culpar o código.
-- `npm run test:all` repetido no mesmo dia reprova a `m19` pelo lock do Redis.
-  Rode `docker exec tibe-redis redis-cli FLUSHALL` (Redis local) e ela passa.
+- `test:all` repetido no dia reprova a `m19` (lock do Redis): `FLUSHALL` local.
 - `npx prisma migrate deploy` contra o Neon pode ser recusado pelo
   classificador mesmo com autorização. Tente uma vez; se bloquear, dê ao
   usuário o comando e confira com `migrate status` antes do push.
@@ -188,13 +189,12 @@ relatórios em [agente-whatsapp/](agente-whatsapp/), detalhe em
   sobrando no Chrome de testes ou o laço de logo depois de subir: fechar as
   abas pela porta 9333, derrubar o `next dev`, apagar `.next`, aquecer
   `/login` (cofre: `a-aba-oculta-e-a-leitura-cedo-imitam-defeito-no-navegador`).
-- Em 09/11 o `Agent` não listou `servidor-dados` nem `prova-viva`;
-  `servidor-acao` e `general-purpose` em Sonnet fizeram o papel. O usuário
-  pede economia de cota: Sonnet implementa e revisa, Haiku explora, Opus só
-  se ele pedir juiz.
+- Economia de cota: Sonnet implementa e revisa, Haiku explora, Opus só se o
+  usuário pedir juiz.
 - No notebook: `node -v` 24.22.1 ou mais; sem o `.claude/settings.local.json`
   (não vai ao git), a migração em produção volta a ser recusada pelo classificador.
 
 ## Últimas rodadas
 
+- 24/11: lint zerado e travado, passo 2 do roteiro franqueado estável; branch `lint-avisos-passo-2` sem merge.
 - 23/11: decisões pendentes do Empório em produção, Neon, merge e push autorizados na conversa (18/11 e 20/11 no histórico).
