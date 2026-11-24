@@ -51,6 +51,10 @@ export function Tarefa({
 }
 
 /** Subtítulo dentro de uma parte que reúne mais de uma tarefa. */
-export function Subtitulo({ children }: { children: React.ReactNode }) {
-  return <h2 className="mt-10 border-b border-borda pb-2 text-xl font-semibold text-texto first:mt-0">{children}</h2>;
+export function Subtitulo({ children, id }: { children: React.ReactNode; id?: string }) {
+  return (
+    <h2 id={id} className="mt-10 border-b border-borda pb-2 text-xl font-semibold text-texto first:mt-0">
+      {children}
+    </h2>
+  );
 }
