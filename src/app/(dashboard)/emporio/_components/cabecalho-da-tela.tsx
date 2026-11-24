@@ -23,7 +23,7 @@ export function CabecalhoDaTela({
 }) {
   return (
     <header className="flex flex-wrap items-start justify-between gap-3">
-      <div>
+      <div className="min-w-0">
         {caminho && caminho.length > 0 && (
           <nav aria-label="Caminho" className="mb-1 text-sm text-texto-secundario">
             {caminho.map((passo) => (
@@ -36,8 +36,8 @@ export function CabecalhoDaTela({
             ))}
           </nav>
         )}
-        <div className="flex items-center gap-2">
-          <h1 className="text-2xl font-semibold text-texto">{titulo}</h1>
+        <div className="flex min-w-0 items-center gap-2">
+          <h1 className="break-words text-2xl font-semibold text-texto">{titulo}</h1>
           {ajuda && <AjudaDaTela manual={manual}>{ajuda}</AjudaDaTela>}
         </div>
         {children && <div className="mt-1 text-sm text-texto-secundario">{children}</div>}
