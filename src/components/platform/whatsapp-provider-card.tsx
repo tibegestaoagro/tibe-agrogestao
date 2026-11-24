@@ -181,6 +181,7 @@ export default function WhatsAppProviderCard({
 
       {qrcode && (
         <div className="mt-4 flex flex-col items-center gap-2 rounded-md border border-gray-700 bg-gray-950 p-4">
+          {/* eslint-disable-next-line @next/next/no-img-element -- QR code em base64: o next/image não otimiza data URI */}
           <img src={qrcode} alt="QR code para conectar o WhatsApp" className="h-56 w-56" />
           <p className="text-xs text-gray-400">
             {polling ? "Escaneie no WhatsApp: aguardando conexão..." : "QR expirado."}

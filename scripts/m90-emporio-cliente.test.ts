@@ -461,7 +461,7 @@ async function secao4() {
   (globalThis as unknown as { AsyncLocalStorage: unknown }).AsyncLocalStorage = (await import("node:async_hooks")).AsyncLocalStorage;
   const { papelDeFixture } = await import("./_emporio-papel");
   const { prisma, prismaForTenant, scoped } = await import("@/lib/prisma");
-  const C = await import("@/lib/actions/emporio-clientes");
+  await import("@/lib/actions/emporio-clientes");
   const Cat = await import("@/lib/actions/emporio-catalogo");
   const Est = await import("@/lib/actions/emporio-estoque");
   const V = await import("@/lib/actions/emporio-vendas");

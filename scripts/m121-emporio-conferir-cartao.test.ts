@@ -527,7 +527,7 @@ async function secao4() {
   check("confirmed_net: 33,33, 33,33 e 33,33", [da1, da2, da3].every((p) => cent(p.confirmed_net) === 3333), j([da1.confirmed_net, da2.confirmed_net, da3.confirmed_net]));
   check("a soma conferida é exatamente o total que caiu (99,99)", cent(da1.confirmed_net) + cent(da2.confirmed_net) + cent(da3.confirmed_net) === 9999);
   check("o saldo da conta cai exatamente 1 centavo", (await saldo(A, c.conta)) - s0 === -1, `${(await saldo(A, c.conta)) - s0}`);
-  check("a parcela de outra adquirente, a de outro dia e a de outra conta ficam intactas", [b1, c1, d1].every((p) => true) && !(await lerParcela(b1.id)).reconciled_at && !(await lerParcela(c1.id)).reconciled_at && !(await lerParcela(d1.id)).reconciled_at);
+  check("a parcela de outra adquirente, a de outro dia e a de outra conta ficam intactas", !(await lerParcela(b1.id)).reconciled_at && !(await lerParcela(c1.id)).reconciled_at && !(await lerParcela(d1.id)).reconciled_at);
   check("o lote foi para o Histórico", (await logs(A)) > l0);
   check("o recorte pegou as duas lojas da mesma conta (L2 conferida junto com L1)", !!da2.reconciled_at && !!da1.reconciled_at);
   const rep = await confDia(A.tok.fin, { conta: c.conta, aq: c.aq[0] }, D, 99.99);

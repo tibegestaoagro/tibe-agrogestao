@@ -213,8 +213,8 @@ async function main() {
     const P15 = await mkProduto(A, "Saca15", { base_unit: "saca", content_qty: 15, content_unit: "quilograma" });
     const pSaca = await mkPres(A, P15.id, "Saca 15 kg", 1, true);
     const pGranel = await mkPres(A, P15.id, "GRANEL", 0.068, false);
-    const pTres = await mkPres(A, P15.id, "3 kg", 0.2, false);
-    const pSacola = await mkPres(A, P15.id, "Sacola lacrada", 0.068, true);
+    await mkPres(A, P15.id, "3 kg", 0.2, false);
+    await mkPres(A, P15.id, "Sacola lacrada", 0.068, true);
     const pArq = await mkPres(A, P15.id, "Arquivada", 0.5, false);
     const arq = await Cat.arquivarApresentacaoAction(A.db, A.owner, pArq, true);
     if (!arq.ok) throw new Error(`arquivar: ${j(arq)}`);
@@ -281,7 +281,7 @@ async function main() {
     await mkPres(A, PIso.id, "Saca 15 kg", 1, true);
     const P5 = await mkProduto(A, "Saca5", { base_unit: "saca", content_qty: 5, content_unit: "quilograma" });
     await mkPres(A, P5.id, "Saca 5 kg", 1, true);
-    const p5Quilo = await mkPres(A, P5.id, "Quilo", 0.2, false);
+    await mkPres(A, P5.id, "Quilo", 0.2, false);
 
     // Coleta do que a conversão toca, para comparar antes e depois.
     async function coletar(prod: { id: string; product_id: string }): Promise<Dado> {

@@ -72,7 +72,6 @@ const ultimoDia = (ym: string) => `${ym}-${String(new Date(Date.UTC(Number(ym.sl
 const brt = (dia: string, hhmm: string) => new Date(`${dia}T${hhmm}:00-03:00`);
 
 const ONTEM = emDias(-1);
-const ANTEONTEM = emDias(-2);
 const H3 = emDias(-3);
 
 // ---------------------------------------------------------------------------

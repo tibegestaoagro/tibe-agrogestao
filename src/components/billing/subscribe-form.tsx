@@ -107,6 +107,7 @@ export default function SubscribeForm({ currentPlan }: { currentPlan: Plan | nul
       {result?.method === "pix" && (
         <div className="mt-5 rounded-md bg-superficie-afundada p-4">
           <p className="text-sm font-medium text-texto-marca">Pague com PIX</p>
+          {/* eslint-disable-next-line @next/next/no-img-element -- QR code em base64: o next/image não otimiza data URI */}
           <img
             src={`data:image/png;base64,${result.encodedImage}`}
             alt="QR Code PIX"

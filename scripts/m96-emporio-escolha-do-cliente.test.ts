@@ -204,7 +204,7 @@ async function secao3() {
   const joao = await novo(t.id, "João da Ponte", { person_kind: "pf", phone: "998761111" });
   const ze = await novo(t.id, "Zé Carlos", { person_kind: "pf", phone: "(55) 99123-4567" });
   const pj = await novo(t.id, "Agro Alfa Ltda", { person_kind: "pj", document: "12ABC34501DE35", phone: "34 3000-1111" });
-  const migrado = await novo(t.id, "Cliente Migrado");
+  await novo(t.id, "Cliente Migrado");
   const arq = await novo(t.id, "Maria Arquivada", { person_kind: "pf", phone: "34 97777-0000", archived_at: new Date() });
   const deB = await novo(tB.id, "Maria de Outra Conta", { person_kind: "pf", phone: "+55 (34) 99876-1234" });
 

@@ -489,9 +489,7 @@ async function main() {
 
     // (c) 429 sempre, com tentativas: 3: devolve 429 depois de 3 esperas.
     {
-      let chamadas = 0;
       const enviar = async (_corpo: Corpo) => {
-        chamadas += 1;
         return resposta429();
       };
       const esperas: number[] = [];

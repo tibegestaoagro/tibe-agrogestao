@@ -14,7 +14,6 @@
 import {
   alertSchema,
   apiOkSchema,
-  createFinancialEntryRequestSchema,
   financialEntrySchema,
   isApiError,
   listUsersResponseSchema,
@@ -129,13 +128,13 @@ const verificacao = signupVerifyResultSchema.parse(respostaCrua);
 
 if (verificacao.completed) {
   // So neste ramo existem `email` e `temp_password`.
-  const senhaTemporaria: string = verificacao.temp_password;
+  const _senhaTemporaria: string = verificacao.temp_password;
 } else {
   // E so neste existe `state`.
-  const proximoPasso: "whatsapp" | "email" | "done" = verificacao.state.current_step;
+  const _proximoPasso: "whatsapp" | "email" | "done" = verificacao.state.current_step;
 
   // @ts-expect-error `temp_password` nao existe enquanto o cadastro nao terminou
-  const senhaQueAindaNaoExiste: string = verificacao.temp_password;
+  const _senhaQueAindaNaoExiste: string = verificacao.temp_password;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -145,11 +144,11 @@ if (verificacao.completed) {
 declare const resposta: unknown;
 
 if (isApiError(resposta)) {
-  const codigo: string = resposta.error.code;
-  const mensagem: string = resposta.error.message;
+  const _codigo: string = resposta.error.code;
+  const _mensagem: string = resposta.error.message;
 } else {
   const usuario = userSchema.array().parse((resposta as ApiOk<unknown>).data);
-  const primeiroNome: string | undefined = usuario[0]?.name;
+  const _primeiroNome: string | undefined = usuario[0]?.name;
 }
 
 /**

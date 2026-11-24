@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings 0",
     "check": "tsx scripts/check-repo.ts",
     "worker": "tsx scripts/worker-rotina.ts",
     "cenario:emporio-demo": "tsx scripts/cenario-demonstracao-emporio.ts",

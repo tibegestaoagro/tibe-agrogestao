@@ -72,7 +72,6 @@ async function comBanco() {
       if (typeof f !== "function") return Promise.reject(new Error(`action ausente: ${nome}`));
       return f(db, ...args);
     };
-    const chamarB = (nome: string, ...args: unknown[]) => A[nome](dbB, ...args);
     const dados = (r: R): Dado => (r.ok ? r.data : undefined);
     const lista = (d: Dado): Dado[] => (Array.isArray(d) ? d : (d?.items ?? []));
     const criar = (input: Dado) => chamar("criarProdutoEmporioAction", owner, { category_id: cat.id, ...input });

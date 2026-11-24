@@ -139,9 +139,6 @@ async function chamar(tok: string, rota: () => Promise<Dado>, metodo: "GET" | "P
   const res = await withBearer(tok, (): Promise<Response> => m[metodo](req, id === undefined ? undefined : { params: Promise.resolve({ id }) }));
   return { status: res.status, corpo: (await res.json().catch(() => ({}))) as Dado };
 }
-const erro = (r: Resp, status: number, field?: string, code?: string) =>
-  r.status === status && (field === undefined || r.corpo?.error?.field === field) && (code === undefined || r.corpo?.error?.code === code);
-const recusada = (r: Resp) => r.status >= 400 && r.status < 500;
 const erroA = (r: Dado, status: number, field: string, code = "VALIDATION_ERROR") =>
   r?.ok === false && r.status === status && r.field === field && r.code === code;
 
@@ -162,20 +159,6 @@ async function cliente(w: Mundo, nome: string) {
   return (await prisma.emporioCustomer.create({ data: { tenant_id: w.tenantId, name: nome, person_kind: "pf", phone: "11999990000" } as Dado })) as Dado;
 }
 const itens = (w: Mundo, quantity: number) => [{ emporio_product_id: w.prodId, presentation_id: w.presId, quantity }];
-const pix = (amount: number, bank_account_id?: string) => ({ kind: "pix", amount, ...(bank_account_id ? { bank_account_id } : {}) });
-
-type Loja = "L1" | "L2";
-const vender = (w: Mundo, loja: Loja, cli: Dado, quantity: number, payments: Dado[], tok?: string) =>
-  chamar(tok ?? w.tok.owner, R.sales, "POST", "emporio/sales", {
-    operation_key: chave("venda"),
-    establishment_id: w[loja],
-    cash_register_id: loja === "L1" ? w.reg1 : w.reg2,
-    customer_id: cli.id,
-    items: itens(w, quantity),
-    payments,
-  });
-const lerPix = (tok: string, lojaId: string) => chamar(tok, R.pixContas, "GET", `emporio/establishments/${lojaId}/pix-accounts`, undefined, lojaId);
-const pagamentosDe = (r: Resp): Dado[] => (Array.isArray(r.corpo?.data?.payments) ? r.corpo.data.payments : []);
 
 async function main() {
   const { prisma } = await import("@/lib/prisma");
