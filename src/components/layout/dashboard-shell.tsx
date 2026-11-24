@@ -75,7 +75,7 @@ export default function DashboardShell({
             <Menu className="h-5 w-5" />
           </button>
           {/* No Empório a propriedade da fazenda não se aplica: o seletor sai. */}
-          {!pathname.startsWith("/emporio") && (
+          {!(pathname === "/emporio" || pathname.startsWith("/emporio/")) && (
             <PropertySelector properties={properties} activePropertyId={activePropertyId} />
           )}
           <div className="min-w-0 flex-1" />

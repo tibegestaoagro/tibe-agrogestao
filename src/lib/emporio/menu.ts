@@ -4,10 +4,8 @@ import type { PapelContexto } from "@/lib/emporio/papel";
 export type ItemDoMenu = { href: string; rotulo: string; exact?: boolean; destaque?: boolean };
 export type EntradaDoMenu = ({ tipo: "item" } & ItemDoMenu) | { tipo: "grupo"; rotulo: string; itens: ItemDoMenu[] };
 
-type Estrutura = ({ tipo: "item" } & ItemDoMenu) | { tipo: "grupo"; rotulo: string; itens: ItemDoMenu[] };
-
 /** O menu da onda 1: duas folhas no topo e cinco grupos, na ordem em que a pessoa trabalha. */
-const ESTRUTURA: readonly Estrutura[] = [
+const ESTRUTURA: readonly EntradaDoMenu[] = [
   { tipo: "item", href: "/emporio", rotulo: "Início", exact: true },
   { tipo: "item", href: "/emporio/vender", rotulo: "Vender", destaque: true },
   {

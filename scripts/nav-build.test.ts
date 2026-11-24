@@ -3,6 +3,7 @@ import { buildNavItems } from "@/lib/nav";
 import type { NavItem, NavChild } from "@/components/layout/sidebar";
 import { paginasVisiveis, veAPagina } from "@/lib/emporio/paginas";
 import { menuDoEmporio } from "@/lib/emporio/menu";
+import { hrefAtivo } from "@/lib/emporio/href-ativo";
 import { paginaPermitidaAoSoDaLoja } from "@/lib/emporio/paginas-do-so-da-loja";
 import type { PapelContexto } from "@/lib/emporio/papel";
 
@@ -193,7 +194,17 @@ function main() {
   assert(paginaPermitidaAoSoDaLoja("/emporio/clientes/abc?x=1"), "só da loja: a ficha do cliente aberta");
   assert(!veAPagina(caixa, "/emporio/estoque") && !veAPagina(caixa, "/emporio/estabelecimentos"), "veAPagina esconde Estoque e Lojas do caixa");
 
-  const semEmporio = buildNavItems({ ...base, hasEmporio: false });
+  // A folha acesa: só a de href mais específico (Hoje não acende em /financeiro/projecao).
+  const folhasDono = folhasDe(gDono);
+  const acesa = (p: string) => folhasDono.find((f) => f.href === hrefAtivo(p, folhasDono))?.label ?? null;
+  assert(acesa("/emporio/financeiro/projecao") === "Projeção", "rota /financeiro/projecao: só Projeção acende");
+  assert(acesa("/emporio/financeiro") === "Hoje", "rota /financeiro: Hoje");
+  assert(acesa("/emporio/financeiro/receber") === "A receber", "rota /financeiro/receber: A receber");
+  assert(acesa("/emporio/vendas/abc") === "Vendas", "rota /vendas/abc: Vendas");
+  assert(acesa("/emporio") === "Início", "rota /emporio: Início");
+  assert(acesa("/emporio/vender") === "Vender", "rota /vender: Vender, nem Vendas nem Início");
+
+  const semEmporio =buildNavItems({ ...base, hasEmporio: false });
   assert(grupo(semEmporio) === undefined || grupo(semEmporio)?.show === false, "sem Empório, o grupo não aparece");
 
   console.log("");

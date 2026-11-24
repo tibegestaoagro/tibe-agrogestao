@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { signOut } from "next-auth/react";
+import { hrefAtivo } from "@/lib/emporio/href-ativo";
 
 export type IconKey =
   | "home"
@@ -69,26 +70,18 @@ function isActive(pathname: string, href: string) {
 
 const CHAVE_SUBGRUPOS = "tibe:menu:subgrupos";
 
-const childActiveEm = (pathname: string, c: NavChild) =>
-  c.exact ? pathname === c.href : isActive(pathname, c.href);
-
 /** Uma folha do menu; `recuo` empurra a folha de subgrupo um nível para dentro. */
 function Folha({
   child,
-  pathname,
+  ativoHref,
   recuo,
-  irmas = [],
 }: {
   child: NavChild;
-  pathname: string;
+  /** A única folha acesa do grupo (`hrefAtivo`). */
+  ativoHref: string | null;
   recuo: boolean;
-  irmas?: NavChild[];
 }) {
-  // Hoje (/emporio/financeiro) contém A receber (/emporio/financeiro/receber):
-  // quando uma irmã mais específica acende, só ela fica marcada.
-  const active =
-    childActiveEm(pathname, child) &&
-    !irmas.some((o) => o.href.startsWith(`${child.href}/`) && childActiveEm(pathname, o));
+  const active = child.href === ativoHref;
   if (child.destaque) {
     return (
       <Link
@@ -261,11 +254,12 @@ export default function Sidebar({
             // Grupo expansível.
             const children = item.children.filter((c) => "kind" in c || c.show);
             if (children.length === 0) return null;
-            const hasActiveChild = children.some((c) =>
-              "kind" in c
-                ? c.children.some((f) => childActiveEm(pathname, f))
-                : childActiveEm(pathname, c),
+            // Uma só folha acende no grupo inteiro: a de href mais específico.
+            const ativoHref = hrefAtivo(
+              pathname,
+              children.flatMap((c) => ("kind" in c ? c.children.filter((f) => f.show) : [c])),
             );
+            const hasActiveChild = ativoHref !== null;
             const open = manualToggle[item.label] ?? hasActiveChild;
 
             return (
@@ -292,12 +286,12 @@ export default function Sidebar({
                   <div className="ml-4 space-y-1 border-l border-texto-invertido/10 pl-4 pt-1">
                     {children.map((child) => {
                       if (!("kind" in child)) {
-                        return <Folha key={child.href} child={child} pathname={pathname} recuo={false} />;
+                        return <Folha key={child.href} child={child} ativoHref={ativoHref} recuo={false} />;
                       }
                       const folhas = child.children.filter((f) => f.show);
                       if (folhas.length === 0) return null;
                       const chave = `${item.label}/${child.label}`;
-                      const ativo = folhas.some((f) => childActiveEm(pathname, f));
+                      const ativo = folhas.some((f) => f.href === ativoHref);
                       const aberto = subgrupos[chave] ?? ativo;
                       return (
                         <div key={chave}>
@@ -319,7 +313,7 @@ export default function Sidebar({
                           {aberto && (
                             <div className="ml-3 space-y-1 border-l border-texto-invertido/10 pl-2">
                               {folhas.map((f) => (
-                                <Folha key={f.href} child={f} pathname={pathname} recuo irmas={folhas} />
+                                <Folha key={f.href} child={f} ativoHref={ativoHref} recuo />
                               ))}
                             </div>
                           )}
