@@ -1436,6 +1436,55 @@ function conferirEscritaDoEmporioNoHistorico() {
   );
 }
 
+// ------------------------------- 20. cabecalho do Emporio pelo componente
+/**
+ * 20. Toda tela do Emporio abre pelo `CabecalhoDaTela`.
+ *
+ * O titulo (`<h1>`), o (i), as acoes e o "voltar" vivem num componente so, para
+ * a tela nao inventar o proprio cabecalho. A UNIDADE e a LINHA do `.tsx`: `<h1`
+ * em qualquer arquivo de `src/app/(dashboard)/emporio/`, salvo no proprio
+ * componente, e `<Link>` cujo texto e so "Meu Empório" (o voltar manual que o
+ * componente substituiu). Comentarios nao contam. Sem linha de base: a onda de
+ * navegacao deixou zero.
+ */
+export function ofensasDeCabecalho(fonte: string): { linha: number; motivo: string }[] {
+  const sem = removerComentarios(fonte);
+  const achados: { linha: number; motivo: string }[] = [];
+  const linhaDe = (indice: number) => sem.slice(0, indice).split("\n").length;
+  for (const m of sem.matchAll(/<h1\b/g)) {
+    achados.push({ linha: linhaDe(m.index!), motivo: "<h1> fora do CabecalhoDaTela" });
+  }
+  for (const m of sem.matchAll(/<Link\b[^>]*>\s*(?:←\s*)?Meu Empório\s*<\/Link>/g)) {
+    achados.push({ linha: linhaDe(m.index!), motivo: 'link "Meu Empório" fora do CabecalhoDaTela' });
+  }
+  return achados;
+}
+
+function conferirCabecalhoDoEmporio() {
+  console.log("\n20. Cabecalho do Emporio pelo componente");
+
+  const PASTA = "src/app/(dashboard)/emporio/";
+  const COMPONENTE = `${PASTA}_components/cabecalho-da-tela.tsx`;
+  const ofensores: string[] = [];
+  let total = 0;
+  for (const rel of versionados()) {
+    if (!rel.startsWith(PASTA) || !rel.endsWith(".tsx") || rel === COMPONENTE) continue;
+    const full = join(RAIZ, rel);
+    if (!existsSync(full)) continue;
+    total += 1;
+    for (const o of ofensasDeCabecalho(readFileSync(full, "utf8"))) ofensores.push(`${rel}:${o.linha}: ${o.motivo}`);
+  }
+
+  check("ha telas do Emporio para conferir", total > 0, "o padrao do caminho deixou de achar arquivos");
+  check(
+    "titulo e voltar do Emporio vem do CabecalhoDaTela",
+    ofensores.length === 0,
+    ofensores.length > 0
+      ? `use <CabecalhoDaTela> (_components/cabecalho-da-tela) em vez de <h1> e do link "Meu Empório" soltos:\n       ${ofensores.join("\n       ")}`
+      : undefined,
+  );
+}
+
 function main() {
   console.log("🔎 Conferencia estatica do repositorio (sem banco)");
   conferirCaminhos();
@@ -1458,6 +1507,7 @@ function main() {
   conferirAliasDaMarca();
   conferirOpacidadeDosTokens();
   conferirEscritaDoEmporioNoHistorico();
+  conferirCabecalhoDoEmporio();
 
   console.log("");
   if (falhas === 0) console.log("✅ Repositorio consistente: 0 falhas.");
