@@ -14,6 +14,7 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { CabecalhoDaTela } from "../_components/cabecalho-da-tela";
 import { TransferenciaForm } from "../_components/transferencia-form";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { ReceberTransferenciaForm, CancelarTransferenciaForm, ResolverDiferencaForm } from "../_components/transferencia-acoes";
@@ -133,20 +134,16 @@ export default async function TransferenciasPage({
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <Link href="/emporio" className="text-sm text-texto-secundario hover:text-texto">
-            Meu Empório
-          </Link>
-          <h1 className="text-2xl font-semibold text-texto">Transferências</h1>
-          <p className="mt-1 text-sm text-texto-secundario">
-            Mercadoria que vai de uma loja para outra. Sai da origem no envio e entra no destino no recebimento.
-          </p>
-        </div>
-        {origensDoEnvio.length > 0 && todasLojas.length > 1 && (
-          <TransferenciaForm origens={origensDoEnvio} destinos={todasLojas} produtos={produtosForm} />
-        )}
-      </header>
+      <CabecalhoDaTela
+        titulo="Transferências"
+        ajuda="Mercadoria que vai de uma loja para outra. Sai da origem no envio e entra no destino no recebimento."
+        acoes={
+          origensDoEnvio.length > 0 &&
+          todasLojas.length > 1 && (
+            <TransferenciaForm origens={origensDoEnvio} destinos={todasLojas} produtos={produtosForm} />
+          )
+        }
+      />
 
       <TransferenciasFiltro lojas={lojas} loja={loja} situacao={filtroSituacao ?? ""} porPagina={porPagina} ordem={ordem} />
 
@@ -155,7 +152,7 @@ export default async function TransferenciasPage({
           titulo="Nenhuma loja cadastrada"
           acao={
             <Link href="/emporio/estabelecimentos" className="text-sm font-medium text-texto-marca hover:underline">
-              Ir para Estabelecimentos
+              Ir para Lojas
             </Link>
           }
         >

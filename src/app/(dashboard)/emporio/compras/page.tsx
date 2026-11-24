@@ -16,6 +16,7 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { CabecalhoDaTela } from "../_components/cabecalho-da-tela";
 import { CompraForm } from "../_components/compra-form";
 import { ReceberCompraBotao, CancelarCompraForm } from "../_components/compra-acoes";
 import { ComprasFiltro } from "../_components/compras-filtro";
@@ -111,20 +112,13 @@ export default async function ComprasPage({
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <Link href="/emporio" className="text-sm text-texto-secundario hover:text-texto">
-            Meu Empório
-          </Link>
-          <h1 className="text-2xl font-semibold text-texto">Compras</h1>
-          <p className="mt-1 text-sm text-texto-secundario">
-            O que as lojas compraram dos fornecedores. A conta a pagar nasce junto.
-          </p>
-        </div>
-        {lojasDoLancamento.length > 0 && (
-          <CompraForm lojas={lojasDoLancamento} produtos={produtosForm} />
-        )}
-      </header>
+      <CabecalhoDaTela
+        titulo="Compras"
+        ajuda="O que as lojas compraram dos fornecedores. A conta a pagar nasce junto."
+        acoes={
+          lojasDoLancamento.length > 0 && <CompraForm lojas={lojasDoLancamento} produtos={produtosForm} />
+        }
+      />
 
       <ComprasFiltro lojas={lojas} loja={loja} situacao={filtroSituacao ?? ""} porPagina={porPagina} ordem={ordem} />
 
@@ -133,7 +127,7 @@ export default async function ComprasPage({
           titulo="Nenhuma loja cadastrada"
           acao={
             <Link href="/emporio/estabelecimentos" className="text-sm font-medium text-texto-marca hover:underline">
-              Ir para Estabelecimentos
+              Ir para Lojas
             </Link>
           }
         >

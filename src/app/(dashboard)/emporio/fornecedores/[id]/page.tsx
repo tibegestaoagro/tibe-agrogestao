@@ -19,6 +19,7 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { CabecalhoDaTela } from "../../_components/cabecalho-da-tela";
 import { FornecedorForm } from "../../_components/fornecedor-form";
 import { FornecedorArquivarBotao } from "../_components/fornecedor-arquivar-botao";
 import { UNIDADE_BASE_SUFIXO, numeroBr } from "../../_components/formato";
@@ -74,32 +75,31 @@ export default async function FornecedorFichaPage({ params }: { params: Promise<
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <Link href="/emporio/fornecedores" className="text-sm text-texto-secundario hover:text-texto">
-            Fornecedores
-          </Link>
-          <h1 className="break-words text-2xl font-semibold text-texto">{f.name}</h1>
-          <div className="mt-1 flex flex-wrap gap-1">
-            <Badge variant="blue">{f.kind === "propriedade" ? "Propriedade" : "De fora"}</Badge>
-            {f.archived && <Badge variant="gray">Arquivado</Badge>}
+      <CabecalhoDaTela
+        titulo={f.name}
+        caminho={[{ rotulo: "Fornecedores", href: "/emporio/fornecedores" }]}
+        acoes={
+          <div className="flex flex-wrap gap-2">
+            {podeEditar && (
+              <FornecedorForm
+                modo="editar"
+                id={f.id}
+                trigger={
+                  <Button type="button" variant="outline" size="sm">
+                    Editar
+                  </Button>
+                }
+              />
+            )}
+            {podeArquivar && <FornecedorArquivarBotao id={f.id} arquivado={f.archived} />}
           </div>
+        }
+      >
+        <div className="flex flex-wrap gap-1">
+          <Badge variant="blue">{f.kind === "propriedade" ? "Propriedade" : "De fora"}</Badge>
+          {f.archived && <Badge variant="gray">Arquivado</Badge>}
         </div>
-        <div className="flex flex-wrap gap-2">
-          {podeEditar && (
-            <FornecedorForm
-              modo="editar"
-              id={f.id}
-              trigger={
-                <Button type="button" variant="outline" size="sm">
-                  Editar
-                </Button>
-              }
-            />
-          )}
-          {podeArquivar && <FornecedorArquivarBotao id={f.id} arquivado={f.archived} />}
-        </div>
-      </header>
+      </CabecalhoDaTela>
 
       <section className="grid gap-3 rounded-lg border border-borda p-4 text-sm sm:grid-cols-2" aria-label="Dados">
         {f.kind === "propriedade" ? (

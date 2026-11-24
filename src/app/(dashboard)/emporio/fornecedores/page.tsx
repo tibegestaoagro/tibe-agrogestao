@@ -17,6 +17,7 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { CabecalhoDaTela } from "../_components/cabecalho-da-tela";
 import { FornecedorForm } from "../_components/fornecedor-form";
 import { FornecedoresFiltro } from "./_components/fornecedores-filtro";
 
@@ -49,18 +50,11 @@ export default async function FornecedoresPage({
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <Link href="/emporio" className="text-sm text-texto-secundario hover:text-texto">
-            Meu Empório
-          </Link>
-          <h1 className="text-2xl font-semibold text-texto">Fornecedores</h1>
-          <p className="mt-1 text-sm text-texto-secundario">
-            De quem o Empório compra, e as propriedades do dono que abastecem a loja.
-          </p>
-        </div>
-        {podeCadastrar && <FornecedorForm modo="novo" />}
-      </header>
+      <CabecalhoDaTela
+        titulo="Fornecedores"
+        ajuda="De quem o Empório compra, e as propriedades do dono que abastecem a loja."
+        acoes={podeCadastrar && <FornecedorForm modo="novo" />}
+      />
 
       <FornecedoresFiltro q={q} arquivados={mostrarArquivados} />
 

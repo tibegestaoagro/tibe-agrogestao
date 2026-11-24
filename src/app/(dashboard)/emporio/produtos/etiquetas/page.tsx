@@ -1,8 +1,8 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
 import { lerConfiguracoesAction } from "@/lib/actions/emporio-configuracoes";
+import { CabecalhoDaTela } from "../../_components/cabecalho-da-tela";
 import { EtiquetasEscolha } from "./_components/etiquetas-escolha";
 import { barrasDosFormatos, itensDeEtiqueta, lojasDeEtiqueta } from "./_dados";
 
@@ -28,15 +28,11 @@ export default async function EtiquetasPage() {
 
   return (
     <div className="space-y-6">
-      <header>
-        <Link href="/emporio/produtos" className="text-sm text-texto-secundario hover:text-texto">
-          Produtos
-        </Link>
-        <h1 className="text-2xl font-semibold text-texto">Etiquetas</h1>
-        <p className="text-sm text-texto-secundario">
-          Escolha a loja, o formato e as apresentações. As medidas vêm das Configurações do Empório.
-        </p>
-      </header>
+      <CabecalhoDaTela
+        titulo="Etiquetas"
+        caminho={[{ rotulo: "Produtos", href: "/emporio/produtos" }]}
+        ajuda="Escolha a loja, o formato e as apresentações. As medidas vêm das Configurações do Empório."
+      />
       <EtiquetasEscolha
         lojas={lojas}
         itens={itens}

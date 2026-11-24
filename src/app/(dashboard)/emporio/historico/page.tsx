@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 import { papelDoEmporio } from "@/lib/emporio/papel";
 import { veAPagina } from "@/lib/emporio/paginas";
 import { requireFeaturePage } from "@/lib/features";
@@ -10,6 +10,7 @@ import { ACOES_DO_HISTORICO } from "@/lib/emporio/historico";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { EmptyState } from "@/components/ui/empty-state";
+import { CabecalhoDaTela } from "../_components/cabecalho-da-tela";
 import { PeriodoFiltro } from "../_components/periodo-filtro";
 
 const CAMPO =
@@ -26,8 +27,8 @@ type Params = {
 
 /** Grupos do seletor de ação: a área é a parte da chave antes do ponto. */
 const AREAS: Record<string, string> = {
-  estabelecimento: "Estabelecimentos",
-  vinculos: "Estabelecimentos",
+  estabelecimento: "Lojas",
+  vinculos: "Lojas",
   produto: "Produtos",
   apresentacao: "Produtos",
   preco: "Produtos",
@@ -76,13 +77,13 @@ function valorEmTexto(v: unknown): string {
 /**
  * Histórico do Empório (F6b, Q134): quem fez o quê, do mais novo para o mais
  * antigo. Dono e Gerente geral veem tudo; o Gestor, as lojas dele. Para o
- * Vendedor a action recusa e a página some (404).
+ * Vendedor a action recusa e a pessoa volta ao início do Empório.
  */
 export default async function HistoricoPage({ searchParams }: { searchParams: Promise<Params> }) {
   const user = await requireFeaturePage("emporio");
   const p = await searchParams;
   const db = await getTenantDb();
-  if (!veAPagina(await papelDoEmporio(db, user), "/emporio/historico")) notFound();
+  if (!veAPagina(await papelDoEmporio(db, user), "/emporio/historico")) redirect("/emporio");
 
   const res = await listarHistoricoAction(db, user, {
     user_id: p.user_id,
@@ -92,7 +93,7 @@ export default async function HistoricoPage({ searchParams }: { searchParams: Pr
     action: p.action,
     cursor: p.cursor,
   });
-  if (!res.ok && res.status === 403) notFound();
+  if (!res.ok && res.status === 403) redirect("/emporio");
 
   const [lojasRes, pessoas] = await Promise.all([
     listarEstabelecimentosAction(db, user),
@@ -114,15 +115,10 @@ export default async function HistoricoPage({ searchParams }: { searchParams: Pr
 
   return (
     <div className="space-y-6">
-      <header>
-        <Link href="/emporio" className="text-sm text-texto-secundario hover:text-texto">
-          Meu Empório
-        </Link>
-        <h1 className="text-2xl font-semibold text-texto">Histórico</h1>
-        <p className="mt-1 text-sm text-texto-secundario">
-          Tudo o que foi feito no Empório, do mais novo para o mais antigo.
-        </p>
-      </header>
+      <CabecalhoDaTela
+        titulo="Histórico"
+        ajuda="Tudo o que foi feito no Empório, do mais novo para o mais antigo."
+      />
 
       <PeriodoFiltro
         caminho="/emporio/historico"

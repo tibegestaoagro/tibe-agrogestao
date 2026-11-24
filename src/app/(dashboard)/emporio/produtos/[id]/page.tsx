@@ -21,6 +21,7 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { CabecalhoDaTela } from "../../_components/cabecalho-da-tela";
 import { Paginacao, paginaDaUrl } from "../../_components/paginacao";
 import { ArquivarBotao } from "../../_components/arquivar-botao";
 import { NomeProdutoForm } from "../../_components/nome-produto-form";
@@ -145,42 +146,33 @@ export default async function ProdutoEmporioPage({
 
   return (
     <div className="space-y-8">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <Link href="/emporio/produtos" className="text-sm text-texto-secundario hover:text-texto">
-            Produtos
-          </Link>
-          <h1 className="text-2xl font-semibold text-texto">
-            {p.name}
-            {conteudo && (
-              <span className="ml-2 text-base font-normal text-texto-secundario">
-                {nomeComConteudo(p.base_unit, conteudo.qty, conteudo.unit)}
-              </span>
-            )}
-            {p.archived_at && (
-              <Badge variant="gray" className="ml-2 align-middle">
-                Arquivado
-              </Badge>
-            )}
-          </h1>
-          <p className="mt-1 text-sm text-texto-secundario">
-            {p.category_name}, vendido por {(UNIDADE_BASE_ROTULO[p.base_unit] ?? p.base_unit).toLowerCase()}
-          </p>
-        </div>
-        {podeEscrever && (
-          <div className="flex flex-wrap gap-2">
-            <NomeProdutoForm produtoId={p.id} nome={p.name} />
-            {podeConverter && conteudo && (
-              <ConverterUnidadeForm produtoId={p.id} baseUnit={p.base_unit} conteudoUnit={conteudo.unit} />
-            )}
-            <ArquivarBotao
-              url={`/api/v1/emporio/products/${p.id}/archive`}
-              arquivado={!!p.archived_at}
-              rotulo="Arquivar produto"
-            />
-          </div>
+      <CabecalhoDaTela
+        titulo={p.name}
+        caminho={[{ rotulo: "Produtos", href: "/emporio/produtos" }]}
+        acoes={
+          podeEscrever && (
+            <div className="flex flex-wrap gap-2">
+              <NomeProdutoForm produtoId={p.id} nome={p.name} />
+              {podeConverter && conteudo && (
+                <ConverterUnidadeForm produtoId={p.id} baseUnit={p.base_unit} conteudoUnit={conteudo.unit} />
+              )}
+              <ArquivarBotao
+                url={`/api/v1/emporio/products/${p.id}/archive`}
+                arquivado={!!p.archived_at}
+                rotulo="Arquivar produto"
+              />
+            </div>
+          )
+        }
+      >
+        {conteudo && <span>{nomeComConteudo(p.base_unit, conteudo.qty, conteudo.unit)}. </span>}
+        {p.category_name}, vendido por {(UNIDADE_BASE_ROTULO[p.base_unit] ?? p.base_unit).toLowerCase()}
+        {p.archived_at && (
+          <Badge variant="gray" className="ml-2 align-middle">
+            Arquivado
+          </Badge>
         )}
-      </header>
+      </CabecalhoDaTela>
 
       <section className="space-y-3">
         <div className="flex items-center justify-between gap-3">
@@ -331,7 +323,7 @@ export default async function ProdutoEmporioPage({
             titulo="Nenhuma loja cadastrada"
             acao={
               <Link href="/emporio/estabelecimentos" className="text-sm font-medium text-texto-marca hover:underline">
-                Ir para Estabelecimentos
+                Ir para Lojas
               </Link>
             }
           >
@@ -479,7 +471,7 @@ export default async function ProdutoEmporioPage({
             acao={
               ativas.length === 0 ? undefined : (
                 <Link href="/emporio/estabelecimentos" className="text-sm font-medium text-texto-marca hover:underline">
-                  Ir para Estabelecimentos
+                  Ir para Lojas
                 </Link>
               )
             }

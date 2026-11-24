@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
@@ -10,6 +9,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { listarCaixasAction } from "@/lib/actions/emporio-turno";
 import { listarContasAction } from "@/lib/actions/emporio-caixa";
 import { listarAdquirentesAction, listarTaxasAction } from "@/lib/actions/emporio-cartoes";
+import { CabecalhoDaTela } from "../_components/cabecalho-da-tela";
 import { EstabelecimentoForm } from "../_components/estabelecimento-form";
 import { NovoCaixaBotao } from "../_components/novo-caixa-botao";
 import { ConfiguracoesForm } from "./_components/configuracoes-form";
@@ -75,13 +75,7 @@ export default async function ConfiguracoesPage() {
 
   return (
     <div className="space-y-8">
-      <header>
-        <Link href="/emporio" className="text-sm text-texto-secundario hover:text-texto">
-          Meu Empório
-        </Link>
-        <h1 className="text-2xl font-semibold text-texto">Configurações</h1>
-        <p className="mt-1 text-sm text-texto-secundario">O que aparece no papel da venda.</p>
-      </header>
+      <CabecalhoDaTela titulo="Configurações" ajuda="O que aparece no papel da venda." />
 
       <section className="space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3">

@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
@@ -15,6 +14,7 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { CabecalhoDaTela } from "../_components/cabecalho-da-tela";
 import { EquipeForm } from "./_components/equipe-form";
 import { FUNCAO_ROTULO } from "./_components/funcao";
 import { EquipeTirarBotao } from "./_components/equipe-tirar-botao";
@@ -41,21 +41,14 @@ export default async function EquipePage() {
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <Link href="/emporio" className="text-sm text-texto-secundario hover:text-texto">
-            Meu Empório
-          </Link>
-          <h1 className="text-2xl font-semibold text-texto">Equipe</h1>
-          {equipe && (
-            <p className={`text-sm ${equipe.seats.has_room ? "text-texto-discreto" : "text-atencao-tinta"}`}>
-              {equipe.seats.used} de {equipe.seats.limit} na equipe do Empório
-              {!equipe.seats.has_room && ": desative alguém da equipe para cadastrar outra pessoa"}
-            </p>
-          )}
-        </div>
-        {equipe && <EquipeForm lojas={lojas} chaves={chaves} />}
-      </header>
+      <CabecalhoDaTela titulo="Equipe" acoes={equipe && <EquipeForm lojas={lojas} chaves={chaves} />}>
+        {equipe && (
+          <span className={equipe.seats.has_room ? "text-texto-discreto" : "text-atencao-tinta"}>
+            {equipe.seats.used} de {equipe.seats.limit} na equipe do Empório
+            {!equipe.seats.has_room && ": desative alguém da equipe para cadastrar outra pessoa"}
+          </span>
+        )}
+      </CabecalhoDaTela>
 
       <p className="text-sm text-texto-secundario">
         <strong className="font-medium text-texto">Gerente geral</strong> cuida de tudo do Empório, em todas as lojas.{" "}

@@ -21,6 +21,7 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { CabecalhoDaTela } from "../_components/cabecalho-da-tela";
 import { EncaminharBotao } from "../_components/encaminhar-botao";
 import { UNIDADE_BASE_SUFIXO, numeroBr, textoLacrado, ORIGEM_DO_CUSTO_AVISO } from "../_components/formato";
 
@@ -63,22 +64,17 @@ export default async function EstoquePage({
 
   return (
     <div className="space-y-8">
-      <header>
-        <Link href="/emporio" className="text-sm text-texto-secundario hover:text-texto">
-          Meu Empório
-        </Link>
-        <h1 className="text-2xl font-semibold text-texto">Estoque</h1>
-        <p className="mt-1 text-sm text-texto-secundario">
-          O saldo de cada loja, somado das entradas e saídas. Para dar entrada, registre uma compra.
-        </p>
-      </header>
+      <CabecalhoDaTela
+        titulo="Estoque"
+        ajuda="O saldo de cada loja, somado das entradas e saídas. Para dar entrada, registre uma compra."
+      />
 
       {lojas.length === 0 ? (
         <EmptyState
           titulo="Nenhuma loja cadastrada"
           acao={
             <Link href="/emporio/estabelecimentos" className="text-sm font-medium text-texto-marca hover:underline">
-              Ir para Estabelecimentos
+              Ir para Lojas
             </Link>
           }
         >

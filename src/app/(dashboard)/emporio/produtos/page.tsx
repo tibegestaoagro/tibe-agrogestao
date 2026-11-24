@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/table";
 import { ProdutoNovoForm, ProdutoDaFazendaForm } from "../_components/produto-novo-form";
 import { nomeComConteudo } from "../_components/formato";
+import { CabecalhoDaTela } from "../_components/cabecalho-da-tela";
 
 export default async function ProdutosEmporioPage({
   searchParams,
@@ -80,28 +81,25 @@ export default async function ProdutosEmporioPage({
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <Link href="/emporio" className="text-sm text-texto-secundario hover:text-texto">
-            Meu Empório
-          </Link>
-          <h1 className="text-2xl font-semibold text-texto">Produtos</h1>
-        </div>
-        {podeEscrever && (
-          <div className="flex flex-wrap gap-2">
-            <Button asChild variant="outline">
-              <Link href="/emporio/produtos/etiquetas">Etiquetas</Link>
-            </Button>
-            <ProdutoDaFazendaForm
-              candidatos={candidatos.map((c) => ({ id: c.id, name: c.name, category_name: c.category_name }))}
-            />
-            <ProdutoNovoForm
-              categorias={categorias}
-              especiesLista={EMPORIO_SPECIES.map((e) => ({ id: e.id, label: e.label }))}
-            />
-          </div>
-        )}
-      </header>
+      <CabecalhoDaTela
+        titulo="Produtos"
+        acoes={
+          podeEscrever && (
+            <div className="flex flex-wrap gap-2">
+              <Button asChild variant="outline">
+                <Link href="/emporio/produtos/etiquetas">Etiquetas</Link>
+              </Button>
+              <ProdutoDaFazendaForm
+                candidatos={candidatos.map((c) => ({ id: c.id, name: c.name, category_name: c.category_name }))}
+              />
+              <ProdutoNovoForm
+                categorias={categorias}
+                especiesLista={EMPORIO_SPECIES.map((e) => ({ id: e.id, label: e.label }))}
+              />
+            </div>
+          )
+        }
+      />
 
       {/* Formulário comum (GET): a busca vive na URL e a página server relê. */}
       <form method="get" action="/emporio/produtos" className="grid gap-3 sm:max-w-2xl sm:grid-cols-[1fr_12rem_auto] sm:items-end">

@@ -15,6 +15,7 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { CabecalhoDaTela } from "../_components/cabecalho-da-tela";
 import { EstabelecimentoForm } from "../_components/estabelecimento-form";
 import { VinculosForm } from "../_components/vinculos-form";
 import { ArquivarBotao } from "../_components/arquivar-botao";
@@ -47,15 +48,7 @@ export default async function EstabelecimentosPage({
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <Link href="/emporio" className="text-sm text-texto-secundario hover:text-texto">
-            Meu Empório
-          </Link>
-          <h1 className="text-2xl font-semibold text-texto">Estabelecimentos</h1>
-        </div>
-        {podeEscrever && <EstabelecimentoForm usuarios={usuarios} />}
-      </header>
+      <CabecalhoDaTela titulo="Lojas" acoes={podeEscrever && <EstabelecimentoForm usuarios={usuarios} />} />
 
       <div>
         <Button asChild variant="ghost" size="sm">
@@ -66,7 +59,7 @@ export default async function EstabelecimentosPage({
       </div>
 
       {lojas.length === 0 ? (
-        <EmptyState titulo="Nenhum estabelecimento cadastrado">
+        <EmptyState titulo="Nenhuma loja cadastrada">
           {podeEscrever
             ? "Cadastre a primeira loja para começar a formar preços."
             : "Peça ao dono ou a um administrador para cadastrar as lojas."}
