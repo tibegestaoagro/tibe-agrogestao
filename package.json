@@ -204,6 +204,7 @@
     "typescript": "^5"
   },
   "overrides": {
-    "nodemailer": "$nodemailer"
+    "nodemailer": "$nodemailer",
+    "effect": "3.22.5"
   }
 }
