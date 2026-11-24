@@ -76,7 +76,7 @@ teste na tarefa dona:
 
 ---
 
-### Tarefa 1: suíte do menu agrupado (da spec, sem ler a implementação)
+### Task 1: suíte do menu agrupado (da spec, sem ler a implementação)
 
 **Agente:** `prova-suite`.
 **Arquivos:** `scripts/m130-emporio-menu-agrupado.test.ts` (novo),
@@ -135,7 +135,7 @@ teste na tarefa dona:
 - [ ] **Passo 4: relatar** os arquivos tocados (a sessão principal commita
   depois da Tarefa 2: `Empório UX: suíte do menu agrupado (m130)`).
 
-### Tarefa 2: menu agrupado e topo sem o seletor de propriedades
+### Task 2: menu agrupado e topo sem o seletor de propriedades
 
 **Agente:** `tela-pagina`.
 **Arquivos:** `src/lib/emporio/menu.ts` (novo), `src/lib/nav.ts`,
@@ -202,7 +202,7 @@ teste na tarefa dona:
   ordem: Tarefa 1, depois esta (`Empório UX: menu em grupos e topo sem o
   seletor de propriedades`).
 
-### Tarefa 3: cabeçalho da tela e o (i)
+### Task 3: cabeçalho da tela e o (i)
 
 **Agente:** `tela-pagina`.
 **Arquivos:** `src/app/(dashboard)/emporio/_components/cabecalho-da-tela.tsx`
@@ -268,7 +268,7 @@ Ao fim de cada uma: `npx tsc --noEmit`, `npm run lint`, `npm run check`
 limpos; relatar os arquivos. Commit da sessão principal por tarefa:
 `Empório UX: cabeçalho novo nas telas de <grupo>`.
 
-### Tarefa 4a: telas de venda
+### Task 4a: telas de venda
 
 **Arquivos:** em `src/app/(dashboard)/emporio/`: `page.tsx` (título passa a
 ser "Início"), `vender/page.tsx`, `vendas/page.tsx`, `vendas/[id]/page.tsx`,
@@ -279,7 +279,7 @@ ser "Início"), `vender/page.tsx`, `vendas/page.tsx`, `vendas/[id]/page.tsx`,
 - [ ] **Passo 1:** aplicar as regras comuns a cada arquivo.
 - [ ] **Passo 2:** rodar as conferências e relatar.
 
-### Tarefa 4b: telas de estoque e de ajustes
+### Task 4b: telas de estoque e de ajustes
 
 **Arquivos:** em `src/app/(dashboard)/emporio/`: `produtos/page.tsx`,
 `produtos/[id]/page.tsx`, `produtos/etiquetas/page.tsx` (caminho: Produtos),
@@ -293,7 +293,7 @@ ser "Início"), `vender/page.tsx`, `vendas/page.tsx`, `vendas/[id]/page.tsx`,
 - [ ] **Passo 1:** aplicar as regras comuns a cada arquivo.
 - [ ] **Passo 2:** rodar as conferências e relatar.
 
-### Tarefa 4c: telas de dinheiro e de números
+### Task 4c: telas de dinheiro e de números
 
 **Arquivos:** em `src/app/(dashboard)/emporio/`: `financeiro/page.tsx`
 (título "Hoje", sem caminho), `financeiro/pagar/page.tsx` ("A pagar"),
@@ -313,7 +313,7 @@ até a onda 4).
 - [ ] **Passo 1:** aplicar as regras comuns e as trocas acima.
 - [ ] **Passo 2:** rodar as conferências e relatar.
 
-### Tarefa 5: "Conferir com o banco"
+### Task 5: "Conferir com o banco"
 
 **Agente:** `tela-pagina` (texto de action é só cópia; sem regra nova).
 **Arquivos:** `src/app/(dashboard)/emporio/_components/carimbo-botao.tsx`,
@@ -366,7 +366,7 @@ Trocas exatas de texto (código, ação do Histórico e parâmetro de URL ficam)
 - [ ] **Passo 6: relatar** os arquivos (commit:
   `Empório UX: carimbo vira Conferir com o banco`).
 
-### Tarefa 6: trava do cabeçalho no `npm run check`
+### Task 6: trava do cabeçalho no `npm run check`
 
 **Agente:** `prova-suite`.
 **Arquivos:** `scripts/check-repo.ts`, `CLAUDE.md`.
@@ -385,7 +385,7 @@ Trocas exatas de texto (código, ação do Histórico e parâmetro de URL ficam)
 - [ ] **Passo 4: relatar** (commit:
   `Check: conferência 20, cabeçalho do Empório pelo componente`).
 
-### Tarefa 7: prova viva, roteiros e manual
+### Task 7: prova viva, roteiros e manual
 
 **Agente:** `prova-viva`.
 **Arquivos:** `scripts/navegador/emporio-ux-onda1.py` (novo); os roteiros de
@@ -432,7 +432,7 @@ Trocas exatas de texto (código, ação do Histórico e parâmetro de URL ficam)
 - [ ] **Passo 6: relatar** arquivos, roteiros ajustados e o resultado de
   cada um (commit: `Empório UX: prova viva da onda 1 e o manual`).
 
-### Tarefa 8: juiz e fechamento
+### Task 8: juiz e fechamento
 
 **Agente:** `prova-juiz` (modelo da definição; o usuário prefere Sonnet
 quando não pedir Opus), depois a sessão principal.
