@@ -25,22 +25,21 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-24. **Branch `lint-avisos-passo-2`, NÃO publicada**
-  (`e00faf05`, `682e6e8b`; a `main` local tem o cofre `4b1f5443`, também sem
-  push): lint de 30 avisos para 0, travado em `--max-warnings 0`; passo 2 do
-  roteiro franqueado estável (`_abrir_select`, 6 de 6). As 9 suítes tocadas
-  verdes, `check` 0. Merge e push esperam autorização.
+- Atualizado em: 2026-11-24. **Próxima frente: UX e UI só do Empório**, numa
+  sessão nova, na branch `ux-emporio`. Comece por
+  [../superpowers/specs/2026-11-24-emporio-ux-briefing.md](../superpowers/specs/2026-11-24-emporio-ux-briefing.md)
+  (entrevista, telas, diagnóstico, proposta; nenhum código antes de aprovar).
+- Em produção desde 24/11 (merge `176a3dba`, CI e Vercel verdes): lint de 30
+  avisos para 0, travado em `--max-warnings 0`; passo 2 do roteiro franqueado
+  estável (`_abrir_select`).
 - **Decisões pendentes do Empório: em produção desde 23/11** (merge
   `576c0f13`; spec e plano `2026-11-23-emporio-decisoes-pendentes`, Q374 a
   Q385, suíte `m129`; migração `20261123120000_...franqueado` no Neon).
-  Entregue: D1 a D7 confirmadas; ficha conta agendado no Em aberto e não no
-  Vencido (Q375, Q385); antecipação esconde o Desfazer da parcela (Q377); Caixa
-  escolhe o franqueado (Q378); devolução com crédito devolve o valor do papel e
-  tira o crédito em proporção, centavo acumulado (Q379); loja arca a taxa do
-  cartão (Q380); orçamento trava o cliente, validade por hoje, recusa linha
-  repetida (Q382 a Q384). `test:all` 132/132; juiz 8/10, os 6 menores
-  corrigidos; roteiros franqueado, orçamento, antecipação e data da baixa
-  provados nos dois sentidos. Também em produção (merge `436e7af3`): Next
+  Entregue: D1 a D7; agendado no Em aberto (Q375, Q385); antecipação esconde
+  o Desfazer (Q377); Caixa escolhe o franqueado (Q378); devolução com crédito
+  em proporção (Q379); loja arca a taxa do cartão (Q380); orçamento (Q382 a
+  Q384). `test:all` 132/132; juiz 8/10; roteiros provados nos dois sentidos.
+  Também em produção (merge `436e7af3`): Next
   16.4.6, 5.32 fechada, ficha diz o crédito do franqueado só de venda quitada
   (Q386); `effect` 3.22.5 por override no Prisma CLI (`npm audit` zerado).
 - Em produção: 20/11 sobras sem a Agromax (`m128`); 19/11 transação de 30 s e
