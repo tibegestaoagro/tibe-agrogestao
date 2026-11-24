@@ -88,11 +88,9 @@ def foco_no_campo(rotulo):
 def escolher_prefixo(rotulo, prefixo):
     """Como `escolher`, mas a opcao e achada pelo comeco do texto (a gaveta traz o saldo no fim)."""
     gatilho = "(() => { const raiz = document.querySelector('[role=dialog]') || document; const l = Array.from(raiz.querySelectorAll('label')).find(x => x.innerText.replace('*','').trim() === " + repr(rotulo) + "); return l && document.getElementById(l.htmlFor); })()"
-    xy = _centro(gatilho)
-    if not xy:
-        return "SEM CAMPO"
-    click_at_xy(xy[0], xy[1])
-    time.sleep(1)
+    aberto = _abrir_select(gatilho)
+    if aberto != "ABERTO":
+        return aberto
     xy = _centro("Array.from(document.querySelectorAll('[role=option]')).find(o => o.innerText.trim().startsWith(" + repr(prefixo) + "))")
     if not xy:
         return "SEM OPCAO"

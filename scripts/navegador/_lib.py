@@ -95,16 +95,33 @@ def _centro(expr_elemento):
     return r
 
 
+def _abrir_select(gatilho):
+    """Abre o Select (Radix) cujo gatilho e a expressao `gatilho`, e SO devolve
+    "ABERTO" com o gatilho em aria-expanded=true. O clique e por coordenada
+    medida antes, e a tela se mexe entre a medida e o clique (o balcao rola
+    sozinho ate o campo recusado, o layout reflui): o clique cai no vazio, a
+    lista nao abre e a falha so aparecia depois como "SEM OPCAO", sem dizer que
+    o clique nunca acertou. Por isso remede e clica de novo ate abrir."""
+    aberto = "!!(() => { const t = " + gatilho + "; return t && t.getAttribute('aria-expanded') === 'true'; })()"
+    fim_em = time.time() + 20
+    while time.time() < fim_em:
+        xy = _centro(gatilho)
+        if not xy:
+            return "SEM CAMPO"
+        click_at_xy(xy[0], xy[1])
+        if esperar(lambda: js(aberto), 1.6):
+            return "ABERTO"
+    return "NAO ABRIU"
+
+
 def escolher(rotulo, opcao):
     """Escolhe `opcao` no Select (Radix) do campo `rotulo`. O Radix abre no
     pointerdown de mouse de verdade, entao o clique e por coordenada; el.click()
     nao abre a lista."""
     gatilho = "(() => { const raiz = document.querySelector('[role=dialog]') || document; const l = Array.from(raiz.querySelectorAll('label')).find(x => x.innerText.replace('*','').trim() === " + repr(rotulo) + "); return l && document.getElementById(l.htmlFor); })()"
-    xy = _centro(gatilho)
-    if not xy:
-        return "SEM CAMPO"
-    click_at_xy(xy[0], xy[1])
-    time.sleep(1)
+    aberto = _abrir_select(gatilho)
+    if aberto != "ABERTO":
+        return aberto
     xy = _centro("Array.from(document.querySelectorAll('[role=option]')).find(o => o.innerText.trim() === " + repr(opcao) + ")")
     if not xy:
         return "SEM OPCAO"
