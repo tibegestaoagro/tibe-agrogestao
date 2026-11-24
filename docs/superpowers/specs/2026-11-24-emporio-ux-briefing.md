@@ -124,6 +124,22 @@ conferidos no código:
    em 35 telas, filtros de padrões diferentes.
 6. A receber empilha 4 tabelas (Fiado, Cheques, Boletos, Cartões).
 
+Decisões do usuário sobre o diagnóstico (24/11):
+
+- Vender: o cliente vem preenchido com "Consumidor final" e o vendedor com
+  quem está logado (mudança de regra autorizada pelo usuário).
+- O seletor "Todas as propriedades" some dentro do Empório (topo compartilhado,
+  mudança mínima); no resto do Tibé fica igual.
+- A proposta visual começa por Menu + Início (com o cabeçalho e o (i)).
+
+- **Mockup do Menu + Início aprovado em 24/11** (`menu-inicio.html`, fora do
+  git): grupos que abrem e fecham, Vender como botão verde, Início com "Precisa
+  de você" (avisos com o papel que vê), quatro números do dia (vendas hoje,
+  vendas no mês, entra hoje, sai hoje) e atalhos; menu do caixa com 5 itens;
+  tela interna com caminho clicável, (i) e abas. O mockup mostrava "Loja:
+  Todas" no lugar do seletor de propriedades (a confirmar: a decisão anterior
+  era só esconder).
+
 Fotos e roteiro descartável fora do git (`scripts/navegador/ux-tour-emporio.py`,
 não versionado).
 
