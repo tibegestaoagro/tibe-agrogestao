@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
@@ -13,6 +12,7 @@ import {
 } from "@/lib/actions/emporio-resultado";
 import { lerMes, mesAtualEmBrasilia, textoDoMes } from "@/lib/emporio/mes";
 import { EmptyState } from "@/components/ui/empty-state";
+import { CabecalhoDaTela } from "../_components/cabecalho-da-tela";
 import { ResultadoFiltro } from "../_components/resultado-filtro";
 import { ResultadoMes } from "../_components/resultado-mes";
 import { ResultadoLojas } from "../_components/resultado-lojas";
@@ -61,18 +61,13 @@ export default async function ResultadoPage({
 
   return (
     <div className="space-y-6">
-      <header>
-        <Link href="/emporio" className="text-sm text-texto-secundario hover:text-texto">
-          Meu Empório
-        </Link>
-        <h1 className="text-2xl font-semibold text-texto">Resultado da loja</h1>
-        <p className="mt-1 text-sm text-texto-secundario">
-          Quanto a loja ganhou no mês, depois de tirar o custo, o que sai de cada venda, as perdas e as despesas fixas.
-        </p>
-      </header>
+      <CabecalhoDaTela
+        titulo="Resultado da loja"
+        ajuda="Quanto a loja ganhou no mês, depois de tirar o custo, o que sai de cada venda, as perdas e as despesas fixas."
+      />
 
       {lojas.length === 0 ? (
-        <EmptyState titulo="Nenhuma loja disponível">Cadastre uma loja em Estabelecimentos para ver o resultado.</EmptyState>
+        <EmptyState titulo="Nenhuma loja disponível">Cadastre uma loja em Lojas para ver o resultado.</EmptyState>
       ) : (
         <>
           <ResultadoFiltro lojas={lojas} loja={loja} lojaVeioDaUrl={lojaValida} mes={mesTexto} meses={meses} permiteTodas={permiteTodas} />

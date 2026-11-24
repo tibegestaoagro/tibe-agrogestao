@@ -1,11 +1,12 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { veAPagina } from "@/lib/emporio/paginas";
 import { listarPedidosDePagamentoAction } from "@/lib/actions/emporio-aprovacoes";
 import { EmptyState } from "@/components/ui/empty-state";
+import { CabecalhoDaTela } from "../../_components/cabecalho-da-tela";
 import { FinanceiroAbas } from "../../_components/financeiro-abas";
 import { FinanceiroAprovacoes } from "../../_components/financeiro-aprovacoes";
 import { Paginacao, paginaDaUrl } from "../../_components/paginacao";
@@ -30,7 +31,7 @@ export default async function FinanceiroAprovacoesPage({
   const { porPagina } = lerPaginacaoDaUrl({ por_pagina: porPaginaDaUrl });
   const db = await getTenantDb();
   const papel = await papelDoEmporio(db, user);
-  if (!veAPagina(papel, "/emporio/financeiro")) notFound();
+  if (!veAPagina(papel, "/emporio/financeiro")) redirect("/emporio");
 
   const status = statusDaUrl === "decididos" ? "decididos" : "pendente";
   const res = await listarPedidosDePagamentoAction(
@@ -47,15 +48,13 @@ export default async function FinanceiroAprovacoesPage({
 
   return (
     <div className="space-y-6">
-      <header>
-        <Link href="/emporio" className="text-sm text-texto-secundario hover:text-texto">
-          Meu Empório
-        </Link>
-        <h1 className="text-2xl font-semibold text-texto">Financeiro: aprovações</h1>
-        <p className="mt-1 text-sm text-texto-secundario">
-          Pagamentos acima do teto da conta. Aprovar paga naquele momento; recusar exige um motivo.
-        </p>
-      </header>
+      <CabecalhoDaTela
+        titulo="Aprovações"
+        caminho={[{ rotulo: "Dinheiro", href: "/emporio/financeiro" }]}
+        ajuda="Pagamentos acima do teto da conta."
+      >
+        Aprovar paga naquele momento; recusar exige um motivo.
+      </CabecalhoDaTela>
 
       <FinanceiroAbas atual="/emporio/financeiro/aprovacoes" loja="" />
       <nav aria-label="Filtrar pedidos" className="flex flex-wrap gap-2">

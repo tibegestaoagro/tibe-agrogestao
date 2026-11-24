@@ -6,6 +6,7 @@ import { listarContasAction, lerCaixaAction, listarBoletosAction } from "@/lib/a
 import { listarEntregasAction } from "@/lib/actions/emporio-turno";
 import { estadoDaParcela } from "@/lib/actions/emporio-conferencia-cartao";
 import { hojeEmBrasilia } from "@/lib/emporio/cartao";
+import { CabecalhoDaTela } from "../_components/cabecalho-da-tela";
 import { SeloDoEstado } from "../_components/selo-do-estado";
 import { reaisBr } from "@/lib/numero-br";
 import { formatarDocumento } from "@/lib/contatos/cadastro";
@@ -147,21 +148,16 @@ export default async function CaixaPage({
 
   return (
     <div className="space-y-8">
-      <header>
-        <Link href="/emporio" className="text-sm text-texto-secundario hover:text-texto">
-          Meu Empório
-        </Link>
-        <h1 className="text-2xl font-semibold text-texto">Caixa</h1>
-        <p className="mt-1 text-sm text-texto-secundario">
-          O saldo é sempre a soma dos movimentos: dinheiro em cada caixa, com a gerência de cada loja e PIX nas contas.
-        </p>
-      </header>
+      <CabecalhoDaTela
+        titulo="Caixa"
+        ajuda="O saldo é sempre a soma dos movimentos: dinheiro em cada caixa, com a gerência de cada loja e PIX nas contas."
+      />
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-texto">Caixas de cada loja</h2>
         {caixa.drawers.length === 0 ? (
           <EmptyState titulo="Nenhuma loja disponível">
-            Cadastre uma loja em Estabelecimentos para ter caixas.
+            Cadastre uma loja em Lojas para ter caixas.
           </EmptyState>
         ) : (
           <div className="grid gap-4 lg:grid-cols-2">

@@ -8,6 +8,7 @@ import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
 import { curvaAbcAction, podeVerLucroAction, relatorioDeVendasAction, type CurvaAbc } from "@/lib/actions/emporio-relatorios";
 import { hojeEmBrasilia } from "@/lib/emporio/cartao";
 import { EmptyState } from "@/components/ui/empty-state";
+import { CabecalhoDaTela } from "../_components/cabecalho-da-tela";
 import { RelatoriosFiltro } from "../_components/relatorios-filtro";
 import { RelatoriosBlocos } from "../_components/relatorios-blocos";
 import { CurvaAbcSecao } from "./_components/curva-abc";
@@ -84,28 +85,23 @@ export default async function RelatoriosPage({
 
   return (
     <div className="space-y-6">
-      <header>
-        <Link href="/emporio" className="text-sm text-texto-secundario hover:text-texto">
-          Meu Empório
-        </Link>
-        <h1 className="text-2xl font-semibold text-texto">Relatórios</h1>
-        <p className="mt-1 text-sm text-texto-secundario">
-          Quem vendeu, o que vendeu e o que ficou parado, num período à sua escolha.
-        </p>
-      </header>
-
-      {pode(papel, "dinheiro") && (
-        <p className="text-sm text-texto-secundario">
-          Os relatórios do dinheiro (a receber por idade, a pagar por vencimento, posição de caixa) estão no{" "}
-          <Link href="/emporio/financeiro/relatorios" className="font-medium text-texto underline">
-            Financeiro
-          </Link>
-          .
-        </p>
-      )}
+      <CabecalhoDaTela
+        titulo="Relatórios"
+        ajuda="Quem vendeu, o que vendeu e o que ficou parado, num período à sua escolha."
+      >
+        {pode(papel, "dinheiro") && (
+          <>
+            Os relatórios do dinheiro (a receber por idade, a pagar por vencimento, posição de caixa) estão no{" "}
+            <Link href="/emporio/financeiro/relatorios" className="font-medium text-texto underline">
+              Financeiro
+            </Link>
+            .
+          </>
+        )}
+      </CabecalhoDaTela>
 
       {lojas.length === 0 ? (
-        <EmptyState titulo="Nenhuma loja disponível">Cadastre uma loja em Estabelecimentos para ver os relatórios.</EmptyState>
+        <EmptyState titulo="Nenhuma loja disponível">Cadastre uma loja em Lojas para ver os relatórios.</EmptyState>
       ) : (
         <>
           <RelatoriosFiltro de={de} ate={ate} loja={loja} lojas={lojas} manter={{ abc: abcDaUrl, medida: medidaDaUrl }} />

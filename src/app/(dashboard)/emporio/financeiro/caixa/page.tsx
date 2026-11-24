@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
@@ -10,6 +9,7 @@ import { lerExtratoAction, lerResumoHojeAction } from "@/lib/actions/emporio-fin
 import { EmptyState } from "@/components/ui/empty-state";
 import { ExtratoDoLugar, ExtratoPeriodo, PosicoesTabela } from "../../_components/financeiro-extrato";
 import { idDoClientePadrao } from "../../_components/cliente-padrao";
+import { CabecalhoDaTela } from "../../_components/cabecalho-da-tela";
 import { FinanceiroAbas } from "../../_components/financeiro-abas";
 import { LojaFiltro } from "../../_components/loja-filtro";
 
@@ -28,7 +28,7 @@ export default async function FinanceiroCaixaPage({
   const q = await searchParams;
   const db = await getTenantDb();
   const papel = await papelDoEmporio(db, user);
-  if (!veAPagina(papel, "/emporio/financeiro")) notFound();
+  if (!veAPagina(papel, "/emporio/financeiro")) redirect("/emporio");
 
   const lojasRes = await listarEstabelecimentosAction(db, user);
   const lojas = lojasRes.ok ? lojasRes.data.map((l) => ({ id: l.id, name: l.name })) : [];
@@ -66,15 +66,13 @@ export default async function FinanceiroCaixaPage({
 
   return (
     <div className="space-y-6">
-      <header>
-        <Link href="/emporio" className="text-sm text-texto-secundario hover:text-texto">
-          Meu Empório
-        </Link>
-        <h1 className="text-2xl font-semibold text-texto">Financeiro: posição de caixa</h1>
-        <p className="mt-1 text-sm text-texto-secundario">
-          O saldo de cada lugar é a soma dos movimentos. Escolha uma gaveta, a gerência ou uma conta para ver o extrato do período.
-        </p>
-      </header>
+      <CabecalhoDaTela
+        titulo="Posição de caixa"
+        caminho={[{ rotulo: "Dinheiro", href: "/emporio/financeiro" }]}
+        ajuda="O saldo de cada lugar é a soma dos movimentos."
+      >
+        Escolha uma gaveta, a gerência ou uma conta para ver o extrato do período.
+      </CabecalhoDaTela>
 
       <FinanceiroAbas atual="/emporio/financeiro/caixa" loja={loja} />
       <LojaFiltro lojas={lojas} loja={loja} caminho="/emporio/financeiro/caixa" />

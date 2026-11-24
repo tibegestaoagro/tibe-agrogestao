@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
@@ -25,6 +24,7 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { CabecalhoDaTela } from "../_components/cabecalho-da-tela";
 import { ContasAPagar } from "../_components/contas-a-pagar";
 import { ContaAvulsaForm } from "../_components/conta-avulsa-form";
 import { paraCaixasDaLoja } from "../_components/caixas-da-loja";
@@ -130,15 +130,10 @@ export default async function DespesasPage() {
 
   return (
     <div className="space-y-8">
-      <header>
-        <Link href="/emporio" className="text-sm text-texto-secundario hover:text-texto">
-          Meu Empório
-        </Link>
-        <h1 className="text-2xl font-semibold text-texto">Despesas</h1>
-        <p className="mt-1 text-sm text-texto-secundario">
-          O que a loja paga: as contas a pagar, as despesas fixas de todo mês e o que sai de cada venda.
-        </p>
-      </header>
+      <CabecalhoDaTela
+        titulo="Despesas"
+        ajuda="O que a loja paga: as contas a pagar, as despesas fixas de todo mês e o que sai de cada venda."
+      />
 
       <section className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">

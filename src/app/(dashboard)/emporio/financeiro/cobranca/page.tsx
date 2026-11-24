@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
 import { papelDoEmporio } from "@/lib/emporio/papel";
@@ -7,6 +6,7 @@ import { veAPagina } from "@/lib/emporio/paginas";
 import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
 import { FAIXAS_DE_COBRANCA, listarCobrancaAction, type FaixaDeCobranca } from "@/lib/actions/emporio-credito";
 import { EmptyState } from "@/components/ui/empty-state";
+import { CabecalhoDaTela } from "../../_components/cabecalho-da-tela";
 import { FinanceiroAbas } from "../../_components/financeiro-abas";
 import { FaixaFiltro, FinanceiroCobranca } from "../../_components/financeiro-cobranca";
 import { LojaFiltro } from "../../_components/loja-filtro";
@@ -21,7 +21,7 @@ export default async function FinanceiroCobrancaPage({
   const { loja: lojaDaUrl = "", faixa: faixaDaUrl = "" } = await searchParams;
   const db = await getTenantDb();
   const papel = await papelDoEmporio(db, user);
-  if (!veAPagina(papel, "/emporio/financeiro")) notFound();
+  if (!veAPagina(papel, "/emporio/financeiro")) redirect("/emporio");
 
   const lojasRes = await listarEstabelecimentosAction(db, user);
   const lojas = lojasRes.ok ? lojasRes.data.map((l) => ({ id: l.id, name: l.name })) : [];
@@ -35,13 +35,11 @@ export default async function FinanceiroCobrancaPage({
 
   return (
     <div className="space-y-6">
-      <header>
-        <Link href="/emporio" className="text-sm text-texto-secundario hover:text-texto">
-          Meu Empório
-        </Link>
-        <h1 className="text-2xl font-semibold text-texto">Financeiro: cobrança</h1>
-        <p className="mt-1 text-sm text-texto-secundario">Quem tem fiado vencido, do mais atrasado ao menos.</p>
-      </header>
+      <CabecalhoDaTela
+        titulo="Cobrança"
+        caminho={[{ rotulo: "Dinheiro", href: "/emporio/financeiro" }]}
+        ajuda="Quem tem fiado vencido, do mais atrasado ao menos."
+      />
 
       <FinanceiroAbas atual="/emporio/financeiro/cobranca" loja={loja} />
       <div className="grid gap-3 sm:grid-cols-2 sm:max-w-xl">

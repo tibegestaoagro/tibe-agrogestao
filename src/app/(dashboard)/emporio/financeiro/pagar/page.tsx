@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
@@ -18,6 +17,7 @@ import { noRecorte, verDoPagar } from "../../_components/recorte";
 import { ResumoFaixa } from "../../_components/resumo-faixa";
 import { ContasAPagar } from "../../_components/contas-a-pagar";
 import { paraCaixasDaLoja } from "../../_components/caixas-da-loja";
+import { CabecalhoDaTela } from "../../_components/cabecalho-da-tela";
 import { FinanceiroAbas } from "../../_components/financeiro-abas";
 import { LojaFiltro } from "../../_components/loja-filtro";
 
@@ -36,7 +36,7 @@ export default async function FinanceiroPagarPage({
   const periodo = periodoDaUrl({ de: deDaUrl, ate: ateDaUrl }, hojeDeBrasilia());
   const db = await getTenantDb();
   const papel = await papelDoEmporio(db, user);
-  if (!veAPagina(papel, "/emporio/financeiro")) notFound();
+  if (!veAPagina(papel, "/emporio/financeiro")) redirect("/emporio");
   // O Financeiro paga só pela conta bancária: a gaveta é da loja.
   const podeGaveta = pode(papel, "gestor_da_loja");
 
@@ -63,15 +63,13 @@ export default async function FinanceiroPagarPage({
 
   return (
     <div className="space-y-6">
-      <header>
-        <Link href="/emporio" className="text-sm text-texto-secundario hover:text-texto">
-          Meu Empório
-        </Link>
-        <h1 className="text-2xl font-semibold text-texto">Financeiro: a pagar</h1>
-        <p className="mt-1 text-sm text-texto-secundario">
-          Contas avulsas, das despesas fixas, do Vendeu, Pagou, dos fretes e das compras. Pagar tira o dinheiro do caixa do Empório.
-        </p>
-      </header>
+      <CabecalhoDaTela
+        titulo="A pagar"
+        caminho={[{ rotulo: "Dinheiro", href: "/emporio/financeiro" }]}
+        ajuda="Contas avulsas, das despesas fixas, do Vendeu, Pagou, dos fretes e das compras."
+      >
+        Pagar tira o dinheiro do caixa do Empório.
+      </CabecalhoDaTela>
 
       <FinanceiroAbas atual="/emporio/financeiro/pagar" loja={loja} />
       <LojaFiltro
