@@ -19,6 +19,7 @@ import {
 import { numeroBr } from "../../_components/formato";
 import { NomeDoCliente } from "../../_components/amarras";
 import { idDoClientePadrao } from "../../_components/cliente-padrao";
+import { CabecalhoDaTela } from "../../_components/cabecalho-da-tela";
 import { CancelarOrcamentoForm } from "../../_components/cancelar-orcamento-form";
 import { PendenciasParaVenda } from "../../_components/pendencias-para-venda";
 
@@ -53,14 +54,40 @@ export default async function OrcamentoPage({ params }: { params: Promise<{ id: 
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <Link href="/emporio/orcamentos" className="text-sm text-texto-secundario hover:text-texto">
-            Orçamentos
-          </Link>
-          <h1 className="text-2xl font-semibold text-texto">
-            Orçamento nº {o.numero}, {DATA_HORA.format(new Date(o.created_at))}
-          </h1>
+      <CabecalhoDaTela
+        titulo={`Orçamento nº ${o.numero}, ${DATA_HORA.format(new Date(o.created_at))}`}
+        caminho={[{ rotulo: "Orçamentos", href: "/emporio/orcamentos" }]}
+        acoes={
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline" size="sm">
+            <a href={`/emporio/imprimir/orcamento/${o.id}?formato=a4`} target="_blank" rel="noopener noreferrer">
+              Imprimir A4
+            </a>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <a href={`/emporio/imprimir/orcamento/${o.id}?formato=cupom`} target="_blank" rel="noopener noreferrer">
+              Imprimir cupom
+            </a>
+          </Button>
+          {!faturado && !cancelado && podeVender && (
+            <Button asChild size="sm">
+              <Link href={`/emporio/vender?orcamento=${o.id}`}>Faturar</Link>
+            </Button>
+          )}
+          {editavel && podeVender && (
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/emporio/vender?editar_orcamento=${o.id}`}>Editar</Link>
+            </Button>
+          )}
+          {podeVender && (
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/emporio/vender?orcamento_base=${o.id}`}>Novo orçamento a partir deste</Link>
+            </Button>
+          )}
+          {editavel && podeVender && <CancelarOrcamentoForm orcamentoId={o.id} numero={o.numero} />}
+        </div>
+        }
+      >
           <p className="mt-1 text-sm text-texto-secundario">
             {o.loja}, cliente{" "}
             <NomeDoCliente id={o.customer.id} nome={o.customer.name} padraoId={padraoId} />
@@ -135,36 +162,7 @@ export default async function OrcamentoPage({ params }: { params: Promise<{ id: 
               .
             </p>
           )}
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button asChild variant="outline" size="sm">
-            <a href={`/emporio/imprimir/orcamento/${o.id}?formato=a4`} target="_blank" rel="noopener noreferrer">
-              Imprimir A4
-            </a>
-          </Button>
-          <Button asChild variant="outline" size="sm">
-            <a href={`/emporio/imprimir/orcamento/${o.id}?formato=cupom`} target="_blank" rel="noopener noreferrer">
-              Imprimir cupom
-            </a>
-          </Button>
-          {!faturado && !cancelado && podeVender && (
-            <Button asChild size="sm">
-              <Link href={`/emporio/vender?orcamento=${o.id}`}>Faturar</Link>
-            </Button>
-          )}
-          {editavel && podeVender && (
-            <Button asChild variant="outline" size="sm">
-              <Link href={`/emporio/vender?editar_orcamento=${o.id}`}>Editar</Link>
-            </Button>
-          )}
-          {podeVender && (
-            <Button asChild variant="outline" size="sm">
-              <Link href={`/emporio/vender?orcamento_base=${o.id}`}>Novo orçamento a partir deste</Link>
-            </Button>
-          )}
-          {editavel && podeVender && <CancelarOrcamentoForm orcamentoId={o.id} numero={o.numero} />}
-        </div>
-      </header>
+      </CabecalhoDaTela>
 
       {!faturado && !cancelado && <PendenciasParaVenda pendencias={o.pendencias_para_venda} />}
 

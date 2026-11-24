@@ -20,6 +20,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { paraCaixasDaLoja } from "../../_components/caixas-da-loja";
+import { CabecalhoDaTela } from "../../_components/cabecalho-da-tela";
 import { FranqueadoForm } from "../_components/franqueado-form";
 import { FranqueadoArquivarBotao } from "../_components/franqueado-arquivar-botao";
 import { PagarCreditoForm } from "../_components/pagar-credito-form";
@@ -72,44 +73,43 @@ export default async function FranqueadoFichaPage({ params }: { params: Promise<
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <Link href="/emporio/franqueados" className="text-sm text-texto-secundario hover:text-texto">
-            Franqueados
-          </Link>
-          <h1 className="break-words text-2xl font-semibold text-texto">{f.name}</h1>
-          {f.archived_at && (
-            <div className="mt-1 flex flex-wrap gap-1">
-              <Badge variant="gray">Arquivado</Badge>
-            </div>
-          )}
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {podePagar && (
-            <PagarCreditoForm
-              franqueadoId={f.id}
-              saldo={f.balance}
-              origens={origens}
-              caixas={caixas}
-              usuarioId={user.id}
-              hoje={hojeEmBrasilia()}
-            />
-          )}
-          {podeEditar && (
-            <FranqueadoForm
-              modo="editar"
-              id={f.id}
-              inicial={{ name: f.name, phone: f.phone, document: f.document, notes: f.notes }}
-              trigger={
-                <Button type="button" variant="outline" size="sm">
-                  Editar
-                </Button>
-              }
-            />
-          )}
-          {podeArquivar && <FranqueadoArquivarBotao id={f.id} arquivado={!!f.archived_at} />}
-        </div>
-      </header>
+      <CabecalhoDaTela
+        titulo={f.name}
+        caminho={[{ rotulo: "Franqueados", href: "/emporio/franqueados" }]}
+        acoes={
+          <div className="flex flex-wrap gap-2">
+            {podePagar && (
+              <PagarCreditoForm
+                franqueadoId={f.id}
+                saldo={f.balance}
+                origens={origens}
+                caixas={caixas}
+                usuarioId={user.id}
+                hoje={hojeEmBrasilia()}
+              />
+            )}
+            {podeEditar && (
+              <FranqueadoForm
+                modo="editar"
+                id={f.id}
+                inicial={{ name: f.name, phone: f.phone, document: f.document, notes: f.notes }}
+                trigger={
+                  <Button type="button" variant="outline" size="sm">
+                    Editar
+                  </Button>
+                }
+              />
+            )}
+            {podeArquivar && <FranqueadoArquivarBotao id={f.id} arquivado={!!f.archived_at} />}
+          </div>
+        }
+      >
+        {f.archived_at && (
+          <div className="flex flex-wrap gap-1">
+            <Badge variant="gray">Arquivado</Badge>
+          </div>
+        )}
+      </CabecalhoDaTela>
 
       <section className="rounded-lg border border-borda p-4" aria-label="Saldo">
         <p className="text-xs text-texto-secundario">Crédito a pagar ao franqueado</p>

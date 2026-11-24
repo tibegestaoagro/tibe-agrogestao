@@ -18,6 +18,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { NomeDoCliente, VendaLink } from "../_components/amarras";
+import { CabecalhoDaTela } from "../_components/cabecalho-da-tela";
 import { idDoClientePadrao } from "../_components/cliente-padrao";
 import { Paginacao } from "../_components/paginacao";
 import { OrcamentosFiltro } from "./_components/orcamentos-filtro";
@@ -90,22 +91,17 @@ export default async function OrcamentosPage({
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <Link href="/emporio" className="text-sm text-texto-secundario hover:text-texto">
-            Meu Empório
-          </Link>
-          <h1 className="text-2xl font-semibold text-texto">Orçamentos</h1>
-          <p className="mt-1 text-sm text-texto-secundario">
-            O que foi orçado e ainda pode virar venda, com o preço combinado dentro da validade.
-          </p>
-        </div>
-        {podeVender && (
-          <Button asChild>
-            <Link href="/emporio/vender">Vender</Link>
-          </Button>
-        )}
-      </header>
+      <CabecalhoDaTela
+        titulo="Orçamentos"
+        ajuda="O que foi orçado e ainda pode virar venda, com o preço combinado dentro da validade."
+        acoes={
+          podeVender && (
+            <Button asChild>
+              <Link href="/emporio/vender">Vender</Link>
+            </Button>
+          )
+        }
+      />
 
       <OrcamentosFiltro lojas={lojas} loja={loja} situacao={filtro} q={q} porPagina={porPagina} ordem={ordem} />
 

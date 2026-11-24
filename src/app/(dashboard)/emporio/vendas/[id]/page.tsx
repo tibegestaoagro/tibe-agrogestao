@@ -24,6 +24,7 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { CabecalhoDaTela } from "../../_components/cabecalho-da-tela";
 import { CancelarVendaForm } from "../../_components/cancelar-venda-form";
 import { MudarPedidoParaEntregaForm } from "../../_components/mudar-pedido-para-entrega-form";
 import { DevolverForm } from "../../_components/devolver-form";
@@ -136,46 +137,10 @@ export default async function VendaPage({ params }: { params: Promise<{ id: stri
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <Link href="/emporio/vendas" className="text-sm text-texto-secundario hover:text-texto">
-            Vendas
-          </Link>
-          <h1 className="text-2xl font-semibold text-texto">
-            Venda nº {formatarNumero(venda.number)}, {DATA_HORA.format(new Date(venda.sold_at))}
-          </h1>
-          <p className="mt-1 text-sm text-texto-secundario">
-            {venda.establishment_name}
-            {venda.customer_name && (
-              <>
-                , cliente <NomeDoCliente id={venda.customer_id} nome={venda.customer_name} padraoId={padraoId} />
-              </>
-            )}
-          </p>
-          {venda.quote && (
-            <p className="text-sm text-texto-secundario">
-              Orçamento nº{" "}
-              <Link href={`/emporio/orcamentos/${venda.quote.id}`} className="font-medium text-texto-marca hover:underline">
-                {venda.quote.numero}
-              </Link>
-            </p>
-          )}
-          {venda.seller_name && (
-            <p className="text-sm text-texto-secundario">
-              Vendedor: <span className="font-medium text-texto">{venda.seller_name}</span>
-              {venda.sold_by_user_id && venda.sold_by_user_id !== venda.seller_user_id && venda.sold_by_name
-                ? `. Registrada por ${venda.sold_by_name}`
-                : ""}
-            </p>
-          )}
-          <div className="mt-2 flex flex-wrap gap-1">
-            <Badge variant={ativa ? "green" : "gray"}>{ativa ? "Concluída" : "Cancelada"}</Badge>
-            {ativa && venda.open_amount > 0 && <Badge variant="amber">Fiado em aberto {reaisBr(venda.open_amount)}</Badge>}
-            {venda.exchange_return_id && <Badge variant="blue">Venda de uma troca</Badge>}
-            {venda.origin === "ecommerce" && <Badge variant="blue">{ROTULO_DA_ORIGEM.ecommerce}</Badge>}
-            {venda.items.some((i) => i.cost_provisional) && <Badge variant="amber">Custo provisório</Badge>}
-          </div>
-        </div>
+      <CabecalhoDaTela
+        titulo={`Venda nº ${formatarNumero(venda.number)}, ${DATA_HORA.format(new Date(venda.sold_at))}`}
+        caminho={[{ rotulo: "Vendas", href: "/emporio/vendas" }]}
+        acoes={
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="outline" size="sm">
             <a href={`/emporio/imprimir/venda/${venda.id}?formato=a4`} target="_blank" rel="noopener noreferrer">
@@ -239,7 +204,40 @@ export default async function VendaPage({ params }: { params: Promise<{ id: stri
               usuarioId={user.id}
             />}
         </div>
-      </header>
+        }
+      >
+        <p>
+          {venda.establishment_name}
+          {venda.customer_name && (
+            <>
+              , cliente <NomeDoCliente id={venda.customer_id} nome={venda.customer_name} padraoId={padraoId} />
+            </>
+          )}
+        </p>
+        {venda.quote && (
+          <p>
+            Orçamento nº{" "}
+            <Link href={`/emporio/orcamentos/${venda.quote.id}`} className="font-medium text-texto-marca hover:underline">
+              {venda.quote.numero}
+            </Link>
+          </p>
+        )}
+        {venda.seller_name && (
+          <p>
+            Vendedor: <span className="font-medium text-texto">{venda.seller_name}</span>
+            {venda.sold_by_user_id && venda.sold_by_user_id !== venda.seller_user_id && venda.sold_by_name
+              ? `. Registrada por ${venda.sold_by_name}`
+              : ""}
+          </p>
+        )}
+        <div className="mt-2 flex flex-wrap gap-1">
+          <Badge variant={ativa ? "green" : "gray"}>{ativa ? "Concluída" : "Cancelada"}</Badge>
+          {ativa && venda.open_amount > 0 && <Badge variant="amber">Fiado em aberto {reaisBr(venda.open_amount)}</Badge>}
+          {venda.exchange_return_id && <Badge variant="blue">Venda de uma troca</Badge>}
+          {venda.origin === "ecommerce" && <Badge variant="blue">{ROTULO_DA_ORIGEM.ecommerce}</Badge>}
+          {venda.items.some((i) => i.cost_provisional) && <Badge variant="amber">Custo provisório</Badge>}
+        </div>
+      </CabecalhoDaTela>
 
       {venda.replaced_by && (
         <p className="rounded-lg bg-atencao-suave px-4 py-3 text-sm text-atencao-tinta">

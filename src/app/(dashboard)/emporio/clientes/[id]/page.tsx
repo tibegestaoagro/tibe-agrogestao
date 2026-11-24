@@ -30,6 +30,7 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { CabecalhoDaTela } from "../../_components/cabecalho-da-tela";
 import { ClienteForm } from "../../_components/cliente-form";
 import { ClienteArquivarBotao } from "../_components/cliente-arquivar-botao";
 import { numeroBr, numeroDaVenda } from "../../_components/formato";
@@ -147,36 +148,35 @@ export default async function ClienteFichaPage({ params }: { params: Promise<{ i
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <Link href="/emporio/clientes" className="text-sm text-texto-secundario hover:text-texto">
-            Clientes
-          </Link>
-          <h1 className="break-words text-2xl font-semibold text-texto">{c.name}</h1>
-          <div className="mt-1 flex flex-wrap gap-1">
-            {c.fixed && <Badge variant="blue">Cliente padrão</Badge>}
-            {c.incomplete && <Badge variant="amber">Cadastro incompleto</Badge>}
-            {c.archived && <Badge variant="gray">Arquivado</Badge>}
-          </div>
+      <CabecalhoDaTela
+        titulo={c.name}
+        caminho={[{ rotulo: "Clientes", href: "/emporio/clientes" }]}
+        acoes={
+          !c.fixed && (
+            <div className="flex flex-wrap gap-2">
+              {/* A action recusa editar o arquivado: o botão só volta depois de desarquivar. */}
+              {!c.archived && pode(papel, "vendedor_da_loja") && (
+                <ClienteForm
+                  modo="completar"
+                  contatoId={c.id}
+                  trigger={
+                    <Button type="button" variant="outline" size="sm">
+                      Editar
+                    </Button>
+                  }
+                />
+              )}
+              {podeArquivar && <ClienteArquivarBotao id={c.id} arquivado={c.archived} />}
+            </div>
+          )
+        }
+      >
+        <div className="flex flex-wrap gap-1">
+          {c.fixed && <Badge variant="blue">Cliente padrão</Badge>}
+          {c.incomplete && <Badge variant="amber">Cadastro incompleto</Badge>}
+          {c.archived && <Badge variant="gray">Arquivado</Badge>}
         </div>
-        {!c.fixed && (
-          <div className="flex flex-wrap gap-2">
-            {/* A action recusa editar o arquivado: o botão só volta depois de desarquivar. */}
-            {!c.archived && pode(papel, "vendedor_da_loja") && (
-              <ClienteForm
-                modo="completar"
-                contatoId={c.id}
-                trigger={
-                  <Button type="button" variant="outline" size="sm">
-                    Editar
-                  </Button>
-                }
-              />
-            )}
-            {podeArquivar && <ClienteArquivarBotao id={c.id} arquivado={c.archived} />}
-          </div>
-        )}
-      </header>
+      </CabecalhoDaTela>
 
       <section className="grid gap-3 rounded-lg border border-borda p-4 text-sm sm:grid-cols-2" aria-label="Dados">
         <p>

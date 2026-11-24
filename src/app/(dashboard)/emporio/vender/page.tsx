@@ -13,6 +13,7 @@ import { buscarClientesAction } from "@/lib/actions/emporio-clientes";
 import { consumidorFinalEscolhido, type ClienteEscolhido } from "@/lib/emporio/cliente-escolhido";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Balcao } from "../_components/balcao";
+import { CabecalhoDaTela } from "../_components/cabecalho-da-tela";
 import { carregarCatalogoDeVenda } from "../_components/catalogo-venda";
 
 /**
@@ -136,12 +137,7 @@ export default async function VenderPage({
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
-      <header>
-        <Link href="/emporio" className="text-sm text-texto-secundario hover:text-texto">
-          Meu Empório
-        </Link>
-        <h1 className="text-2xl font-semibold text-texto">Vender</h1>
-      </header>
+      <CabecalhoDaTela titulo="Vender" />
 
       {avisoDaEdicao && (
         <p role="status" className="rounded-lg bg-atencao-suave px-4 py-3 text-sm text-atencao-tinta">
@@ -164,7 +160,7 @@ export default async function VenderPage({
           titulo="Nenhuma loja disponível"
           acao={
             <Link href="/emporio/estabelecimentos" className="text-sm font-medium text-texto-marca hover:underline">
-              Ir para Estabelecimentos
+              Ir para Lojas
             </Link>
           }
         >

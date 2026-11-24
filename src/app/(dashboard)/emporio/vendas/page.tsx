@@ -19,6 +19,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { NomeDoCliente } from "../_components/amarras";
+import { CabecalhoDaTela } from "../_components/cabecalho-da-tela";
 import { idDoClientePadrao } from "../_components/cliente-padrao";
 import { Paginacao } from "../_components/paginacao";
 import { lerPaginacaoDaUrl } from "../_components/paginacao-opcoes";
@@ -73,22 +74,17 @@ export default async function VendasPage({
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <Link href="/emporio" className="text-sm text-texto-secundario hover:text-texto">
-            Meu Empório
-          </Link>
-          <h1 className="text-2xl font-semibold text-texto">Vendas</h1>
-          <p className="mt-1 text-sm text-texto-secundario">
-            As vendas do balcão, com cancelamento, devolução e troca.
-          </p>
-        </div>
-        {podeVender && (
-          <Button asChild>
-            <Link href="/emporio/vender">Vender</Link>
-          </Button>
-        )}
-      </header>
+      <CabecalhoDaTela
+        titulo="Vendas"
+        ajuda="As vendas do balcão, com cancelamento, devolução e troca."
+        acoes={
+          podeVender && (
+            <Button asChild>
+              <Link href="/emporio/vender">Vender</Link>
+            </Button>
+          )
+        }
+      />
 
       <VendasFiltro lojas={lojas} loja={loja} situacao={filtroSituacao ?? ""} origem={filtroOrigem ?? ""} porPagina={porPagina} ordem={ordem} />
 

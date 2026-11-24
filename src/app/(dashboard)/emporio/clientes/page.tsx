@@ -17,6 +17,7 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { CabecalhoDaTela } from "../_components/cabecalho-da-tela";
 import { ClienteForm } from "../_components/cliente-form";
 import { ClientesFiltro } from "./_components/clientes-filtro";
 
@@ -48,18 +49,11 @@ export default async function ClientesPage({
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <Link href="/emporio" className="text-sm text-texto-secundario hover:text-texto">
-            Meu Empório
-          </Link>
-          <h1 className="text-2xl font-semibold text-texto">Clientes</h1>
-          <p className="mt-1 text-sm text-texto-secundario">
-            Quem compra no Empório. Abra o cliente para ver o histórico de compras.
-          </p>
-        </div>
-        {pode(await papelDoEmporio(db, user), "vendedor_da_loja") && <ClienteForm modo="novo" />}
-      </header>
+      <CabecalhoDaTela
+        titulo="Clientes"
+        ajuda="Quem compra no Empório. Abra o cliente para ver o histórico de compras."
+        acoes={pode(await papelDoEmporio(db, user), "vendedor_da_loja") && <ClienteForm modo="novo" />}
+      />
 
       <ClientesFiltro q={q} arquivados={mostrarArquivados} />
 

@@ -11,6 +11,7 @@ import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { veAPagina } from "@/lib/emporio/paginas";
 import { primeirosPassosAction, type PassoKey, type PassoView } from "@/lib/actions/emporio-primeiros-passos";
 import { Badge } from "@/components/ui/badge";
+import { CabecalhoDaTela } from "./_components/cabecalho-da-tela";
 
 const ROTULO_DO_PASSO: Record<PassoKey, string> = {
   preco: "Preço de venda",
@@ -61,12 +62,7 @@ export default async function EmporioPage() {
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold text-texto">Meu Empório</h1>
-        <p className="mt-1 text-sm text-texto-secundario">
-          Suas lojas e o catálogo de produtos que elas vendem.
-        </p>
-      </header>
+      <CabecalhoDaTela titulo="Início" ajuda="Suas lojas e o catálogo de produtos que elas vendem." />
 
       {pendenciasPorLoja.length > 0 && (
         <section className="space-y-4 rounded-lg border border-borda bg-superficie p-5 shadow-sm">
@@ -102,10 +98,10 @@ export default async function EmporioPage() {
       <div className="grid gap-4 sm:grid-cols-2">
         <Cartao
           href="/emporio/estabelecimentos"
-          titulo="Estabelecimentos"
+          titulo="Lojas"
           contagem={estabelecimentos}
-          singular="estabelecimento"
-          plural="estabelecimentos"
+          singular="loja"
+          plural="lojas"
         />
         <Cartao
           href="/emporio/produtos"

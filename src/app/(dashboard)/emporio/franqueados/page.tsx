@@ -15,6 +15,7 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { CabecalhoDaTela } from "../_components/cabecalho-da-tela";
 import { FranqueadoForm } from "./_components/franqueado-form";
 import { FranqueadosFiltro } from "./_components/franqueados-filtro";
 
@@ -33,18 +34,11 @@ export default async function FranqueadosPage({
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <Link href="/emporio" className="text-sm text-texto-secundario hover:text-texto">
-            Meu Empório
-          </Link>
-          <h1 className="text-2xl font-semibold text-texto">Franqueados</h1>
-          <p className="mt-1 text-sm text-texto-secundario">
-            Quem vende com a loja e recebe um crédito a cada venda. O saldo é o que a loja ainda deve pagar a ele.
-          </p>
-        </div>
-        {podeCadastrar && <FranqueadoForm modo="novo" />}
-      </header>
+      <CabecalhoDaTela
+        titulo="Franqueados"
+        ajuda="Quem vende com a loja e recebe um crédito a cada venda. O saldo é o que a loja ainda deve pagar a ele."
+        acoes={podeCadastrar && <FranqueadoForm modo="novo" />}
+      />
 
       <FranqueadosFiltro q={q} arquivados={mostrarArquivados} />
 
