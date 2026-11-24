@@ -1,5 +1,6 @@
 import { hasMinRole, canAccess } from "@/lib/permissions";
-import type { NavItem } from "@/components/layout/sidebar";
+import type { NavItem, NavChild, NavSubgroup } from "@/components/layout/sidebar";
+import type { EntradaDoMenu, ItemDoMenu } from "@/lib/emporio/menu";
 import type { AppUserRole } from "@/types/next-auth";
 import { paginaPermitidaAoSoDaLoja } from "@/lib/emporio/paginas-do-so-da-loja";
 
@@ -22,7 +23,7 @@ export function buildNavItems({
   hasPrestador,
   hasEmporio,
   soDaLoja = false,
-  paginasDoEmporio = [],
+  menuDoEmporio = [],
 }: {
   role: AppUserRole;
   hasFazenda: boolean;
@@ -30,11 +31,21 @@ export function buildNavItems({
   hasEmporio: boolean;
   /** F6b (Q120, Q190): toda a equipe do Empório vê apenas as páginas permitidas a ela. */
   soDaLoja?: boolean;
-  /** As telas do Empório que o papel permite (`paginasVisiveis`); vazio quando não há Empório. */
-  paginasDoEmporio?: { href: string; rotulo: string }[];
+  /** O menu do Empório que o papel permite (`menuDoEmporio`); vazio quando não há Empório. */
+  menuDoEmporio?: EntradaDoMenu[];
 }): NavItem[] {
-  const itens = montarItens({ role, hasFazenda, hasPrestador, hasEmporio, paginasDoEmporio });
+  const itens = montarItens({ role, hasFazenda, hasPrestador, hasEmporio, menuDoEmporio });
   return soDaLoja ? restringirAoSoDaLoja(itens) : itens;
+}
+
+function folhaDoMenu(i: ItemDoMenu): NavChild {
+  return {
+    href: i.href,
+    label: i.rotulo,
+    show: true,
+    ...(i.exact ? { exact: true } : {}),
+    ...(i.destaque ? { destaque: true } : {}),
+  };
 }
 
 /** A mesma lista que o layout usa para barrar a URL: o menu nunca oferece o que o layout fecharia. */
@@ -44,7 +55,15 @@ function restringirAoSoDaLoja(itens: NavItem[]): NavItem[] {
     if (item.kind === "link") {
       if (item.show && paginaPermitidaAoSoDaLoja(item.href)) saida.push(item);
     } else if (item.kind === "group") {
-      const filhos = item.children.filter((c) => c.show && paginaPermitidaAoSoDaLoja(c.href));
+      const filhos: (NavChild | NavSubgroup)[] = [];
+      for (const c of item.children) {
+        if ("kind" in c) {
+          const folhas = c.children.filter((f) => f.show && paginaPermitidaAoSoDaLoja(f.href));
+          if (folhas.length > 0) filhos.push({ ...c, children: folhas });
+        } else if (c.show && paginaPermitidaAoSoDaLoja(c.href)) {
+          filhos.push(c);
+        }
+      }
       if (filhos.length > 0) saida.push({ ...item, children: filhos });
     }
   }
@@ -56,13 +75,13 @@ function montarItens({
   hasFazenda,
   hasPrestador,
   hasEmporio,
-  paginasDoEmporio,
+  menuDoEmporio,
 }: {
   role: AppUserRole;
   hasFazenda: boolean;
   hasPrestador: boolean;
   hasEmporio: boolean;
-  paginasDoEmporio: { href: string; rotulo: string }[];
+  menuDoEmporio: EntradaDoMenu[];
 }): NavItem[] {
   return [
     /*
@@ -89,12 +108,11 @@ function montarItens({
       label: "Meu Empório",
       icon: "emporio",
       show: hasEmporio,
-      children: paginasDoEmporio.map((p) => ({
-        href: p.href,
-        label: p.rotulo,
-        show: true,
-        ...(p.href === "/emporio" ? { exact: true } : {}),
-      })),
+      children: menuDoEmporio.map((e): NavChild | NavSubgroup =>
+        e.tipo === "item"
+          ? folhaDoMenu(e)
+          : { kind: "subgroup", label: e.rotulo, children: e.itens.map(folhaDoMenu) },
+      ),
     },
     {
       kind: "group",

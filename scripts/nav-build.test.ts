@@ -2,6 +2,7 @@ import "./_env-local";
 import { buildNavItems } from "@/lib/nav";
 import type { NavItem, NavChild } from "@/components/layout/sidebar";
 import { paginasVisiveis, veAPagina } from "@/lib/emporio/paginas";
+import { menuDoEmporio } from "@/lib/emporio/menu";
 import { paginaPermitidaAoSoDaLoja } from "@/lib/emporio/paginas-do-so-da-loja";
 import type { PapelContexto } from "@/lib/emporio/papel";
 
@@ -39,7 +40,12 @@ function findLink(items: NavItem[], href: string) {
 function findGroupChild(items: NavItem[], groupLabel: string, childHref: string): NavChild | undefined {
   const group = items.find((i) => i.kind === "group" && i.label === groupLabel);
   if (!group || group.kind !== "group") return undefined;
-  return group.children.find((c) => c.href === childHref);
+  return group.children.find((c): c is NavChild => "href" in c && c.href === childHref);
+}
+
+/** As folhas de um grupo do Empório, com as de subgrupo achatadas. */
+function folhasDe(g: Extract<NavItem, { kind: "group" }> | undefined): NavChild[] {
+  return (g?.children ?? []).flatMap((c) => ("kind" in c ? c.children : [c]));
 }
 
 function main() {
@@ -101,18 +107,16 @@ function main() {
   const grupo = (itens: NavItem[]) =>
     itens.find((i): i is Extract<NavItem, { kind: "group" }> => i.kind === "group" && i.label === "Meu Empório");
 
-  const ordemEsperada = [
-    "/emporio", "/emporio/vender", "/emporio/vendas", "/emporio/orcamentos", "/emporio/fiado", "/emporio/clientes",
-    "/emporio/caixa", "/emporio/financeiro", "/emporio/produtos", "/emporio/estoque", "/emporio/compras", "/emporio/fornecedores",
-    "/emporio/franqueados", "/emporio/transferencias",
-    "/emporio/despesas", "/emporio/resultado", "/emporio/relatorios", "/emporio/equipe",
-    "/emporio/estabelecimentos", "/emporio/historico", "/emporio/configuracoes",
-  ];
-  const doDono = buildNavItems({ ...base, hasEmporio: true, paginasDoEmporio: paginasVisiveis(dono) });
+  const descreve = (g: Extract<NavItem, { kind: "group" }> | undefined) =>
+    (g?.children ?? []).map((c) => ("kind" in c ? `sub:${c.label}` : `folha:${c.label}`));
+  const doDono = buildNavItems({ ...base, hasEmporio: true, menuDoEmporio: menuDoEmporio(dono) });
   const gDono = grupo(doDono);
   assert(
-    !!gDono && JSON.stringify(gDono.children.map((c) => c.href)) === JSON.stringify(ordemEsperada),
-    "dono: o grupo Meu Empório tem os 21 filhos, na ordem (Financeiro depois de Caixa; Franqueados depois de Fornecedores, Q300)",
+    JSON.stringify(descreve(gDono)) ===
+      JSON.stringify([
+        "folha:Início", "folha:Vender", "sub:Vendas", "sub:Estoque", "sub:Dinheiro", "sub:Estatísticas", "sub:Ajustes",
+      ]),
+    "dono: o grupo Meu Empório tem as folhas Início e Vender e os subgrupos Vendas, Estoque, Dinheiro, Estatísticas e Ajustes",
   );
   const financeiro: PapelContexto = { papel: "financeiro", lojas: null, chaves: new Set(), soDaLoja: true };
   const hrefsFin = paginasVisiveis(financeiro).map((p) => p.href);
@@ -130,18 +134,21 @@ function main() {
     "Financeiro vê Despesas, Resultado, Clientes e Histórico",
   );
   assert(gDono?.show === true && gDono.icon === "emporio", "o grupo Meu Empório aparece com o ícone do Empório");
+  const primeira = gDono?.children[0];
   assert(
-    gDono?.children[0].href === "/emporio" && gDono.children[0].exact === true,
+    !!primeira && "href" in primeira && primeira.href === "/emporio" && primeira.exact === true,
     "o Início só acende na rota exata",
   );
+  const segunda = gDono?.children[1];
+  assert(!!segunda && "href" in segunda && segunda.destaque === true, "o Vender sai em destaque");
   assert(findLink(doDono, "/emporio/historico") === undefined, "não há link de topo /emporio/historico");
   assert(findLink(doDono, "/emporio") === undefined, "não há link de topo /emporio");
 
   const doVendedor = buildNavItems({
-    ...base, hasEmporio: true, soDaLoja: true, paginasDoEmporio: paginasVisiveis(vendedor),
+    ...base, hasEmporio: true, soDaLoja: true, menuDoEmporio: menuDoEmporio(vendedor),
   });
   const gVend = grupo(doVendedor);
-  const hrefsVend = gVend?.children.map((c) => c.href) ?? [];
+  const hrefsVend = folhasDe(gVend).map((c) => c.href);
   assert(!!gVend, "com soDaLoja, o grupo Meu Empório continua lá");
   assert(
     ["/emporio/despesas", "/emporio/resultado", "/emporio/equipe", "/emporio/historico"].every((h) => !hrefsVend.includes(h)),
@@ -157,11 +164,19 @@ function main() {
   assert(veAPagina(gestor, "/emporio/resultado") && !veAPagina(vendedor, "/emporio/resultado"), "veAPagina segue o papel");
 
   const caixa: PapelContexto = { papel: "caixa", lojas: new Set([lojaA]), chaves: new Set(), soDaLoja: true };
-  const doCaixa = buildNavItems({ ...base, hasEmporio: true, soDaLoja: true, paginasDoEmporio: paginasVisiveis(caixa) });
+  const doCaixa = buildNavItems({ ...base, hasEmporio: true, soDaLoja: true, menuDoEmporio: menuDoEmporio(caixa) });
   assert(
-    JSON.stringify(grupo(doCaixa)?.children.map((c) => c.href)) ===
-      JSON.stringify(["/emporio", "/emporio/vender", "/emporio/vendas", "/emporio/fiado", "/emporio/clientes", "/emporio/caixa"]),
-    "caixa: o menu tem só Início, Vender, Vendas, Fiado, Clientes e Caixa",
+    JSON.stringify(folhasDe(grupo(doCaixa)).map((c) => c.href)) ===
+      JSON.stringify(["/emporio", "/emporio/vender", "/emporio/vendas", "/emporio/clientes", "/emporio/fiado", "/emporio/caixa"]) &&
+      !(grupo(doCaixa)?.children ?? []).some((c) => "kind" in c),
+    "caixa: o menu é plano, só Início, Vender, Vendas, Clientes, Fiado e Caixa",
+  );
+  const soLoja = buildNavItems({ ...base, hasEmporio: true, soDaLoja: true, menuDoEmporio: menuDoEmporio(dono) });
+  const gSoLoja = grupo(soLoja);
+  assert(
+    (gSoLoja?.children ?? []).some((c) => "kind" in c) &&
+      folhasDe(gSoLoja).every((f) => paginaPermitidaAoSoDaLoja(f.href)),
+    "com soDaLoja, os subgrupos continuam e nenhuma folha fora do Empório aparece",
   );
   assert(
     !veAPagina(caixa, "/emporio/fornecedores") && veAPagina(gestor, "/emporio/fornecedores"),

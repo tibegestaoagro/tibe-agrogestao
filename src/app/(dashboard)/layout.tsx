@@ -8,7 +8,7 @@ import { getActivePropertyId } from "@/lib/active-property";
 import { buildNavItems } from "@/lib/nav";
 import { isFeatureVisibleForUser } from "@/lib/features";
 import { papelDoEmporio } from "@/lib/emporio/papel";
-import { paginasVisiveis } from "@/lib/emporio/paginas";
+import { menuDoEmporio } from "@/lib/emporio/menu";
 import { destinoDoSoDaLoja, paginaPermitidaAoSoDaLoja } from "@/lib/emporio/paginas-do-so-da-loja";
 import DashboardShell from "@/components/layout/dashboard-shell";
 import InstallInvite from "@/components/pwa/install-invite";
@@ -84,7 +84,7 @@ export default async function DashboardLayout({
 
   const navItems = buildNavItems({ role: user.role, hasFazenda, hasPrestador, hasEmporio,
     soDaLoja,
-    paginasDoEmporio: hasEmporio ? paginasVisiveis(papelEmporio) : [],
+    menuDoEmporio: hasEmporio ? menuDoEmporio(papelEmporio) : [],
   });
 
   return (

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   X,
   Home,
@@ -36,12 +36,17 @@ export type IconKey =
   | "whatsapp"
   | "configuracoes";
 
-/** `exact`: o filho só acende na rota exata (o Início do Empório não acende nas irmãs). */
-export type NavChild = { href: string; label: string; show: boolean; exact?: boolean };
+/**
+ * `exact`: o filho só acende na rota exata (o Início do Empório não acende nas irmãs).
+ * `destaque`: a folha vira pílula de ação (o Vender).
+ */
+export type NavChild = { href: string; label: string; show: boolean; exact?: boolean; destaque?: boolean };
+
+export type NavSubgroup = { kind: "subgroup"; label: string; children: NavChild[] };
 
 export type NavItem =
   | { kind: "link"; href: string; label: string; icon: IconKey; show: boolean }
-  | { kind: "group"; label: string; icon: IconKey; show: boolean; children: NavChild[] }
+  | { kind: "group"; label: string; icon: IconKey; show: boolean; children: (NavChild | NavSubgroup)[] }
   | { kind: "soon"; label: string; icon: IconKey };
 
 const ICONS: Record<IconKey, LucideIcon> = {
@@ -60,6 +65,52 @@ const ICONS: Record<IconKey, LucideIcon> = {
 
 function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+const CHAVE_SUBGRUPOS = "tibe:menu:subgrupos";
+
+const childActiveEm = (pathname: string, c: NavChild) =>
+  c.exact ? pathname === c.href : isActive(pathname, c.href);
+
+/** Uma folha do menu; `recuo` empurra a folha de subgrupo um nível para dentro. */
+function Folha({
+  child,
+  pathname,
+  recuo,
+  irmas = [],
+}: {
+  child: NavChild;
+  pathname: string;
+  recuo: boolean;
+  irmas?: NavChild[];
+}) {
+  // Hoje (/emporio/financeiro) contém A receber (/emporio/financeiro/receber):
+  // quando uma irmã mais específica acende, só ela fica marcada.
+  const active =
+    childActiveEm(pathname, child) &&
+    !irmas.some((o) => o.href.startsWith(`${child.href}/`) && childActiveEm(pathname, o));
+  if (child.destaque) {
+    return (
+      <Link
+        href={child.href}
+        className={`flex min-h-11 items-center justify-center rounded-md bg-primaria px-3 py-1.5 text-sm font-semibold text-sobre-primaria transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-texto-invertido md:min-h-0 ${
+          active ? "ring-2 ring-texto-invertido/60" : ""
+        }`}
+      >
+        {child.label}
+      </Link>
+    );
+  }
+  return (
+    <Link
+      href={child.href}
+      className={`flex min-h-11 items-center rounded-md py-1.5 text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primaria md:min-h-0 ${
+        recuo ? "px-3 pl-4" : "px-3"
+      } ${active ? "font-medium text-texto-invertido" : "text-texto-invertido/70 hover:text-texto-invertido"}`}
+    >
+      {child.label}
+    </Link>
+  );
 }
 
 /**
@@ -90,6 +141,36 @@ export default function Sidebar({
 }) {
   const pathname = usePathname();
   const [manualToggle, setManualToggle] = useState<Record<string, boolean>>({});
+  // Subgrupos: o estado salvo vem do navegador DEPOIS de montar, para a primeira
+  // pintura (servidor e cliente) usar só "tem filho ativo" e não divergir.
+  const [subgrupos, setSubgrupos] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    try {
+      const bruto = window.localStorage.getItem(CHAVE_SUBGRUPOS);
+      if (!bruto) return;
+      const lido: unknown = JSON.parse(bruto);
+      if (lido && typeof lido === "object" && !Array.isArray(lido)) {
+        const limpo: Record<string, boolean> = {};
+        for (const [k, v] of Object.entries(lido)) if (typeof v === "boolean") limpo[k] = v;
+        // Ler depois de montar é o desenho: ler no render divergiria na hidratação.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setSubgrupos(limpo);
+      }
+    } catch {
+      // armazenamento indisponível ou JSON quebrado: segue sem estado salvo
+    }
+  }, []);
+  function alternarSubgrupo(chave: string, aberto: boolean) {
+    setSubgrupos((prev) => {
+      const prox = { ...prev, [chave]: aberto };
+      try {
+        window.localStorage.setItem(CHAVE_SUBGRUPOS, JSON.stringify(prox));
+      } catch {
+        // sem armazenamento: o estado vale só nesta visita
+      }
+      return prox;
+    });
+  }
 
   return (
     <>
@@ -178,11 +259,13 @@ export default function Sidebar({
             }
 
             // Grupo expansível.
-            const children = item.children.filter((c) => c.show);
+            const children = item.children.filter((c) => "kind" in c || c.show);
             if (children.length === 0) return null;
-            const childActive = (c: NavChild) =>
-              c.exact ? pathname === c.href : isActive(pathname, c.href);
-            const hasActiveChild = children.some(childActive);
+            const hasActiveChild = children.some((c) =>
+              "kind" in c
+                ? c.children.some((f) => childActiveEm(pathname, f))
+                : childActiveEm(pathname, c),
+            );
             const open = manualToggle[item.label] ?? hasActiveChild;
 
             return (
@@ -208,19 +291,39 @@ export default function Sidebar({
                 {open && (
                   <div className="ml-4 space-y-1 border-l border-texto-invertido/10 pl-4 pt-1">
                     {children.map((child) => {
-                      const active = childActive(child);
+                      if (!("kind" in child)) {
+                        return <Folha key={child.href} child={child} pathname={pathname} recuo={false} />;
+                      }
+                      const folhas = child.children.filter((f) => f.show);
+                      if (folhas.length === 0) return null;
+                      const chave = `${item.label}/${child.label}`;
+                      const ativo = folhas.some((f) => childActiveEm(pathname, f));
+                      const aberto = subgrupos[chave] ?? ativo;
                       return (
-                        <Link
-                          key={child.href}
-                          href={child.href}
-                          className={`flex min-h-11 items-center rounded-md px-3 py-1.5 text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primaria md:min-h-0 ${
-                            active
-                              ? "font-medium text-texto-invertido"
-                              : "text-texto-invertido/70 hover:text-texto-invertido"
-                          }`}
-                        >
-                          {child.label}
-                        </Link>
+                        <div key={chave}>
+                          <button
+                            type="button"
+                            onClick={() => alternarSubgrupo(chave, !aberto)}
+                            aria-expanded={aberto}
+                            className={`flex min-h-11 w-full items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primaria md:min-h-0 ${
+                              ativo
+                                ? "text-texto-invertido"
+                                : "text-texto-invertido/85 hover:text-texto-invertido"
+                            }`}
+                          >
+                            <span className="flex-1 text-left">{child.label}</span>
+                            <ChevronDown
+                              className={`h-4 w-4 shrink-0 transition-transform ${aberto ? "rotate-180" : ""}`}
+                            />
+                          </button>
+                          {aberto && (
+                            <div className="ml-3 space-y-1 border-l border-texto-invertido/10 pl-2">
+                              {folhas.map((f) => (
+                                <Folha key={f.href} child={f} pathname={pathname} recuo irmas={folhas} />
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       );
                     })}
                   </div>
