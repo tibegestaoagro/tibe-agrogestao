@@ -140,6 +140,19 @@ Decisões do usuário sobre o diagnóstico (24/11):
   Todas" no lugar do seletor de propriedades (a confirmar: a decisão anterior
   era só esconder).
 
+- **Vender: opção A aprovada em 24/11** (`vender.html`): duas colunas no
+  computador (busca e itens à esquerda; cliente, vendedor, pagamento, "Mais
+  opções" recolhido, total e Fechar à direita), faixa do caixa no topo (verde
+  aberto, laranja fechado com "Abrir o caixa"); celular em uma coluna com total
+  e Fechar presos no rodapé.
+
+- **Estatísticas aprovada em 24/11** (`estatisticas.html`): um filtro só
+  (atalhos de período e loja); abas Visão geral, Vendas, Dinheiro, Resultado e
+  Relatórios para imprimir. Visão geral com três cartões (Vendas, Dinheiro,
+  Resultado). Novo: comparação com o mês anterior e folha de impressão e
+  planilha para os relatórios de Vendas e Resultado (hoje só os 4 do Dinheiro
+  têm).
+
 Fotos e roteiro descartável fora do git (`scripts/navegador/ux-tour-emporio.py`,
 não versionado).
 
