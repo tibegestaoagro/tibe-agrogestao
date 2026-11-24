@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Empório: menu e Início</title>
+<style>
+  :root {
+    --fundo: #fcf8f5; --sup: #ffffff; --inv: #022e20; --texto: #111827; --sec: #4b5563; --disc: #6b7280;
+    --borda: #e5e7eb; --prim: #649721; --prim-suave: #f1f6e8; --prim-tinta: #4a7317;
+    --acento: #e97d0f; --acento-suave: #fcefe2; --acento-tinta: #a0570a;
+    --perigo-tinta: #b91c1c; --perigo-suave: #fef2f2;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 Inter, system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--texto); background: #e9e5e1; }
+  .intro { max-width: 1240px; margin: 24px auto 12px; padding: 0 16px; }
+  .intro h1 { font-size: 20px; margin: 0 0 4px; }
+  .intro p { margin: 0; color: var(--sec); }
+  .rotulo { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--disc); margin: 20px 0 8px; }
+  .tela { display: flex; max-width: 1240px; margin: 0 auto; background: var(--fundo); border: 1px solid #d6d1cc; border-radius: 10px; overflow: hidden; min-height: 760px; box-shadow: 0 8px 30px rgba(0,0,0,.08); }
+  /* menu lateral */
+  nav { width: 240px; flex: none; background: var(--inv); color: #e7efe9; padding: 18px 12px; }
+  .logo { font-weight: 800; font-size: 20px; letter-spacing: .02em; padding: 0 10px 18px; color: #fff; }
+  .item { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; border-radius: 6px; color: #cfdcd3; cursor: pointer; user-select: none; }
+  .item:hover { background: rgba(255,255,255,.06); }
+  .item.top { color: #fff; font-weight: 600; }
+  .item.atual { background: rgba(255,255,255,.1); color: #fff; font-weight: 600; }
+  .sub { margin-left: 12px; border-left: 1px solid rgba(255,255,255,.12); padding-left: 6px; }
+  .grupo > .item .seta { transition: transform .15s; font-size: 11px; opacity: .7; }
+  .grupo.aberto > .item .seta { transform: rotate(90deg); }
+  .grupo .filhos { display: none; margin-left: 10px; }
+  .grupo.aberto .filhos { display: block; }
+  .filhos .item { padding: 6px 10px; font-size: 13.5px; }
+  .vender { margin: 6px 0 8px; background: var(--prim); color: #fff; font-weight: 600; justify-content: center; }
+  .vender:hover { background: #6fa527; }
+  .sep { height: 1px; background: rgba(255,255,255,.1); margin: 10px 0; }
+  /* conteúdo */
+  main { flex: 1; min-width: 0; }
+  .topo { height: 60px; background: var(--sup); border-bottom: 1px solid var(--borda); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; }
+  .loja { border: 1px solid var(--borda); border-radius: 8px; padding: 7px 12px; color: var(--texto); background: var(--sup); }
+  .quem { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+  .avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--prim); color: #fff; display: grid; place-items: center; font-weight: 700; }
+  .conteudo { padding: 24px 28px 32px; }
+  .cab { display: flex; align-items: center; gap: 8px; margin-bottom: 18px; }
+  .cab h2 { font-size: 24px; margin: 0; }
+  .caminho { font-size: 13px; color: var(--sec); margin-bottom: 4px; }
+  .caminho a { color: var(--prim-tinta); text-decoration: none; font-weight: 500; }
+  .info { position: relative; display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid var(--disc); color: var(--disc); font: 700 12px/1 Georgia, serif; cursor: pointer; }
+  .info:hover, .info.ativo { border-color: var(--prim-tinta); color: var(--prim-tinta); }
+  .balao { display: none; position: absolute; top: 28px; left: -12px; z-index: 5; width: 300px; background: var(--inv); color: #f2f7f3; font: 400 13px/1.45 Inter, system-ui, sans-serif; padding: 12px 14px; border-radius: 8px; box-shadow: 0 10px 24px rgba(0,0,0,.2); cursor: default; }
+  .balao a { color: #b7dd84; display: inline-block; margin-top: 8px; font-weight: 600; text-decoration: none; }
+  .info:hover .balao, .info.ativo .balao { display: block; }
+  .bloco { background: var(--sup); border: 1px solid var(--borda); border-radius: 10px; padding: 16px 18px; margin-bottom: 16px; }
+  .bloco h3 { margin: 0 0 10px; font-size: 15px; }
+  .aviso { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--borda); }
+  .aviso:first-of-type { border-top: 0; }
+  .pinta { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .pinta.r { background: var(--perigo-tinta); } .pinta.a { background: var(--acento); }
+  .aviso .txt { flex: 1; }
+  .aviso .quem-ve { font-size: 11.5px; color: var(--disc); margin-left: 6px; }
+  .aviso a { color: var(--prim-tinta); font-weight: 600; text-decoration: none; white-space: nowrap; }
+  .numeros { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+  .num { background: var(--sup); border: 1px solid var(--borda); border-radius: 10px; padding: 14px 16px; }
+  .num .r { font-size: 12.5px; color: var(--sec); }
+  .num .v { font-size: 22px; font-weight: 700; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .num .d { font-size: 12px; color: var(--prim-tinta); margin-top: 2px; }
+  .atalhos { display: flex; flex-wrap: wrap; gap: 10px; }
+  .atalho { border: 1px solid var(--borda); background: var(--sup); border-radius: 8px; padding: 10px 14px; font-weight: 600; color: var(--texto); }
+  .nota { font-size: 12px; color: var(--disc); margin-top: 6px; }
+  .lado { display: grid; grid-template-columns: 300px 1fr; gap: 24px; max-width: 1240px; margin: 0 auto; }
+  .mini { background: var(--inv); border-radius: 10px; padding: 18px 12px; color: #e7efe9; }
+  .card-sub { background: var(--fundo); border: 1px solid #d6d1cc; border-radius: 10px; padding: 20px 24px; }
+  .opcoes { max-width: 1240px; margin: 28px auto 60px; padding: 0 16px; }
+  .op { display: inline-block; border: 1px solid #cfc9c3; background: #fff; border-radius: 8px; padding: 10px 16px; margin: 0 8px 8px 0; cursor: pointer; }
+  .op.selected { border-color: var(--prim); background: var(--prim-suave); }
+</style>
+</head>
+<body>
+<div class="intro">
+  <h1>Menu agrupado e Início novo (gestor, dono e financeiro)</h1>
+  <p>Clique nos grupos do menu para abrir e fechar. Passe o mouse no (i) ao lado do título. Os números são de exemplo.</p>
+</div>
+
+<div style="max-width:1240px;margin:0 auto;padding:0 16px"><div class="rotulo">1. O que o dono vê ao entrar</div></div>
+<div style="padding:0 16px">
+<div class="tela">
+  <nav>
+    <div class="logo">TIBÉ</div>
+    <div class="item top">Meu Dia</div>
+    <div class="item top">Meu Empório <span>▾</span></div>
+    <div class="sub">
+      <div class="item atual">Início</div>
+      <div class="item vender">Vender</div>
+      <div class="grupo aberto">
+        <div class="item">Vendas <span class="seta">▶</span></div>
+        <div class="filhos">
+          <div class="item">Vendas</div><div class="item">Orçamentos</div><div class="item">Clientes</div><div class="item">Fiado</div><div class="item">Franqueados</div>
+        </div>
+      </div>
+      <div class="grupo">
+        <div class="item">Estoque <span class="seta">▶</span></div>
+        <div class="filhos">
+          <div class="item">Produtos</div><div class="item">Estoque</div><div class="item">Compras</div><div class="item">Transferências</div><div class="item">Fornecedores</div>
+        </div>
+      </div>
+      <div class="grupo">
+        <div class="item">Dinheiro <span class="seta">▶</span></div>
+        <div class="filhos">
+          <div class="item">Hoje</div><div class="item">Caixa</div><div class="item">A receber</div><div class="item">A pagar</div><div class="item">Aprovações</div>
+        </div>
+      </div>
+      <div class="item">Estatísticas</div>
+      <div class="grupo">
+        <div class="item">Ajustes <span class="seta">▶</span></div>
+        <div class="filhos">
+          <div class="item">Lojas</div><div class="item">Equipe</div><div class="item">Histórico</div><div class="item">Configurações</div>
+        </div>
+      </div>
+    </div>
+    <div class="sep"></div>
+    <div class="item top">Calculadora Pecuária</div>
+    <div class="item top">Manual</div>
+    <div class="item top">Configurações</div>
+  </nav>
+  <main>
+    <div class="topo">
+      <div class="loja">Loja: Todas ▾</div>
+      <div class="quem"><div style="text-align:right">Max<br><span style="color:var(--disc);font-size:12px">Dono</span></div><div class="avatar">M</div></div>
+    </div>
+    <div class="conteudo">
+      <div class="cab">
+        <h2>Bom dia, Max</h2>
+        <span class="info" tabindex="0">i
+          <span class="balao">O que precisa de você hoje nas suas lojas, os números do dia e os atalhos mais usados.<br><a href="#">Ver no manual ›</a></span>
+        </span>
+      </div>
+
+      <div class="bloco">
+        <h3>Precisa de você</h3>
+        <div class="aviso"><span class="pinta r"></span><span class="txt">3 produtos sem estoque na AGROMAX MOC <span class="quem-ve">gestor</span></span><a href="#">Ver ›</a></div>
+        <div class="aviso"><span class="pinta r"></span><span class="txt">R$ 2.400,00 de fiado vencido, de 5 clientes <span class="quem-ve">financeiro</span></span><a href="#">Cobrar ›</a></div>
+        <div class="aviso"><span class="pinta r"></span><span class="txt">2 contas a pagar vencem hoje, R$ 1.830,00 <span class="quem-ve">financeiro</span></span><a href="#">Pagar ›</a></div>
+        <div class="aviso"><span class="pinta a"></span><span class="txt">O Caixa 2 da AGROMAX ficou aberto desde ontem <span class="quem-ve">gestor</span></span><a href="#">Fechar ›</a></div>
+        <div class="aviso"><span class="pinta a"></span><span class="txt">1 pedido de aprovação esperando <span class="quem-ve">financeiro</span></span><a href="#">Ver ›</a></div>
+        <div class="aviso"><span class="pinta a"></span><span class="txt">4 orçamentos vencem nos próximos 3 dias <span class="quem-ve">gestor</span></span><a href="#">Ver ›</a></div>
+        <div class="aviso"><span class="pinta a"></span><span class="txt">R$ 640,00 na conta ainda a conferir com o banco <span class="quem-ve">financeiro</span></span><a href="#">Conferir ›</a></div>
+        <div class="nota">O dono vê todos. O gestor vê só os marcados "gestor"; o financeiro, só os marcados "financeiro". Sem nenhum aviso, o bloco some.</div>
+      </div>
+
+      <div class="numeros">
+        <div class="num"><div class="r">Vendas hoje</div><div class="v">R$ 3.180</div><div class="d">14 vendas</div></div>
+        <div class="num"><div class="r">Vendas no mês</div><div class="v">R$ 48.200</div><div class="d">8% acima de outubro</div></div>
+        <div class="num"><div class="r">Entra hoje</div><div class="v">R$ 900</div><div class="d">fiado, boleto e cartão</div></div>
+        <div class="num"><div class="r">Sai hoje</div><div class="v">R$ 1.830</div><div class="d">2 contas</div></div>
+      </div>
+
+      <div class="bloco" style="margin-bottom:0">
+        <h3>Atalhos</h3>
+        <div class="atalhos"><span class="atalho">Estatísticas</span><span class="atalho">Produtos</span><span class="atalho">Estoque</span><span class="atalho">Nova compra</span><span class="atalho">A receber</span></div>
+      </div>
+    </div>
+  </main>
+</div>
+</div>
+
+<div style="max-width:1240px;margin:0 auto;padding:0 16px"><div class="rotulo">2. O menu de quem trabalha no caixa, e o cabeçalho de uma tela que fica dentro de outra</div></div>
+<div class="lado" style="padding:0 16px">
+  <div class="mini">
+    <div class="item top">Meu Empório <span>▾</span></div>
+    <div class="sub">
+      <div class="item vender">Vender</div>
+      <div class="item">Vendas</div>
+      <div class="item">Clientes</div>
+      <div class="item">Fiado</div>
+      <div class="item">Caixa</div>
+    </div>
+    <div class="nota" style="color:#9fb5a8;margin:12px 6px 0">O caixa entra direto em Vender. Grupo com um item só aparece solto, sem abrir e fechar.</div>
+  </div>
+  <div class="card-sub">
+    <div class="caminho"><a href="#">Dinheiro</a> › A pagar</div>
+    <div class="cab" style="margin-bottom:10px">
+      <h2>A pagar</h2>
+      <span class="info" tabindex="0">i
+        <span class="balao">Contas avulsas, despesas fixas, o Vendeu, Pagou, fretes e compras. Pagar tira o dinheiro do caixa do Empório.<br><a href="#">Ver no manual ›</a></span>
+      </span>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:14px">
+      <span class="atalho" style="background:var(--prim);color:#fff;border-color:var(--prim)">Contas</span>
+      <span class="atalho">Despesas fixas</span>
+      <span class="atalho">Vendeu, Pagou</span>
+    </div>
+    <div style="background:var(--acento-suave);color:var(--acento-tinta);border-radius:8px;padding:10px 12px;font-size:13px">
+      Aviso que muda o que a pessoa faz continua visível, fora do (i). Exemplo: "2 contas desta lista já venceram."
+    </div>
+    <div class="nota">Hoje esta tela seria "Meu Empório" (cinza) em cima de "Financeiro: a pagar", com o texto de apresentação fixo embaixo.</div>
+  </div>
+</div>
+
+<div class="opcoes">
+  <div class="rotulo">Sua impressão (clique, se quiser, e me diga no terminal)</div>
+  <div class="options" data-multiselect>
+    <span class="op option" data-choice="aprovo" onclick="toggleSelect(this)">Aprovo como está</span>
+    <span class="op option" data-choice="avisos" onclick="toggleSelect(this)">Mudar os avisos</span>
+    <span class="op option" data-choice="numeros" onclick="toggleSelect(this)">Mudar os números</span>
+    <span class="op option" data-choice="atalhos" onclick="toggleSelect(this)">Mudar os atalhos</span>
+    <span class="op option" data-choice="menu" onclick="toggleSelect(this)">Mudar o menu</span>
+  </div>
+</div>
+
+<script>
+  document.querySelectorAll('.grupo > .item').forEach(function (el) {
+    el.addEventListener('click', function () { el.parentElement.classList.toggle('aberto'); });
+  });
+  document.querySelectorAll('.info').forEach(function (el) {
+    el.addEventListener('click', function (e) { e.stopPropagation(); el.classList.toggle('ativo'); });
+  });
+  document.addEventListener('click', function () {
+    document.querySelectorAll('.info.ativo').forEach(function (el) { el.classList.remove('ativo'); });
+  });
+</script>
+</body>
+</html>

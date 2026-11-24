@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Empório: Estatísticas</title>
+<style>
+  :root {
+    --fundo: #fcf8f5; --sup: #ffffff; --texto: #111827; --sec: #4b5563; --disc: #6b7280;
+    --borda: #e5e7eb; --campo: #878f9a; --prim: #649721; --prim-suave: #f1f6e8; --prim-tinta: #4a7317;
+    --acento-tinta: #a0570a; --perigo-tinta: #b91c1c;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 Inter, system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--texto); background: #e9e5e1; }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 0 16px; }
+  .intro h1 { font-size: 20px; margin: 24px 0 4px; }
+  .intro p { margin: 0; color: var(--sec); }
+  .rotulo { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--disc); margin: 22px 0 8px; }
+  .tela { background: var(--fundo); border: 1px solid #d6d1cc; border-radius: 10px; box-shadow: 0 8px 30px rgba(0,0,0,.08); padding: 22px 26px 26px; }
+  .cab { display: flex; align-items: center; gap: 8px; }
+  .cab h2 { margin: 0; font-size: 24px; }
+  .info { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid var(--disc); color: var(--disc); font: 700 12px/1 Georgia, serif; }
+  .filtros { display: flex; gap: 10px; align-items: center; margin: 14px 0 12px; flex-wrap: wrap; }
+  .f { border: 1px solid var(--campo); border-radius: 8px; padding: 7px 12px; background: #fff; }
+  .chip { border: 1px solid var(--borda); border-radius: 999px; padding: 5px 12px; background: #fff; font-size: 13px; color: var(--sec); }
+  .chip.on { background: var(--prim-suave); border-color: var(--prim); color: var(--prim-tinta); font-weight: 600; }
+  .abas { display: flex; gap: 2px; border-bottom: 1px solid var(--borda); margin-bottom: 18px; }
+  .abas span { padding: 9px 14px; color: var(--sec); font-weight: 600; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .abas .on { color: var(--prim-tinta); border-color: var(--prim); }
+  .tres { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .bloco { background: var(--sup); border: 1px solid var(--borda); border-radius: 10px; padding: 16px 18px; }
+  .bloco h3 { margin: 0 0 10px; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--disc); }
+  .grande { font-size: 28px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .var { font-size: 12.5px; color: var(--prim-tinta); margin-bottom: 10px; }
+  .var.neg { color: var(--perigo-tinta); }
+  .l { display: flex; justify-content: space-between; padding: 6px 0; border-top: 1px solid var(--borda); font-size: 13.5px; font-variant-numeric: tabular-nums; }
+  .l span:first-child { color: var(--sec); }
+  .ver { display: inline-block; margin-top: 10px; color: var(--prim-tinta); font-weight: 600; }
+  .barras { display: flex; align-items: flex-end; gap: 4px; height: 56px; margin: 6px 0 10px; }
+  .barras i { flex: 1; background: var(--prim-suave); border-top: 2px solid var(--prim); }
+  .barras i.h { background: var(--prim); }
+  .lista { background: var(--sup); border: 1px solid var(--borda); border-radius: 10px; }
+  .rel { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-top: 1px solid var(--borda); }
+  .rel:first-child { border-top: 0; }
+  .rel b { display: block; }
+  .rel .d { font-size: 12.5px; color: var(--disc); }
+  .btn { border: 1px solid var(--borda); background: #fff; border-radius: 8px; padding: 6px 11px; font-weight: 600; font-size: 13px; white-space: nowrap; }
+  .grupo-rel { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--disc); padding: 14px 16px 4px; background: var(--fundo); border-top: 1px solid var(--borda); }
+  .grupo-rel:first-child { border-top: 0; border-radius: 10px 10px 0 0; }
+  .nota { font-size: 12px; color: var(--disc); margin-top: 8px; }
+  .det { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 4px; }
+  .det span { background: #fff; border: 1px solid var(--borda); border-radius: 8px; padding: 8px 10px; font-size: 13px; }
+  .opcoes { margin: 28px 0 60px; }
+  .op { display: inline-block; border: 1px solid #cfc9c3; background: #fff; border-radius: 8px; padding: 10px 16px; margin: 0 8px 8px 0; cursor: pointer; }
+  .op.selected { border-color: var(--prim); background: var(--prim-suave); }
+</style>
+</head>
+<body>
+<div class="wrap intro">
+  <h1>Estatísticas: os números num lugar só</h1>
+  <p>Junta Relatórios, Financeiro &gt; Relatórios, Resultado e Projeção. Um filtro de período e loja vale para tudo. Os números são de exemplo.</p>
+</div>
+
+<div class="wrap"><div class="rotulo">1. Ao abrir: a visão geral, um cartão por assunto</div></div>
+<div class="wrap">
+<div class="tela">
+  <div class="cab"><h2>Estatísticas</h2><span class="info">i</span></div>
+  <div class="filtros">
+    <span class="chip">Hoje</span><span class="chip">7 dias</span><span class="chip on">Este mês</span><span class="chip">Mês passado</span><span class="chip">Escolher datas</span>
+    <span class="f" style="margin-left:auto">Loja: Todas ▾</span>
+  </div>
+  <div class="abas"><span class="on">Visão geral</span><span>Vendas</span><span>Dinheiro</span><span>Resultado</span><span>Relatórios para imprimir</span></div>
+  <div class="tres">
+    <div class="bloco">
+      <h3>Vendas</h3>
+      <div class="grande">R$ 48.200</div>
+      <div class="var">8% acima de outubro, no mesmo período</div>
+      <div class="barras"><i style="height:40%"></i><i style="height:55%"></i><i style="height:35%"></i><i style="height:70%"></i><i style="height:60%"></i><i style="height:80%"></i><i class="h" style="height:66%"></i></div>
+      <div class="l"><span>Produto que mais vendeu</span><span>MOMBAÇA CONV.</span></div>
+      <div class="l"><span>Melhor vendedor</span><span>Lucas</span></div>
+      <div class="l"><span>Produtos parados há 60 dias</span><span>12</span></div>
+      <span class="ver">Ver vendas ›</span>
+    </div>
+    <div class="bloco">
+      <h3>Dinheiro</h3>
+      <div class="grande">R$ 31.450</div>
+      <div class="var">em caixa e nas contas agora</div>
+      <div class="l"><span>A receber</span><span>R$ 12.300</span></div>
+      <div class="l"><span>dos quais vencido</span><span style="color:var(--perigo-tinta)">R$ 2.400</span></div>
+      <div class="l"><span>A pagar nos próximos 30 dias</span><span>R$ 9.120</span></div>
+      <div class="l"><span>Saldo previsto em 30 dias</span><span>R$ 34.630</span></div>
+      <span class="ver">Ver dinheiro ›</span>
+    </div>
+    <div class="bloco">
+      <h3>Resultado</h3>
+      <div class="grande">R$ 6.140</div>
+      <div class="var">de lucro no mês, margem de 12,7%</div>
+      <div class="l"><span>Ponto de equilíbrio</span><span>atingido dia 19</span></div>
+      <div class="l"><span>AGROMAX</span><span>R$ 4.020</span></div>
+      <div class="l"><span>AGROMAX MOC</span><span>R$ 2.120</span></div>
+      <div class="l"><span>Vendas com margem negativa</span><span style="color:var(--acento-tinta)">3</span></div>
+      <span class="ver">Ver resultado ›</span>
+    </div>
+  </div>
+  <div class="nota">O financeiro e o gestor veem só os cartões que podem ver hoje. O caixa não vê Estatísticas.</div>
+</div>
+</div>
+
+<div class="wrap"><div class="rotulo">2. O que fica dentro de cada aba (os blocos que já existem, só reunidos)</div></div>
+<div class="wrap">
+  <div class="det">
+    <span><b>Vendas</b><br>Curva ABC · Por origem · Por vendedor · Por produto · Por loja · PIX por conta · Produtos parados</span>
+    <span><b>Dinheiro</b><br>A receber por idade · A pagar por vencimento · Posição de caixa · Fluxo projetado</span>
+    <span><b>Resultado</b><br>Resultado do mês · Loja por loja · Ponto de equilíbrio · Acompanhamento do mês · Produtos do mês · Custo do cartão · Margem negativa</span>
+    <span><b>Relatórios para imprimir</b><br>A versão fechada, em papel ou PDF, e a planilha</span>
+  </div>
+</div>
+
+<div class="wrap"><div class="rotulo">3. A aba "Relatórios para imprimir"</div></div>
+<div class="wrap">
+<div class="tela">
+  <div class="abas"><span>Visão geral</span><span>Vendas</span><span>Dinheiro</span><span>Resultado</span><span class="on">Relatórios para imprimir</span></div>
+  <div class="lista">
+    <div class="grupo-rel">Vendas</div>
+    <div class="rel"><span><b>Curva ABC de produtos</b><span class="d">Quem mais pesa no faturamento ou no lucro, no período</span></span><span><span class="btn">Imprimir ou PDF</span> <span class="btn">Planilha</span></span></div>
+    <div class="rel"><span><b>Vendas por vendedor</b><span class="d">Para conferir comissão</span></span><span><span class="btn">Imprimir ou PDF</span> <span class="btn">Planilha</span></span></div>
+    <div class="rel"><span><b>Produtos parados</b><span class="d">O que não vendeu no período, com o estoque de cada loja</span></span><span><span class="btn">Imprimir ou PDF</span> <span class="btn">Planilha</span></span></div>
+    <div class="grupo-rel">Dinheiro</div>
+    <div class="rel"><span><b>A receber por idade</b><span class="d">Fiado, cheques, boletos e cartões, por faixa de atraso</span></span><span><span class="btn">Imprimir ou PDF</span> <span class="btn">Planilha</span></span></div>
+    <div class="rel"><span><b>A pagar por vencimento</b><span class="d">O que vence em cada semana</span></span><span><span class="btn">Imprimir ou PDF</span> <span class="btn">Planilha</span></span></div>
+    <div class="rel"><span><b>Posição de caixa</b><span class="d">Saldo de cada gaveta, gerência e conta, na data</span></span><span><span class="btn">Imprimir ou PDF</span> <span class="btn">Planilha</span></span></div>
+    <div class="rel"><span><b>Fluxo projetado</b><span class="d">O que entra e sai nos próximos 30, 60 e 90 dias</span></span><span><span class="btn">Imprimir ou PDF</span> <span class="btn">Planilha</span></span></div>
+    <div class="grupo-rel">Resultado</div>
+    <div class="rel"><span><b>Resultado do mês por loja</b><span class="d">Vendas, custo, despesas e lucro</span></span><span><span class="btn">Imprimir ou PDF</span> <span class="btn">Planilha</span></span></div>
+  </div>
+  <div class="nota">Os quatro do Dinheiro já existem para imprimir hoje. Os de Vendas e Resultado ganham a mesma folha. Todos usam o período e a loja escolhidos no topo.</div>
+</div>
+</div>
+
+<div class="wrap opcoes">
+  <div class="rotulo">Sua impressão (clique, se quiser, e me diga no terminal)</div>
+  <div class="options" data-multiselect>
+    <span class="op option" data-choice="aprovo" onclick="toggleSelect(this)">Aprovo como está</span>
+    <span class="op option" data-choice="cartoes" onclick="toggleSelect(this)">Mudar os números da visão geral</span>
+    <span class="op option" data-choice="relatorios" onclick="toggleSelect(this)">Faltam relatórios</span>
+  </div>
+</div>
+</body>
+</html>

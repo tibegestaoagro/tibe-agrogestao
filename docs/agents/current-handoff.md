@@ -25,10 +25,17 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-24. **Próxima frente: UX e UI só do Empório**, numa
-  sessão nova, na branch `ux-emporio`. Comece por
-  [../superpowers/specs/2026-11-24-emporio-ux-briefing.md](../superpowers/specs/2026-11-24-emporio-ux-briefing.md)
-  (entrevista, telas, diagnóstico, proposta; nenhum código antes de aprovar).
+- Atualizado em: 2026-11-24. **Frente em curso: UX e UI só do Empório**, na
+  branch `ux-emporio` (sem código ainda). Entrevista, diagnóstico de 45 telas e
+  mockups aprovados (menu, Início, Vender em duas colunas, Estatísticas) no
+  [briefing](../superpowers/specs/2026-11-24-emporio-ux-briefing.md). Desenho
+  escrito, revisado por construtor e **à espera da aprovação do usuário**:
+  [2026-11-24-emporio-ux-design.md](../superpowers/specs/2026-11-24-emporio-ux-design.md)
+  (Q387 a Q397, 6 ondas, cada uma em produção com o manual junto, por
+  subagentes). **Próximo:** aprovado o desenho, plano da onda 1 (navegação)
+  com `superpowers:writing-plans`. Roteiro descartável
+  `scripts/navegador/ux-tour-emporio.py` (não versionado) fotografa as telas
+  por papel.
 - Em produção desde 24/11 (merge `176a3dba`, CI e Vercel verdes): lint de 30
   avisos para 0, travado em `--max-warnings 0`; passo 2 do roteiro franqueado
   estável (`_abrir_select`).
@@ -195,5 +202,6 @@ relatórios em [agente-whatsapp/](agente-whatsapp/), detalhe em
 
 ## Últimas rodadas
 
+- 24/11 (2): UX do Empório: entrevista, diagnóstico, mockups e desenho; nada em produção.
 - 24/11: lint zerado e travado, passo 2 do roteiro franqueado estável; branch `lint-avisos-passo-2` sem merge.
 - 23/11: decisões pendentes do Empório em produção, Neon, merge e push autorizados na conversa (18/11 e 20/11 no histórico).

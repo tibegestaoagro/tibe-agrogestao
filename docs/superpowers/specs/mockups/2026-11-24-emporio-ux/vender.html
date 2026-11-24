@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Empório: tela Vender</title>
+<style>
+  :root {
+    --fundo: #fcf8f5; --sup: #ffffff; --inv: #022e20; --texto: #111827; --sec: #4b5563; --disc: #6b7280;
+    --borda: #e5e7eb; --campo: #878f9a; --prim: #649721; --prim-suave: #f1f6e8; --prim-tinta: #4a7317;
+    --acento: #e97d0f; --acento-suave: #fcefe2; --acento-tinta: #a0570a; --sucesso-tinta: #166534; --sucesso-suave: #f0fdf4;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 Inter, system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--texto); background: #e9e5e1; }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 0 16px; }
+  .intro h1 { font-size: 20px; margin: 24px 0 4px; }
+  .intro p { margin: 0; color: var(--sec); }
+  .rotulo { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--disc); margin: 22px 0 8px; }
+  .tela { background: var(--fundo); border: 1px solid #d6d1cc; border-radius: 10px; box-shadow: 0 8px 30px rgba(0,0,0,.08); overflow: hidden; }
+  .topo { height: 52px; background: var(--sup); border-bottom: 1px solid var(--borda); display: flex; align-items: center; justify-content: space-between; padding: 0 20px; font-size: 13px; color: var(--sec); }
+  .conteudo { padding: 18px 22px 22px; }
+  .cab { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .cab h2 { margin: 0; font-size: 22px; }
+  .modo { display: inline-flex; border: 1px solid var(--borda); border-radius: 8px; overflow: hidden; background: var(--sup); }
+  .modo span { padding: 6px 14px; font-weight: 600; color: var(--sec); }
+  .modo .on { background: var(--prim); color: #fff; }
+  .status { display: flex; align-items: center; gap: 8px; background: var(--sucesso-suave); color: var(--sucesso-tinta); border-radius: 8px; padding: 8px 12px; font-size: 13px; margin-bottom: 14px; }
+  .status.fechado { background: var(--acento-suave); color: var(--acento-tinta); justify-content: space-between; }
+  .bola { width: 8px; height: 8px; border-radius: 50%; background: currentColor; display: inline-block; margin-right: 6px; }
+  .btn { display: inline-block; border: 1px solid var(--borda); background: var(--sup); border-radius: 8px; padding: 7px 12px; font-weight: 600; color: var(--texto); cursor: pointer; }
+  .btn.p { background: var(--prim); border-color: var(--prim); color: #fff; }
+  .btn.peq { padding: 4px 10px; font-size: 12.5px; }
+  .cartao { background: var(--sup); border: 1px solid var(--borda); border-radius: 10px; padding: 14px 16px; }
+  .busca { border: 2px solid var(--prim); border-radius: 8px; padding: 11px 12px; color: var(--disc); background: #fff; display: flex; justify-content: space-between; }
+  .busca kbd, .k { font: 600 11px/1 Inter, sans-serif; border: 1px solid var(--borda); border-radius: 4px; padding: 3px 5px; color: var(--sec); background: var(--fundo); }
+  table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+  th { text-align: left; font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--disc); font-weight: 600; padding: 8px 6px; border-bottom: 1px solid var(--borda); }
+  td { padding: 10px 6px; border-bottom: 1px solid var(--borda); font-variant-numeric: tabular-nums; }
+  td.n, th.n { text-align: right; }
+  .qtd { display: inline-flex; align-items: center; border: 1px solid var(--borda); border-radius: 6px; }
+  .qtd span { padding: 2px 8px; }
+  .qtd b { padding: 2px 10px; border-left: 1px solid var(--borda); border-right: 1px solid var(--borda); }
+  .x { color: var(--disc); cursor: pointer; }
+  .linha { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; }
+  .linha .r { color: var(--sec); font-size: 13px; }
+  .pags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .pags span { border: 1px solid var(--borda); border-radius: 6px; padding: 6px 10px; font-weight: 600; font-size: 13px; background: #fff; cursor: pointer; }
+  .pags span.on { border-color: var(--prim); background: var(--prim-suave); color: var(--prim-tinta); }
+  .pago { display: flex; justify-content: space-between; background: var(--prim-suave); border-radius: 6px; padding: 8px 10px; margin-top: 8px; font-size: 13px; }
+  .total { display: flex; justify-content: space-between; align-items: flex-end; border-top: 1px solid var(--borda); margin-top: 12px; padding-top: 12px; }
+  .total .v { font-size: 28px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .fechar { display: block; text-align: center; background: var(--prim); color: #fff; font-weight: 700; border-radius: 8px; padding: 12px; margin-top: 10px; font-size: 15px; }
+  details { margin-top: 12px; border: 1px dashed #cfc9c3; border-radius: 8px; padding: 8px 12px; background: #fff; }
+  summary { cursor: pointer; font-weight: 600; color: var(--prim-tinta); }
+  .mais { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+  .campo { font-size: 12.5px; color: var(--sec); }
+  .campo div { border: 1px solid var(--campo); border-radius: 6px; padding: 6px 8px; color: var(--disc); margin-top: 3px; background: #fff; }
+  .nota { font-size: 12px; color: var(--disc); margin-top: 8px; }
+  .duas { display: grid; grid-template-columns: 1fr 380px; gap: 16px; align-items: start; }
+  .lado2 { display: grid; grid-template-columns: 1fr 360px; gap: 24px; align-items: start; }
+  .cel { width: 360px; background: var(--fundo); border: 8px solid #1f2937; border-radius: 28px; overflow: hidden; }
+  .cel .conteudo { padding: 12px; }
+  .barra { position: sticky; bottom: 0; background: var(--sup); border-top: 1px solid var(--borda); padding: 10px 12px; display: flex; justify-content: space-between; align-items: center; }
+  .opcoes { margin: 28px 0 60px; }
+  .op { display: inline-block; border: 1px solid #cfc9c3; background: #fff; border-radius: 8px; padding: 10px 16px; margin: 0 8px 8px 0; cursor: pointer; }
+  .op.selected { border-color: var(--prim); background: var(--prim-suave); }
+</style>
+</head>
+<body>
+<div class="wrap intro">
+  <h1>Tela Vender: na ordem do balcão</h1>
+  <p>Busca o produto, vê os itens, confere o cliente, paga, fecha. O que é raro fica em "Mais opções", fechado. Clique em "Mais opções" para abrir.</p>
+</div>
+
+<div class="wrap"><div class="rotulo">A. Duas colunas: itens à esquerda, cliente e pagamento à direita (recomendada para o computador do balcão)</div></div>
+<div class="wrap">
+<div class="tela">
+  <div class="topo"><span>Loja da Rodovia</span><span>Juliana · Caixa</span></div>
+  <div class="conteudo">
+    <div class="cab"><h2>Vender</h2><div class="modo"><span class="on">Venda</span><span>Orçamento</span></div></div>
+    <div class="status"><span><span class="bola"></span>Caixa 1 aberto desde 08:02 · Loja da Rodovia</span></div>
+    <div class="duas">
+      <div class="cartao">
+        <div class="busca"><span>Buscar produto por nome, marca ou código</span><kbd>Alt+1</kbd></div>
+        <table>
+          <tr><th>Produto</th><th>Qtd</th><th class="n">Preço</th><th class="n">Desc.</th><th class="n">Total</th><th></th></tr>
+          <tr><td><b>MOMBAÇA CONVENCIONAL</b><br><span class="nota" style="margin:0">saco 20 kg</span></td><td><span class="qtd"><span>−</span><b>2</b><span>+</span></span></td><td class="n">R$ 151,00</td><td class="n">0%</td><td class="n">R$ 302,00</td><td class="x">✕</td></tr>
+          <tr><td><b>SAL MINERAL 80</b><br><span class="nota" style="margin:0">saco 25 kg</span></td><td><span class="qtd"><span>−</span><b>4</b><span>+</span></span></td><td class="n">R$ 98,50</td><td class="n">5%</td><td class="n">R$ 374,30</td><td class="x">✕</td></tr>
+          <tr><td><b>ARAME FARPADO 500 M</b><br><span class="nota" style="margin:0">rolo</span></td><td><span class="qtd"><span>−</span><b>1</b><span>+</span></span></td><td class="n">R$ 489,90</td><td class="n">0%</td><td class="n">R$ 489,90</td><td class="x">✕</td></tr>
+        </table>
+        <div class="nota">O cursor já abre na busca. Enter adiciona o primeiro resultado; a quantidade e o desconto do item se editam na própria linha.</div>
+      </div>
+      <div class="cartao">
+        <div class="linha"><span><span class="r">Cliente</span><br><b>Consumidor final</b></span><span class="btn peq">Trocar <span class="k">F4</span></span></div>
+        <div class="linha" style="border-top:1px solid var(--borda)"><span><span class="r">Vendedor</span><br><b>Juliana Costa</b></span><span class="btn peq">Trocar <span class="k">F8</span></span></div>
+        <div style="border-top:1px solid var(--borda);padding-top:10px;margin-top:4px">
+          <span class="r" style="color:var(--sec);font-size:13px">Pagamento <span class="k">F9</span></span>
+          <div class="pags"><span>Dinheiro</span><span class="on">PIX</span><span>Débito</span><span>Crédito</span><span>Parcelado</span><span>Cheque</span><span>Boleto</span><span>Fiado</span></div>
+          <div class="pago"><span>PIX · CONTA PIX DA LOJA</span><b>R$ 1.166,20</b></div>
+        </div>
+        <details>
+          <summary>Mais opções</summary>
+          <div class="mais">
+            <div class="campo">Desconto no total (R$)<div>0,00</div></div>
+            <div class="campo">Frete cobrado (R$)<div>0,00</div></div>
+            <div class="campo">Origem<div>Balcão ▾</div></div>
+            <div class="campo">Pedido para entrega<div>☐ não</div></div>
+            <div class="campo">Franqueado<div>Nenhum ▾</div></div>
+            <div class="campo">Crédito do franqueado (R$)<div>0,00</div></div>
+            <div class="campo" style="grid-column:span 2">Faturar um orçamento salvo<div>nº do orçamento · Carregar</div></div>
+          </div>
+        </details>
+        <div class="total"><span class="r" style="color:var(--sec)">Total da venda</span><span class="v">R$ 1.166,20</span></div>
+        <div class="fechar">Fechar a venda <span class="k" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.5)">Ctrl+Enter</span></div>
+        <div class="nota">Se algo de "Mais opções" estiver preenchido, o título mostra: "Mais opções (frete R$ 30,00)".</div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<div class="wrap"><div class="rotulo">Se o caixa estiver fechado, a mesma faixa vira assim (aparece ao abrir a tela, não só ao fechar a venda)</div></div>
+<div class="wrap">
+  <div class="status fechado" style="margin:0"><span><span class="bola"></span>O caixa da Loja da Rodovia está fechado. Dá para montar a venda; para fechar, abra o caixa.</span><span class="btn p peq">Abrir o caixa</span></div>
+</div>
+
+<div class="wrap"><div class="rotulo">B. Uma coluna só, mais curta (como hoje, sem os opcionais)   ·   e o celular, que é sempre uma coluna</div></div>
+<div class="wrap lado2">
+  <div class="tela">
+    <div class="conteudo">
+      <div class="cab"><h2>Vender</h2><div class="modo"><span class="on">Venda</span><span>Orçamento</span></div></div>
+      <div class="status"><span><span class="bola"></span>Caixa 1 aberto desde 08:02</span></div>
+      <div class="cartao">
+        <div class="busca"><span>Buscar produto por nome, marca ou código</span><kbd>Alt+1</kbd></div>
+        <table>
+          <tr><th>Produto</th><th>Qtd</th><th class="n">Total</th></tr>
+          <tr><td>MOMBAÇA CONVENCIONAL</td><td>2</td><td class="n">R$ 302,00</td></tr>
+          <tr><td>SAL MINERAL 80</td><td>4</td><td class="n">R$ 374,30</td></tr>
+          <tr><td>ARAME FARPADO 500 M</td><td>1</td><td class="n">R$ 489,90</td></tr>
+        </table>
+        <div class="linha" style="margin-top:8px"><span><span class="r">Cliente</span> <b>Consumidor final</b></span><span class="btn peq">Trocar</span></div>
+        <div class="linha"><span><span class="r">Vendedor</span> <b>Juliana Costa</b></span><span class="btn peq">Trocar</span></div>
+        <div class="pags"><span>Dinheiro</span><span class="on">PIX</span><span>Débito</span><span>Crédito</span><span>Parcelado</span><span>Cheque</span><span>Boleto</span><span>Fiado</span></div>
+        <details><summary>Mais opções</summary><div class="nota">os mesmos 7 campos da opção A</div></details>
+        <div class="total"><span class="r">Total</span><span class="v">R$ 1.166,20</span></div>
+        <div class="fechar">Fechar a venda</div>
+      </div>
+      <div class="nota">Mais simples de construir e igual no computador e no celular, mas no computador sobra espaço dos lados e o total fica longe da lista quando a venda tem muitos itens.</div>
+    </div>
+  </div>
+  <div class="cel">
+    <div class="conteudo">
+      <div class="cab"><h2 style="font-size:19px">Vender</h2><div class="modo"><span class="on">Venda</span><span>Orç.</span></div></div>
+      <div class="status" style="font-size:12px"><span><span class="bola"></span>Caixa 1 aberto desde 08:02</span></div>
+      <div class="busca" style="font-size:13px"><span>Buscar produto</span></div>
+      <table style="font-size:13px">
+        <tr><td>MOMBAÇA CONV.<br><span class="nota" style="margin:0">2 × R$ 151,00</span></td><td class="n">R$ 302,00</td></tr>
+        <tr><td>SAL MINERAL 80<br><span class="nota" style="margin:0">4 × R$ 98,50 · 5%</span></td><td class="n">R$ 374,30</td></tr>
+        <tr><td>ARAME FARPADO<br><span class="nota" style="margin:0">1 × R$ 489,90</span></td><td class="n">R$ 489,90</td></tr>
+      </table>
+      <div class="linha" style="margin-top:6px;font-size:13px"><span>Consumidor final</span><span class="btn peq">Trocar</span></div>
+      <div class="pags"><span>Dinheiro</span><span class="on">PIX</span><span>Débito</span><span>Crédito</span><span>Fiado</span><span>mais ▾</span></div>
+      <details><summary>Mais opções</summary></details>
+    </div>
+    <div class="barra"><div><span class="nota" style="margin:0">Total</span><br><b style="font-size:20px">R$ 1.166,20</b></div><span class="btn p">Fechar a venda</span></div>
+  </div>
+</div>
+
+<div class="wrap opcoes">
+  <div class="rotulo">Sua impressão (clique, se quiser, e me diga no terminal)</div>
+  <div class="options">
+    <span class="op option" data-choice="a" onclick="toggleSelect(this)">A: duas colunas</span>
+    <span class="op option" data-choice="b" onclick="toggleSelect(this)">B: uma coluna</span>
+    <span class="op option" data-choice="ajustar" onclick="toggleSelect(this)">Gostei, mas quero ajustar</span>
+  </div>
+</div>
+</body>
+</html>
