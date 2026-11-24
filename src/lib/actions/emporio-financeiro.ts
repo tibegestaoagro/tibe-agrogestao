@@ -857,7 +857,7 @@ async function acharLinhaDeConta(
     const m = await db.cashMovement.findFirst({ where: { id } });
     if (!m) return { erro: fail("NOT_FOUND", "Linha não encontrada.", 404, "id") };
     if (!m.bank_account_id) {
-      return { erro: fail("LINHA_NAO_E_DE_CONTA", "Só linha de conta bancária leva carimbo de conciliação.", 422, "id") };
+      return { erro: fail("LINHA_NAO_E_DE_CONTA", "Só linha de conta bancária é conferida com o banco.", 422, "id") };
     }
     return {
       linha: {
@@ -888,17 +888,17 @@ export async function carimbarLinhaAction(
   ator: Ator,
   input: { kind: KindDaLinha; id: string; received_amount?: number },
 ): Promise<ActionResult<{ kind: KindDaLinha; id: string; reconciled_at: string; reconciled_by: string }>> {
-  const neg = await exigir(db, ator, "dinheiro", "carimbar o extrato");
+  const neg = await exigir(db, ator, "dinheiro", "conferir o extrato com o banco");
   if (neg) return neg;
   const a = await acharLinhaDeConta(db, input);
   if ("erro" in a) return a.erro;
   const { linha } = a;
-  if (linha.carimbada) return fail("JA_CARIMBADO", "Esta linha já tem carimbo.", 409, "id");
+  if (linha.carimbada) return fail("JA_CARIMBADO", "Esta linha já foi conferida com o banco.", 409, "id");
   const id = input.id.trim();
   // Q352: na linha de cartão, carimbar É conferir a parcela (o valor padrão é o previsto).
   if (input.kind === "cartao") {
     const r = await conferirParcelaAction(db, ator, id, { received_amount: input.received_amount ?? linha.valor });
-    if (!r.ok) return r.code === "JA_CONFERIDA" ? fail("JA_CARIMBADO", "Esta linha já tem carimbo.", 409, "id") : r;
+    if (!r.ok) return r.code === "JA_CONFERIDA" ? fail("JA_CARIMBADO", "Esta linha já foi conferida com o banco.", 409, "id") : r;
     return ok({ kind: "cartao", id, reconciled_at: r.data.reconciled_at, reconciled_by: r.data.reconciled_by ?? "" });
   }
   const agora = new Date();
@@ -915,7 +915,7 @@ export async function carimbarLinhaAction(
     });
     return true;
   });
-  if (!gravou) return fail("JA_CARIMBADO", "Esta linha já tem carimbo.", 409, "id");
+  if (!gravou) return fail("JA_CARIMBADO", "Esta linha já foi conferida com o banco.", 409, "id");
   return ok({ kind: input.kind, id, reconciled_at: agora.toISOString(), reconciled_by: quem?.name ?? "" });
 }
 
@@ -925,17 +925,17 @@ export async function descarimbarLinhaAction(
   ator: Ator,
   input: { kind: KindDaLinha; id: string },
 ): Promise<ActionResult<{ kind: KindDaLinha; id: string }>> {
-  const neg = await exigir(db, ator, "dinheiro", "retirar o carimbo do extrato");
+  const neg = await exigir(db, ator, "dinheiro", "desfazer a conferência do extrato");
   if (neg) return neg;
   const a = await acharLinhaDeConta(db, input);
   if ("erro" in a) return a.erro;
   const { linha } = a;
-  if (!linha.carimbada) return fail("SEM_CARIMBO", "Esta linha não tem carimbo.", 409, "id");
+  if (!linha.carimbada) return fail("SEM_CARIMBO", "Esta linha ainda não foi conferida com o banco.", 409, "id");
   const id = input.id.trim();
   // Q352: na linha de cartão, tirar o carimbo É desfazer a conferência.
   if (input.kind === "cartao") {
     const r = await desfazerConferenciaAction(db, ator, id, { reason: "Carimbo retirado no extrato" });
-    if (!r.ok) return r.code === "NAO_CONFERIDA" ? fail("SEM_CARIMBO", "Esta linha não tem carimbo.", 409, "id") : r;
+    if (!r.ok) return r.code === "NAO_CONFERIDA" ? fail("SEM_CARIMBO", "Esta linha ainda não foi conferida com o banco.", 409, "id") : r;
     return ok({ kind: "cartao", id });
   }
   const limpou = await db.$transaction(async (tx) => {
@@ -950,7 +950,7 @@ export async function descarimbarLinhaAction(
     });
     return true;
   });
-  if (!limpou) return fail("SEM_CARIMBO", "Esta linha não tem carimbo.", 409, "id");
+  if (!limpou) return fail("SEM_CARIMBO", "Esta linha ainda não foi conferida com o banco.", 409, "id");
   return ok({ kind: input.kind, id });
 }
 
@@ -977,7 +977,7 @@ export async function corrigirDataDoMovimentoAction(
     },
   });
   if (!m) return fail("NOT_FOUND", "Linha não encontrada.", 404, "id");
-  if (m.reconciled_at) return fail("JA_CARIMBADA", "Tire o carimbo antes de corrigir a data.", 409, "occurred_on");
+  if (m.reconciled_at) return fail("JA_CARIMBADA", "Desfaça a conferência antes de corrigir a data.", 409, "occurred_on");
   if (!m.bank_account_id || m.origin !== "venda") {
     return fail("LINHA_NAO_CORRIGIVEL", "Só a data do PIX ou da transferência da venda se corrige aqui.", 422, "occurred_on");
   }
@@ -1001,6 +1001,6 @@ export async function corrigirDataDoMovimentoAction(
     });
     return true;
   });
-  if (!gravou) return fail("JA_CARIMBADA", "Tire o carimbo antes de corrigir a data.", 409, "occurred_on");
+  if (!gravou) return fail("JA_CARIMBADA", "Desfaça a conferência antes de corrigir a data.", 409, "occurred_on");
   return ok(linhaDeMovimento({ ...m, occurred_at: novo }, "", { reconciled_at: null, reconciled_by: null }));
 }

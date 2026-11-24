@@ -9,8 +9,8 @@ import { apiDelete, apiPost } from "@/lib/client-api";
 const URL_DO_CARIMBO = "/api/v1/emporio/finance/statement/reconcile";
 
 /**
- * Carimbar e retirar o carimbo de conciliação de uma linha do extrato da conta.
- * Sem formulário: a recusa (linha já carimbada, sem carimbo, fora de conta) vai
+ * Conferir com o banco, e desfazer a conferência, de uma linha do extrato da conta.
+ * Sem formulário: a recusa (linha já conferida, ainda não conferida, fora de conta) vai
  * para o aviso.
  */
 export function CarimboBotao({
@@ -38,7 +38,7 @@ export function CarimboBotao({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {carimbado && <span className="text-xs text-texto-secundario">Carimbado em {carimbadoEm}</span>}
+      {carimbado && <span className="text-xs text-texto-secundario">Conferido em {carimbadoEm}</span>}
       <Button
         variant="outline"
         size="sm"
@@ -46,7 +46,7 @@ export function CarimboBotao({
         disabled={pending}
         className="min-h-11 sm:min-h-0"
       >
-        {pending ? "..." : carimbado ? "Retirar" : "Carimbar"}
+        {pending ? "..." : carimbado ? "Desfazer a conferência" : "Conferir com o banco"}
       </Button>
     </div>
   );

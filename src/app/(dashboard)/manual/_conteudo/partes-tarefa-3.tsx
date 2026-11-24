@@ -813,20 +813,20 @@ export function ParteDeFinanceiroDasLojas() {
         <Figura id="financeiro-aprovacoes" />
       </Tarefa>
 
-      <Subtitulo>Conferir o extrato com o carimbo</Subtitulo>
+      <Subtitulo id="conferir-com-o-banco">Conferir o extrato com o banco</Subtitulo>
       <Tarefa
         paraQueServe="Marcar, linha por linha, o que já foi conferido com o extrato do banco, e ver o que ainda falta."
         passos={[
-          <>Em <strong>Posição de caixa</strong>, clique em <strong>Ver extrato</strong> numa conta bancária. As contas têm a coluna <strong>Carimbo</strong>.</>,
-          <>Confira a linha com o extrato do banco e clique em <strong>Carimbar</strong>. A linha passa a mostrar <strong>Carimbado em</strong> com o dia.</>,
-          <>Se carimbou por engano, clique em <strong>Retirar</strong>.</>,
-          <>O total <strong>Sem carimbo no período</strong> mostra quanto e em quantas linhas ainda falta conferir. Marque <strong>Só sem carimbo</strong> para esconder as conferidas.</>,
-          <>Em <strong>Hoje</strong>, o cartão <strong>Sem carimbo</strong> avisa quando há linha da conta sem conferir nos últimos 30 dias e leva direto para elas.</>,
+          <>Em <strong>Posição de caixa</strong>, clique em <strong>Ver extrato</strong> numa conta bancária. As contas têm a coluna <strong>Conferência</strong>.</>,
+          <>Confira a linha com o extrato do banco e clique em <strong>Conferir com o banco</strong>. A linha passa a mostrar <strong>Conferido em</strong> com o dia.</>,
+          <>Se conferiu por engano, clique em <strong>Desfazer a conferência</strong>.</>,
+          <>O total <strong>A conferir no período</strong> mostra quanto e em quantas linhas ainda falta conferir. Marque <strong>Só a conferir</strong> para esconder as conferidas.</>,
+          <>Em <strong>Hoje</strong>, o cartão <strong>A conferir com o banco</strong> avisa quando há linha da conta sem conferir nos últimos 30 dias e leva direto para elas.</>,
         ]}
         problemas={[
           {
-            quando: "Gaveta e gerência não têm a coluna Carimbo",
-            fazer: "É de propósito. O carimbo é a conferência com o banco, e gaveta não tem extrato de banco.",
+            quando: "Gaveta e gerência não têm a coluna Conferência",
+            fazer: "É de propósito. A conferência é feita com o extrato do banco, e gaveta não tem extrato de banco.",
           },
         ]}
       >
@@ -841,8 +841,8 @@ export function ParteDeFinanceiroDasLojas() {
           <>Para conferir tudo o que caiu num dia, clique em <strong>Conferir o dia</strong> na data, adquirente e conta. O painel soma o previsto e já vem preenchido com ele: digite o total que o extrato mostra e clique em <strong>Conferir</strong>. Com a tela filtrada por loja, confere só as parcelas daquela loja.</>,
           <>Para conferir uma parcela só, clique em <strong>Conferir</strong> na linha e digite o valor que caiu.</>,
           <>Se a diferença passar de 10% do previsto, o painel pergunta antes: confira o valor e clique em <strong>Confirmar e conferir</strong>.</>,
-          <>A diferença vira a linha <strong>Ajuste da conferência do cartão</strong> no extrato da conta, logo abaixo do cartão e já carimbada. O saldo da conta muda por ela, e no Resultado ela entra em <strong>Ajustes da conferência</strong>, no custo do cartão.</>,
-          <>Carimbar a linha de cartão no extrato também confere a parcela, pelo valor previsto.</>,
+          <>A diferença vira a linha <strong>Ajuste da conferência do cartão</strong> no extrato da conta, logo abaixo do cartão e já conferida com o banco. O saldo da conta muda por ela, e no Resultado ela entra em <strong>Ajustes da conferência</strong>, no custo do cartão.</>,
+          <>Conferir com o banco a linha de cartão no extrato também confere a parcela, pelo valor previsto.</>,
           <>Se conferiu errado, clique em <strong>Desfazer</strong> na parcela e diga o motivo: o ajuste some e a parcela volta ao estado de antes. A conferida fica à vista em A receber por 7 dias depois da data.</>,
           <>Em <strong>Hoje</strong>, o cartão <strong>Cartão a conferir</strong> mostra as parcelas a conferir e as atrasadas, com os links para elas.</>,
         ]}

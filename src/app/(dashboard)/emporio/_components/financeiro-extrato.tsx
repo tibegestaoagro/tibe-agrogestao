@@ -13,6 +13,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 
+import { AjudaDaTela } from "./ajuda-da-tela";
 import { CarimboBotao } from "./carimbo-botao";
 import { CorrigirDataBotao } from "./corrigir-data-botao";
 import { NomeDoCliente, VendaLink } from "./amarras";
@@ -27,7 +28,7 @@ function diaMesEmBrasilia(iso: string): string {
 
 const ROTULO_DO_LUGAR = { gaveta: "Gaveta", gerencia: "Com a gerência", conta: "Conta" } as const;
 
-/** Escolher o período do extrato (`PeriodoFiltro`, na URL) e, na conta, o filtro "só sem carimbo". */
+/** Escolher o período do extrato (`PeriodoFiltro`, na URL) e, na conta, o filtro "só a conferir". */
 export function ExtratoPeriodo({
   loja,
   lugar,
@@ -54,7 +55,7 @@ export function ExtratoPeriodo({
             href={enderecoComPeriodo(caminho, { ...base, carimbo: soSemCarimbo ? undefined : "sem" }, de, ate)}
             aria-current={soSemCarimbo ? "true" : undefined}
           >
-            Só sem carimbo
+            Só a conferir
           </a>
         </Button>
       )}
@@ -145,7 +146,7 @@ export function ExtratoDoLugar({
       </div>
       {ehConta && (
         <p className="text-sm text-texto-secundario">
-          Sem carimbo no período:{" "}
+          A conferir no período:{" "}
           <strong className="text-texto">
             {reaisBr(extrato.unreconciled_total)} em {extrato.unreconciled_count}{" "}
             {extrato.unreconciled_count === 1 ? "linha" : "linhas"}
@@ -162,7 +163,16 @@ export function ExtratoDoLugar({
               <TableHead>O quê</TableHead>
               <TableHead>Loja</TableHead>
               <TableHead>Valor</TableHead>
-              {comCarimbo && <TableHead>Carimbo</TableHead>}
+              {comCarimbo && (
+                <TableHead>
+                  <span className="inline-flex items-center gap-2">
+                    Conferência
+                    <AjudaDaTela manual="/manual/emporio/financeiro-das-lojas#conferir-com-o-banco" rotulo="Sobre a conferência com o banco">
+                      Compare cada linha com o extrato do banco e clique em Conferir com o banco. O que não bate é PIX que não caiu ou valor lançado com erro.
+                    </AjudaDaTela>
+                  </span>
+                </TableHead>
+              )}
             </TableRow>
           </TableHeader>
           <TableBody>

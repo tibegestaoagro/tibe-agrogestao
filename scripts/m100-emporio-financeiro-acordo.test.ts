@@ -1037,6 +1037,7 @@ async function secao4() {
   const gerencia = (await A.db.cashMovement.findFirst({ where: { manager_establishment_id: A.L1, bank_account_id: null } })) as Dado;
   const rGav = await carimbar(A.tok.fin, "movimento", gaveta?.id);
   check("movimento de gaveta: 422 LINHA_NAO_E_DE_CONTA no campo id", erro(rGav, 422, "LINHA_NAO_E_DE_CONTA", "id"), `${rGav.status} ${j(rGav.corpo)}`);
+  check("a mensagem diz que só conta bancária é conferida com o banco", rGav.corpo?.error?.message === "Só linha de conta bancária é conferida com o banco.", j(rGav.corpo));
   const rGer = await carimbar(A.tok.fin, "movimento", gerencia?.id);
   check("movimento de gerência: 422 LINHA_NAO_E_DE_CONTA no campo id", erro(rGer, 422, "LINHA_NAO_E_DE_CONTA", "id"), `${rGer.status} ${j(rGer.corpo)}`);
   check("a recusa não carimbou a gaveta", (await A.db.cashMovement.findFirst({ where: { id: gaveta?.id } })).reconciled_at === null);
@@ -1048,12 +1049,14 @@ async function secao4() {
   console.log("  (e) já carimbado e descarimbar");
   const c3 = await carimbar(A.tok.fin, "movimento", movSaida?.id);
   check("carimbar de novo: 409 JA_CARIMBADO no campo id", erro(c3, 409, "JA_CARIMBADO", "id"), `${c3.status} ${j(c3.corpo)}`);
+  check("a mensagem diz que a linha já foi conferida com o banco", c3.corpo?.error?.message === "Esta linha já foi conferida com o banco.", j(c3.corpo));
   const antesTs = (await A.db.cashMovement.findFirst({ where: { id: movSaida?.id } })).reconciled_at;
   check("e o carimbo original ficou intacto", diaDe(antesTs) === diaDe(m1?.reconciled_at) && new Date(antesTs).getTime() === new Date(m1?.reconciled_at).getTime());
   const dGest = await descarimbar(A.tok.gestor, "movimento", movSaida?.id);
   check("o Gestor da loja não descarimba: 403", dGest.status === 403, `${dGest.status}`);
   const d0 = await descarimbar(A.tok.fin, "movimento", movInicial?.id);
   check("descarimbar linha sem carimbo: 409 SEM_CARIMBO no campo id", erro(d0, 409, "SEM_CARIMBO", "id"), `${d0.status} ${j(d0.corpo)}`);
+  check("a mensagem diz que a linha ainda não foi conferida com o banco", d0.corpo?.error?.message === "Esta linha ainda não foi conferida com o banco.", j(d0.corpo));
   const d1 = await descarimbar(A.tok.fin, "movimento", movSaida?.id);
   check("descarimbar o movimento carimbado: 200", d1.status === 200, `${d1.status} ${j(d1.corpo)}`);
   const m2 = (await A.db.cashMovement.findFirst({ where: { id: movSaida?.id } })) as Dado;

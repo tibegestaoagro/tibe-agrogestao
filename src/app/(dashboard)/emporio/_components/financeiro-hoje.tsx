@@ -3,6 +3,7 @@ import type { HojeView, PosicaoView } from "@/lib/actions/emporio-financeiro";
 import { reaisBr } from "@/lib/numero-br";
 import { EmptyState } from "@/components/ui/empty-state";
 import { dataBr } from "@/lib/emporio/datas";
+import { AjudaDaTela } from "./ajuda-da-tela";
 import { enderecoDaAba } from "./financeiro-abas";
 
 const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
@@ -17,16 +18,21 @@ function Cartao({
   titulo,
   href,
   verTudo,
+  ajuda,
   children,
 }: {
   titulo: string;
   href: string;
   verTudo: string;
+  ajuda?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     <section className="flex flex-col gap-3 rounded-lg border border-borda bg-superficie p-5 shadow-sm">
-      <h2 className="text-lg font-semibold text-texto">{titulo}</h2>
+      <div className="flex items-center gap-2">
+        <h2 className="text-lg font-semibold text-texto">{titulo}</h2>
+        {ajuda}
+      </div>
       <div className="flex-1 space-y-2">{children}</div>
       <Link
         href={href}
@@ -76,7 +82,16 @@ export function FinanceiroHoje({ resumo, loja }: { resumo: HojeView; loja: strin
       )}
 
       {unreconciled.count > 0 && (
-        <Cartao titulo="Sem carimbo" href={enderecoSemCarimbo} verTudo="Ver as linhas sem carimbo">
+        <Cartao
+          titulo="A conferir com o banco"
+          href={enderecoSemCarimbo}
+          verTudo="Ver as linhas a conferir"
+          ajuda={
+            <AjudaDaTela manual="/manual/emporio/financeiro-das-lojas#conferir-com-o-banco" rotulo="Sobre a conferência com o banco">
+              Compare cada linha com o extrato do banco e clique em Conferir com o banco. O que não bate é PIX que não caiu ou valor lançado com erro.
+            </AjudaDaTela>
+          }
+        >
           <p className="text-2xl font-semibold text-atencao-tinta">{reaisBr(unreconciled.total)}</p>
           <p className="text-sm text-texto-secundario">
             {plural(unreconciled.count, "linha", "linhas")} da conta sem conferir com o banco, nos últimos 30 dias

@@ -458,7 +458,7 @@ async function secao4() {
     const v2 = await vendaPix();
     await cru.cashMovement.update({ where: { id: v2.mov.id }, data: { reconciled_at: new Date(), reconciled_by_user_id: fin.id } });
     const rCar = await corrigir(tok.fin, v2.mov.id, iso(ontem));
-    check("linha carimbada: 409 JA_CARIMBADA", rCar.status === 409 && rCar.corpo?.error?.code === "JA_CARIMBADA" && rCar.corpo?.error?.message === "Tire o carimbo antes de corrigir a data.", resumo(rCar));
+    check("linha carimbada: 409 JA_CARIMBADA", rCar.status === 409 && rCar.corpo?.error?.code === "JA_CARIMBADA" && rCar.corpo?.error?.message === "Desfaça a conferência antes de corrigir a data.", resumo(rCar));
     const m2 = await cru.cashMovement.findFirst({ where: { id: v2.mov.id } });
     check("a carimbada segue com a data de antes", m2.occurred_at.getTime() === v2.mov.occurred_at.getTime());
 

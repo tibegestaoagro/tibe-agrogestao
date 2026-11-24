@@ -436,7 +436,7 @@ export async function desfazerAntecipacaoAction(
         throw new AbortarAntecipacao(
           fail(
             "ANTECIPACAO_CONCILIADA",
-            "Essa antecipação já foi conferida com o extrato. Tire o carimbo das parcelas antes de desfazer.",
+            "Essa antecipação já foi conferida com o extrato. Desfaça a conferência das parcelas antes de desfazer.",
             409,
           ),
         );
