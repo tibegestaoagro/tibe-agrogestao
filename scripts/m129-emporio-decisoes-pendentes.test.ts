@@ -438,6 +438,70 @@ async function secao4() {
     const fichaSem = await CLX.lerFicha(db, dono, semCredito.id, 100);
     check("cliente sem crédito: credito_franqueado é 0", fichaSem.ok && fichaSem.data.resumo.credito_franqueado === 0, j(fichaSem.ok ? fichaSem.data.resumo : fichaSem));
 
+    // Venda com crédito em fiado: o crédito só entra no Recebido quando o fiado é recebido inteiro.
+    const noFiado = await db.emporioCustomer.create({ data: scoped({ name: "M129d Credito no fiado" }) });
+    const fz = await franqueado("Zeca");
+    await vender([item(p60), item(p40)], { kind: "fiado", amount: 110, due_date: new Date(Date.now() + 30 * DIA) }, { franchisee_id: fz, franchisee_credit: 10, customer_id: noFiado.id });
+    const resumoFiado = async () => {
+      const f = await CLX.lerFicha(db, dono, noFiado.id, 100);
+      if (!f.ok) throw new Error(`ficha: ${j(f)}`);
+      return f.data.resumo as Dado;
+    };
+    const receberFiado = async (amount: number) => {
+      const CX: Dado = await import("@/lib/actions/emporio-caixa");
+      const r = await CX.receberFiadoAction(db, dono, {
+        operation_key: chave("rec"), customer_id: noFiado.id, establishment_id: loja.id, amount, kind: "dinheiro", cash_register_id: turno.cash_register_id,
+      });
+      check(`receber ${amount} do fiado passa`, r.ok, j(r));
+    };
+    const r0 = await resumoFiado();
+    check("fiado inteiro em aberto: credito_franqueado 0", r0.credito_franqueado === 0, String(r0.credito_franqueado));
+    check("o resto do resumo segue: recebido 0, em aberto 110", r0.recebido === 0 && r0.em_aberto === 110, j(r0));
+    await receberFiado(50);
+    const r1 = await resumoFiado();
+    check("recebido só parte do fiado: credito_franqueado ainda 0", r1.credito_franqueado === 0, String(r1.credito_franqueado));
+    check("recebido 50, em aberto 60", r1.recebido === 50 && r1.em_aberto === 60, j(r1));
+    await receberFiado(60);
+    const r2 = await resumoFiado();
+    check("fiado recebido inteiro: o crédito passa a contar (10)", r2.credito_franqueado === 10, String(r2.credito_franqueado));
+    check("recebido 110, em aberto 0", r2.recebido === 110 && r2.em_aberto === 0, j(r2));
+
+    // Fiado reunido num acordo: a venda segue em aberto enquanto o acordo tiver parcela não quitada.
+    const noAcordo = await db.emporioCustomer.create({ data: scoped({ name: "M129d Credito no acordo" }) });
+    const fw = await franqueado("Wilma");
+    await vender([item(p60), item(p40)], { kind: "fiado", amount: 110, due_date: new Date(Date.now() + 30 * DIA) }, { franchisee_id: fw, franchisee_credit: 10, customer_id: noAcordo.id });
+    const CXA: Dado = await import("@/lib/actions/emporio-caixa");
+    const AC: Dado = await import("@/lib/actions/emporio-acordos");
+    const creditoDoAcordo = async () => {
+      const f = await CLX.lerFicha(db, dono, noAcordo.id, 100);
+      if (!f.ok) throw new Error(`ficha: ${j(f)}`);
+      return f.data.resumo as Dado;
+    };
+    const aberto = await CXA.listarFiadoAction(db, dono, { customer_id: noAcordo.id });
+    const entradaId = aberto.ok ? aberto.data[0]?.entries[0]?.entry_id : undefined;
+    const dia = (n: number) => new Date(Date.now() + n * DIA).toISOString().slice(0, 10);
+    const acordo = await AC.fazerAcordoAction(db, dono, noAcordo.id, {
+      entry_ids: [entradaId], installments: [{ due_date: dia(10), amount: 60 }, { due_date: dia(40), amount: 50 }],
+    });
+    check("fazer o acordo pela action passa", acordo.ok, j(acordo));
+    if (acordo.ok) {
+      const parcelas = acordo.data.installments as Dado[];
+      const a0 = await creditoDoAcordo();
+      check("acordo criado, parcelas abertas: credito_franqueado 0", a0.credito_franqueado === 0, String(a0.credito_franqueado));
+      const pagarParcela = async (p: Dado) => {
+        const r = await CXA.receberFiadoAction(db, dono, {
+          operation_key: chave("parcela"), customer_id: noAcordo.id, establishment_id: loja.id, amount: p.amount, kind: "dinheiro", entry_id: p.entry_id, cash_register_id: turno.cash_register_id,
+        });
+        check(`pagar a parcela de ${p.amount} passa`, r.ok, j(r));
+      };
+      await pagarParcela(parcelas[0]);
+      const a1 = await creditoDoAcordo();
+      check("uma parcela paga e outra aberta: credito_franqueado ainda 0", a1.credito_franqueado === 0, String(a1.credito_franqueado));
+      await pagarParcela(parcelas[1]);
+      const a2 = await creditoDoAcordo();
+      check("todas as parcelas pagas: o crédito passa a contar (10)", a2.credito_franqueado === 10, String(a2.credito_franqueado));
+    }
+
     console.log("  (e) abater do fiado leva o valor com a parte do crédito");
     const fe = await franqueado("Edu");
     const ve = await vender([item(p60), item(p40)], { kind: "fiado", amount: 110, due_date: new Date(Date.now() + 30 * DIA) }, { franchisee_id: fe, franchisee_credit: 10 });

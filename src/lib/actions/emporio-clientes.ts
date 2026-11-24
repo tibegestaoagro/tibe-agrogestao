@@ -6,7 +6,8 @@ import { formatarNumero } from "@/lib/emporio/numeracao";
 import { hojeEmBrasilia } from "@/lib/emporio/cartao";
 import { fimDeHojeEmBrasilia } from "@/lib/emporio/data-da-baixa";
 import { ehDataCalendario, inicioDoDiaEmSaoPaulo } from "@/lib/dia-calendario";
-import { listarFiadoAction } from "@/lib/actions/emporio-caixa";
+import { entradasAbertas, listarFiadoAction } from "@/lib/actions/emporio-caixa";
+import { CATEGORIA_VENDAS } from "@/lib/actions/emporio-vendas";
 import type { RecebimentoView } from "@/lib/actions/emporio-financeiro";
 import { lerTermo, ondeBuscaCliente, paginaValida, type ResultadoDaBusca } from "@/lib/emporio/busca-de-cadastro";
 import { clienteEscolhidoDe, type ClienteDaBusca } from "@/lib/emporio/cliente-escolhido";
@@ -501,7 +502,7 @@ async function leituraFinanceiraDoCliente(
   db: TenantPrismaClient,
   ator: Ator,
   customerId: string,
-): Promise<{ emAbertoCent: number; vencidoCent: number; recebidoCent: number; itens: RecebimentoView[] }> {
+): Promise<{ emAbertoCent: number; vencidoCent: number; recebidoCent: number; itens: RecebimentoView[]; vendasEmAberto: Set<string> }> {
   const visiveis = await lojasDoAtor(db, ator);
   const daLoja = visiveis ? { establishment_id: { in: [...visiveis] } } : {};
   const hoje = hojeEmBrasilia();
@@ -644,7 +645,15 @@ async function leituraFinanceiraDoCliente(
     centavos(doFiado?.overdue_amount ?? 0) +
     carteira.filter((c) => c.good_for !== null && diaIso(c.good_for) < hojeIso).reduce((s, c) => s + centavos(Number(c.amount)), 0) +
     abertos.filter((b) => diaIso(b.due_on) < hojeIso).reduce((s, b) => s + centavos(Number(b.amount)), 0);
-  return { emAbertoCent, vencidoCent, recebidoCent, itens };
+  // As vendas com algo na mesma noção de "em aberto" acima: fiado com saldo, cheque em carteira, boleto
+  // aberto e recebimento agendado (Q375/Q385). Serve à Q386: o crédito do franqueado só entra no Recebido
+  // quando nada da venda está em aberto.
+  const vendasEmAberto = new Set<string>();
+  for (const e of doFiado?.entries ?? []) if (e.sale_id && e.open > 0) vendasEmAberto.add(e.sale_id);
+  for (const c of carteira) vendasEmAberto.add(c.sale_id);
+  for (const b of abertos) vendasEmAberto.add(b.sale_id);
+  for (const i of itens) if (i.scheduled && i.sale_id) vendasEmAberto.add(i.sale_id);
+  return { emAbertoCent, vencidoCent, recebidoCent, itens, vendasEmAberto };
 }
 
 /**
@@ -723,13 +732,6 @@ export async function lerFicha(
   const concluidas = { customer_id: id, status: "concluida" as const, ...daLoja };
   const vendido = await db.emporioSale.aggregate({ where: concluidas, _sum: { net_amount: true }, _max: { sold_at: true } });
   const devolvido = await db.emporioSaleReturn.aggregate({ where: { sale: concluidas }, _sum: { amount: true } });
-  // Q386: o crédito do franqueado que está dentro do Recebido: o das vendas não canceladas, menos o devolvido.
-  const creditoVendido = await db.emporioSale.aggregate({ where: concluidas, _sum: { franchisee_credit: true } });
-  const creditoDevolvido = await db.emporioSaleReturn.aggregate({ where: { sale: concluidas }, _sum: { franchisee_credit: true } });
-  const creditoCent = Math.max(
-    0,
-    centavos(Number(creditoVendido._sum.franchisee_credit ?? 0)) - centavos(Number(creditoDevolvido._sum.franchisee_credit ?? 0)),
-  );
   const ativas = await db.emporioSale.count({ where: { ...concluidas, returns: { none: {} } } });
   const donos = [...new Set(vendas.map((v) => v.seller_user_id ?? v.sold_by_user_id).filter((u): u is string => !!u))];
   const usuarios = donos.length ? await db.user.findMany({ where: { id: { in: donos } }, select: { id: true, name: true } }) : [];
@@ -762,6 +764,38 @@ export async function lerFicha(
 
   const hojeMs = hojeEmBrasilia().getTime();
   const financeiro = await leituraFinanceiraDoCliente(db, ator, id);
+  // Q386: o crédito do franqueado que está dentro do Recebido: o das vendas concluídas sem nada em aberto
+  // (fiado, boleto, cheque ou agendado), menos o que foi devolvido dessas mesmas vendas.
+  const comCredito = await db.emporioSale.findMany({ where: { ...concluidas, franchisee_credit: { gt: 0 } }, select: { id: true, franchisee_credit: true } });
+  const semAbertoDireto = comCredito.filter((v) => !financeiro.vendasEmAberto.has(v.id));
+  // Fiado reunido num acordo: a conta da venda fica cancelada com `agreement_id`, e a dívida mora nas
+  // parcelas. A venda segue em aberto enquanto o acordo tiver parcela não quitada (o mesmo `entradasAbertas`
+  // do Em aberto da ficha).
+  const origens = semAbertoDireto.length
+    ? await db.financialEntry.findMany({
+        where: {
+          related_module: "emporio",
+          entry_type: "income",
+          category: CATEGORIA_VENDAS,
+          agreement_id: { not: null },
+          related_id: { in: semAbertoDireto.map((v) => v.id) },
+        },
+        select: { related_id: true, agreement_id: true },
+      })
+    : [];
+  const parcelasAbertas = origens.length
+    ? await entradasAbertas(db, { agreement_id: { in: [...new Set(origens.map((o) => o.agreement_id as string))] } })
+    : [];
+  const acordosAbertos = new Set(parcelasAbertas.map((p) => p.agreement_id));
+  const vendasNoAcordoAberto = new Set(origens.filter((o) => acordosAbertos.has(o.agreement_id)).map((o) => o.related_id));
+  const quitadas = semAbertoDireto.filter((v) => !vendasNoAcordoAberto.has(v.id));
+  const devolucoesDelas = quitadas.length
+    ? await db.emporioSaleReturn.aggregate({ where: { sale_id: { in: quitadas.map((v) => v.id) } }, _sum: { franchisee_credit: true } })
+    : null;
+  const creditoCent = Math.max(
+    0,
+    quitadas.reduce((s, v) => s + centavos(Number(v.franchisee_credit)), 0) - centavos(Number(devolucoesDelas?._sum.franchisee_credit ?? 0)),
+  );
   return ok({
     ...serializarCliente(c),
     resumo: {

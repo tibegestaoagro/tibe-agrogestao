@@ -347,6 +347,11 @@ desde 23/11. As sobras abaixo saíram na branch `next-16-4-6-sobras-5-32`.
   roda antes da precificação; o teste da `m129` usa repetida mais quantidade zero.
 - **Fechado em 23/11:** a fixture do `m100` chama `datasDasParcelas`, a função do
   sistema, em vez de reimplementar o vencimento do cartão.
+- Aberto (pequeno): a linha da Q386 conta o crédito só de venda sem nada em
+  aberto, inclusive acordo com parcela aberta, mas o recebimento AGENDADO de uma
+  parcela de acordo não marca a venda como em aberto (o item agendado do fiado
+  não traz `sale_id` nem `agreement_id`). Caso raro: crédito, fiado, acordo e
+  baixa com data futura juntos.
 
 ### 5.31 Empório, sobras sem a Agromax: o que ficou para depois
 
