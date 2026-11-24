@@ -71,7 +71,7 @@ export function CorrigirDataBotao({ id, diaAtual }: { id: string; diaAtual: stri
         required
         id={err.idDe("occurred_on")}
         error={err.erros.occurred_on}
-        hint={`Até ${JANELA_DA_BAIXA_DIAS} dias para trás ou para frente. Linha com carimbo precisa perder o carimbo antes.`}
+        hint={`Até ${JANELA_DA_BAIXA_DIAS} dias para trás ou para frente. Linha já conferida com o banco precisa desfazer a conferência antes.`}
       >
         {({ id: campo, ...aria }) => (
           <Input

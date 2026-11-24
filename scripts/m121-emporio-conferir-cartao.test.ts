@@ -932,7 +932,7 @@ async function secao10() {
   check("tirar o carimbo da linha de cartão: 2xx", ok2xx(x1), `${x1.status} ${j(x1.corpo).slice(0, 200)}`);
   const e1 = await lerParcela(p1.id);
   check("é o desfazer: sem carimbo, sem quem carimbou e sem confirmed_net", e1.reconciled_at === null && e1.reconciled_by_user_id === null && e1.confirmed_net === null, j(e1));
-  check("o desfazer pelo carimbo vai para o Histórico, com o motivo padrão", (await logs(A)) > l0 && j(await (await prismaCru()).emporioAuditLog.findMany({ where: { tenant_id: A.tenantId }, orderBy: { created_at: "desc" }, take: 4 })).includes("Carimbo retirado no extrato"));
+  check("o desfazer pelo carimbo vai para o Histórico, com o motivo padrão", (await logs(A)) > l0 && j(await (await prismaCru()).emporioAuditLog.findMany({ where: { tenant_id: A.tenantId }, orderBy: { created_at: "desc" }, take: 4 })).includes("Conferência desfeita no extrato"));
   const x1b = await descarimbar(A.tok.fin, "cartao", p1.id);
   check("tirar o carimbo de novo: 409", recusou(x1b, 409), `${x1b.status} ${j(x1b.corpo).slice(0, 160)}`);
 

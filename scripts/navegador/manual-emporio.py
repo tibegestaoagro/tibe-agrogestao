@@ -1188,10 +1188,10 @@ def id_da_conta_bancaria():
 
 
 figura("financeiro-extrato", "dono", lambda: "/emporio/financeiro/caixa?lugar=conta:" + id_da_conta_bancaria(), [
-    (1, "M.C('Só sem carimbo')", "o filtro Só sem carimbo"),
-    (2, "M.C('Sem carimbo no período')", "o total sem carimbo"),
-    (3, "M.TH('Carimbo')", "a coluna Carimbo"),
-    (4, "M.Bs('Carimbar')[0]", "o botao Carimbar"),
+    (1, "M.C('Só a conferir')", "o filtro Só a conferir"),
+    (2, "M.C('A conferir no período')", "o total a conferir"),
+    (3, "M.TH('Conferência')", "a coluna Conferência"),
+    (4, "M.Bs('Conferir com o banco')[0]", "o botao Conferir com o banco"),
 ], rolar="M.H('Extrato')", limite=8, hd=900, hc=1300)
 
 figura("financeiro-projecao", "dono", "/emporio/financeiro/projecao", [

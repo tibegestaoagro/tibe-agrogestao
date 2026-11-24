@@ -911,7 +911,7 @@ export async function carimbarLinhaAction(
       action: "conciliacao.carimbar",
       target_type: "conta",
       target_id: linha.conta_id,
-      summary: `Carimbou ${linha.descricao}, ${dinheiro(linha.valor)} de ${diaBr(linha.dia)}`,
+      summary: `Conferiu com o banco ${linha.descricao}, ${dinheiro(linha.valor)} de ${diaBr(linha.dia)}`,
     });
     return true;
   });
@@ -934,7 +934,7 @@ export async function descarimbarLinhaAction(
   const id = input.id.trim();
   // Q352: na linha de cartão, tirar o carimbo É desfazer a conferência.
   if (input.kind === "cartao") {
-    const r = await desfazerConferenciaAction(db, ator, id, { reason: "Carimbo retirado no extrato" });
+    const r = await desfazerConferenciaAction(db, ator, id, { reason: "Conferência desfeita no extrato" });
     if (!r.ok) return r.code === "NAO_CONFERIDA" ? fail("SEM_CARIMBO", "Esta linha ainda não foi conferida com o banco.", 409, "id") : r;
     return ok({ kind: "cartao", id });
   }
@@ -946,7 +946,7 @@ export async function descarimbarLinhaAction(
       action: "conciliacao.descarimbar",
       target_type: "conta",
       target_id: linha.conta_id,
-      summary: `Retirou o carimbo de ${linha.descricao}, ${dinheiro(linha.valor)} de ${diaBr(linha.dia)}`,
+      summary: `Desfez a conferência de ${linha.descricao}, ${dinheiro(linha.valor)} de ${diaBr(linha.dia)}`,
     });
     return true;
   });
