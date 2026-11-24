@@ -106,3 +106,16 @@ roteiro do balcão rápido bateu na mesma pedra no mesmo dia.
 ⚠️ Escreva essa substituição com Edit/Write, nunca por `sed` no shell: o
 `sed -i` do mesmo dia gravou `"00a0"` no lugar de `" "` (o invariante 5 do
 `CLAUDE.md`), e a checagem passaria a não normalizar nada sem avisar.
+
+## Acréscimo de 2026-11-23: o clique antes da hidratação não faz nada
+
+Décimo segundo atrito, no passo 1 do `emporio-franqueado`: o painel "Novo
+franqueado" não abria em 6 de 6 tentativas, num `next dev` recém-subido. No
+momento do clique, `document.readyState` era `loading` e o botão ainda não
+tinha `__reactProps`: o HTML estava na tela, mas o React não tinha ligado os
+eventos. O clique caía num botão morto. Saída: esperar `readyState` igual a
+`complete` e o botão com `__reactProps` (até 90 s) antes de clicar.
+
+No mesmo dia, um `timeout` que matou o `tsx` do `npm run navegador` deixou o
+daemon do browser-harness órfão, e toda página passou a recarregar em laço
+(o mesmo sintoma do oitavo e do nono atritos). Matar o daemon órfão resolveu.

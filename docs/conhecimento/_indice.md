@@ -112,6 +112,8 @@ grep -rl "^tipo: armadilha" docs/conhecimento/
 | [apagar dado de cliente se prova pela digital do que fica](apagar-dado-de-cliente-se-prova-pela-digital-do-que-fica.md) | decisao | o md5 do que fica pegou o SET NULL nos orçamentos que a contagem não via; ensaio local, contagem, confirmação, gravação |
 | [o teste que monta o dado no banco aprova o que a action nunca grava](o-teste-que-monta-o-dado-no-banco-aprova-o-que-a-action-nunca-grava.md) | licao | o boleto agendado passava na `m128` com `paid_at` futuro criado à mão; a action grava o futuro em `paid_on` |
 | [o roteiro que procura pelo texto pega o primeiro da página](o-roteiro-que-procura-pelo-texto-pega-o-primeiro-da-pagina.md) | armadilha | 7 falhas no Desfazer da antecipação eram o "Desfazer" de uma parcela conferida; procure dentro do bloco |
+| [o fiado que vira acordo perde a venda de vista](o-fiado-que-vira-acordo-perde-a-venda-de-vista.md) | armadilha | as parcelas do acordo nascem sem `sale_id`; quem pergunta "a venda ainda deve?" só pela venda responde "já pagou" |
+| [a suíte e o roteiro no mesmo banco reprovam sem defeito](a-suite-e-o-roteiro-no-mesmo-banco-reprovam-sem-defeito.md) | armadilha | `TransactionWriteConflict` na `m92` e 14 falhas em cascata no roteiro, ambos verdes sozinhos; rode em sequência |
 
 ⚠️ **`[[wikilink]]` para nota que não existe reprova o `npm run check`**
 (conferência 13). É o que impede esta pasta de virar um cemitério de links

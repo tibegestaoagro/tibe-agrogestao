@@ -37,6 +37,24 @@ enquanto o sistema para.
   nodemailer instalado.
 - `prisma@latest` aponta para release candidate da 8: suba por versão exata.
 
+## Acréscimo de 2026-11-23: o audit propôs o Prisma 6, e o `overrides` resolveu na mesma família
+
+O `npm audit` acusou um ReDoS na biblioteca `effect`, que o `@prisma/config`
+prende em 3.20.0. A "correção" proposta era `prisma@6.12.0`, semver major para
+trás, o que quebraria o Prisma 7 do projeto. A versão corrigida da `effect` é
+3.22.1 em diante, na mesma família 3. Solução:
+`"overrides": { "effect": "3.22.5" }` no `package.json`. O audit foi a 0.
+
+Conferido antes do merge: `prisma validate`, `prisma generate`,
+`migrate status`, `migrate diff` vazio, `test:drift`, `test:isolation`, uma
+suíte do Empório e o build. No mesmo dia, o Next subiu de 16.4.3 para 16.4.6
+por versão exata (7 avisos fechados, só os pacotes do Next mudaram no lock).
+
+- Quando o audit propuser descer uma major, procure a dependência de onde vem o
+  alerta (`npm ls <pacote>`) e veja se existe versão corrigida na mesma família.
+- Ao subir o Prisma, confira se o `@prisma/config` novo já traz a `effect`
+  corrigida, e tire o override se trouxer.
+
 ## Relacionado
 
 - [[validacao-viva-acha-o-que-a-suite-verde-nao-acha]]

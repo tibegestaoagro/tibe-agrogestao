@@ -49,8 +49,18 @@ que nasce daí não é defeito do produto até prova em contrário.
 - Erro que só aparece depois de uma limpeza com `replica`: confira primeiro se
   o estado pode ser criado pelas telas.
 
+## Acréscimo de 2026-11-23: nome fixo pega o cliente da rodada anterior
+
+O `scripts/_cenario-emporio-franqueado.ts` limpa vendas e devoluções, mas não
+apaga clientes. O passo novo da Q386 criava dois clientes com nome fixo, e na
+segunda rodada o seletor do balcão escolheu o cliente da rodada anterior: a
+ficha mostrava "Total comprado R$ 0,00" e parecia defeito da ficha. Saída: o
+nome do cliente criado pelo roteiro leva um sufixo por rodada (`time.time()`).
+Vale para qualquer registro que o roteiro cria e o cenário não apaga.
+
 ## Relacionado
 
 - [[a-aba-oculta-e-a-leitura-cedo-imitam-defeito-no-navegador]]
+- [[a-suite-e-o-roteiro-no-mesmo-banco-reprovam-sem-defeito]]
 - [[dado-herdado-invalido-trava-o-caminho-novo]]
 - [[validacao-viva-acha-o-que-a-suite-verde-nao-acha]]
