@@ -34,7 +34,6 @@ export function CabecalhoDaTela({
                 <span aria-hidden="true"> › </span>
               </span>
             ))}
-            <span className="sr-only">{titulo}</span>
           </nav>
         )}
         <div className="flex items-center gap-2">

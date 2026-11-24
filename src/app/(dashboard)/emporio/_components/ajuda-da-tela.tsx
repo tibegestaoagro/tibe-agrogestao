@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 /**
  * O (i) ao lado do título: o texto de apresentação da tela, fora do caminho de
@@ -22,6 +22,7 @@ export function AjudaDaTela({
   const [fixo, setFixo] = useState(false);
   const raiz = useRef<HTMLSpanElement>(null);
   const botao = useRef<HTMLButtonElement>(null);
+  const balao = useRef<HTMLSpanElement>(null);
   const idBalao = useId();
 
   useEffect(() => {
@@ -32,8 +33,34 @@ export function AjudaDaTela({
         setFixo(false);
       }
     }
+    function tecla(e: KeyboardEvent) {
+      if (e.key !== "Escape") return;
+      const estavaDentro = raiz.current?.contains(document.activeElement) ?? false;
+      setAberto(false);
+      setFixo(false);
+      if (estavaDentro) botao.current?.focus();
+    }
     document.addEventListener("pointerdown", fora);
-    return () => document.removeEventListener("pointerdown", fora);
+    document.addEventListener("keydown", tecla);
+    return () => {
+      document.removeEventListener("pointerdown", fora);
+      document.removeEventListener("keydown", tecla);
+    };
+  }, [aberto]);
+
+  // Mantém o balão inteiro dentro da viewport, qualquer que seja a posição do (i).
+  // Mexe direto no estilo (sem estado) porque depende da medida do DOM já pintado.
+  useLayoutEffect(() => {
+    const b = balao.current;
+    const btn = botao.current;
+    if (!aberto || !b || !btn) return;
+    b.style.transform = "";
+    const margem = 8;
+    const esquerda = btn.getBoundingClientRect().left;
+    const largura = b.offsetWidth;
+    const limite = document.documentElement.clientWidth;
+    const deslocamento = Math.max(margem - esquerda, Math.min(0, limite - margem - (esquerda + largura)));
+    if (deslocamento !== 0) b.style.transform = `translateX(${deslocamento}px)`;
   }, [aberto]);
 
   function fechar() {
@@ -51,11 +78,8 @@ export function AjudaDaTela({
       onPointerLeave={(e) => {
         if (e.pointerType === "mouse" && !fixo) setAberto(false);
       }}
-      onKeyDown={(e) => {
-        if (e.key === "Escape" && aberto) {
-          fechar();
-          botao.current?.focus();
-        }
+      onBlur={(e) => {
+        if (!raiz.current?.contains(e.relatedTarget as Node | null)) fechar();
       }}
     >
       <button
@@ -76,19 +100,22 @@ export function AjudaDaTela({
       >
         i
       </button>
+      {/* O pt-1 do contêiner é a ponte invisível entre o botão e o balão: o ponteiro não sai do componente. */}
       <span
+        ref={balao}
         id={idBalao}
-        role="region"
-        aria-label={rotulo}
+        tabIndex={-1}
         hidden={!aberto}
-        className="absolute left-0 top-7 z-20 w-[min(20rem,calc(100vw-2rem))] rounded-lg bg-superficie-invertida px-3.5 py-3 text-left text-sm font-normal not-italic leading-snug text-texto-invertido shadow-lg"
+        className="absolute left-0 top-full z-20 w-[min(20rem,calc(100vw-1rem))] pt-1 outline-none"
       >
-        {children}
-        {manual && (
-          <Link href={manual} className="mt-2 block font-semibold underline underline-offset-2">
-            Ver no manual ›
-          </Link>
-        )}
+        <span className="block rounded-lg bg-superficie-invertida px-3.5 py-3 text-left text-sm font-normal not-italic leading-snug text-texto-invertido shadow-lg">
+          {children}
+          {manual && (
+            <Link href={manual} className="mt-2 block font-semibold underline underline-offset-2">
+              Ver no manual ›
+            </Link>
+          )}
+        </span>
       </span>
     </span>
   );
