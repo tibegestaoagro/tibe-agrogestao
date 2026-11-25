@@ -74,7 +74,7 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
      relatorios-exportacao e romaneio;
   3. o plano da onda 2 (Início, §5.5), com aprovação do usuário.
 
-  O roteiro descartável `scripts/navegador/ux-tour-emporio.py` não é versionado.
+  O roteiro descartável do tour de UX (só no desktop) não é versionado.
 - Em produção desde 24/11 (merge `176a3dba`, CI e Vercel verdes): lint de 30
   avisos para 0, travado em `--max-warnings 0`; passo 2 do roteiro franqueado
   estável (`_abrir_select`).
