@@ -25,17 +25,41 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-24. **Frente em curso: UX e UI só do Empório**, na
-  branch `ux-emporio` (sem código ainda). Entrevista, diagnóstico de 45 telas e
-  mockups aprovados (menu, Início, Vender em duas colunas, Estatísticas) no
-  [briefing](../superpowers/specs/2026-11-24-emporio-ux-briefing.md). Desenho
-  escrito, revisado por construtor e **à espera da aprovação do usuário**:
+- Atualizado em: 2026-11-25. **Frente em curso: UX e UI só do Empório**, na
+  branch `ux-emporio`. O desenho foi aprovado:
   [2026-11-24-emporio-ux-design.md](../superpowers/specs/2026-11-24-emporio-ux-design.md)
-  (Q387 a Q397, 6 ondas, cada uma em produção com o manual junto, por
-  subagentes). **Próximo:** aprovado o desenho, plano da onda 1 (navegação)
-  com `superpowers:writing-plans`. Roteiro descartável
-  `scripts/navegador/ux-tour-emporio.py` (não versionado) fotografa as telas
-  por papel.
+  (Q387 a Q397, 6 ondas). O briefing tem a entrevista e os mockups:
+  [briefing](../superpowers/specs/2026-11-24-emporio-ux-briefing.md).
+  **Onda 1 (navegação) está pronta na branch e NÃO está na main.** O plano é
+  `2026-11-24-emporio-ux-onda1-navegacao`, e os commits vão de `04a69d3e` a
+  `9f3d795d`. A onda não tem migração. Entregue:
+  - menu em subgrupos com memória (`src/lib/emporio/menu.ts`, suíte `m130`);
+  - Vender em destaque;
+  - `CabecalhoDaTela` e o (i) (`AjudaDaTela`, ícone Info suave, abre com
+    mouse, foco do teclado e toque) em todas as telas, garantido pela
+    conferência 20 do check;
+  - seletor de propriedades escondido no Empório;
+  - tela sem permissão volta a `/emporio`;
+  - "Lojas" no lugar de Estabelecimentos;
+  - "Conferir com o banco" no lugar de carimbo;
+  - manual (figuras, GIFs e caminhos) atualizado.
+
+  Resultados:
+  - `test:all` 133/133;
+  - juiz 8/10 depois das correções (7/10 antes);
+  - roteiro `emporio-ux-onda1` provado nos dois sentidos para o (i) e o menu.
+
+  Pendências:
+  - fazer o plantio em `menu.ts` para provar o roteiro inteiro nos dois
+    sentidos (o classificador negou ao subagente; decisão do usuário);
+  - o Caixa abre fornecedores e franqueados pela URL (desenho §9, perguntar);
+  - 12 roteiros antigos falham por motivo anterior à onda (frase mudada,
+    lista paginada, dados sujos no banco local); detalhe em
+    `.superpowers/sdd/.../task-7-report.md` (git-ignorado).
+
+  **Próximo:** o usuário vê o relatório e autoriza o merge; depois, plano da
+  onda 2. O roteiro descartável `scripts/navegador/ux-tour-emporio.py` não é
+  versionado.
 - Em produção desde 24/11 (merge `176a3dba`, CI e Vercel verdes): lint de 30
   avisos para 0, travado em `--max-warnings 0`; passo 2 do roteiro franqueado
   estável (`_abrir_select`).
