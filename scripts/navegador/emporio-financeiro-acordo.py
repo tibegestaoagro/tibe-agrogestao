@@ -11,7 +11,7 @@
 #      Financeiro nao decide; o Dono aprova e a conta some de A pagar; o Dono
 #      recusa o segundo pedido (R$ 700,00) com motivo.
 #   4. No extrato da conta, o Financeiro carimba o movimento do pagamento; o
-#      filtro "Só sem carimbo" esconde a linha; o Hoje mostra "Sem carimbo".
+#      filtro "Só a conferir" esconde a linha; o Hoje mostra "A conferir com o banco".
 #   5. A 390 px: a ficha com o acordo, a aba Aprovacoes e o extrato sem rolagem
 #      horizontal.
 #
@@ -254,7 +254,7 @@ def linha_do_extrato(conta, valor):
 
 
 def carimbar_linha(valor):
-    return bool(js("(() => { const tr = Array.from(document.querySelectorAll('main tbody tr')).find(x => x.innerText.replace(/\\u00a0/g, ' ').includes(" + repr(valor) + ")); const b = tr && Array.from(tr.querySelectorAll('button')).find(x => x.innerText.trim() === 'Carimbar'); if (!b) return false; b.click(); return true; })()"))
+    return bool(js("(() => { const tr = Array.from(document.querySelectorAll('main tbody tr')).find(x => x.innerText.replace(/\\u00a0/g, ' ').includes(" + repr(valor) + ")); const b = tr && Array.from(tr.querySelectorAll('button')).find(x => x.innerText.trim() === 'Conferir com o banco'); if (!b) return false; b.click(); return true; })()"))
 
 
 # --- 1 ---------------------------------------------------------------------------------
@@ -363,26 +363,26 @@ ir("/emporio/financeiro/pagar")
 confere("a conta recusada de R$ 700,00 continua em A pagar", esperar(lambda: conta_nossa("R$ 700,00"), 40), texto_principal(600))
 
 # --- 4 ---------------------------------------------------------------------------------
-passo("4. O extrato da conta: carimbar, filtrar Só sem carimbo, o Hoje mostra Sem carimbo")
+passo("4. O extrato da conta: conferir com o banco, filtrar Só a conferir, o Hoje mostra A conferir com o banco")
 conta = conta_do_extrato()
 confere("o Hoje lista a conta Aco Banco", bool(conta), conta)
 extrato = extrato_da_api(conta)
 sem_antes = extrato.get("unreconciled_count")
 confere("o extrato da API tem linhas sem carimbo", isinstance(sem_antes, int) and sem_antes >= 2, [sem_antes, extrato.get("unreconciled_total")])
 ir("/emporio/financeiro/caixa?lugar=conta:" + conta)
-confere("o extrato abre com a coluna Carimbo", esperar(lambda: tem("Carimbo") and tem("Sem carimbo no período"), 60), texto_principal(800))
+confere("o extrato abre com a coluna Conferência", esperar(lambda: tem("Conferência") and tem("A conferir no período"), 60), texto_principal(800))
 confere("o extrato mostra o pagamento de R$ 300,00", linha_tem("300,00"), texto_principal(1200))
 confere("carimba o pagamento de R$ 300,00", esperar(lambda: carimbar_linha("300,00"), 20))
-confere("a linha mostra 'Carimbado em dd/mm'", esperar(lambda: tem("Carimbado em " + HOJE.strftime("%d/%m")), 40), texto_principal(1200))
+confere("a linha mostra 'Conferido em dd/mm'", esperar(lambda: tem("Conferido em " + HOJE.strftime("%d/%m")), 40), texto_principal(1200))
 linha = linha_do_extrato(conta, 300)
 confere("a API guarda o carimbo no movimento de R$ 300,00", bool(linha and linha.get("reconciled_at")), linha)
 depois = extrato_da_api(conta)
-confere("o total sem carimbo caiu em uma linha", depois.get("unreconciled_count") == sem_antes - 1, [sem_antes, depois.get("unreconciled_count")])
+confere("o total a conferir caiu em uma linha", depois.get("unreconciled_count") == sem_antes - 1, [sem_antes, depois.get("unreconciled_count")])
 ir("/emporio/financeiro/caixa?lugar=conta:" + conta + "&carimbo=sem")
-confere("o filtro Só sem carimbo esta marcado", esperar(lambda: js("!!document.querySelector('input[name=carimbo]:checked')"), 40), texto_principal(500))
-confere("com o filtro, a linha carimbada de R$ 300,00 some", esperar(lambda: tem("Sem carimbo no período") and not linha_tem("300,00"), 40) and linha_tem("900,00"), texto_principal(1200))
+confere("o filtro Só a conferir esta marcado", esperar(lambda: js("!!document.querySelector('input[name=carimbo]:checked')"), 40), texto_principal(500))
+confere("com o filtro, a linha carimbada de R$ 300,00 some", esperar(lambda: tem("A conferir no período") and not linha_tem("300,00"), 40) and linha_tem("900,00"), texto_principal(1200))
 ir("/emporio/financeiro")
-confere("o Hoje mostra o cartao Sem carimbo", esperar(lambda: tem("Sem carimbo") and tem("da conta sem conferir com o banco"), 40), texto_principal(900))
+confere("o Hoje mostra o cartao A conferir com o banco", esperar(lambda: tem("A conferir com o banco") and tem("da conta sem conferir com o banco"), 40), texto_principal(900))
 
 # --- 5 ---------------------------------------------------------------------------------
 passo("5. A 390 px: a ficha com o acordo, as Aprovacoes e o extrato sem rolagem horizontal")
@@ -394,7 +394,7 @@ ir("/emporio/financeiro/aprovacoes?status=decididos")
 esperar(lambda: tem("Aprovado por"), 60)
 sem_rolagem("Aprovacoes")
 ir("/emporio/financeiro/caixa?lugar=conta:" + conta)
-esperar(lambda: tem("Sem carimbo no período"), 60)
+esperar(lambda: tem("A conferir no período"), 60)
 sem_rolagem("O extrato com o carimbo")
 cdp("Emulation.clearDeviceMetricsOverride")
 

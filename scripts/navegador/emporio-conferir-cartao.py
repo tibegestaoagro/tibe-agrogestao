@@ -15,7 +15,7 @@
 #   9. Um Gestor de loja nao ve os botoes Conferir (e a rota recusa)
 #  10. Celular (390 px): sem rolagem horizontal da pagina no A receber e nos paineis de conferir
 #  11. No extrato da conta, Desfazer a conferência na linha de cartao conferida: a linha volta a sem carimbo e a parcela a A
-#      conferir; Carimbar de novo: volta a Conferida pelo carimbo (Q352)
+#      conferir; Conferir com o banco de novo: volta a Conferida pelo carimbo (Q352)
 #  12. Antecipacao pontual de uma parcela Prevista: nasce Conferida, conferido igual ao liquido antecipado, sem ajuste
 #  13. Venda cancelada depois de conferida (numero 4043, que o eh_404 nao pode confundir com a pagina 404): no
 #      extrato, "Estorno de cartao" pelo valor conferido, o ajuste continua, e o saldo volta ao de antes da venda
@@ -551,7 +551,7 @@ def cartao_da_api(liquido):
 
 
 # --- 11 ----------------------------------------------------------------------------------------
-passo("11. Extrato da conta: Retirar e Carimbar a linha de cartao conferida (Q352)")
+passo("11. Extrato da conta: Desfazer a conferência e Conferir com o banco a linha de cartao conferida (Q352)")
 _, EXTRATO_RESERVA, lin_res = posicao_da_conta("Cc Reserva")
 confere("a conta 'Cc Reserva' tem link para o extrato", EXTRATO_RESERVA != "", lin_res)
 ir(EXTRATO_RESERVA)

@@ -67,6 +67,12 @@ def foco_no_botao_do_i():
     return bool(js("(() => { const b = document.querySelector('button[aria-label=\"Sobre esta tela\"]'); return !!b && document.activeElement === b; })()"))
 
 
+def seletor_de_propriedades():
+    """O seletor 'Todas as propriedades' (ou uma propriedade) no topo: o mesmo predicado
+    afirma em /meu-dia e nega em /emporio."""
+    return bool(js("document.body.innerText.includes('Todas as propriedades') || Array.from(document.querySelectorAll('header button')).some(b => b.innerText.includes('propriedade'))"))
+
+
 def mouse(x, y):
     cdp("Input.dispatchMouseEvent", type="mouseMoved", x=x, y=y, pointerType="mouse")
     time.sleep(0.6)
@@ -106,16 +112,21 @@ js("localStorage.removeItem('tibe:menu:subgrupos')")
 passo("3. Nenhuma tela do Empório tem o link 'Meu Empório' acima do título")
 com_link = []
 sem_h1 = []
+puladas = []
+verificadas = []
 for t in TELAS:
     destino = ir(t)
     if destino != t or eh_404():
-        print("  (pulada: " + t + " -> " + str(destino) + ")")
+        puladas.append(t + " -> " + str(destino))
         continue
+    verificadas.append(t)
     r = js("(() => { const m = document.querySelector('main'); const h = m && m.querySelector('h1'); if (!h) return 'SEM H1'; const solto = Array.from(m.querySelectorAll('a, p, span')).filter(e => e.innerText.trim() === 'Meu Empório' && (e.compareDocumentPosition(h) & Node.DOCUMENT_POSITION_FOLLOWING)); return solto.length; })()")
     if r == "SEM H1":
         sem_h1.append(t)
     elif r:
         com_link.append(t)
+confere("o dono abre todas as telas da lista (nenhuma pulada)", not puladas, puladas)
+confere("verificou todas as " + str(len(TELAS)) + " telas da lista", verificadas == TELAS, [len(verificadas), len(TELAS)])
 confere("nenhuma tela tem 'Meu Empório' antes do título", not com_link, com_link)
 confere("toda tela tem o seu título (h1)", not sem_h1, sem_h1)
 
@@ -185,9 +196,9 @@ confere("a Posição de caixa não diz Carimbar nem Carimbado", not any(p in txt
 
 passo("7. Seletor de propriedades: some no Empório, fica no resto")
 ir("/emporio")
-confere("em /emporio não há o seletor de propriedades", not js("document.body.innerText.includes('Todas as propriedades') || !!document.querySelector('header [aria-haspopup=listbox]')"))
+confere("em /emporio não há o seletor de propriedades", not seletor_de_propriedades())
 ir("/meu-dia")
-confere("em /meu-dia o seletor aparece para o dono", bool(js("document.body.innerText.includes('Todas as propriedades') || Array.from(document.querySelectorAll('header button')).some(b => b.innerText.includes('propriedade') || b.innerText.includes('Fazenda'))")), texto_principal(120))
+confere("em /meu-dia o seletor aparece para o dono", seletor_de_propriedades(), texto_principal(120))
 
 passo("8. Caixa: menu plano, sem subgrupos")
 entrar("caixa")
@@ -203,7 +214,7 @@ destino = ir("/emporio/financeiro/pagar")
 confere("termina em /emporio", destino == "/emporio", destino)
 confere("sem 'could not be found'", not eh_404())
 destino = ir("/emporio/historico")
-confere("o gestor vê o Histórico (papel dele alcança)", destino in ("/emporio/historico", "/emporio"), destino)
+confere("o gestor vê o Histórico (paginas.ts: exige gestor_da_loja ou dinheiro)", destino == "/emporio/historico" and not eh_404(), destino)
 
 passo("10. Celular (390 px): o subgrupo abre sem fechar a gaveta")
 entrar("dono")

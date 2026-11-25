@@ -377,7 +377,7 @@ confere("aprovacoes: 40 por pagina volta a pagina 1 (URL sem 'pagina=' solto) e 
 # --- 6 ------------------------------------------------------------------------------------------------------------------
 passo("6. Tela inicial do Emporio: os resumos de sempre")
 ir("/emporio")
-esperar(lambda: "Meu Empório" in texto_do_main(), 60)
+esperar(lambda: "Início" in texto_do_main(), 60)
 t = texto_do_main()
 tv = api("GET", "/api/v1/emporio/transfers?status=em_transito&per_page=100")["body"]["meta"]["total"]
 tc = api("GET", "/api/v1/emporio/purchases?status=pendente&per_page=100")["body"]["meta"]["total"]
