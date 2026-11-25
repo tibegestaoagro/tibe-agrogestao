@@ -11,7 +11,7 @@ export function ParteDeConfiguracoes() {
   return (
     <div className="space-y-2">
       <p>
-        Abra <strong>Meu Empório</strong> e depois <strong>Configurações</strong>. O Dono, o Gerente geral e o Gestor veem
+        Abra <strong>Meu Empório</strong>, <strong>Ajustes</strong> e <strong>Configurações</strong>. O Dono, o Gerente geral e o Gestor veem
         essa tela. O Vendedor e o Caixa não.
       </p>
 
@@ -555,7 +555,7 @@ export function ParteDeClientes() {
     <Tarefa
       paraQueServe="Guardar quem compra nas suas lojas e ver o que cada cliente já comprou."
       passos={[
-        <>Abra <strong>Meu Empório</strong> e depois <strong>Clientes</strong>. O Dono, o Gerente geral, o Gestor, o Vendedor e o Caixa veem essa tela.</>,
+        <>Abra <strong>Meu Empório</strong>, <strong>Vendas</strong> e <strong>Clientes</strong>. O Dono, o Gerente geral, o Gestor, o Vendedor e o Caixa veem essa tela.</>,
         <>Clique em <strong>Cadastrar novo cliente</strong> e escolha <strong>Pessoa física</strong> ou <strong>Pessoa jurídica</strong>.</>,
         "Na pessoa física, bastam o nome e o telefone. O CPF, o nascimento e o endereço são opcionais.",
         "Na pessoa jurídica, também o CNPJ e o endereço principal completo: CEP, rua, número, bairro, município e UF.",
@@ -594,7 +594,7 @@ export function ParteDeFornecedores() {
     <Tarefa
       paraQueServe="Guardar de quem as lojas compram, e as propriedades do dono que mandam mercadoria para a loja."
       passos={[
-        <>Abra <strong>Meu Empório</strong> e depois <strong>Fornecedores</strong>. O Caixa não vê essa tela.</>,
+        <>Abra <strong>Meu Empório</strong>, <strong>Estoque</strong> e <strong>Fornecedores</strong>. O Caixa não vê essa tela.</>,
         <>Clique em <strong>Novo fornecedor</strong>.</>,
         <>Para quem vende para a loja, escolha <strong>Fornecedor de fora</strong>. Só o nome é obrigatório; o CPF ou CNPJ, o telefone e o endereço são opcionais.</>,
         <>Para uma fazenda do dono que manda mercadoria (milho, feno, leite), escolha <strong>Propriedade do dono</strong> e a <strong>Propriedade</strong> na lista.</>,
@@ -639,7 +639,7 @@ export function ParteDeFranqueados() {
       <Tarefa
         paraQueServe="Guardar o franqueado, para escolhê-lo na venda e no orçamento."
         passos={[
-          <>Abra <strong>Meu Empório</strong> e depois <strong>Franqueados</strong>. Clique em <strong>Novo franqueado</strong>.</>,
+          <>Abra <strong>Meu Empório</strong>, <strong>Vendas</strong> e <strong>Franqueados</strong>. Clique em <strong>Novo franqueado</strong>.</>,
           "Só o nome e o telefone são obrigatórios. O documento e a observação são opcionais.",
           <>Clique em <strong>Cadastrar franqueado</strong>. Ele aparece na lista com o saldo.</>,
         ]}
@@ -728,7 +728,7 @@ export function ParteDeFinanceiroDasLojas() {
       <Tarefa
         paraQueServe="Saber onde está o dinheiro das lojas hoje, o que pagar e o que receber, sem abrir loja por loja."
         passos={[
-          <>Abra <strong>Meu Empório</strong> e depois <strong>Financeiro</strong>. Quem tem só essa função já cai aqui ao entrar.</>,
+          <>Abra <strong>Meu Empório</strong>, <strong>Dinheiro</strong> e <strong>Hoje</strong>. Quem tem só essa função já cai aqui ao entrar.</>,
           <>Em <strong>Hoje</strong>, veja a posição de caixa (cada gaveta, a gerência de cada loja e cada conta bancária), o que vence hoje a pagar e a receber, e o fiado vencido.</>,
           <>Em <strong>A pagar</strong>, marque as contas e clique em <strong>Pagar selecionadas</strong>. Veja a seção abaixo.</>,
           <>Em <strong>A receber</strong>, veja o fiado por cliente, os cheques em carteira e os cartões por data de recebimento. Quem gere a loja ou cuida do dinheiro marca parcelas de cartão ali mesmo e clica em <strong>Antecipar</strong> para registrar o que a adquirente pagou antes do prazo, e em <strong>Desfazer</strong> para voltar atrás. O custo da antecipação aparece no Resultado, na linha <strong>Antecipação de recebíveis</strong>.</>,
@@ -795,7 +795,7 @@ export function ParteDeFinanceiroDasLojas() {
         passos={[
           <>O Dono ou o Gerente geral define o <strong>Teto sem aprovação (R$)</strong> em <strong>Configurações</strong>, na seção <strong>Alçada de pagamento</strong>. Sem teto, todo pagamento sai direto.</>,
           <>Quem não é Dono nem Gerente geral e paga acima do teto não paga: o aviso diz que o pagamento <strong>ficou esperando aprovação</strong>, e as contas continuam em A pagar.</>,
-          <>O Dono ou o Gerente geral abre <strong>Financeiro</strong> e a aba <strong>Aprovações</strong> (o cartão <strong>Esperando aprovação</strong> em Hoje leva para lá). Cada pedido mostra as contas, quem pediu e de onde sai o dinheiro.</>,
+          <>O Dono ou o Gerente geral abre <strong>Dinheiro</strong> e <strong>Aprovações</strong> (o cartão <strong>Esperando aprovação</strong> em Hoje leva para lá). Cada pedido mostra as contas, quem pediu e de onde sai o dinheiro.</>,
           <>Clique em <strong>Aprovar</strong> e confirme em <strong>Aprovar e pagar</strong>: o pagamento sai naquele momento, com o saldo conferido de novo. Ou clique em <strong>Recusar</strong> e escreva o <strong>Motivo</strong>.</>,
           <>Em <strong>Decididos</strong> ficam os pedidos aprovados e recusados, com quem decidiu e o motivo.</>,
         ]}
@@ -866,7 +866,7 @@ export function ParteDeFinanceiroDasLojas() {
       <Tarefa
         paraQueServe="Saber, semana a semana, se o dinheiro vai dar para pagar o que vem pela frente."
         passos={[
-          <>Abra <strong>Financeiro</strong> e a aba <strong>Projeção</strong>. Escolha <strong>30 dias</strong>, <strong>60 dias</strong> ou <strong>90 dias</strong>.</>,
+          <>Abra <strong>Estatísticas</strong> e <strong>Projeção</strong>. Escolha <strong>30 dias</strong>, <strong>60 dias</strong> ou <strong>90 dias</strong>.</>,
           <>No alto está o <strong>Saldo de hoje</strong>: a soma do dinheiro de todas as gavetas, gerências e contas bancárias.</>,
           <>Acima da tabela, o gráfico traz uma linha com o saldo ao fim de cada semana. A semana em que o saldo fica abaixo de zero ganha um ponto vermelho e a frase diz quantas semanas ficam negativas: é o aviso de que o dinheiro aperta.</>,
           <>Cada semana mostra o que deve entrar (fiado, parcela de cartão e cheque) e o que deve sair (contas a pagar e despesas fixas). A última coluna é o saldo ao fim da semana.</>,
@@ -889,7 +889,7 @@ export function ParteDeFinanceiroDasLojas() {
       <Tarefa
         paraQueServe="Ver quem deve há quanto tempo, o que vence a pagar e onde está o dinheiro."
         passos={[
-          <>Abra <strong>Financeiro</strong> e a aba <strong>Relatórios</strong>. Se quiser, escolha a loja e o período pelos atalhos (<strong>Este mês</strong>, <strong>Mês passado</strong>) ou em <strong>Escolher</strong>.</>,
+          <>Abra <strong>Estatísticas</strong> e <strong>Relatórios</strong>. Se quiser, escolha a loja e o período pelos atalhos (<strong>Este mês</strong>, <strong>Mês passado</strong>) ou em <strong>Escolher</strong>.</>,
           <><strong>A receber por idade</strong> mostra cada cliente com o que deve em dia e o que está vencido há 1 a 15 dias, 16 a 30 dias ou mais de 30.</>,
           <><strong>A pagar por vencimento</strong> junta as contas por semana e por nome. O que já venceu fica na primeira semana, com a marca <strong>Vencido</strong>.</>,
           <><strong>Posição de caixa por lugar</strong> mostra o saldo de hoje de cada gaveta, gerência e conta, e o que entrou e saiu no período.</>,

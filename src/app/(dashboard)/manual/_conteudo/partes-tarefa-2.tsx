@@ -267,7 +267,7 @@ export function ParteDeFiado() {
       <Tarefa
         paraQueServe="Lembrar quem está atrasado, do mais atrasado ao menos, sem caçar o cliente em lista nenhuma."
         passos={[
-          <>Abra <strong>Meu Empório</strong>, depois <strong>Financeiro</strong> e a aba <strong>Cobrança</strong>. Cada cliente com fiado vencido aparece com o valor, há quantos dias e em quais lojas.</>,
+          <>Abra <strong>Meu Empório</strong>, depois <strong>Dinheiro</strong> e a aba <strong>Cobrança</strong>. Cada cliente com fiado vencido aparece com o valor, há quantos dias e em quais lojas.</>,
           <>Para filtrar, escolha a loja no alto ou o tempo de atraso.</>,
           <>Clique em <strong>Cobrar no WhatsApp</strong>, confira a mensagem (ela já vem com o nome e o valor, e dá para editar) e clique em <strong>Abrir o WhatsApp</strong>.</>,
           <>O WhatsApp do aparelho abre com o texto da conta, e a cobrança fica registrada: a linha passa a mostrar <strong>Cobrado em</strong> com a data, e a ficha do cliente também.</>,
@@ -286,7 +286,7 @@ export function ParteDeFiado() {
       <Tarefa
         paraQueServe="Juntar o fiado vencido de um cliente em parcelas que ele consegue pagar, sem juros."
         passos={[
-          <>Abra <strong>Meu Empório</strong>, depois <strong>Clientes</strong>, e a ficha do cliente. Na seção <strong>Acordos</strong>, clique em <strong>Fazer acordo</strong>.</>,
+          <>Abra <strong>Meu Empório</strong>, <strong>Vendas</strong> e <strong>Clientes</strong>, e a ficha do cliente. Na seção <strong>Acordos</strong>, clique em <strong>Fazer acordo</strong>.</>,
           <>Em <strong>Fiados do acordo</strong>, marque os fiados que entram. O <strong>Total do acordo</strong> aparece embaixo.</>,
           <>Escolha quantas <strong>Parcelas</strong>, a data da <strong>Primeira parcela em</strong> e o intervalo em <strong>A cada (dias)</strong>. Clique em <strong>Montar parcelas</strong>.</>,
           <>Se precisar, mude a data e o valor de cada parcela. A soma tem de fechar com o total.</>,
@@ -581,7 +581,7 @@ export function ParteDeDespesas() {
       <Tarefa
         paraQueServe="Dividir uma despesa entre as lojas sem fazer conta: o sistema divide pelo faturamento, pela área ou pelo número de funcionários."
         passos={[
-          <>Em <strong>Lojas</strong>, preencha a <strong>Área (m²)</strong> e os <strong>Funcionários</strong> de cada loja. O Financeiro também pode preencher esses dois campos.</>,
+          <>Em <strong>Ajustes</strong> e <strong>Lojas</strong>, preencha a <strong>Área (m²)</strong> e os <strong>Funcionários</strong> de cada loja. O Financeiro também pode preencher esses dois campos.</>,
           <>Em <strong>Despesas</strong>, cadastre a despesa fixa e, em <strong>Dividir entre as lojas</strong>, escolha <strong>Proporcional ao faturamento</strong>, <strong>Por área (m²)</strong> ou <strong>Por funcionários</strong>. Não precisa digitar a parte de cada loja.</>,
           "A despesa é dividida entre todas as lojas ativas. No faturamento, vale o que cada loja vendeu no mês anterior.",
           "Só a conta do mês atual é criada de uma vez. A de cada mês seguinte nasce quando o mês chega, com a divisão daquele momento.",

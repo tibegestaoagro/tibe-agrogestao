@@ -42,7 +42,7 @@ export function ParteDeEquipe() {
       <Tarefa
         paraQueServe="Cadastrar as pessoas que trabalham nas suas lojas e dizer o que cada uma pode fazer."
         passos={[
-          <>Abra <strong>Meu Empório</strong> e depois <strong>Equipe</strong>. Só o Dono e o Gerente geral veem essa tela.</>,
+          <>Abra <strong>Meu Empório</strong>, <strong>Ajustes</strong> e <strong>Equipe</strong>. Só o Dono e o Gerente geral veem essa tela.</>,
           <>Clique em <strong>Cadastrar pessoa</strong>.</>,
           <>Preencha <strong>Nome</strong> e <strong>Email</strong>. Use o email que a pessoa realmente lê. O <strong>Telefone</strong> é opcional.</>,
           <>Escolha a <strong>Função</strong>: Gerente geral, Gestor, Vendedor ou Caixa. A função vale para todas as lojas da pessoa.</>,
@@ -144,7 +144,7 @@ export function ParteDeProdutos() {
       <Tarefa
         paraQueServe="Cadastrar o que a loja vende, do jeito que o balcão fala: saca, fardo, quilo, litro, metro ou unidade."
         passos={[
-          <>Abra <strong>Meu Empório</strong> e depois <strong>Produtos</strong>. Clique para criar um produto novo.</>,
+          <>Abra <strong>Meu Empório</strong>, <strong>Estoque</strong> e <strong>Produtos</strong>. Clique para criar um produto novo.</>,
           "Digite o nome do jeito que o balcão chama.",
           <>Em <strong>Unidade-base</strong>, escolha como o estoque é contado: <strong>Quilo</strong>, <strong>Litro</strong>, <strong>Metro</strong>, <strong>Unidade</strong>, <strong>Saca</strong> ou <strong>Fardo</strong>.</>,
           "Use Metro para o que se vende por medida: o estoque e o custo ficam em metros.",
@@ -345,7 +345,7 @@ export function ParteDeCompras() {
     <Tarefa
       paraQueServe="Lançar o que você comprou, guardar o custo e dar entrada no estoque quando a mercadoria chegar."
       passos={[
-        <>Abra <strong>Meu Empório</strong> e depois <strong>Compras</strong>. Clique em nova compra.</>,
+        <>Abra <strong>Meu Empório</strong>, <strong>Estoque</strong> e <strong>Compras</strong>. Clique em nova compra.</>,
         <>Escolha a loja e, se quiser, clique em <strong>Escolher fornecedor</strong> e busque pelo nome, pelo CPF ou CNPJ, ou por um pedaço do telefone. Os fornecedores vêm de <Link className="underline" href={`${B}/fornecedores`}>Fornecedores</Link>.</>,
         "Adicione cada item: produto, quantidade e o valor total do item (não o valor de uma unidade).",
         "Informe o frete, se houver. Ele é dividido entre os itens pelo valor de cada um.",
@@ -399,7 +399,7 @@ export function ParteDeEstoque() {
       <Tarefa
         paraQueServe="Saber o que tem na loja, corrigir quando a prateleira não bate e ser avisado do que precisa repor."
         passos={[
-          <>Abra <strong>Meu Empório</strong> e depois <strong>Estoque</strong>. Escolha a loja.</>,
+          <>Abra <strong>Meu Empório</strong>, o grupo <strong>Estoque</strong> e a tela <strong>Estoque</strong>. Escolha a loja.</>,
           "Veja cada produto com o saldo lacrado (embalagens fechadas) e o avulso (solto). Embalagens fechadas do mesmo tamanho aparecem numa linha só, por exemplo “10 sacas de 40 kg (Saca 40 kg / ATACADO)”.",
           <>Para corrigir um saldo, abra o produto e, no cartão da loja, clique em <strong>Contar estoque</strong>. Digite o que você contou nas duas colunas. Para o lacrado, há um campo por tamanho de embalagem, e não um por nome.</>,
           <>Para registrar o que estragou, venceu ou sumiu, clique em <strong>Registrar perda</strong> no mesmo cartão e escolha o motivo.</>,
