@@ -1,5 +1,6 @@
 "use client";
 
+import { Info } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
@@ -96,9 +97,9 @@ export function AjudaDaTela({
             setFixo(true);
           }
         }}
-        className="flex h-6 w-6 items-center justify-center rounded-full border border-borda bg-superficie text-xs font-semibold italic text-texto-secundario hover:text-texto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primaria"
+        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-texto-secundario hover:text-texto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primaria"
       >
-        i
+        <Info className="h-5 w-5" aria-hidden="true" />
       </button>
       {/* O pt-1 do contêiner é a ponte invisível entre o botão e o balão: o ponteiro não sai do componente. */}
       <span
