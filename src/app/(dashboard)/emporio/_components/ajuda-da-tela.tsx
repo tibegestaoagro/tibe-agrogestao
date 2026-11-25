@@ -8,7 +8,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
  * O (i) ao lado do título: o texto de apresentação da tela, fora do caminho de
  * quem já sabe usá-la. Abre com o mouse em cima e fecha ao sair, a menos que
  * tenha sido aberto por clique (aí fica até novo clique, Esc ou clique fora).
- * Toque só alterna.
+ * O foco pelo teclado abre e a saída do foco fecha. Toque só alterna.
  */
 export function AjudaDaTela({
   children,
@@ -25,6 +25,8 @@ export function AjudaDaTela({
   const botao = useRef<HTMLButtonElement>(null);
   const balao = useRef<HTMLSpanElement>(null);
   const idBalao = useId();
+  // O Esc devolve o foco ao botão; sem esta marca, o onFocus reabriria o balão que acabou de fechar.
+  const devolvendoFoco = useRef(false);
 
   useEffect(() => {
     if (!aberto) return;
@@ -39,7 +41,11 @@ export function AjudaDaTela({
       const estavaDentro = raiz.current?.contains(document.activeElement) ?? false;
       setAberto(false);
       setFixo(false);
-      if (estavaDentro) botao.current?.focus();
+      if (estavaDentro) {
+        devolvendoFoco.current = true;
+        botao.current?.focus();
+        devolvendoFoco.current = false;
+      }
     }
     document.addEventListener("pointerdown", fora);
     document.addEventListener("keydown", tecla);
@@ -89,6 +95,10 @@ export function AjudaDaTela({
         aria-label={rotulo}
         aria-expanded={aberto}
         aria-controls={idBalao}
+        onFocus={(e) => {
+          // Só o foco de teclado abre (o clique e o toque também focam, e têm o onClick).
+          if (!devolvendoFoco.current && e.currentTarget.matches(":focus-visible")) setAberto(true);
+        }}
         onClick={() => {
           if (aberto && fixo) {
             fechar();

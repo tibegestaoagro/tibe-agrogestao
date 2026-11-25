@@ -139,10 +139,15 @@ confere("passar o mouse abre o balão", balao_aberto() is True, balao_aberto())
 tecla("Escape", "Escape", 27)
 confere("Esc fecha o balão aberto pelo mouse", balao_aberto() is False, balao_aberto())
 mouse(5, 5)
-# Teclado: foca o botao, Enter abre, Esc fecha e o foco fica no botao.
-js("document.querySelector('button[aria-label=\"Sobre esta tela\"]').focus()")
+# Teclado de verdade: do link do caminho, um Tab chega ao (i) e o foco sozinho abre o balão (desenho 5.2).
+js("document.querySelector('main nav[aria-label=\"Caminho\"] a').focus()")
+tecla("Tab", "Tab", 9)
 time.sleep(0.5)
-print("  observado: foco no (i) sozinho abre o balão? " + str(balao_aberto()))
+confere("Tab até o (i) abre o balão (foco pelo teclado)", foco_no_botao_do_i() and balao_aberto() is True, [foco_no_botao_do_i(), balao_aberto()])
+tecla("Escape", "Escape", 27)
+time.sleep(0.5)
+confere("Esc fecha e o balão não reabre com o foco devolvido", balao_aberto() is False and foco_no_botao_do_i(), [balao_aberto(), foco_no_botao_do_i()])
+# Enter: abre e fixa; Esc fecha e o foco fica no botao.
 tecla("Enter", "Enter", 13)
 confere("Enter no (i) abre o balão", balao_aberto() is True, balao_aberto())
 tecla("Escape", "Escape", 27)
