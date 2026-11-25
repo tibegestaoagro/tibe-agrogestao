@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
@@ -36,11 +36,13 @@ export default async function OrcamentoPage({ params }: { params: Promise<{ id: 
   const { id } = await params;
 
   const db = await getTenantDb();
+  const papel = await papelDoEmporio(db, user);
   const res = await lerOrcamentoAction(db, user, id);
+  if (!res.ok && res.status === 403) redirect("/emporio");
   if (!res.ok) notFound();
   const o = res.data;
   const padraoId = await idDoClientePadrao(db);
-  const podeVender = pode(await papelDoEmporio(db, user), "vendedor_da_loja", o.establishment_id);
+  const podeVender = pode(papel, "vendedor_da_loja", o.establishment_id);
   const faturado = o.situacao === "faturado";
   const cancelado = o.situacao === "cancelado";
   // Editar e cancelar: só o orçamento vivo (aberto ou vencido), como o servidor.

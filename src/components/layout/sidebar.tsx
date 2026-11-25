@@ -137,6 +137,7 @@ export default function Sidebar({
   // Subgrupos: o estado salvo vem do navegador DEPOIS de montar, para a primeira
   // pintura (servidor e cliente) usar só "tem filho ativo" e não divergir.
   const [subgrupos, setSubgrupos] = useState<Record<string, boolean>>({});
+  const [fechadoNaRota, setFechadoNaRota] = useState<{ rota: string; chave: string } | null>(null);
   useEffect(() => {
     try {
       const bruto = window.localStorage.getItem(CHAVE_SUBGRUPOS);
@@ -292,12 +293,19 @@ export default function Sidebar({
                       if (folhas.length === 0) return null;
                       const chave = `${item.label}/${child.label}`;
                       const ativo = folhas.some((f) => f.href === ativoHref);
-                      const aberto = subgrupos[chave] ?? ativo;
+                      // O subgrupo da tela atual abre a cada navegação, para a folha acesa
+                      // nunca ficar escondida; fechá-lo vale só até sair desta rota.
+                      const aberto = ativo
+                        ? !(fechadoNaRota?.rota === pathname && fechadoNaRota.chave === chave)
+                        : (subgrupos[chave] ?? false);
                       return (
                         <div key={chave}>
                           <button
                             type="button"
-                            onClick={() => alternarSubgrupo(chave, !aberto)}
+                            onClick={() => {
+                              if (ativo) setFechadoNaRota(aberto ? { rota: pathname, chave } : null);
+                              alternarSubgrupo(chave, !aberto);
+                            }}
                             aria-expanded={aberto}
                             className={`flex min-h-11 w-full items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primaria md:min-h-0 ${
                               ativo

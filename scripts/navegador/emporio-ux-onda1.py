@@ -96,6 +96,12 @@ confere("abrir Estoque o deixa aberto", expandido("Estoque") is True, expandido(
 ir("/emporio/vendas")
 confere("recarregar a tela: Estoque continua aberto", expandido("Estoque") is True, expandido("Estoque"))
 confere("recarregar a tela: Vendas continua aberto", expandido("Vendas") is True, expandido("Vendas"))
+# Fechar o subgrupo da tela atual vale só nesta rota: ir a outra tela dele o reabre, e a folha acesa aparece.
+js("Array.from(document.querySelectorAll('nav button')).find(x => x.innerText.trim() === 'Vendas').click()")
+time.sleep(0.5)
+confere("fechar Vendas em /emporio/vendas o fecha", expandido("Vendas") is False, expandido("Vendas"))
+ir("/emporio/clientes")
+confere("ir a Clientes (do grupo Vendas) reabre Vendas", expandido("Vendas") is True, expandido("Vendas"))
 js("localStorage.removeItem('tibe:menu:subgrupos')")
 
 passo("2. Dono: Lojas no menu, sem Estabelecimentos")
