@@ -58,21 +58,30 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   - **o manual fica para a onda 7**, depois da 6 (desenho §6). Nas ondas 2 a 6,
     o defasado do manual vai para a lista dela;
   - **o Caixa volta ao Início em Fornecedores e Franqueados** (listas e
-    fichas, por `veAPagina`). A mudança está **só no working tree do
-    desktop, sem commit**, porque falta ver no navegador. O roteiro
-    `emporio-ux-onda1` já tem o confere nos dois sentidos (passo 8);
-  - a prova do menu no navegador, sem plantio: rodar `emporio-ux-onda1`
-    inteiro. A primeira tentativa foi interrompida por falta de memória (o
-    `next dev` órfão chegou a 4,9 GB).
+    fichas, por `veAPagina`). Commit `f52e3723`, **só na branch, não em
+    produção** (o merge precisa de autorização nova). Provado nos dois
+    sentidos no roteiro `emporio-ux-onda1` (passo 8): 0 falhas com a trava, 4
+    sem ela;
+  - a prova do menu no navegador, sem plantio: `emporio-ux-onda1` inteiro, 0
+    falhas.
+
+  Para roteiros, suba o `next dev` com `--disable-source-maps` e
+  `NODE_OPTIONS=--max-old-space-size=3072` (o comum passou de 5 GB e foi
+  derrubado). Se o navegador recarregar sem parar ("HMR hash mismatch" no
+  WebSocket), religue o `next dev`.
 
   **Próximo, nesta ordem:**
-  1. rodar `emporio-ux-onda1` e fazer o commit da trava do Caixa;
-  2. a limpeza dos 12 roteiros antigos, prioridade antes da onda 2. O
-     briefing está em `.superpowers/sdd/2026-11-24-emporio-ux-onda1-navegacao/limpeza-roteiros-brief.md`
-     (git-ignorado), e as causas em `task-7-report.md`. Os 12: informacao-amarrada,
-     paginacao-listas, f1, f2a, f3a, f3b, f4a, f4b, f5, financeiro-acordo,
-     relatorios-exportacao e romaneio;
-  3. o plano da onda 2 (Início, §5.5), com aprovação do usuário.
+  1. a limpeza dos roteiros antigos, prioridade antes da onda 2, **em
+     curso**. O briefing e o relato estão em
+     `.superpowers/sdd/2026-11-24-emporio-ux-onda1-navegacao/`
+     (`limpeza-roteiros-brief.md` e `limpeza-roteiros-report.md`,
+     git-ignorados). Até agora, só em `scripts/` e sem commit: 26 roteiros
+     verdes, 9 corrigidos à espera de nova rodada, f1, f2a e f3b sem
+     diagnóstico, e 10 que ainda não rodaram;
+  2. a onda 2 (Início, §5.5). O plano é
+     `docs/superpowers/plans/2026-11-25-emporio-ux-onda2-inicio.md` (commit
+     `4d0f91d1`), e espera a aprovação do usuário e das 8 decisões listadas
+     nele.
 
   O roteiro descartável do tour de UX (só no desktop) não é versionado.
 - Em produção desde 24/11 (merge `176a3dba`, CI e Vercel verdes): lint de 30
