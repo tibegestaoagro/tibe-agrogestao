@@ -49,7 +49,8 @@ Quem usa, e o que cada um precisa (da entrevista):
 **Anti-objetivos** (falha mesmo funcionando)
 
 - A Agromax abrir o sistema num dia e não achar uma tela que usava: todo
-  endereço antigo leva à tela nova, e o manual acompanha cada onda.
+  endereço antigo leva à tela nova (o manual é refeito na onda 7; até lá, os
+  redirecionamentos levam o link antigo à tela nova).
 - O caixa perder um caminho que tem hoje (por exemplo, receber fiado no balcão).
 - Alguém passar a ver o que não via: cada bloco juntado mantém a permissão que
   tinha.
@@ -294,8 +295,17 @@ do e-mail, caia em página vazia. `/emporio/caixa` continua sendo o Caixa.
 ## 6. Ondas de entrega
 
 Cada onda: plano próprio, subagentes por time (ver `orquestrar-ondas`),
-validação viva no Chrome de testes, manual e GIFs atualizados, juiz, e merge
-na `main` **só com autorização do usuário na conversa**.
+validação viva no Chrome de testes, juiz, a varredura de textos defasados
+(`npm run textos-defasados`) e merge na `main` **só com autorização do usuário
+na conversa**.
+
+**O manual é a última coisa a ajustar** (decisão do usuário, 25/11/2026): as
+telas ainda vão mudar muito, então texto, figuras e GIFs são refeitos de uma
+vez na onda 7, depois da 6. A onda 1 já atualizou o manual e fica como está.
+Nas ondas 2 a 6, o texto do manual que ficar defasado vai para a lista da onda
+7, e não é corrigido na hora. Os redirecionamentos do §5.11 continuam
+obrigatórios em cada onda, porque é por eles que nenhum link do manual cai em
+página vazia nesse meio-tempo.
 
 | onda | conteúdo | depende de |
 |---|---|---|
@@ -305,6 +315,7 @@ na `main` **só com autorização do usuário na conversa**.
 | 4. Dinheiro e listas | §5.8, §5.9, §5.11 dos endereços que somem nesta onda | 1 |
 | 5. Estatísticas | §5.10, §5.11 dos endereços que somem nesta onda | 1 |
 | 6. Loja no topo | §5.3, segunda parte | 4 e 5 |
+| 7. Manual | texto, figuras e GIFs do `/manual` para as telas novas, com a lista de defasados juntada nas ondas 2 a 6 | 2 a 6 |
 
 As ondas 2 a 5 não dependem umas das outras e podem andar em qualquer ordem
 depois da 1.

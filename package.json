@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint . --max-warnings 0",
     "check": "tsx scripts/check-repo.ts",
+    "textos-defasados": "tsx scripts/textos-defasados.ts",
     "worker": "tsx scripts/worker-rotina.ts",
     "cenario:emporio-demo": "tsx scripts/cenario-demonstracao-emporio.ts",
     "postinstall": "prisma generate",

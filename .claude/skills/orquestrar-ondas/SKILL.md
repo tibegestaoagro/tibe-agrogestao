@@ -72,6 +72,28 @@ antes de cada commit.
 ⚠️ **Nunca abra exceção "só desta vez o implementador commita".** É exatamente
 assim que a corrida volta. A regra só funciona se for absoluta.
 
+### Ao fechar uma entrega, antes de pedir o merge: textos defasados
+
+Rotina pedida pelo usuário em 25/11/2026. No fim da onda 1 da UX do Empório, 12
+roteiros de navegador esperavam frases que as telas já não tinham, e ninguém
+viu na hora. Toda entrega (uma "onda" de uma frente, como as do desenho de UX)
+fecha com estes três passos, depois do juiz e antes do relatório ao usuário:
+
+1. `npm run textos-defasados` (base `main` por padrão). A ferramenta lista
+   todo texto apagado de `src/` nesta branch que ainda aparece em roteiro,
+   suíte ou manual. Ela sai com 1 se houver achado em roteiro ou suíte.
+2. **Corrija os roteiros e as suítes para a tela atual**, na mesma entrega.
+   Antes de trocar o texto esperado, confirme no desenho ou na spec que a
+   mudança foi intencional. Se não foi, o defeito está na tela, e o teste
+   estava certo.
+3. **Rode todos os roteiros da área** (`npm run navegador` lista; no Empório,
+   todos os `emporio-*`) com o cenário limpo antes de cada um. Quem está
+   vermelho por motivo anterior à entrega entra no relatório com a causa, e
+   não fica como "falha conhecida" sem nome.
+
+O achado no manual não bloqueia: na frente de UX do Empório ele vai para a
+lista da onda 7 (o manual é a última coisa a ajustar, decisão de 25/11/2026).
+
 ## 4. As três costuras entre os times
 
 São as fronteiras onde dois times se encostam. Sem regra explícita viram
