@@ -25,14 +25,15 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-25. **Frente em curso: UX e UI só do Empório**, na
+- Atualizado em: 2026-11-25 (fim do dia). **Frente em curso: UX e UI só do Empório**, na
   branch `ux-emporio`. O desenho foi aprovado:
   [2026-11-24-emporio-ux-design.md](../superpowers/specs/2026-11-24-emporio-ux-design.md)
   (Q387 a Q397, 6 ondas). O briefing tem a entrevista e os mockups:
   [briefing](../superpowers/specs/2026-11-24-emporio-ux-briefing.md).
-  **Onda 1 (navegação) está pronta na branch e NÃO está na main.** O plano é
-  `2026-11-24-emporio-ux-onda1-navegacao`, e os commits vão de `04a69d3e` a
-  `9f3d795d`. A onda não tem migração. Entregue:
+  **Onda 1 (navegação) em produção desde 25/11, depois do merge autorizado
+  pelo usuário (avanço rápido de `ux-emporio` sobre `176a3dba`, sem
+  migração).** O plano é `2026-11-24-emporio-ux-onda1-navegacao`, e os commits
+  vão de `04a69d3e` a `9f3d795d`. Entregue:
   - menu em subgrupos com memória (`src/lib/emporio/menu.ts`, suíte `m130`);
   - Vender em destaque;
   - `CabecalhoDaTela` e o (i) (`AjudaDaTela`, ícone Info suave, abre com
@@ -49,17 +50,31 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   - juiz 8/10 depois das correções (7/10 antes);
   - roteiro `emporio-ux-onda1` provado nos dois sentidos para o (i) e o menu.
 
-  Pendências:
-  - fazer o plantio em `menu.ts` para provar o roteiro inteiro nos dois
-    sentidos (o classificador negou ao subagente; decisão do usuário);
-  - o Caixa abre fornecedores e franqueados pela URL (desenho §9, perguntar);
-  - 12 roteiros antigos falham por motivo anterior à onda (frase mudada,
-    lista paginada, dados sujos no banco local); detalhe em
-    `.superpowers/sdd/.../task-7-report.md` (git-ignorado).
+  Decisões do usuário em 25/11, depois do relatório:
+  - **rotina de fim de onda** (commit `28ecad0a`, também em produção):
+    `npm run textos-defasados` lista o texto apagado de `src/` que roteiro,
+    suíte ou manual ainda esperam. A skill `orquestrar-ondas` (seção 3) manda
+    rodá-lo, corrigir e rodar todos os roteiros da área antes de pedir merge;
+  - **o manual fica para a onda 7**, depois da 6 (desenho §6). Nas ondas 2 a 6,
+    o defasado do manual vai para a lista dela;
+  - **o Caixa volta ao Início em Fornecedores e Franqueados** (listas e
+    fichas, por `veAPagina`). A mudança está **só no working tree do
+    desktop, sem commit**, porque falta ver no navegador. O roteiro
+    `emporio-ux-onda1` já tem o confere nos dois sentidos (passo 8);
+  - a prova do menu no navegador, sem plantio: rodar `emporio-ux-onda1`
+    inteiro. A primeira tentativa foi interrompida por falta de memória (o
+    `next dev` órfão chegou a 4,9 GB).
 
-  **Próximo:** o usuário vê o relatório e autoriza o merge; depois, plano da
-  onda 2. O roteiro descartável `scripts/navegador/ux-tour-emporio.py` não é
-  versionado.
+  **Próximo, nesta ordem:**
+  1. rodar `emporio-ux-onda1` e fazer o commit da trava do Caixa;
+  2. a limpeza dos 12 roteiros antigos, prioridade antes da onda 2. O
+     briefing está em `.superpowers/sdd/2026-11-24-emporio-ux-onda1-navegacao/limpeza-roteiros-brief.md`
+     (git-ignorado), e as causas em `task-7-report.md`. Os 12: informacao-amarrada,
+     paginacao-listas, f1, f2a, f3a, f3b, f4a, f4b, f5, financeiro-acordo,
+     relatorios-exportacao e romaneio;
+  3. o plano da onda 2 (Início, §5.5), com aprovação do usuário.
+
+  O roteiro descartável `scripts/navegador/ux-tour-emporio.py` não é versionado.
 - Em produção desde 24/11 (merge `176a3dba`, CI e Vercel verdes): lint de 30
   avisos para 0, travado em `--max-warnings 0`; passo 2 do roteiro franqueado
   estável (`_abrir_select`).
