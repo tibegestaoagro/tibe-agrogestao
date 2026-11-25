@@ -366,8 +366,9 @@ confere("o Gestor NAO tem o botao Adiar", botoes_com_texto("Adiar") == 0, botoes
 confere("o Gestor NAO tem o botao Cancelar", botoes_com_texto("Cancelar") == 0, botoes_com_texto("Cancelar"))
 
 entrar("financeiro")
-ir("/emporio/financeiro/pagar")
-confere("o Financeiro ve a conta em A pagar", esperar(lambda: tem(FORNECEDOR), 30), texto_principal(400))
+# Filtrada pela loja do cenario: a conta de A pagar pagina e a conta do seed acumula centenas de outras lojas.
+ir("/emporio/financeiro/pagar?loja=" + (loja1 or {}).get("id", ""))
+confere("o Financeiro ve a conta em A pagar",esperar(lambda: tem(FORNECEDOR), 30), texto_principal(400))
 confere("o Financeiro tem o botao Adiar", esperar(lambda: botoes_com_texto("Adiar") > 0, 20), botoes_com_texto("Adiar"))
 confere("o Financeiro tem o botao Cancelar", botoes_com_texto("Cancelar") > 0, botoes_com_texto("Cancelar"))
 

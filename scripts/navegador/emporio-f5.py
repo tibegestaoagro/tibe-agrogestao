@@ -43,9 +43,10 @@ confere("a conta da fazenda continua", tem("F5 Diesel"))
 link = js("(() => { const a = Array.from(document.querySelectorAll('a')).find(x => x.innerText.includes('Pagar F5 Casa do Adubo')); return a ? a.getAttribute('href') : null; })()")
 confere("o link da conta leva ao Empório, não ao Financeiro", link == "/emporio/compras", link)
 
-passo("2. Owner: o Financeiro tem a área do Empório")
+passo("2. Owner: o Financeiro do Tibé é só da fazenda (Q222)")
 tudo_o, fazenda_o = dre("tudo"), dre("fazenda")
-confere("para o Owner, Tudo é diferente de Fazenda (o Empório entra)", abs(tudo_o - fazenda_o) > 0.01, (tudo_o, fazenda_o))
+# Q222 (07/11/2026): o Financeiro do Tibé é só da fazenda, e `area` é ignorado, até para o Owner.
+confere("para o Owner, Tudo é igual a Fazenda (o Empório tem o financeiro dele)", abs(tudo_o - fazenda_o) < 0.01, (tudo_o, fazenda_o))
 
 passo("3. Owner: primeiros passos da loja nova")
 ir("/emporio")

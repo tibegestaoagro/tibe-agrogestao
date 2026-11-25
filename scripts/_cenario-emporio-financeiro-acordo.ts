@@ -107,6 +107,8 @@ async function limpar(tenant_id: string) {
   await prisma.stockMovement.deleteMany({ where: { tenant_id, OR: [{ establishment_id: { in: lojas } }, { product_id: { in: produtos } }] } });
   await prisma.emporioSalePayment.deleteMany({ where: { tenant_id, sale_id: { in: vendas } } });
   await prisma.financialPayment.deleteMany({ where: { tenant_id, entry_id: { in: lancamentos } } });
+  // A ocorrência de despesa fixa aponta para o lançamento que ela gerou (a tela de Despesas as cria ao abrir): sai antes dele.
+  await prisma.fixedExpenseOccurrence.deleteMany({ where: { tenant_id, financial_entry_id: { in: lancamentos } } });
   await prisma.financialEntry.deleteMany({ where: { tenant_id, id: { in: lancamentos } } });
   await prisma.emporioCreditAgreement.deleteMany({ where: { tenant_id, id: { in: acordos } } });
   await prisma.emporioSaleItem.deleteMany({ where: { tenant_id, sale_id: { in: vendas } } });
@@ -148,6 +150,12 @@ async function main() {
   const tenant_id = owner.tenant_id;
 
   await limpar(tenant_id);
+  // A aba Esperando lista os pedidos do mais antigo ao mais novo, 20 por página: os pendentes de outros
+  // cenários (dezenas) empurrariam os daqui para fora da página 1. Os alheios ficam recusados (não apagados).
+  await prisma.emporioPaymentRequest.updateMany({
+    where: { tenant_id, status: "pendente" },
+    data: { status: "recusado", reason: "Encerrado pela limpeza do cenário de teste", decided_by_user_id: owner.id, decided_at: new Date() },
+  });
   if (process.argv.includes("--limpar")) {
     // So apaga: o manual fotografa a lista de clientes e as aprovacoes sem os dados de teste.
     await prisma.emporioSettings.updateMany({ where: { tenant_id }, data: { payment_approval_limit: null } });

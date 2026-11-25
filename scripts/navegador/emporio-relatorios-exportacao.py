@@ -106,8 +106,8 @@ confere("o bloco 'Por origem' existe", tem("Por origem"), texto_do_main(1500))
 tabela = linhas_da_tabela_por_origem() or []
 confere("a tabela tem as duas linhas, Balcão e E-commerce", len(tabela) == 2 and tabela[0][0] == "Balcão" and tabela[1][0] == "E-commerce", tabela)
 if len(tabela) == 2:
-    confere("Balcão: 3 vendas, R$ 500,00, frete R$ 0,00, 62,5%", tabela[0][1:] == ["3", "R$ 500,00", "R$ 0,00", "62,5%"], tabela[0])
-    confere("E-commerce: 1 venda, R$ 300,00 (sem o frete), frete R$ 30,00, 37,5%", tabela[1][1:] == ["1", "R$ 300,00", "R$ 30,00", "37,5%"], tabela[1])
+    confere("Balcão: 3 vendas, R$ 500,00, frete R$ 0,00, crédito de franqueado R$ 0,00, 62,5%", tabela[0][1:] == ["3", "R$ 500,00", "R$ 0,00", "R$ 0,00", "62,5%"], tabela[0])
+    confere("E-commerce: 1 venda, R$ 300,00 (sem o frete), frete R$ 30,00, crédito de franqueado R$ 0,00, 37,5%", tabela[1][1:] == ["1", "R$ 300,00", "R$ 30,00", "R$ 0,00", "37,5%"], tabela[1])
 sales = api_estavel("GET", "/api/v1/emporio/reports/sales?establishment_id=" + LOJA + "&from=" + HOJE.strftime("%Y-%m-01") + "&to=" + HOJE.isoformat())
 origem = {o["origin"]: o for o in (sales["body"]["data"].get("by_origin") or [])}
 confere("a API: e-commerce net 300 (frete 30 fora), balcão net 500", origem.get("ecommerce", {}).get("net") == 300 and origem.get("ecommerce", {}).get("freight") == 30 and origem.get("balcao", {}).get("net") == 500, origem)

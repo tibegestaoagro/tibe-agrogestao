@@ -213,7 +213,10 @@ js("(() => { const n = document.querySelector('.cupom .nome'); if (n) n.textCont
 confere("nada passa da largura do papel", js("(() => { const a = document.querySelector('.cupom'); const lim = a.getBoundingClientRect().right + 0.5; return a.scrollWidth <= a.clientWidth && Array.from(a.querySelectorAll('*')).every(e => e.getBoundingClientRect().right <= lim); })()"))
 
 passo("6b. Observação da venda: quadro no A4 e Obs. no cupom")
-venda_obs = [s for s in api("GET", "/api/v1/emporio/sales")["body"]["data"] if s.get("notes") == "Entregar na porteira"]
+# A lista de vendas pagina em 20, das mais novas: com centenas de vendas de outros cenarios a da observacao
+# (uma hora mais velha) sai da pagina 1. Filtra pela loja do cenario.
+loja_f6b = next((l for l in api("GET", "/api/v1/emporio/establishments")["body"]["data"] if l.get("name") == "F6b Loja 1"), {})
+venda_obs = [s for s in api("GET", "/api/v1/emporio/sales?establishment_id=" + loja_f6b.get("id", "sem-loja"))["body"]["data"] if s.get("notes") == "Entregar na porteira"]
 confere("o cenário tem a venda com observação", len(venda_obs) == 1, len(venda_obs))
 if venda_obs:
     ir("/emporio/imprimir/venda/" + venda_obs[0]["id"] + "?formato=a4")

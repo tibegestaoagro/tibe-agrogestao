@@ -182,7 +182,7 @@ confere("a linha fixa é a primeira da janela", bool(js("(() => { const o = " + 
 passo("2. 8761, o meio do telefone, atravessando o hífen")
 digitar("8761")
 esperar_lista()
-confere("só a Maria Souza", nomes_da_lista() == [MARIA_SOUZA], nomes_da_lista())
+confere("só a Maria Souza (do cenário)", nomes_do_cenario() == [MARIA_SOUZA], nomes_da_lista())
 t = texto_da_janela()
 confere("mostra o telefone mascarado", TELEFONE_DA_MARIA in t, t[:300])
 confere("mostra o CPF mascarado", "556.315.002-05" in t, t[:300])

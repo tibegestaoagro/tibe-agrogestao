@@ -22,7 +22,7 @@ import re
 LOJA1 = "Ia Loja 1"
 LOJA2 = "Ia Loja 2"
 FICHA = "Ia Cliente Ficha"
-FRASE_CARTAO = "Parcela de cartão cai sozinha na data; a conferência vem na próxima etapa."
+FRASE_CARTAO = "Nenhuma parcela de cartão passou do prazo sem ser conferida."
 
 
 _api_da_lib = api
@@ -152,7 +152,7 @@ confere("Vencido: o total do recorte do fiado e R$ 250,00 em 3 clientes", "R$ 25
 confere("Vencido: o cliente Parcial mostra o aberto de R$ 40,00 (nao os 100 vendidos)", "R$ 40,00" in linha("Ia Cliente Parcial"), linha("Ia Cliente Parcial"))
 confere("Vencido: so o cheque IA-K1 (bom para ontem)", "IA-K1" in cheques and "IA-K2" not in cheques, cheques[:200])
 confere("Vencido: o boleto vencido IA-B1 aparece e o IA-B2 (a vencer) nao", bool(esperar(lambda: "IA-B1" in (secao("Boletos") or ""), 20)) and "IA-B2" not in (secao("Boletos") or ""), (secao("Boletos") or "")[:300])
-confere("Vencido: a secao de cartoes traz a frase da proxima etapa", FRASE_CARTAO in cartoes, cartoes[:300])
+confere("Vencido: a secao de cartoes diz que nada passou do prazo sem conferir", FRASE_CARTAO in cartoes, cartoes[:300])
 confere("Vencido: o cartao ativo e o Vencido e aparece 'Ver tudo'", cartao_ativo() == "Vencido" and js("!!Array.from(document.querySelectorAll('main a')).find(x => x.innerText.trim() === 'Ver tudo')"))
 
 confere("clica em Vence hoje", clicar_cartao("Vence hoje"))

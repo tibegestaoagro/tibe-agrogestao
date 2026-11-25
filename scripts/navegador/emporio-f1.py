@@ -10,7 +10,9 @@
 # sessao: oper operador-emporio@teste.local
 
 
-def tem(texto, n=6000):
+def tem(texto, n=60000):
+    # 6000 caracteres não bastam: o Início lista os avisos de cada loja da conta (dezenas, de outros cenários)
+    # antes dos cartões Lojas e Produtos.
     return texto in (js("(document.querySelector('main') || document.body || { innerText: '' }).innerText.slice(0, " + str(n) + ")") or "")
 
 
@@ -100,7 +102,9 @@ passo("7. Operador: produto sim, loja e preço não (Q55)")
 # F6b: o operador do cenário é Vendedor com todas as chaves, e Vendedor só vê as
 # lojas a que está ligado. Aqui ele é ligado às duas; o passo 8 deixa só a Loja 1.
 entrar("owner")
-ops = [u for u in api("GET", "/api/v1/users")["body"]["data"] if u.get("email") == "operador-emporio@teste.local"]
+# Q190: /api/v1/users lista só os usuários do Tibé; quem tem função no Empório (o operador deste cenário é Vendedor)
+# vem da Equipe do Empório.
+ops = [u for u in api("GET", "/api/v1/emporio/team")["body"]["data"]["users"] if u.get("email") == "operador-emporio@teste.local"]
 for loja in (loja1, loja2):
     r = api("PUT", "/api/v1/emporio/establishments/" + loja["id"] + "/users", {"user_ids": [ops[0]["id"]]})
     confere("operador ligado a " + loja["name"], r["status"] == 200, r)

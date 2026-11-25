@@ -38,6 +38,11 @@ async function main() {
   const produtos = (await prisma.product.findMany({ where: { tenant_id, name: { startsWith: PREFIXO } }, select: { id: true } })).map((p) => p.id);
   const compras = (await prisma.emporioPurchase.findMany({ where: { tenant_id, establishment_id: { in: lojas } }, select: { id: true } })).map((c) => c.id);
   await prisma.stockMovement.deleteMany({ where: { tenant_id, OR: [{ establishment_id: { in: lojas } }, { product_id: { in: produtos } }] } });
+  // A compra à vista do roteiro sai da conta "F2a Banco" (Q215): o pagamento e o movimento dela saem antes.
+  const contas = (await prisma.bankAccount.findMany({ where: { tenant_id, name: { startsWith: PREFIXO } }, select: { id: true } })).map((c) => c.id);
+  const entradas = (await prisma.financialEntry.findMany({ where: { tenant_id, related_module: "emporio", related_id: { in: compras } }, select: { id: true } })).map((e) => e.id);
+  await prisma.cashMovement.deleteMany({ where: { tenant_id, OR: [{ bank_account_id: { in: contas } }, { establishment_id: { in: lojas } }] } });
+  await prisma.financialPayment.deleteMany({ where: { tenant_id, entry_id: { in: entradas } } });
   await prisma.financialEntry.deleteMany({ where: { tenant_id, related_module: "emporio", related_id: { in: compras } } });
   await prisma.emporioPurchaseItem.deleteMany({ where: { tenant_id, purchase_id: { in: compras } } });
   await prisma.emporioPurchase.deleteMany({ where: { tenant_id, id: { in: compras } } });
@@ -51,6 +56,7 @@ async function main() {
   await prisma.fixedExpenseSplit.deleteMany({ where: { tenant_id, establishment_id: { in: lojas } } });
   await prisma.fixedExpenseOccurrence.deleteMany({ where: { tenant_id, establishment_id: { in: lojas } } });
   await prisma.establishment.deleteMany({ where: { tenant_id, id: { in: lojas } } });
+  await prisma.bankAccount.deleteMany({ where: { tenant_id, id: { in: contas } } });
 
   const { criarEstabelecimentoAction, criarProdutoEmporioAction, criarApresentacaoAction } = await import("@/lib/actions/emporio-catalogo");
   const db = prismaForTenant(tenant_id);
@@ -79,7 +85,15 @@ async function main() {
     if (!r.ok) throw new Error(`apresentacao ${a.name}: ${r.message}`);
   }
 
+  // A conta bancária da compra à vista (Q215): o servidor exige de onde saiu o dinheiro, e o saldo dela cobre os R$ 300,00.
+  const caixa = await import("@/lib/actions/emporio-caixa");
+  const conta = await caixa.criarContaAction(db, ator, { name: `${PREFIXO}Banco`, bank: "Banco F2a" });
+  if (!conta.ok) throw new Error(`conta: ${conta.message}`);
+  const saldo = await caixa.saldoInicialCaixaAction(db, ator, { bank_account_id: (conta.data as { id: string }).id, amount: 5000 });
+  if (!saldo.ok) throw new Error(`saldo da conta: ${saldo.message}`);
+
   console.log("Conta do seed:", tenant_id, "recurso ligado para a conta inteira");
+  console.log("Conta bancária:", (conta.data as { id: string }).id);
   console.log("Loja:", (loja.data as { id: string }).id, "Produto do Empório:", pid);
   console.log("Limpos:", lojas.length, "loja(s),", produtos.length, "produto(s),", compras.length, "compra(s)");
   await prisma.$disconnect();

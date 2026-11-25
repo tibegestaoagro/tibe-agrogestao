@@ -76,7 +76,7 @@ confere("escolhe a loja", escolher("Loja", "F3a Loja") is True)
 
 passo("1. Vender 1 kg de sal: a saca abre sozinha (aceite §25)")
 confere("adiciona F3a Sal pela busca", buscar_e_adicionar("F3a Sal"))
-confere("vem o Quilo, a menor apresentação, a R$ 12,00", tem("Preço sugerido R$ 12,00"))
+confere("vem o Quilo, a menor apresentação, a R$ 12,00", tem("Preço R$ 12,00"))
 clicar("+ Dinheiro")
 time.sleep(0.5)
 por_aria("Valor em Dinheiro (R$)", "20,00")

@@ -7,7 +7,7 @@
 #   Loja 2: resultado -805, e a venda de 1 kg a R$ 5 com margem negativa
 #   o somado e a soma das lojas (a conta do seed tem as lojas das outras fases)
 #   o aluguel de R$ 2.000 dividido 50/50 entra uma vez
-#   no Financeiro, Fazenda + Empório = Tudo
+#   no Financeiro, a area e ignorada (so fazenda, Q222)
 #
 # cenario: scripts/_cenario-emporio-f4b.ts
 # sessao: owner owner@example.com
@@ -65,21 +65,20 @@ confere("as duas lojas da F4b aparecem com -710 e -805", tem("F4b Loja 1") and t
 passo("3. Produtos e margem negativa na Loja 2")
 ir("/emporio/resultado?loja=" + l2["id"] + "&mes=" + mes)
 confere("as duas listas de produtos com a ração", tem("Mais vendem") and tem("Mais dão margem") and tem("F4b Ração"))
-confere("a venda de 1 kg a R$ 5 aparece com a causa em português", tem("Preço abaixo do custo") and tem("Ver venda"))
-link = js("(() => { const a = Array.from(document.querySelectorAll('a')).find(x => x.innerText.trim() === 'Ver venda'); return a ? a.getAttribute('href') : null; })()")
+confere("a venda de 1 kg a R$ 5 aparece com a causa em português", tem("Preço abaixo do custo") and tem("Venda nº"))
+# O link da linha virou "Venda nº N" (f4475b86); a linha certa é a da causa "Preço abaixo do custo".
+link = js("(() => { const tr = Array.from(document.querySelectorAll('tr')).find(r => r.innerText.includes('Preço abaixo do custo')); const a = tr ? Array.from(tr.querySelectorAll('a')).find(x => x.innerText.trim().startsWith('Venda')) : null; return a ? a.getAttribute('href') : null; })()")
 confere("o link leva à venda", bool(link) and link.startswith("/emporio/vendas/"), link)
 
-passo("4. O Financeiro: Fazenda + Empório = Tudo")
+# Q222 (07/11/2026): o Financeiro do Tibé é só da fazenda. O parâmetro `area` segue
+# aceito, mas é ignorado, e o seletor de área saiu da tela. O Empório tem o seu em
+# /emporio/financeiro. Este passo prova o novo contrato, no lugar de "Fazenda + Empório = Tudo".
+passo("4. O Financeiro é só da fazenda: area ignorada, sem seletor (Q222)")
 tudo, fazenda, emporio = dre("tudo"), dre("fazenda"), dre("emporio")
-confere("o resultado do mês por área fecha: fazenda + empório = tudo", abs((fazenda + emporio) - tudo) < 0.01, (fazenda, emporio, tudo))
+confere("pedir Tudo ou Empório devolve o resultado da Fazenda", abs(tudo - fazenda) < 0.01 and abs(emporio - fazenda) < 0.01, (fazenda, emporio, tudo))
 ir("/financeiro?area=tudo")
-confere("o seletor de área aparece na conta com fazenda e Empório", bool(js("!!Array.from(document.querySelectorAll('button, [role=combobox]')).find(b => b.getAttribute('aria-label') === 'Área')")))
-confere("escolhe Empório na tela", escolher_por_aria("Área", "Empório") is True)
-confere("a URL passa a ter area=emporio", esperar(lambda: "area=emporio" in (js("location.search") or ""), 30), js("location.search"))
-confere("o aviso de que a fazenda não se aplica", esperar(lambda: tem("O seletor de fazenda não se aplica ao Empório."), 30))
-ir("/financeiro")
-confere("sem area na URL, volta a escolha lembrada (Empório)", esperar(lambda: "area=emporio" in (js("location.search") or ""), 40), js("location.search"))
-ir("/financeiro?area=tudo")
+confere("o Financeiro não tem o seletor de área", not js("!!Array.from(document.querySelectorAll('button, [role=combobox]')).find(b => b.getAttribute('aria-label') === 'Área')"))
+confere("nem o aviso do Empório", not tem("O seletor de fazenda não se aplica ao Empório."))
 
 passo("5. O Resultado somado no celular (390 px)")
 cdp("Emulation.setDeviceMetricsOverride", width=390, height=844, deviceScaleFactor=3, mobile=True)

@@ -49,6 +49,14 @@ async function main() {
   }
   if (!dono) throw new Error("Dono da conta so de Empório nao foi criado.");
 
+  // A conta nasce em teste de 14 dias: depois disso o acesso cai em
+  // /configuracoes/assinatura e o roteiro nao abre nenhuma tela. A cada rodada
+  // o teste volta a ter 14 dias (banco local, travado por exigirBancoLocal).
+  await prisma.tenant.update({
+    where: { id: dono.tenant_id },
+    data: { status: "trial", trial_ends_at: new Date(Date.now() + 14 * 24 * 3600 * 1000) },
+  });
+
   const ligado = await setTenantFeatureAction({
     tenantId: dono.tenant_id,
     key: "emporio",

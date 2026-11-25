@@ -84,6 +84,12 @@ def id_do_cliente(nome):
     return (c or {}).get("id", "")
 
 
+def a_pagar_da_loja1():
+    """A pagar filtrado pela Aco Loja 1: a lista pagina em 20 e a conta do seed acumula centenas de contas de outros cenarios."""
+    loja = next((l for l in lista_da_api("/api/v1/emporio/establishments") if l.get("name") == LOJA1), None)
+    return "/emporio/financeiro/pagar?loja=" + (loja or {}).get("id", "")
+
+
 def vendas_concluidas(cliente_id):
     return len(lista_da_api("/api/v1/emporio/sales?status=concluida&customer_id=" + cliente_id + "&limit=200"))
 
@@ -203,7 +209,7 @@ def conta_nossa(valor):
 
 def pagar_pela_tela(valor):
     """No A pagar, marca a conta de `valor` do Aco Fornecedor e paga da conta Aco Banco."""
-    ir("/emporio/financeiro/pagar")
+    ir(a_pagar_da_loja1())
     confere("a conta de " + valor + " esta em A pagar", esperar(lambda: conta_nossa(valor), 60), texto_principal(500))
     confere("marca a conta de " + valor, esperar(lambda: marcar_conta(valor), 20))
     abre = abrir_painel_com(lambda: js("(() => { const b = Array.from(document.querySelectorAll('button')).find(x => x.innerText.trim().startsWith('Pagar selecionadas')); if (b) b.click(); })()"))
@@ -324,7 +330,7 @@ confere("nenhum pedido pendente ainda", len(pedidos_pendentes()) == 0, pedidos_p
 pagar_pela_tela("R$ 900,00")
 confere("o aviso diz que ficou esperando aprovacao", esperar(lambda: tem_no_corpo("Ficou esperando aprovação do Dono ou do Gerente geral"), 20), texto_principal(300))
 confere("a API lista 1 pedido pendente de R$ 900,00", esperar(lambda: len(pedidos_pendentes()) == 1 and abs(float(pedidos_pendentes()[0].get("total")) - 900) < 0.005, 30), pedidos_pendentes())
-ir("/emporio/financeiro/pagar")
+ir(a_pagar_da_loja1())
 confere("a conta de R$ 900,00 continua em A pagar (nao foi paga)", esperar(lambda: conta_nossa("R$ 900,00"), 40))
 ir("/emporio/financeiro")
 confere("o Hoje mostra o cartao Esperando aprovacao", esperar(lambda: tem("Esperando aprovação") and tem("de pagamento acima do teto"), 40), texto_principal(800))
@@ -343,7 +349,7 @@ js("(() => { const d = document.querySelector('[role=alertdialog], [role=dialog]
 confere("o pedido some da fila de espera", esperar(lambda: len(pedidos_pendentes()) == 0, 60), pedidos_pendentes())
 confere("a tela nao mostra mais o pedido de R$ 900,00 em Esperando", esperar(lambda: not pedido_nosso_na_tela("R$ 900,00"), 40), texto_principal(500))
 entrar("financeiro")
-ir("/emporio/financeiro/pagar")
+ir(a_pagar_da_loja1())
 confere("a conta de R$ 900,00 saiu de A pagar depois de aprovada", esperar(lambda: not conta_nossa("R$ 900,00"), 40), texto_principal(600))
 pagar_pela_tela("R$ 700,00")
 confere("o segundo pedido (R$ 700,00) espera aprovacao", esperar(lambda: len(pedidos_pendentes()) == 1, 30), pedidos_pendentes())
@@ -359,7 +365,7 @@ confere("nenhum pedido pendente depois de recusar", esperar(lambda: len(pedidos_
 ir("/emporio/financeiro/aprovacoes?status=decididos")
 confere("Decididos mostra 'Aprovado' e 'Recusado' com o motivo", esperar(lambda: tem("Aprovado por") and tem("Recusado por") and tem("Motivo: Fornecedor vai rever o valor"), 40), texto_principal(1200))
 entrar("financeiro")
-ir("/emporio/financeiro/pagar")
+ir(a_pagar_da_loja1())
 confere("a conta recusada de R$ 700,00 continua em A pagar", esperar(lambda: conta_nossa("R$ 700,00"), 40), texto_principal(600))
 
 # --- 4 ---------------------------------------------------------------------------------
@@ -379,7 +385,7 @@ confere("a API guarda o carimbo no movimento de R$ 300,00", bool(linha and linha
 depois = extrato_da_api(conta)
 confere("o total a conferir caiu em uma linha", depois.get("unreconciled_count") == sem_antes - 1, [sem_antes, depois.get("unreconciled_count")])
 ir("/emporio/financeiro/caixa?lugar=conta:" + conta + "&carimbo=sem")
-confere("o filtro Só a conferir esta marcado", esperar(lambda: js("!!document.querySelector('input[name=carimbo]:checked')"), 40), texto_principal(500))
+confere("o filtro Só a conferir esta marcado", esperar(lambda: js("!!Array.from(document.querySelectorAll('main a')).find(a => a.innerText.trim() === 'Só a conferir' && a.getAttribute('aria-current') === 'true')"), 40), texto_principal(500))
 confere("com o filtro, a linha carimbada de R$ 300,00 some", esperar(lambda: tem("A conferir no período") and not linha_tem("300,00"), 40) and linha_tem("900,00"), texto_principal(1200))
 ir("/emporio/financeiro")
 confere("o Hoje mostra o cartao A conferir com o banco", esperar(lambda: tem("A conferir com o banco") and tem("da conta sem conferir com o banco"), 40), texto_principal(900))

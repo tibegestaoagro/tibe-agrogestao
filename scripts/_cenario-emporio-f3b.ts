@@ -55,6 +55,8 @@ async function limpar(tenant_id: string) {
   await prisma.stockMovement.deleteMany({ where: { tenant_id, OR: [{ establishment_id: { in: lojas } }, { product_id: { in: produtos } }] } });
   await prisma.emporioSalePayment.deleteMany({ where: { tenant_id, sale_id: { in: vendas } } });
   await prisma.financialPayment.deleteMany({ where: { tenant_id, entry_id: { in: lancamentos } } });
+  // A ocorrência de despesa fixa aponta para o lançamento que ela gerou (a tela de Despesas as cria ao abrir): sai antes dele.
+  await prisma.fixedExpenseOccurrence.deleteMany({ where: { tenant_id, OR: [{ financial_entry_id: { in: lancamentos } }, { establishment_id: { in: lojas } }] } });
   await prisma.financialEntry.deleteMany({ where: { tenant_id, id: { in: lancamentos } } });
   // A venda nova da troca aponta para a devolucao, e a devolucao para a venda.
   await prisma.emporioSale.updateMany({ where: { tenant_id, id: { in: vendas } }, data: { exchange_return_id: null } });

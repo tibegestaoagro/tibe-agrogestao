@@ -82,6 +82,14 @@ async function main() {
   if (!ligado.ok) throw new Error(ligado.message);
 
   const limpos = await limpar(tenant_id);
+  // A lista de contas a pagar pagina em 20, por vencimento: as contas que outros
+  // cenarios deixam abertas (centenas) empurram as da F4a para fora da pagina 1.
+  // Cancelar (nao apagar) as pendentes de outros cenarios mantem as chaves
+  // estrangeiras e deixa a F4a vendo so as suas, que nascem logo abaixo.
+  await prisma.financialEntry.updateMany({
+    where: { tenant_id, related_module: "emporio", status: { in: ["pending", "overdue"] } },
+    data: { status: "cancelled" },
+  });
 
   const cat = await import("@/lib/actions/emporio-catalogo");
   const est = await import("@/lib/actions/emporio-estoque");

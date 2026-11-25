@@ -155,6 +155,9 @@ por_aria("Quantidade do item 1", "5")
 time.sleep(0.5)
 clicar("+ Cheque")
 time.sleep(0.8)
+# Q369: os dados do cheque ficam fechados atrás de "Tenho os dados do cheque" (o cheque pode entrar sem eles e ser completado depois).
+confere("abre 'Tenho os dados do cheque'", clicar("Tenho os dados do cheque"))
+time.sleep(0.8)
 por_id_que_comeca("cheque-numero-", "000123")
 por_id_que_comeca("cheque-banco-", "Banco do Brasil")
 por_id_que_comeca("cheque-bom-para-", time.strftime("%Y-%m-%d"))
@@ -164,7 +167,7 @@ confere("cheque sem cliente: recusa embaixo de Cliente", bool(esperar(lambda: er
 confere("escolhe a Maria", escolher_cliente("F3b Maria") is True)
 fechar_venda()
 confere("venda no cheque registrada", esperar(lambda: "Cheque" in resumo() and "F3b Maria" in resumo(), 90), resumo()[:200])
-confere("o cheque está na carteira, recebido, e a gaveta não mudou", any(c.get("number") == "000123" and c.get("status") == "recebido" for c in caixa()["checks"]) and gaveta(loja["id"]) == 200)
+confere("o cheque está na carteira, recebido, e a gaveta não mudou", any(c.get("number") == "000123" and c.get("status") == "recebido" for c in caixa()["checks"]) and gaveta(loja["id"]) == 200, [[(c.get("number"), c.get("status")) for c in caixa()["checks"]][:6], gaveta(loja["id"])])
 
 passo("4. Depositar e compensar o cheque pelo caixa")
 ir("/emporio/caixa")

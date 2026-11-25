@@ -122,7 +122,9 @@ ir("/lista-de-compra")
 confere("Lista tem o item da loja", tem("F2a Ração") and tem("F2a Loja"))
 
 passo("6. Cancelar compra paga é recusado (Q63)")
-pago = dict(corpo, operation_key=corpo["operation_key"] + "-vista", received=True, payment={"kind": "a_vista"})
+# Q215: a compra à vista diz de onde saiu o dinheiro (gaveta ou conta); o cenário cria a conta "F2a Banco" com saldo.
+banco = [c for c in api("GET", "/api/v1/emporio/bank-accounts")["body"]["data"] if c["name"] == "F2a Banco"][0]
+pago = dict(corpo, operation_key=corpo["operation_key"] + "-vista", received=True, payment={"kind": "a_vista", "paid_from": {"bank_account_id": banco["id"]}})
 r = api("POST", "/api/v1/emporio/purchases", pago)
 confere("compra à vista criada", r["status"] == 201, r["status"])
 r = api("POST", "/api/v1/emporio/purchases/" + r["body"]["data"]["id"] + "/cancel", {"reason": "teste"})
