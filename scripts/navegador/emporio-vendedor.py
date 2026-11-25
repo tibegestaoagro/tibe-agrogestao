@@ -166,8 +166,9 @@ confere("sem Registrada por quando é a mesma pessoa", "Registrada por" not in p
 entrar("gestor1")
 passo("4. O Gestor em Relatórios: as duas vendas nas linhas certas, o produto parado")
 ir("/emporio")
+abrir_subgrupos()
 vistos = [h for h in menu() if h.startswith("/emporio")]
-confere("o menu do Gestor tem Relatórios depois de Resultado", "/emporio/relatorios" in vistos and vistos.index("/emporio/relatorios") == vistos.index("/emporio/resultado") + 1, vistos)
+confere("o menu do Gestor tem Resultado logo depois de Relatórios (Estatísticas)", "/emporio/relatorios" in vistos and vistos.index("/emporio/resultado") == vistos.index("/emporio/relatorios") + 1, vistos)
 ir("/emporio/relatorios")
 confere("a página abre", caminho() == "/emporio/relatorios" and tem("Vendas por vendedor"), caminho())
 por_vendedor = bloco("Vendas por vendedor")
@@ -186,6 +187,7 @@ entrar("vendedor1")
 passo("5. O Vendedor abre a URL de Relatórios: volta ao início, e o menu não oferece")
 ir("/emporio/relatorios")
 confere("volta ao /emporio", caminho() == "/emporio", caminho())
+abrir_subgrupos()
 confere("o menu do Vendedor não tem Relatórios", "/emporio/relatorios" not in menu(), menu())
 
 # --- 6. Celular -----------------------------------------------------------------------------------------

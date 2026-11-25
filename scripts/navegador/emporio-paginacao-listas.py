@@ -382,7 +382,7 @@ t = texto_do_main()
 tv = api("GET", "/api/v1/emporio/transfers?status=em_transito&per_page=100")["body"]["meta"]["total"]
 tc = api("GET", "/api/v1/emporio/purchases?status=pendente&per_page=100")["body"]["meta"]["total"]
 confere("inicio: sem barra de paginas nem 'Mostrando'", nav() is None and "Mostrando" not in t, t[:120])
-confere("inicio: os cartoes de sempre estao la", all(x in t for x in ["Estabelecimentos", "Produtos", "Estoque", "Compras", "Transferências", "Vendas", "Fiado", "Caixa"]), t[:200])
+confere("inicio: os cartoes de sempre estao la", all(x in t for x in ["Lojas", "Produtos", "Estoque", "Compras", "Transferências", "Vendas", "Fiado", "Caixa"]), t[:200])
 m_c = re.search(r"(\d+)\s*compras? a receber", t)
 m_t = re.search(r"(\d+)\s*transferências? em trânsito", t)
 confere("inicio: o cartao de Compras conta todas as pendentes da conta (igual ao total da API: " + str(tc) + ")", m_c is not None and int(m_c.group(1)) == tc and tc >= 45, [m_c and m_c.group(0), tc])

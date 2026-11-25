@@ -16,7 +16,7 @@ import re
 LOJA1 = "Turno Loja 1"
 LOJA2 = "Turno Loja 2"
 PRODUTO = "Turno Ração"
-MENU_DO_CAIXA = ["/emporio", "/emporio/vender", "/emporio/vendas", "/emporio/fiado", "/emporio/clientes", "/emporio/caixa"]
+MENU_DO_CAIXA = ["/emporio", "/emporio/vender", "/emporio/vendas", "/emporio/clientes", "/emporio/fiado", "/emporio/caixa"]
 
 
 def caminho():
@@ -87,8 +87,9 @@ def hrefs_do_painel():
 entrar("caixa")
 ir("/emporio")
 passo("1. O Caixa: menu enxuto, Estoque pela URL volta ao Meu Empório")
+abrir_subgrupos()
 vistos = [h for h in menu() if h.startswith("/emporio")]
-confere("o menu do Caixa tem só Início, Vender, Vendas, Fiado, Clientes e Caixa", vistos == MENU_DO_CAIXA, vistos)
+confere("o menu do Caixa tem só Início, Vender, Vendas, Clientes, Fiado e Caixa", vistos == MENU_DO_CAIXA, vistos)
 ir("/emporio/estoque")
 confere("Estoque pela URL volta ao /emporio", caminho() == "/emporio", caminho())
 

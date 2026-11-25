@@ -143,7 +143,7 @@ def cartoes_sem_fixtures():
     compras = [c for c in api("GET", "/api/v1/emporio/purchases")["body"]["data"] if c.get("status") == "pendente" and not re.match(fx, c.get("establishment_name") or "")]
     repor = [x for x in api("GET", "/api/v1/emporio/stock/restock")["body"]["data"] if not re.match(fx, x["establishment_name"]) and not re.match(fx, x["product_name"])]
     for href, n, um, varios in (
-        ("/emporio/estabelecimentos", len(lojas), "estabelecimento", "estabelecimentos"),
+        ("/emporio/estabelecimentos", len(lojas), "loja", "lojas"),
         ("/emporio/produtos", len(produtos), "produto", "produtos"),
         ("/emporio/compras", len(compras), "compra a receber", "compras a receber"),
         ("/emporio/estoque", len(repor), "produto precisa repor", "produtos precisam repor"),
@@ -503,7 +503,7 @@ def figura(id, papel, pagina, marcas, estado=None, rolar=None, hd=800, hc=900, l
 figura("inicio-primeiros-passos", "dono", "/emporio", [
     (1, "M.S('Primeiros passos')", "o cartao Primeiros passos"),
     (2, "M.X('Pendente')", "a marca Pendente de um item"),
-    (3, "Array.from(M.T('Estabelecimentos').closest('a').parentElement.children).slice(0, 4)", "os cartoes das areas (Estabelecimentos, Produtos, Estoque e outros)"),
+    (3, "Array.from(M.T('Lojas').closest('a').parentElement.children).slice(0, 4)", "os cartoes das areas (Lojas, Produtos, Estoque e outros)"),
 ], antes=ajustar_inicio, hd=1050, hc=1500)
 
 figura("equipe-lista", "dono", "/emporio/equipe", [
@@ -786,7 +786,7 @@ figura("balcao-cliente-vendedor", "caixa", "/emporio/vender", [
     (2, "M.B('Cadastrar novo cliente')", "o botao Cadastrar novo cliente"),
     (3, "M.L('Vendedor')", "o campo Vendedor"),
     (4, "M.B('Fechar a venda')", "o botao Fechar a venda"),
-], estado=estado_balcao_caixa, hd=1550, hc=1800)
+], estado=estado_balcao_caixa, hd=1650, hc=1900)
 
 
 def estado_escolher_cliente():
@@ -872,7 +872,7 @@ figura("orcamento-faturar", "caixa", "/emporio/vender", [
     (2, "Array.from(" + FAIXA + ".querySelectorAll('p.rounded-md, ul.rounded-md'))", "os avisos da faixa"),
     (3, "M.L('Vendedor')", "o campo Vendedor, com O vendedor do orcamento."),
     (4, "M.B('Tirar orçamento')", "o botao Tirar orcamento"),
-], estado=estado_orcamento_faturar, hd=1700, hc=2100)
+], estado=estado_orcamento_faturar, hd=1850, hc=2100)
 
 def estado_balcao_entrega():
     adicionar_ao_balcao("Arame", "Arame Liso Galvanizado 1000 m", "2")
@@ -1127,7 +1127,7 @@ figura("relatorios-periodo", "gestor", periodo_do_relatorio, [
     (2, "M.L('Loja')", "o campo Loja"),
     (3, "[M.B('Ver relatório'), M.B('Mês atual')]", "os botoes Ver relatorio e Mes atual"),
     (4, "M.S('Vendas por vendedor')", "o bloco Vendas por vendedor"),
-], limite=5, hd=1720, hc=2080)
+], limite=5, hd=2250, hc=2700)
 
 
 def estado_historico():

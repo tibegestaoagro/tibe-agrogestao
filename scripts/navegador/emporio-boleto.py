@@ -198,7 +198,7 @@ confere("abre Boleto pago do BOL-A", clicar_na_linha("BOL-A", "Boleto pago"))
 time.sleep(1.5)
 confere("painel abriu", painel_aberto())
 confere("escolhe a conta Bol Banco", escolher("Conta onde caiu", "Bol Banco") is True)
-confere("preenche a data de ontem", preencher("Data do pagamento", iso(ONTEM)) not in ("SEM ROTULO", "SEM CAMPO"))
+confere("preenche a data de ontem", preencher("Data em que caiu", iso(ONTEM)) not in ("SEM ROTULO", "SEM CAMPO"))
 enviar_painel()
 confere("o painel fechou", esperar(lambda: not painel_aberto(), 60))
 pagos = esperar(lambda: [b for b in boletos("pago") if b.get("number") == "BOL-A"], 30) or []

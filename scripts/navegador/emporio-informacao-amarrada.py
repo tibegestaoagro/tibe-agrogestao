@@ -133,7 +133,7 @@ FICHA_ID = ficha["id"] if ficha else ""
 # --- 1 -----------------------------------------------------------------------------------------
 passo("1. A receber: a faixa e os filtros dos cartoes")
 chegou = ir(RECEBER)
-confere("o A receber abre", chegou == "/emporio/financeiro/receber" and tem("Financeiro: a receber"), chegou)
+confere("o A receber abre", chegou == "/emporio/financeiro/receber" and titulo_da_tela() == "A receber", chegou)
 confere("a faixa mostra Vencido R$ 330,00 em 5 itens", bool(re.search(r"Vencido \| R\$ 330,00 \| 5 itens", faixa("Vencido"))), faixa("Vencido"))
 confere("a faixa mostra Vence hoje R$ 240,00 em 2 itens", bool(re.search(r"Vence hoje \| R\$ 240,00 \| 2 itens", faixa("Vence hoje"))), faixa("Vence hoje"))
 confere("a faixa mostra A vencer R$ 330,00 em 5 itens", bool(re.search(r"A vencer \| R\$ 330,00 \| 5 itens", faixa("A vencer"))), faixa("A vencer"))
@@ -218,7 +218,7 @@ confere("o atalho preservou o ?ver=recebido", "ver=recebido" in caminho(), camin
 # --- 3 -----------------------------------------------------------------------------------------
 passo("3. A pagar: os quatro cartoes")
 chegou = ir(PAGAR)
-confere("o A pagar abre", chegou == "/emporio/financeiro/pagar" and tem("Financeiro: a pagar"), chegou)
+confere("o A pagar abre", chegou == "/emporio/financeiro/pagar" and titulo_da_tela() == "A pagar", chegou)
 confere("Vencida R$ 70,00 em 1 item", bool(re.search(r"Vencida \| R\$ 70,00 \| 1 item", faixa("Vencida"))), faixa("Vencida"))
 confere("Vence hoje R$ 80,00 em 1 item", bool(re.search(r"Vence hoje \| R\$ 80,00 \| 1 item", faixa("Vence hoje"))), faixa("Vence hoje"))
 confere("A vencer R$ 90,00 em 1 item", bool(re.search(r"A vencer \| R\$ 90,00 \| 1 item", faixa("A vencer"))), faixa("A vencer"))
@@ -306,8 +306,8 @@ confere("a soma dos cartoes nao confunde: os R$ 190,00 do Recebido nao contam o 
 # --- 6 -----------------------------------------------------------------------------------------
 passo("6. Gestor da Loja 1 so: nao ve a outra loja")
 entrar("gestor")
-ir("/emporio/financeiro/pagar")
-confere("o A pagar do Gestor e recusado (pagina nao encontrada): quem abre o Financeiro e o Dono, o Gerente geral e o Financeiro", eh_404(), texto_principal(200))
+chegou = ir("/emporio/financeiro/pagar")
+confere("o A pagar do Gestor volta ao Início, sem 404: quem abre o Financeiro e o Dono, o Gerente geral e o Financeiro", chegou == "/emporio" and not eh_404(), [chegou, texto_principal(200)])
 confere("a recusa nao vaza a Loja 2 nem as contas", LOJA2 not in texto_do_main() and "Ia Conta da Loja 2" not in texto_do_main())
 resumo_g = api("GET", "/api/v1/emporio/payables/summary")
 sg = ((resumo_g["body"] or {}).get("data") or {}).get("summary") or {}

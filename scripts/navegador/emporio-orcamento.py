@@ -288,11 +288,13 @@ entrar("caixa")
 passo("5. O Caixa abre /emporio/orcamentos: volta ao início, e o menu não oferece")
 ir("/emporio/orcamentos")
 confere("volta ao /emporio", caminho() == "/emporio", caminho())
+abrir_subgrupos()
 vistos = [h for h in menu() if h.startswith("/emporio")]
 confere("o menu do Caixa tem Vender e Vendas", "/emporio/vender" in vistos and "/emporio/vendas" in vistos, vistos)
 confere("o menu do Caixa não tem Orçamentos", "/emporio/orcamentos" not in vistos, vistos)
 entrar("vendedor")
 ir("/emporio")
+abrir_subgrupos()
 vistos = [h for h in menu() if h.startswith("/emporio")]
 confere("o menu do Vendedor tem Orçamentos logo depois de Vendas", "/emporio/orcamentos" in vistos and vistos.index("/emporio/orcamentos") == vistos.index("/emporio/vendas") + 1, vistos)
 

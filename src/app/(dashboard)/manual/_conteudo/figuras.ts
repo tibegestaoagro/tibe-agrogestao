@@ -74,7 +74,7 @@ export const FIGURAS: Figura[] = [
     pagina: "/emporio/estabelecimentos",
     papel: "dono",
     legenda: "Suas lojas",
-    alt: "Tela Estabelecimentos com a lista de lojas e os botões Editar, Quem trabalha aqui e Arquivar",
+    alt: "Tela Lojas com a lista de lojas e os botões Editar, Quem trabalha aqui e Arquivar",
     marcas: [
       { numero: 1, alvo: "o botão Novo estabelecimento", texto: "Cria uma loja nova. Só o Dono e o Gerente geral fazem isso." },
       { numero: 2, alvo: "o nome de uma loja na lista", texto: "Cada linha é uma loja. O botão Editar abre os dados dela, como o desconto máximo." },

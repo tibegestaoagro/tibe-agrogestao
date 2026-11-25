@@ -14,7 +14,7 @@
 #   8. O Hoje do Financeiro mostra "Cartao a conferir" e "Atrasadas", e os links levam ao A receber filtrado
 #   9. Um Gestor de loja nao ve os botoes Conferir (e a rota recusa)
 #  10. Celular (390 px): sem rolagem horizontal da pagina no A receber e nos paineis de conferir
-#  11. No extrato da conta, Retirar na linha de cartao conferida: a linha volta a sem carimbo e a parcela a A
+#  11. No extrato da conta, Desfazer a conferência na linha de cartao conferida: a linha volta a sem carimbo e a parcela a A
 #      conferir; Carimbar de novo: volta a Conferida pelo carimbo (Q352)
 #  12. Antecipacao pontual de uma parcela Prevista: nasce Conferida, conferido igual ao liquido antecipado, sem ajuste
 #  13. Venda cancelada depois de conferida (numero 4043, que o eh_404 nao pode confundir com a pagina 404): no
@@ -245,7 +245,7 @@ D2_BR = br(D2) if D2 else ""
 # --- 1 -----------------------------------------------------------------------------------------
 passo("1. A receber, Cartoes a receber: os quatro selos e as datas")
 chegou = ir(RECEBER)
-confere("o A receber abre", chegou == "/emporio/financeiro/receber" and tem("Financeiro: a receber"), chegou)
+confere("o A receber abre", chegou == "/emporio/financeiro/receber" and titulo_da_tela() == "A receber", chegou)
 SECAO_TXT = secao(SECAO) or ""
 dia_prevista = (datetime.date.fromisoformat(hoje_iso) + datetime.timedelta(days=2)).isoformat()
 esperadas = [("R$ 70,00", dia_prevista), ("R$ 80,00", hoje_iso), ("R$ 90,00", hoje_iso), ("R$ 100,00", D1), ("R$ 200,00", D1), ("R$ 60,00", D2), ("R$ 40,00", D2)]
@@ -474,7 +474,7 @@ if chegou == "/emporio/financeiro/receber" and not eh_404():
     bts = botoes_do_main()
     confere("o Gestor nao ve nenhum botao Conferir, Conferir o dia nem Desfazer no A receber", not any(b in ("Conferir", "Conferir o dia", "Desfazer") for b in bts), bts)
 else:
-    confere("o Gestor nao abre o A receber (404): so Dono, Gerente geral e Financeiro abrem, entao nao ha botao a ver", eh_404(), texto_principal(120))
+    confere("o Gestor nao abre o A receber: so Dono, Gerente geral e Financeiro abrem, e a tela volta ao Inicio (sem 404)", chegou == "/emporio" and not eh_404(), [chegou, texto_principal(120)])
 chegou = ir("/emporio/caixa")
 confere("o Gestor abre o Caixa da loja", chegou == "/emporio/caixa" and not eh_404(), chegou)
 # O "Conferir" da gaveta (contagem de dinheiro) existe no Caixa e nao e o do cartao: a conferencia do cartao so se
@@ -557,21 +557,21 @@ confere("a conta 'Cc Reserva' tem link para o extrato", EXTRATO_RESERVA != "", l
 ir(EXTRATO_RESERVA)
 esperar(lambda: linha_do_extrato("Cartão, parcela", "130,00") != "", 30)
 l130 = linha_do_extrato("Cartão, parcela", "130,00")
-confere("a linha de cartao de R$ 130,00 vem carimbada (conferida), com o botao Retirar", "Carimbado em" in l130 and "Retirar" in l130, l130)
+confere("a linha de cartao de R$ 130,00 vem carimbada (conferida), com o botao Desfazer a conferência", "Conferido em" in l130 and "Desfazer a conferência" in l130, l130)
 ir(RECEBER2)
 confere("no A receber a parcela de R$ 130,00 esta Conferida", estado_da_linha("R$ 130,00") == "conferida", linha_cartao("R$ 130,00"))
 ir(EXTRATO_RESERVA)
 esperar(lambda: linha_do_extrato("Cartão, parcela", "130,00") != "", 30)
-confere("clica em Retirar na linha de R$ 130,00", bool(esperar(lambda: clicar_no_extrato("Retirar", "Cartão, parcela", "130,00"), 30)))
-sem_carimbo = esperar(lambda: "Carimbado em" not in linha_do_extrato("Cartão, parcela", "130,00") and "Carimbar" in linha_do_extrato("Cartão, parcela", "130,00"), 40)
-confere("a linha volta a sem carimbo (botao Carimbar, sem 'Carimbado em')", bool(sem_carimbo), linha_do_extrato("Cartão, parcela", "130,00"))
+confere("clica em Desfazer a conferência na linha de R$ 130,00", bool(esperar(lambda: clicar_no_extrato("Desfazer a conferência", "Cartão, parcela", "130,00"), 30)))
+sem_carimbo = esperar(lambda: "Conferido em" not in linha_do_extrato("Cartão, parcela", "130,00") and "Conferir com o banco" in linha_do_extrato("Cartão, parcela", "130,00"), 40)
+confere("a linha volta a sem carimbo (botao Conferir com o banco, sem 'Conferido em')", bool(sem_carimbo), linha_do_extrato("Cartão, parcela", "130,00"))
 ir(RECEBER2)
 confere("e a parcela voltou a 'A conferir', com o botao Conferir", estado_da_linha("R$ 130,00") == "a conferir" and botoes_da_linha("R$ 130,00") == ["Conferir"], [linha_cartao("R$ 130,00"), botoes_da_linha("R$ 130,00")])
 ir(EXTRATO_RESERVA)
 esperar(lambda: linha_do_extrato("Cartão, parcela", "130,00") != "", 30)
-confere("clica em Carimbar de novo", bool(esperar(lambda: clicar_no_extrato("Carimbar", "Cartão, parcela", "130,00"), 30)))
-carimbada = esperar(lambda: "Carimbado em" in linha_do_extrato("Cartão, parcela", "130,00") and "Retirar" in linha_do_extrato("Cartão, parcela", "130,00"), 40)
-confere("a linha volta a carimbada (Carimbado em, botao Retirar)", bool(carimbada), linha_do_extrato("Cartão, parcela", "130,00"))
+confere("clica em Conferir com o banco de novo", bool(esperar(lambda: clicar_no_extrato("Conferir com o banco", "Cartão, parcela", "130,00"), 30)))
+carimbada = esperar(lambda: "Conferido em" in linha_do_extrato("Cartão, parcela", "130,00") and "Desfazer a conferência" in linha_do_extrato("Cartão, parcela", "130,00"), 40)
+confere("a linha volta a carimbada (Conferido em, botao Desfazer a conferência)", bool(carimbada), linha_do_extrato("Cartão, parcela", "130,00"))
 ir(RECEBER2)
 l130 = linha_cartao("R$ 130,00")
 confere("e a parcela volta a Conferida pelo carimbo: 'conferido R$ 130,00', sem ajuste", "conferida" in l130.lower() and "conferido R$ 130,00" in l130 and "ajuste" not in l130.lower(), l130)

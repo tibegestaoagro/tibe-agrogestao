@@ -122,7 +122,7 @@ def abrir_pagar():
 passo("1. O Financeiro entra e cai na casa, com os quatro blocos")
 entrar("financeiro")
 ir("/emporio/financeiro")
-confere("a casa abre", caminho() == "/emporio/financeiro" and tem("O dinheiro das lojas hoje"), caminho())
+confere("a casa abre", caminho() == "/emporio/financeiro" and tem_com_ajuda("O dinheiro das lojas hoje"), caminho())
 for bloco in ["Posição de caixa", "Vence hoje a pagar", "Vence hoje a receber", "Fiado vencido"]:
     confere("o bloco " + bloco + " aparece", tem(bloco), texto_principal(300))
 confere("as quatro abas existem", all(aba(h) for h in ["/emporio/financeiro", "/emporio/financeiro/pagar", "/emporio/financeiro/receber", "/emporio/financeiro/caixa"]))
@@ -139,6 +139,7 @@ confere("e o cheque de R$ 50,00 e o cartão de R$ 98,00 (2% de R$ 100,00) a rece
 
 # --- 2 ---------------------------------------------------------------------------------
 passo("2. Sem Vender nem Equipe no menu; /dashboard volta para a casa")
+abrir_subgrupos()
 links = menu()
 confere("o menu tem o Financeiro", any(h and h.startswith("/emporio/financeiro") for h in links), links)
 confere("o menu nao tem Vender", "/emporio/vender" not in links, links)

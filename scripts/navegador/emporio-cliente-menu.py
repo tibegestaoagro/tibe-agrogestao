@@ -14,25 +14,31 @@
 
 import random
 
-# A ordem de PAGINAS_DO_EMPORIO (src/lib/emporio/paginas.ts).
+# A ordem do menu agrupado (ESTRUTURA em src/lib/emporio/menu.ts), com todos os subgrupos abertos.
 ITENS_DO_DONO = [
     "/emporio",
     "/emporio/vender",
     "/emporio/vendas",
     "/emporio/orcamentos",
-    "/emporio/fiado",
     "/emporio/clientes",
-    "/emporio/caixa",
+    "/emporio/fiado",
+    "/emporio/franqueados",
     "/emporio/produtos",
     "/emporio/estoque",
     "/emporio/compras",
-    "/emporio/fornecedores",
     "/emporio/transferencias",
+    "/emporio/fornecedores",
+    "/emporio/financeiro",
+    "/emporio/caixa",
+    "/emporio/financeiro/receber",
+    "/emporio/financeiro/pagar",
     "/emporio/despesas",
-    "/emporio/resultado",
+    "/emporio/financeiro/aprovacoes",
     "/emporio/relatorios",
-    "/emporio/equipe",
+    "/emporio/resultado",
+    "/emporio/financeiro/projecao",
     "/emporio/estabelecimentos",
+    "/emporio/equipe",
     "/emporio/historico",
     "/emporio/configuracoes",
 ]
@@ -220,6 +226,7 @@ confere("o título voltou ao nome original", tem(nome_original) and not tem(novo
 
 passo("5. Menu: grupo Meu Empório, para o Dono e para o Vendedor")
 ir("/emporio")
+abrir_subgrupos()
 dono = [h for h in menu() if h.startswith("/emporio")]
 confere("o Dono vê os " + str(len(ITENS_DO_DONO)) + " itens do grupo, na ordem", dono == ITENS_DO_DONO, dono)
 confere("Meu Empório é um grupo (botão do menu)", bool(js("Array.from(document.querySelectorAll('nav button')).some(b => b.innerText.includes('Meu Empório'))")))
@@ -227,6 +234,7 @@ confere("Histórico está dentro do grupo, não no topo", bool(js("(() => { cons
 
 entrar("vendedor1")
 ir("/emporio")
+abrir_subgrupos()
 vend = [h for h in menu() if h.startswith("/emporio")]
 confere("o Vendedor vê Início, Vender e Vendas", all(h in vend for h in ("/emporio", "/emporio/vender", "/emporio/vendas")), vend)
 confere("o Vendedor não vê Despesas, Resultado, Equipe nem Histórico", not any(h in vend for h in ("/emporio/despesas", "/emporio/resultado", "/emporio/equipe", "/emporio/historico", "/emporio/configuracoes")), vend)

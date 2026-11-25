@@ -228,6 +228,7 @@ if venda_obs:
 passo("7. Vendedor: sem Configurações, vê o papel da venda da loja")
 entrar("vendedor1")
 ir("/emporio")
+abrir_subgrupos()
 vend = [h for h in menu() if h.startswith("/emporio")]
 confere("o Vendedor não vê Configurações no menu", "/emporio/configuracoes" not in vend and "/emporio" in vend, vend)
 ir("/emporio/configuracoes")

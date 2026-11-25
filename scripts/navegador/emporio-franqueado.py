@@ -172,6 +172,7 @@ confere("o cenário existe (Fq Ração e Fq Sal)", len([p for p in api("GET", "/
 
 # --- 1. Franqueados -----------------------------------------------------------------------
 passo("1. Franqueados: menu, cadastro curto, recusa do telefone, ficha")
+abrir_subgrupos()
 confere("o menu do Empório tem Franqueados", "/emporio/franqueados" in menu(), [h for h in menu() if h.startswith("/emporio")])
 ir("/emporio/franqueados")
 confere("a tela abre", caminho() == "/emporio/franqueados" and tem("Franqueados"), texto_principal(200))

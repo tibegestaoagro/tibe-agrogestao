@@ -137,7 +137,7 @@ confere("sem filtro, as três", linhas == 3, linhas)
 
 passo("4. O detalhe da venda")
 ir("/emporio/vendas/" + venda_ui["id"])
-confere("mostra Frete, Total com frete e a origem", tem("Frete: R$ 20,00") and tem("Total com frete: R$ 120,00") and tem("E-commerce"), texto_principal(900))
+confere("mostra Frete, Total a pagar e a origem", tem("Frete: R$ 20,00") and tem("Total a pagar: R$ 120,00") and tem("E-commerce"), texto_principal(900))
 confere("tem o botão Editar", bool(js("Array.from(document.querySelectorAll('a')).some(a => a.innerText.trim() === 'Editar')")))
 
 passo("5. A conta Frete de entrega no A pagar")

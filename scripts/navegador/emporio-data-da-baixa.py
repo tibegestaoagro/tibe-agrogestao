@@ -196,7 +196,7 @@ confere("abre o extrato da conta", abrir_extrato_da_conta(), texto_principal(150
 linhas = linhas_do_extrato()
 confere("o PIX de R$ 30,00 esta em hoje", linha_com(linhas, br(hoje), "R$ 30,00") is not None, linhas)
 botoes40 = botoes_da_linha("R$ 40,00") or []
-confere("a linha carimbada de R$ 40,00 tem Retirar e NAO tem Corrigir a data", "Retirar" in botoes40 and "Corrigir a data" not in botoes40, botoes40)
+confere("a linha conferida de R$ 40,00 tem Desfazer a conferência e NAO tem Corrigir a data", "Desfazer a conferência" in botoes40 and "Corrigir a data" not in botoes40, botoes40)
 botoes30 = botoes_da_linha("R$ 30,00") or []
 confere("a linha sem carimbo de R$ 30,00 tem Corrigir a data", "Corrigir a data" in botoes30, botoes30)
 confere("o painel de corrigir abre", abrir_pela_linha("R$ 30,00", "Corrigir a data"), texto_principal(200))

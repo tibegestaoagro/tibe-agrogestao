@@ -337,7 +337,7 @@ esc()
 # --- 10 --------------------------------------------------------------------------------
 passo("10. Clientes: o filtro 1234 acha a Maria Souza")
 ir("/emporio/clientes")
-confere("a tela Clientes abre", caminho() == "/emporio/clientes" and tem("Quem compra no Empório"), caminho())
+confere("a tela Clientes abre", caminho() == "/emporio/clientes" and tem_com_ajuda("Quem compra no Empório"), caminho())
 confere("o filtro tem o rótulo Buscar cliente", preencher_aria("Buscar cliente", "1234") == "1234")
 confere("clica em Buscar", clicar("Buscar"))
 confere("a lista acha a Maria Souza", esperar(lambda: MARIA_SOUZA in linha_da_tabela(MARIA_SOUZA), 30), linha_da_tabela(MARIA_SOUZA))

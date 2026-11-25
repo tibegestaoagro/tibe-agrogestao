@@ -21,7 +21,7 @@ def linhas_da_tabela_de_preco():
 passo("0. Início do Empório com os dois cartões (Q59)")
 entrar("owner")
 ir("/emporio")
-confere("cartão Estabelecimentos", tem("Estabelecimentos"))
+confere("cartão Lojas", tem("Lojas"))
 confere("cartão Produtos", tem("Produtos"))
 
 passo("1. Cadastrar loja pela tela")

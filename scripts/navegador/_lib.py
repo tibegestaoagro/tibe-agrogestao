@@ -60,6 +60,26 @@ def abrir_grupo(rotulo):
     time.sleep(1.5)
 
 
+def abrir_subgrupos():
+    """Abre todo subgrupo fechado do menu do Empório (Vendas, Estoque, Dinheiro,
+    Estatísticas, Ajustes): os itens de um subgrupo fechado não estão no DOM."""
+    for rotulo in ("Vendas", "Estoque", "Dinheiro", "Estatísticas", "Ajustes"):
+        js("(() => { const b = Array.from(document.querySelectorAll('nav button')).find(x => x.innerText.trim() === " + repr(rotulo) + " && x.getAttribute('aria-expanded') === 'false'); if (b) b.click(); })()")
+    time.sleep(1.5)
+
+
+def titulo_da_tela():
+    """O texto do <h1> da tela (o título que o CabecalhoDaTela desenha)."""
+    return (js("(document.querySelector('main h1') || { innerText: '' }).innerText") or "").strip()
+
+
+def tem_com_ajuda(texto):
+    """O texto está na tela OU no balão do (i): a apresentação da tela mora no
+    balão (hidden), que o innerText não lê. Lê o textContent do <main>."""
+    pagina = js("(document.querySelector('main') || document.body).textContent.replace(/\\u00a0/g, ' ')") or ""
+    return texto.lower() in pagina.lower()
+
+
 def status_api(caminho):
     return api("GET", caminho)["status"]
 
