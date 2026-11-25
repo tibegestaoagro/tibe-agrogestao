@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
+import { veAPagina } from "@/lib/emporio/paginas";
 import { listarFranqueadosAction } from "@/lib/actions/emporio-franqueados";
 import { formatarTelefone } from "@/lib/emporio/telefone";
 import { reaisBr } from "@/lib/numero-br";
@@ -28,7 +30,9 @@ export default async function FranqueadosPage({
   const { q = "", arquivados = "" } = await searchParams;
   const db = await getTenantDb();
   const mostrarArquivados = arquivados === "1";
-  const podeCadastrar = pode(await papelDoEmporio(db, user), "chave:lancar_compra");
+  const papel = await papelDoEmporio(db, user);
+  if (!veAPagina(papel, "/emporio/franqueados")) redirect("/emporio");
+  const podeCadastrar = pode(papel, "chave:lancar_compra");
   const res = await listarFranqueadosAction(db, user, { q: q || undefined, arquivados: mostrarArquivados });
   const lista = res.ok ? res.data : [];
 

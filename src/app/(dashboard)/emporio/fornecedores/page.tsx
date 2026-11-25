@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
+import { veAPagina } from "@/lib/emporio/paginas";
 import { listarFornecedoresAction } from "@/lib/actions/emporio-fornecedores";
 import { formatarDocumento } from "@/lib/contatos/cadastro";
 import { formatarTelefone } from "@/lib/emporio/telefone";
@@ -30,7 +32,9 @@ export default async function FornecedoresPage({
   const { q = "", arquivados = "", pagina = "1" } = await searchParams;
   const db = await getTenantDb();
   const mostrarArquivados = arquivados === "1";
-  const podeCadastrar = pode(await papelDoEmporio(db, user), "chave:lancar_compra");
+  const papel = await papelDoEmporio(db, user);
+  if (!veAPagina(papel, "/emporio/fornecedores")) redirect("/emporio");
+  const podeCadastrar = pode(papel, "chave:lancar_compra");
   const res = await listarFornecedoresAction(db, user, {
     q: q || undefined,
     arquivados: mostrarArquivados,

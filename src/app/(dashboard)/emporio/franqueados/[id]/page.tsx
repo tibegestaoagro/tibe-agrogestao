@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
+import { veAPagina } from "@/lib/emporio/paginas";
 import { lerFranqueadoAction } from "@/lib/actions/emporio-franqueados";
 import { lerCaixaAction } from "@/lib/actions/emporio-caixa";
 import { formatarTelefone } from "@/lib/emporio/telefone";
@@ -29,6 +30,8 @@ export default async function FranqueadoFichaPage({ params }: { params: Promise<
   const user = await requireFeaturePage("emporio");
   const { id } = await params;
   const db = await getTenantDb();
+  const papel = await papelDoEmporio(db, user);
+  if (!veAPagina(papel, "/emporio/franqueados")) redirect("/emporio");
   const res = await lerFranqueadoAction(db, user, id);
   if (!res.ok) {
     if (res.status === 404) notFound();
@@ -42,7 +45,6 @@ export default async function FranqueadoFichaPage({ params }: { params: Promise<
     );
   }
   const f = res.data;
-  const papel = await papelDoEmporio(db, user);
   const podeEditar = pode(papel, "chave:lancar_compra") && !f.archived_at;
   const podeArquivar = pode(papel, "gestor_da_loja");
   const podePagar = pode(papel, "dinheiro");

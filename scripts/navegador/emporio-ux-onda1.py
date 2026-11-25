@@ -206,6 +206,16 @@ confere("em /emporio não há o seletor de propriedades", not seletor_de_proprie
 ir("/meu-dia")
 confere("em /meu-dia o seletor aparece para o dono", seletor_de_propriedades(), texto_principal(120))
 
+ir("/emporio/fornecedores")
+ficha_fornecedor = js("(() => { const a = document.querySelector('main a[href^=\"/emporio/fornecedores/\"]'); return a ? a.getAttribute('href') : null; })()")
+ir("/emporio/franqueados")
+ficha_franqueado = js("(() => { const a = document.querySelector('main a[href^=\"/emporio/franqueados/\"]'); return a ? a.getAttribute('href') : null; })()")
+confere("o cenário tem uma ficha de fornecedor e uma de franqueado", bool(ficha_fornecedor) and bool(ficha_franqueado), [ficha_fornecedor, ficha_franqueado])
+for f in (ficha_fornecedor, ficha_franqueado):
+    if f:
+        destino = ir(f)
+        confere(f"o dono abre a ficha {f}", destino == f and not eh_404(), destino)
+
 passo("8. Caixa: menu plano, sem subgrupos")
 entrar("caixa")
 ir("/emporio")
@@ -213,6 +223,11 @@ rot = rotulos_dos_links()
 confere("o menu do caixa tem Início, Vender, Vendas, Clientes, Fiado e Caixa", rot == ["Início", "Vender", "Vendas", "Clientes", "Fiado", "Caixa"], rot)
 btn = botoes_do_menu()
 confere("nenhum botão de subgrupo no menu do caixa", not any(s in btn for s in SUBGRUPOS), btn)
+# Fornecedores e franqueados não são do setor do caixa: pelo endereço, ele volta ao Início (decisão de 25/11).
+for alvo in ("/emporio/fornecedores", "/emporio/franqueados", ficha_fornecedor, ficha_franqueado):
+    if alvo:
+        destino = ir(alvo)
+        confere(f"o caixa em {alvo} volta ao Início", destino == "/emporio" and not eh_404(), destino)
 
 passo("9. Gestor: tela do Dinheiro volta ao Início, sem 404")
 entrar("gestor")
