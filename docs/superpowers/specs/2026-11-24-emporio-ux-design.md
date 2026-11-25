@@ -374,9 +374,9 @@ que some redireciona (§5.11). *(Decisão da sessão, na revisão do desenho.)*
 
 ## 9. Fora desta frente, registrado
 
-- O Caixa abre `/emporio/fornecedores` e `/emporio/franqueados` pela URL,
-  embora o menu esconda (`exige: "fora_do_caixa"` sem checagem na página).
-  Permissão é regra: não muda nesta frente sem perguntar; candidato a dívida.
+- ~~O Caixa abre `/emporio/fornecedores` e `/emporio/franqueados` pela URL.~~
+  Resolvido em 25/11/2026, com a decisão do usuário: as listas e as fichas
+  levam o Caixa ao Início (commit `f52e3723`).
 - Separar o Empório do Tibé (casca, marca, entrada): outra frente.
 - Os prints que o usuário ainda vai trazer e as mudanças da Agromax e da
   Central do Milho: ondas novas.
