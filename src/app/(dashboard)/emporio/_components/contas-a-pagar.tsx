@@ -11,6 +11,8 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { reaisBr } from "@/lib/numero-br";
+import type { ContaAPagarView } from "@/lib/actions/emporio-despesas";
+import { agruparContas } from "@/lib/emporio/dinheiro-telas";
 import { NomeDoFornecedor } from "./amarras";
 import { CorrigirContaForm } from "./corrigir-conta-form";
 import type { CaixaDaLoja } from "./caixas-da-loja";
@@ -25,20 +27,7 @@ const ORIGEM_ROTULO: Record<ContaDaLista["origin"], string> = {
   avulsa: "Avulsa",
 };
 
-export type ContaDaLista = {
-  entry_id: string;
-  origin: "vendeu_pagou" | "despesa_fixa" | "compra" | "frete" | "avulsa";
-  name: string;
-  /** Da compra: o fornecedor (o `name` já o traz; fica para a frase da origem). */
-  supplier_name?: string | null;
-  /** O fornecedor cadastrado (compra e avulsa): vira link para a ficha. */
-  supplier_id?: string | null;
-  establishment_name: string | null;
-  open_amount: number;
-  paid_amount: number;
-  due_date: string | null;
-  can_correct: boolean;
-};
+export type ContaDaLista = ContaAPagarView;
 
 const dataBr = (iso: string) => iso.slice(0, 10).split("-").reverse().join("/");
 
@@ -63,6 +52,8 @@ export function ContasAPagar({
   usuarioId: string;
 }) {
   const [marcadas, setMarcadas] = useState<Set<string>>(new Set());
+  const [abertos, setAbertos] = useState<Set<string>>(new Set());
+  const linhas = agruparContas(contas);
 
   // Conta que saiu da lista (foi paga, depois do refresh) deixa de contar.
   const selecionadas = contas.filter((c) => marcadas.has(c.entry_id));
@@ -75,6 +66,60 @@ export function ContasAPagar({
       else n.delete(id);
       return n;
     });
+  }
+
+  function alternarGrupo(chave: string) {
+    setAbertos((a) => {
+      const n = new Set(a);
+      if (n.has(chave)) n.delete(chave);
+      else n.add(chave);
+      return n;
+    });
+  }
+
+  function linhaDaConta(c: ContaDaLista, dentroDeGrupo: boolean) {
+    const vencida = c.due_date !== null && c.due_date.slice(0, 10) < hoje;
+    return (
+      <TableRow key={c.entry_id}>
+        <TableCell>
+          <input
+            type="checkbox"
+            aria-label={`Marcar ${c.name}`}
+            checked={marcadas.has(c.entry_id)}
+            onChange={(e) => alternar(c.entry_id, e.target.checked)}
+            className="h-4 w-4 rounded border-borda text-primaria-tinta focus:ring-primaria"
+          />
+        </TableCell>
+        <TableCell className={dentroDeGrupo ? "pl-8 font-medium text-texto" : "font-medium text-texto"}>
+          {c.origin === "compra" ? <NomeDoFornecedor id={c.supplier_id} nome={c.name} /> : c.name}
+          <span className="block text-xs font-normal text-texto-secundario">
+            {ORIGEM_ROTULO[c.origin]}
+            {c.establishment_name ? `, ${c.establishment_name}` : ""}
+            {c.origin === "avulsa" && c.supplier_name && (
+              <>
+                , <NomeDoFornecedor id={c.supplier_id} nome={c.supplier_name} />
+              </>
+            )}
+          </span>
+        </TableCell>
+        <TableCell>
+          {c.due_date ? dataBr(c.due_date) : "-"}
+          {vencida && (
+            <Badge variant="red" className="ml-2">
+              Vencida
+            </Badge>
+          )}
+        </TableCell>
+        <TableCell>{reaisBr(c.open_amount)}</TableCell>
+        <TableCell>
+          <div className="flex flex-wrap gap-2">
+            {c.can_correct && <CorrigirContaForm entryId={c.entry_id} nome={c.name} valor={c.open_amount} />}
+            {podeAdiarECancelar && <AdiarVencimentoForm entryId={c.entry_id} nome={c.name} vencimento={c.due_date} />}
+            {podeAdiarECancelar && c.paid_amount === 0 && <CancelarContaForm entryId={c.entry_id} nome={c.name} />}
+          </div>
+        </TableCell>
+      </TableRow>
+    );
   }
 
   return (
@@ -113,51 +158,41 @@ export function ContasAPagar({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {contas.map((c) => {
-            const vencida = c.due_date !== null && c.due_date.slice(0, 10) < hoje;
-            return (
-              <TableRow key={c.entry_id}>
-                <TableCell>
-                  <input
-                    type="checkbox"
-                    aria-label={`Marcar ${c.name}`}
-                    checked={marcadas.has(c.entry_id)}
-                    onChange={(e) => alternar(c.entry_id, e.target.checked)}
-                    className="h-4 w-4 rounded border-borda text-primaria-tinta focus:ring-primaria"
-                  />
-                </TableCell>
+          {linhas.flatMap((l) => {
+            if (l.tipo === "conta") return [linhaDaConta(l.conta, false)];
+            const aberto = abertos.has(l.chave);
+            const vencida = l.due_date !== null && l.due_date.slice(0, 10) < hoje;
+            const nomeDaLoja = l.contas[0]?.establishment_name;
+            const cabeca = (
+              <TableRow key={l.chave}>
+                <TableCell />
                 <TableCell className="font-medium text-texto">
-                  {c.origin === "compra" ? <NomeDoFornecedor id={c.supplier_id} nome={c.name} /> : c.name}
+                  <button
+                    type="button"
+                    aria-expanded={aberto}
+                    onClick={() => alternarGrupo(l.chave)}
+                    className="min-h-11 rounded-md text-left hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primaria sm:min-h-0"
+                  >
+                    {aberto ? "▾" : "▸"} {l.nome} · {l.contas.length} contas · {reaisBr(l.total)}
+                  </button>
                   <span className="block text-xs font-normal text-texto-secundario">
-                    {ORIGEM_ROTULO[c.origin]}
-                    {c.establishment_name ? `, ${c.establishment_name}` : ""}
-                    {c.origin === "avulsa" && c.supplier_name && (
-                      <>
-                        , <NomeDoFornecedor id={c.supplier_id} nome={c.supplier_name} />
-                      </>
-                    )}
+                    {ORIGEM_ROTULO.vendeu_pagou}
+                    {nomeDaLoja ? `, ${nomeDaLoja}` : ""}
                   </span>
                 </TableCell>
                 <TableCell>
-                  {c.due_date ? dataBr(c.due_date) : "-"}
+                  {l.due_date ? dataBr(l.due_date) : "-"}
                   {vencida && (
                     <Badge variant="red" className="ml-2">
                       Vencida
                     </Badge>
                   )}
                 </TableCell>
-                <TableCell>{reaisBr(c.open_amount)}</TableCell>
-                <TableCell>
-                  <div className="flex flex-wrap gap-2">
-                    {c.can_correct && <CorrigirContaForm entryId={c.entry_id} nome={c.name} valor={c.open_amount} />}
-                    {podeAdiarECancelar && (
-                      <AdiarVencimentoForm entryId={c.entry_id} nome={c.name} vencimento={c.due_date} />
-                    )}
-                    {podeAdiarECancelar && c.paid_amount === 0 && <CancelarContaForm entryId={c.entry_id} nome={c.name} />}
-                  </div>
-                </TableCell>
+                <TableCell>{reaisBr(l.total)}</TableCell>
+                <TableCell />
               </TableRow>
             );
+            return aberto ? [cabeca, ...l.contas.map((c) => linhaDaConta(c, true))] : [cabeca];
           })}
         </TableBody>
       </Table>
