@@ -168,9 +168,9 @@ function main() {
   const doCaixa = buildNavItems({ ...base, hasEmporio: true, soDaLoja: true, menuDoEmporio: menuDoEmporio(caixa) });
   assert(
     JSON.stringify(folhasDe(grupo(doCaixa)).map((c) => c.href)) ===
-      JSON.stringify(["/emporio", "/emporio/vender", "/emporio/vendas", "/emporio/clientes", "/emporio/fiado", "/emporio/caixa"]) &&
+      JSON.stringify(["/emporio/vender", "/emporio/vendas", "/emporio/clientes", "/emporio/fiado", "/emporio/caixa"]) &&
       !(grupo(doCaixa)?.children ?? []).some((c) => "kind" in c),
-    "caixa: o menu é plano, só Início, Vender, Vendas, Clientes, Fiado e Caixa",
+    "caixa: o menu é plano, só Vender, Vendas, Clientes, Fiado e Caixa (sem Início desde a onda 2: o Caixa entra em Vender)",
   );
   const soLoja = buildNavItems({ ...base, hasEmporio: true, soDaLoja: true, menuDoEmporio: menuDoEmporio(dono) });
   const gSoLoja = grupo(soLoja);
