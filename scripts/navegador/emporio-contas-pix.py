@@ -110,6 +110,11 @@ def tocar_opcao_aberta(texto):
 
 def escolher_primeira(rotulo):
     """Escolhe a primeira opcao do Select `rotulo` (o vendedor da venda do Caixa: o Dono)."""
+    # Onda 3 da UX (5.7): o Vendedor do Caixa e um grupo de botoes (role=radiogroup), nao mais um Select: toca-se o primeiro.
+    r = js("(() => { const g = document.querySelector('[role=radiogroup][aria-label=" + repr(rotulo)[1:-1] + "]'); if (!g) return null; const b = g.querySelector('[role=radio]'); if (!b) return 'SEM OPCAO'; b.click(); return true; })()")
+    if r is not None:
+        time.sleep(0.5)
+        return r
     ops = abrir_lista(rotulo)
     if not ops:
         return "SEM OPCAO"

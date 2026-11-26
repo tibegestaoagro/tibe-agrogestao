@@ -131,6 +131,8 @@ def abrir_balcao(modo_orcamento=False):
         confere("troca para o modo Orçamento", clicar("Orçamento"))
         time.sleep(1)
         confere("o balcão mostra Salvar orçamento", esperar(lambda: tem("Total do orçamento"), 10) and "Salvar orçamento" in texto_do_main())
+    # Onda 3 da UX (5.7): o Pedido para entrega e o número do orçamento moram em "Mais opções", recolhida: abre-se aqui.
+    confere("abre Mais opções (a entrega mora nela desde a onda 3 da UX)", abrir_mais_opcoes() is True)
 
 
 def adicionar(produto, busca, quantidade, n):
@@ -272,6 +274,7 @@ confere("tem o endereço do 'outro'", RUA_OUTRO in papel and "77" in papel, pape
 entrar("caixa")
 passo("4. O Caixa carrega o orçamento: marca e endereço vêm preenchidos; fecha em dinheiro")
 abrir_balcao()
+confere("abre Mais opções (o número do orçamento a faturar mora nela desde a onda 3 da UX)", abrir_mais_opcoes() is True)
 confere("o campo Orçamento nº existe", preencher("Orçamento nº", numero) not in ("SEM ROTULO", "SEM CAMPO"))
 confere("clica em Carregar", clicar("Carregar"))
 confere("o orçamento carrega", esperar(lambda: tem("Faturando o orçamento nº"), 30), texto_principal(300))

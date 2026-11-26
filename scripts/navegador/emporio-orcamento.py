@@ -113,6 +113,7 @@ def adicionar(produto, busca, quantidade, n):
 
 
 def carregar_orcamento(numero):
+    confere("abre Mais opções (o número do orçamento a faturar mora nela desde a onda 3 da UX)", abrir_mais_opcoes() is True)
     confere("o campo Orçamento nº existe", preencher("Orçamento nº", numero) not in ("SEM ROTULO", "SEM CAMPO"))
     confere("clica em Carregar", clicar("Carregar"))
     return esperar(lambda: tem("Faturando o orçamento nº"), 30)
@@ -130,12 +131,13 @@ abrir_balcao(modo_orcamento=True)
 adicionar(RACAO, "Orc Ra", "2", 1)
 adicionar(ESCASSO, "Orc Esc", "5", 2)
 # Frente 1 (06/11): o orçamento aceita o Consumidor final; a recusa é a de sem cliente.
-confere("clica em Salvar orçamento sem escolher o cliente", enviar_botao("Salvar orçamento"))
-recusa = esperar(lambda: erro_do_campo("Cliente"), 20)
-confere("sem cliente: a recusa aparece no campo Cliente", recusa == RECUSA_CLIENTE, recusa)
-confere("o orçamento não foi salvo", not tem("salvo, válido até"), texto_principal(200))
+# Onda 3 da UX (5.7): o balcão já abre com o Consumidor final escolhido, então a recusa "sem cliente" deixou de ser
+# alcançável pela tela (salvar sem tocar no cliente salva como Consumidor final, o que a Frente 1 já aceita). O que
+# este passo prova hoje: o cliente padrão já vem, sem recusa, e trocar pelo cliente completo funciona.
+confere("o cliente já vem como Consumidor final, sem recusa no campo Cliente", "Consumidor final" in escolhido() and not erro_do_campo("Cliente"), escolhido())
+confere("o orçamento ainda não foi salvo", not tem("salvo, válido até"), texto_principal(200))
 confere("escolhe o cliente completo", escolher_cliente(CLIENTE) is True)
-confere("a recusa some ao escolher", esperar(lambda: not erro_do_campo("Cliente"), 10))
+confere("o quadro do Cliente mostra o cliente completo", CLIENTE in escolhido(), escolhido())
 confere("clica em Salvar orçamento de novo", enviar_botao("Salvar orçamento"))
 confere("o orçamento é salvo", esperar(lambda: tem("salvo, válido até"), 60), texto_principal(300))
 resumo = texto_do_main()
@@ -203,6 +205,7 @@ definir_preco(ESCASSO, 8)
 
 entrar("caixa")
 abrir_balcao()
+confere("abre Mais opções (o número do orçamento a faturar mora nela desde a onda 3 da UX)", abrir_mais_opcoes() is True)
 confere("na Venda, o Caixa vê o campo Orçamento nº", campo_existe("Orçamento nº"))
 confere("carrega o orçamento pelo número", carregar_orcamento(numero), texto_principal(300))
 confere("a faixa mostra o cliente e o vendedor do orçamento", "Cliente " + CLIENTE in texto_do_main() and "vendedor " + VENDEDOR in texto_do_main(), texto_principal(500))
@@ -281,6 +284,7 @@ confere("aviso de vencido com a data de ontem", "Orçamento vencido em " + data_
 preco_v = re.search(r"Preço (?:(?:do orçamento|sugerido) )?(R\$ [\d.,]+)", principal)
 confere("o item vem pelo preço de hoje (R$ 18,00), não pelo orçado (R$ 15,00)", preco_v is not None and preco_v.group(1) == "R$ 18,00", principal[:800])
 confere("tira o orçamento", clicar("Tirar orçamento") and esperar(lambda: not tem("Faturando o orçamento nº"), 10))
+confere("abre Mais opções (recolhida de novo ao tirar o orçamento)", abrir_mais_opcoes() is True)
 confere("o campo Orçamento nº volta", campo_existe("Orçamento nº"))
 
 # --- 5. O Caixa não vê a lista de Orçamentos -------------------------------------------------

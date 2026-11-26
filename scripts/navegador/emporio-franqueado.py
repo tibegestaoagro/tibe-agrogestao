@@ -131,6 +131,7 @@ def montar_carrinho():
 
 
 def franqueado_e_credito(credito="10"):
+    confere("abre Mais opções (o franqueado mora nela desde a onda 3 da UX)", abrir_mais_opcoes() is True)
     confere("escolhe o franqueado " + FRANQUEADO, escolher("Franqueado (opcional)", FRANQUEADO) is True)
     confere("digita o crédito " + credito, preencher("Crédito do franqueado (R$)", credito) not in ("SEM ROTULO", "SEM CAMPO"))
     time.sleep(0.5)
@@ -205,6 +206,7 @@ confere("a ficha mostra Pagar crédito (desabilitado, sem saldo)", bool(js("(() 
 passo("3. Recusa no campo certo: crédito sem franqueado")
 abrir_balcao()
 montar_carrinho()
+confere("abre Mais opções (o franqueado mora nela desde a onda 3 da UX)", abrir_mais_opcoes() is True)
 confere("digita o crédito 10 SEM escolher o franqueado", preencher("Crédito do franqueado (R$)", "10") not in ("SEM ROTULO", "SEM CAMPO"))
 pagar_dinheiro("100")
 confere("clica em Fechar a venda", enviar_botao("Fechar a venda"))
@@ -216,6 +218,7 @@ confere("o crédito não ficou com recusa", erro_do_campo("Crédito do franquead
 
 # --- 2. Balcao ------------------------------------------------------------------------------
 passo("2. Balcão: franqueado e crédito, Total a pagar, Falta, venda fechada")
+confere("a seção Mais opções segue aberta", abrir_mais_opcoes() is True)
 r_escolha = escolher("Franqueado (opcional)", FRANQUEADO)
 confere("escolhe o franqueado " + FRANQUEADO, r_escolha is True, r_escolha)
 confere("a recusa some ao escolher", esperar(lambda: erro_do_campo("Franqueado (opcional)") == "", 10))
@@ -312,6 +315,7 @@ confere("o orçamento é salvo", esperar(lambda: tem("salvo, válido até"), 60)
 confere("clica em Faturar agora", bool(esperar(lambda: clicar("Faturar agora"), 20)))
 time.sleep(1.5)
 confere("o balcão está faturando o orçamento", esperar(lambda: tem("Faturando o orçamento nº"), 20), texto_principal(300))
+confere("abre Mais opções no balcão que fatura", abrir_mais_opcoes() is True)
 confere("o franqueado vem preenchido", FRANQUEADO in texto_do_campo("Franqueado (opcional)"), texto_do_campo("Franqueado (opcional)"))
 confere("troca o franqueado para Nenhum", escolher("Franqueado (opcional)", "Nenhum") is True)
 time.sleep(0.5)
@@ -423,6 +427,7 @@ if tem_rotulo("Loja"):
 adicionar(RACAO, "Fq Ra", "1", 1)
 adicionar(SAL, "Fq Sal", "1", 2)
 confere("escolhe Consumidor final", escolher_cliente("Consumidor final") is True)
+confere("abre Mais opções (o franqueado mora nela desde a onda 3 da UX)", abrir_mais_opcoes() is True)
 confere("Q378: o Caixa VÊ o campo Franqueado (opcional)", esperar(lambda: tem_rotulo("Franqueado (opcional)"), 20), texto_principal(400))
 confere("Q378: o Caixa VÊ o campo Crédito do franqueado (R$)", tem_rotulo("Crédito do franqueado (R$)"), texto_principal(400))
 confere("o Caixa escolhe o franqueado " + FRANQUEADO + " (a lista não vem vazia)", escolher("Franqueado (opcional)", FRANQUEADO) is True)

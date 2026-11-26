@@ -122,6 +122,9 @@ enviar_venda()
 recusa = esperar(lambda: erro_do_campo("Vendedor"), 20)
 confere("finalizar sem vendedor mostra a recusa no campo Vendedor", RECUSA in (recusa or ""), recusa)
 confere("a venda não saiu", not tem("Venda registrada"), texto_principal(200))
+# A recusa leva a tela ao campo Vendedor (rolagem animada): o toque por coordenada de `escolher` calculado no meio da
+# rolagem erra o botao. Espera a tela assentar antes de tocar (corrida do roteiro, nao da tela: a sonda que esperou escolheu).
+time.sleep(2)
 confere("escolhe o Vendedor", escolher("Vendedor", VENDEDOR) is True)
 confere("a recusa some ao escolher", esperar(lambda: not erro_do_campo("Vendedor"), 10))
 enviar_venda()

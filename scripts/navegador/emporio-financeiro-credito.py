@@ -127,7 +127,12 @@ def clicar_no_card(nome, rotulo):
 
 
 def escolher_vendedor(nome):
-    """Abre o Select do Vendedor, espera as opcoes aparecerem e toca na que cita `nome`."""
+    """Abre o Select do Vendedor, espera as opcoes aparecerem e toca na que cita `nome`.
+    Onda 3 da UX (5.7): o Vendedor do Caixa e um grupo de botoes (role=radiogroup): toca-se o botao do `nome`."""
+    if js("!!document.querySelector('[role=radiogroup][aria-label=Vendedor]')"):
+        if escolher("Vendedor", nome) is not True:
+            return False
+        return bool(js("Array.from(document.querySelectorAll('[role=radiogroup][aria-label=Vendedor] [role=radio]')).some(b => b.getAttribute('aria-checked') === 'true' && b.innerText.includes(" + repr(nome) + "))"))
     gatilho = "(() => { const l = Array.from(document.querySelectorAll('main label')).find(x => x.innerText.replace('*','').trim() === 'Vendedor'); return l && document.getElementById(l.htmlFor); })()"
     opcao = "Array.from(document.querySelectorAll('[role=option]')).find(o => o.innerText.includes(" + repr(nome) + "))"
     for _ in range(4):

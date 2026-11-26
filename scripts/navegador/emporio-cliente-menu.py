@@ -100,6 +100,17 @@ def preencher_aria(aria, valor):
     return js("(() => { const el = document.querySelector('input[aria-label=' + " + repr("'" + aria + "'") + " + ']'); if (!el) return 'SEM CAMPO'; Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, " + repr(valor) + "); el.dispatchEvent(new Event('input', { bubbles: true })); return el.value; })()")
 
 
+def abrir_cadastro_de_cliente():
+    """Onda 3 da UX (5.7): o balcao ja abre com o Consumidor final, e o botao 'Cadastrar novo cliente' do campo
+    saiu junto com o 'Nenhum cliente escolhido'. O cadastro na hora segue no mesmo caminho, uma etapa adentro:
+    'Trocar' abre a janela de clientes, e nela 'Nao achou? Cadastrar novo' abre o painel do cadastro."""
+    if not (clicar("Trocar") or clicar("Escolher cliente")):
+        return False
+    if not esperar(lambda: js("!!document.querySelector('[data-escolha=cliente]')"), 10):
+        return False
+    return clicar("Não achou? Cadastrar novo")
+
+
 def enviar_venda():
     js("(() => { const b = Array.from(document.querySelectorAll('button[type=submit]')).find(x => x.innerText.includes('Fechar a venda')); if (b) b.click(); })()")
 
@@ -125,7 +136,7 @@ nome_original = produto["name"]
 passo("1. Cliente novo no balcão: PF, CPF inválido e depois válido")
 ir("/emporio/vender")
 confere("o balcão abre", caminho() == "/emporio/vender" and tem("Fechar a venda"), caminho())
-confere("abre Cadastrar novo cliente", clicar("Cadastrar novo cliente"))
+confere("abre o cadastro de cliente pela janela de clientes (Trocar, Não achou? Cadastrar novo)", abrir_cadastro_de_cliente())
 time.sleep(1.5)
 confere("painel abriu", painel_aberto())
 confere("escolhe Pessoa física", tipo_no_painel("Pessoa física"))
@@ -145,7 +156,7 @@ NOME_PJ = "Empresa Nova " + SUFIXO
 CNPJ = cnpj_alfanumerico_novo()
 CNPJ_ERRADO = CNPJ[:13] + str((int(CNPJ[13]) + 1) % 10)
 ir("/emporio/vender")
-confere("abre Cadastrar novo cliente", clicar("Cadastrar novo cliente"))
+confere("abre o cadastro de cliente pela janela de clientes (Trocar, Não achou? Cadastrar novo)", abrir_cadastro_de_cliente())
 time.sleep(1.5)
 confere("painel abriu", painel_aberto())
 confere("escolhe Pessoa jurídica", tipo_no_painel("Pessoa jurídica"))
@@ -174,9 +185,11 @@ contatos = api("GET", "/api/v1/contacts?q=" + NOME_PJ.replace(" ", "%20"))["body
 confere("o cliente do Empório não aparece em Contatos", not any(c.get("name") == NOME_PJ for c in contatos), contatos)
 
 passo("2. A venda exige cliente; Consumidor final vale")
-# Página nova: a venda recomeça sem cliente escolhido.
+# Página nova: a venda recomeça com o Consumidor final já escolhido (onda 3 da UX, 5.7). A recusa "Escolha o cliente da
+# venda." deixou de ser alcançável pela tela (não há como ficar sem cliente); o que segue valendo é o Consumidor final
+# registrar a venda sem ninguém escolher nada.
 ir("/emporio/vender")
-confere("sem cliente escolhido ao abrir", escolhido() == "", escolhido())
+confere("ao abrir, o cliente já é o Consumidor final", "Consumidor final" in escolhido(), escolhido())
 confere("escolhe a Loja 1", escolher("Loja", "F6b Loja 1") is True)
 confere("busca o produto", preencher_aria("Buscar produto", "F6b") != "SEM CAMPO")
 confere("adiciona o produto", esperar(lambda: clicar_resultado("F6b Ração"), 15))
@@ -184,11 +197,6 @@ confere("a quantidade é 1", preencher_aria("Quantidade do item 1", "1") != "SEM
 confere("adiciona o pagamento em dinheiro", clicar("+ Dinheiro"))
 time.sleep(1)
 confere("o valor em dinheiro é 20", preencher_aria("Valor em Dinheiro (R$)", "20") != "SEM CAMPO")
-enviar_venda()
-recusa = esperar(lambda: erro_do_campo("Cliente"))
-confere("sem cliente, a recusa fica no campo Cliente", "Escolha o cliente da venda." in (recusa or ""), recusa)
-confere("nenhuma venda foi registrada", not tem("Venda registrada"))
-confere("escolhe Consumidor final", escolher_cliente("Consumidor final") is True)
 enviar_venda()
 confere("a venda ao Consumidor final é registrada", esperar(lambda: tem("Venda registrada"), 60), texto_principal(200))
 confere("o resumo cita o cliente Consumidor final", tem("cliente Consumidor final"))

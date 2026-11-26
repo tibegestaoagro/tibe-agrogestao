@@ -28,6 +28,19 @@ def por_id_que_comeca(prefixo, valor):
     return js("(() => { const el = document.querySelector(" + repr('[id^="' + prefixo + '"]') + "); if (!el) return 'SEM CAMPO'; Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, " + repr(valor) + "); el.dispatchEvent(new Event('input', { bubbles: true })); return true; })()")
 
 
+def cheque_e_fecha_a_janela():
+    """Onda 3 da UX (5.7): o cliente ja vem como Consumidor final, e '+ Cheque' com ele abre a janela de clientes
+    sozinha, com o motivo. O cheque entra na lista do mesmo jeito: fecha-se a janela sem escolher (Escape), e o
+    passo segue provando que o cheque sem cliente de verdade e recusado."""
+    ok = clicar("+ Cheque")
+    aberta = esperar(lambda: js("!!document.querySelector('[data-escolha=cliente]')"), 10)
+    if aberta:
+        cdp("Input.dispatchKeyEvent", type="rawKeyDown", key="Escape", code="Escape", windowsVirtualKeyCode=27, nativeVirtualKeyCode=27)
+        cdp("Input.dispatchKeyEvent", type="keyUp", key="Escape", code="Escape", windowsVirtualKeyCode=27, nativeVirtualKeyCode=27)
+        esperar(lambda: not js("!!document.querySelector('[data-escolha=cliente]')"), 8)
+    return ok and bool(aberta)
+
+
 def escolher_por_inicio(rotulo, inicio):
     """Como `escolher`, mas a opcao e achada pelo comeco do texto (as da
     transferencia trazem o saldo, que muda)."""
@@ -153,7 +166,7 @@ passo("3. Cheque: sem cliente é recusado; com a Maria, vai para a carteira")
 buscar_e_adicionar("F3b Ração")
 por_aria("Quantidade do item 1", "5")
 time.sleep(0.5)
-clicar("+ Cheque")
+confere("'+ Cheque' com o Consumidor final abre a janela de clientes, que se fecha sem escolher", cheque_e_fecha_a_janela())
 time.sleep(0.8)
 # Q369: os dados do cheque ficam fechados atrás de "Tenho os dados do cheque" (o cheque pode entrar sem eles e ser completado depois).
 confere("abre 'Tenho os dados do cheque'", clicar("Tenho os dados do cheque"))

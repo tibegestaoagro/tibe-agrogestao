@@ -68,6 +68,7 @@ confere("troca para a aba Orcamento", clicar("Orçamento"))
 time.sleep(1)
 if LOJA_A not in texto_do_campo("Loja"):
     confere("escolhe " + LOJA_A, escolher("Loja", LOJA_A) is True)
+confere("abre Mais opções (o frete mora nela desde a onda 3 da UX)", abrir_mais_opcoes() is True)
 confere("o campo de frete aparece no orcamento", tem_rotulo(FRETE))
 confere("a Origem da venda nao aparece no orcamento", not tem_rotulo("Origem da venda"))
 
@@ -99,6 +100,7 @@ passo("4. Faturar: o frete vem preenchido")
 ir("/emporio/vender")
 if LOJA_A not in texto_do_campo("Loja"):
     confere("escolhe " + LOJA_A, escolher("Loja", LOJA_A) is True)
+confere("abre Mais opções (o número do orçamento a faturar mora nela desde a onda 3 da UX)", abrir_mais_opcoes() is True)
 confere("digita o numero do orcamento", preencher_rotulo("Orçamento nº", NUMERO) != "SEM CAMPO")
 confere("carrega o orcamento", clicar("Carregar"))
 confere("o frete vem preenchido com 15,00", bool(esperar(lambda: texto_do_campo(FRETE) == "15,00", 20)), texto_do_campo(FRETE))

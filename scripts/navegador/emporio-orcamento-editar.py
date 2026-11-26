@@ -224,6 +224,7 @@ ir("/emporio/vender")
 confere("o balcão abre", caminho() == "/emporio/vender" and tem("Total da venda"), caminho())
 if campo_existe("Loja") and LOJA not in texto_do_campo("Loja"):
     confere("escolhe " + LOJA, escolher("Loja", LOJA) is True)
+confere("abre Mais opções (o número do orçamento a faturar mora nela desde a onda 3 da UX)", abrir_mais_opcoes() is True)
 confere("o campo Orçamento nº existe", preencher("Orçamento nº", numero_aberto) not in ("SEM ROTULO", "SEM CAMPO"))
 confere("clica em Carregar", clicar("Carregar"))
 recusa = esperar(lambda: erro_do_campo("Orçamento nº"), 30)

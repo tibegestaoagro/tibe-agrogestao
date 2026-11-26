@@ -16,6 +16,19 @@ import datetime
 import re
 
 
+def forma_e_fecha_a_janela(rotulo):
+    """Onda 3 da UX (5.7): o cliente ja vem como Consumidor final, e '+ Boleto' ou '+ Cheque' com ele abre a janela
+    de clientes sozinha, com o motivo. A forma entra na lista do mesmo jeito: fecha-se a janela sem escolher
+    (Escape) e o roteiro segue como antes, escolhendo o cliente depois."""
+    ok = clicar("+ " + rotulo)
+    aberta = esperar(lambda: js("!!document.querySelector('[data-escolha=cliente]')"), 10)
+    if aberta:
+        cdp("Input.dispatchKeyEvent", type="rawKeyDown", key="Escape", code="Escape", windowsVirtualKeyCode=27, nativeVirtualKeyCode=27)
+        cdp("Input.dispatchKeyEvent", type="keyUp", key="Escape", code="Escape", windowsVirtualKeyCode=27, nativeVirtualKeyCode=27)
+        esperar(lambda: not js("!!document.querySelector('[data-escolha=cliente]')"), 8)
+    return ok and bool(aberta)
+
+
 def caminho():
     return js("location.pathname") or ""
 
@@ -124,9 +137,9 @@ confere("+ Boleto fica entre + Cheque e + Fiado", "+ Cheque" in formas and "+ Fi
 passo("2. Venda com dois boletos (R$ 25 com número, R$ 15 sem)")
 confere("a quantidade é 2 (R$ 40,00)", por_aria("Quantidade do item 1", "2") is True)
 time.sleep(0.5)
-confere("adiciona o 1º boleto", clicar("+ Boleto"))
+confere("adiciona o 1º boleto (com o Consumidor final, a janela de clientes abre e se fecha)", forma_e_fecha_a_janela("Boleto"))
 time.sleep(0.8)
-confere("adiciona o 2º boleto", clicar("+ Boleto"))
+confere("adiciona o 2º boleto (idem)", forma_e_fecha_a_janela("Boleto"))
 time.sleep(0.8)
 confere("valor do 1º boleto", por_aria("Valor em Boleto (R$)", "25", 0) is True)
 confere("valor do 2º boleto", por_aria("Valor em Boleto (R$)", "15", 1) is True)
@@ -163,9 +176,11 @@ passo("5. Cheque: Em nome de acompanha o cliente até ser editado")
 abrir_balcao()
 confere("a quantidade é 1 (R$ 20,00)", por_aria("Quantidade do item 1", "1") is True)
 time.sleep(0.5)
-confere("adiciona o cheque", clicar("+ Cheque"))
+confere("adiciona o cheque (a janela de clientes abre e se fecha)", forma_e_fecha_a_janela("Cheque"))
 time.sleep(0.8)
-confere("sem cliente, Em nome de vem vazio", ler_id("cheque-titular-") == "", ler_id("cheque-titular-"))
+# Onda 3 da UX (5.7): sem cliente de verdade, o cliente e o Consumidor final, e o Em nome de acompanha o nome dele
+# (o servidor recusa o cheque sem cliente de verdade; o que este passo prova e o acompanhar o cliente).
+confere("com o Consumidor final, Em nome de acompanha: vem Consumidor final", ler_id("cheque-titular-") == "Consumidor final", ler_id("cheque-titular-"))
 confere("escolhe a Bol Maria", escolher_cliente("Bol Maria") is True)
 confere("Em nome de vem com Bol Maria", ler_id("cheque-titular-") == "Bol Maria", ler_id("cheque-titular-"))
 confere("trocar o cliente sem editar acompanha: Bol Joao", escolher_cliente("Bol Joao") is True and ler_id("cheque-titular-") == "Bol Joao", ler_id("cheque-titular-"))
@@ -208,7 +223,9 @@ confere("Pagos mostra BOL-A, Pago, a data de ontem e a conta", esperar(lambda: a
 
 passo("8. Mandar para o fiado: recusa sem motivo, depois No fiado")
 confere("volta para Abertos", clicar("Abertos"))
-confere("o outro boleto da Bol Maria segue aberto (R$ 15,00)", esperar(lambda: tem("R$ 15,00") and not tem("BOL-A"), 30), texto_principal(800))
+# A lista recarrega ao trocar de filtro: durante o carregamento nao ha linha nenhuma, e "sem BOL-A" ja seria verdade.
+# Espera-se a linha da Bol Maria de R$ 15,00 de fato (corrida que so aparece com o next dev lento).
+confere("o outro boleto da Bol Maria segue aberto (R$ 15,00)", esperar(lambda: js("Array.from(document.querySelectorAll('main tbody tr')).some(r => { const t = r.innerText.replace(/\\u00a0/g, ' '); return t.includes('Bol Maria') && t.includes('R$ 15,00') && Array.from(r.querySelectorAll('button')).some(b => b.innerText.trim() === 'Mandar para o fiado'); })") is True and not tem("BOL-A"), 30), texto_principal(800))
 confere("abre Mandar para o fiado", clicar_na_linha("Bol Maria", "Mandar para o fiado"), js("Array.from(document.querySelectorAll('main tr')).filter(r => r.innerText.includes('Bol')).map(r => r.innerText.replace(/\\s+/g, ' ').slice(0, 160) + ' [' + Array.from(r.querySelectorAll('button')).map(b => b.innerText.trim()).join(',') + ']')"))
 time.sleep(1.5)
 confere("painel abriu", painel_aberto())
@@ -235,9 +252,9 @@ cdp("Emulation.setDeviceMetricsOverride", width=360, height=800, deviceScaleFact
 abrir_balcao()
 por_aria("Quantidade do item 1", "1")
 time.sleep(0.5)
-clicar("+ Boleto")
+forma_e_fecha_a_janela("Boleto")
 time.sleep(0.8)
-clicar("+ Cheque")
+forma_e_fecha_a_janela("Cheque")
 time.sleep(0.8)
 confere("o balcão mostra os campos do boleto e do cheque", js("!!document.querySelector('[id^=\"boleto-vencimento-\"]') && !!document.querySelector('[id^=\"cheque-titular-\"]')") is True)
 confere("sem rolagem horizontal", sem_rolagem_horizontal(), js("document.documentElement.scrollWidth + ' > ' + document.documentElement.clientWidth"))

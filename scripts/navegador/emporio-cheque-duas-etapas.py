@@ -53,6 +53,19 @@ def api(metodo, caminho_, corpo=None):
             time.sleep(6)
 
 
+def cheque_e_fecha_a_janela():
+    """Onda 3 da UX (5.7): o cliente ja vem como Consumidor final, e '+ Cheque' com ele abre a janela de clientes
+    sozinha, com o motivo. O cheque entra na lista do mesmo jeito: fecha-se a janela sem escolher (Escape) e o
+    roteiro segue como antes, escolhendo o cliente depois."""
+    ok = clicar("+ Cheque")
+    aberta = esperar(lambda: js("!!document.querySelector('[data-escolha=cliente]')"), 10)
+    if aberta:
+        cdp("Input.dispatchKeyEvent", type="rawKeyDown", key="Escape", code="Escape", windowsVirtualKeyCode=27, nativeVirtualKeyCode=27)
+        cdp("Input.dispatchKeyEvent", type="keyUp", key="Escape", code="Escape", windowsVirtualKeyCode=27, nativeVirtualKeyCode=27)
+        esperar(lambda: not js("!!document.querySelector('[data-escolha=cliente]')"), 8)
+    return ok and bool(aberta)
+
+
 def caminho():
     return js("location.pathname + location.search") or ""
 
@@ -236,9 +249,9 @@ confere("escolhe a Ch Loja 1", escolher("Loja", LOJA) is True)
 confere("adiciona Ch Ração", esperar(lambda: buscar_e_adicionar("Ch Ração"), 30))
 confere("a quantidade e 10 (R$ 100,00)", por_aria("Quantidade do item 1", "10") is True)
 time.sleep(0.5)
-confere("adiciona o 1o cheque", clicar("+ Cheque"))
+confere("adiciona o 1o cheque (com o Consumidor final, a janela de clientes abre e se fecha)", cheque_e_fecha_a_janela())
 time.sleep(0.8)
-confere("adiciona o 2o cheque", clicar("+ Cheque"))
+confere("adiciona o 2o cheque (idem)", cheque_e_fecha_a_janela())
 time.sleep(0.8)
 confere("valor do 1o cheque: 60", por_aria("Valor em Cheque (R$)", "60", 0) is True)
 confere("valor do 2o cheque: 40", por_aria("Valor em Cheque (R$)", "40", 1) is True)

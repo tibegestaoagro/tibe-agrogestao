@@ -133,7 +133,12 @@ def abrir_painel_com(acao):
 
 
 def escolher_vendedor(nome):
-    """Abre o Select do Vendedor, espera as opcoes aparecerem e escolhe a que cita `nome` pelo teclado."""
+    """Abre o Select do Vendedor, espera as opcoes aparecerem e escolhe a que cita `nome` pelo teclado.
+    Onda 3 da UX (5.7): o Vendedor do Caixa e um grupo de botoes (role=radiogroup): toca-se o botao do `nome`."""
+    if js("!!document.querySelector('[role=radiogroup][aria-label=Vendedor]')"):
+        if escolher("Vendedor", nome) is not True:
+            return False
+        return bool(js("Array.from(document.querySelectorAll('[role=radiogroup][aria-label=Vendedor] [role=radio]')).some(b => b.getAttribute('aria-checked') === 'true' && b.innerText.includes(" + repr(nome) + "))"))
     gatilho = "(() => { const l = Array.from(document.querySelectorAll('main label')).find(x => x.innerText.replace('*','').trim() === 'Vendedor'); return l && document.getElementById(l.htmlFor); })()"
     opcao = "Array.from(document.querySelectorAll('[role=option]')).find(o => o.innerText.includes(" + repr(nome) + "))"
     for _ in range(4):
@@ -259,8 +264,17 @@ def linha_do_extrato(conta, valor):
     return next((l for l in (extrato_da_api(conta).get("lines") or []) if abs(float(l.get("amount") or 0) - valor) < 0.005 and l.get("direction") == "saida"), None)
 
 
+def linha_do_extrato_tem(valor):
+    """Alguma linha do EXTRATO cita `valor`. A tabela de posicoes (as linhas 'Ver extrato') fica na mesma pagina e,
+    como a conta do seed acumula o que os outros cenarios deixam (a gaveta 'U3 Loja B' de R$ 300,00, por exemplo),
+    cita valores que o extrato nao tem: fica de fora."""
+    return bool(js("Array.from(document.querySelectorAll('main tbody tr')).some(x => { const t = x.innerText.replace(/\\u00a0/g, ' '); return t.includes(" + repr(valor) + ") && !t.includes('Ver extrato'); })"))
+
+
 def carimbar_linha(valor):
-    return bool(js("(() => { const tr = Array.from(document.querySelectorAll('main tbody tr')).find(x => x.innerText.replace(/\\u00a0/g, ' ').includes(" + repr(valor) + ")); const b = tr && Array.from(tr.querySelectorAll('button')).find(x => x.innerText.trim() === 'Conferir com o banco'); if (!b) return false; b.click(); return true; })()"))
+    # A conta do seed acumula o que os outros cenarios deixam: outra linha da pagina pode citar o mesmo valor
+    # (o saldo de uma conta, por exemplo). A linha certa e a do extrato, a que cita o valor E tem o botao.
+    return bool(js("(() => { const tem_botao = x => Array.from(x.querySelectorAll('button')).some(b => b.innerText.trim() === 'Conferir com o banco'); const tr = Array.from(document.querySelectorAll('main tbody tr')).find(x => x.innerText.replace(/\\u00a0/g, ' ').includes(" + repr(valor) + ") && tem_botao(x)); const b = tr && Array.from(tr.querySelectorAll('button')).find(x => x.innerText.trim() === 'Conferir com o banco'); if (!b) return false; b.click(); return true; })()"))
 
 
 # --- 1 ---------------------------------------------------------------------------------
@@ -377,7 +391,7 @@ sem_antes = extrato.get("unreconciled_count")
 confere("o extrato da API tem linhas sem carimbo", isinstance(sem_antes, int) and sem_antes >= 2, [sem_antes, extrato.get("unreconciled_total")])
 ir("/emporio/financeiro/caixa?lugar=conta:" + conta)
 confere("o extrato abre com a coluna Conferência", esperar(lambda: tem("Conferência") and tem("A conferir no período"), 60), texto_principal(800))
-confere("o extrato mostra o pagamento de R$ 300,00", linha_tem("300,00"), texto_principal(1200))
+confere("o extrato mostra o pagamento de R$ 300,00", linha_do_extrato_tem("300,00"), texto_principal(1200))
 confere("carimba o pagamento de R$ 300,00", esperar(lambda: carimbar_linha("300,00"), 20))
 confere("a linha mostra 'Conferido em dd/mm'", esperar(lambda: tem("Conferido em " + HOJE.strftime("%d/%m")), 40), texto_principal(1200))
 linha = linha_do_extrato(conta, 300)
@@ -386,7 +400,7 @@ depois = extrato_da_api(conta)
 confere("o total a conferir caiu em uma linha", depois.get("unreconciled_count") == sem_antes - 1, [sem_antes, depois.get("unreconciled_count")])
 ir("/emporio/financeiro/caixa?lugar=conta:" + conta + "&carimbo=sem")
 confere("o filtro Só a conferir esta marcado", esperar(lambda: js("!!Array.from(document.querySelectorAll('main a')).find(a => a.innerText.trim() === 'Só a conferir' && a.getAttribute('aria-current') === 'true')"), 40), texto_principal(500))
-confere("com o filtro, a linha carimbada de R$ 300,00 some", esperar(lambda: tem("A conferir no período") and not linha_tem("300,00"), 40) and linha_tem("900,00"), texto_principal(1200))
+confere("com o filtro, a linha carimbada de R$ 300,00 some", esperar(lambda: tem("A conferir no período") and not linha_do_extrato_tem("300,00"), 40) and linha_do_extrato_tem("900,00"), texto_principal(1200))
 ir("/emporio/financeiro")
 confere("o Hoje mostra o cartao A conferir com o banco", esperar(lambda: tem("A conferir com o banco") and tem("da conta sem conferir com o banco"), 40), texto_principal(900))
 

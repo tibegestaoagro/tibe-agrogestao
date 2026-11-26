@@ -147,6 +147,8 @@ def abrir_balcao(modo_orcamento):
         confere("troca para o modo Orcamento", clicar("Orçamento"))
         time.sleep(1)
         confere("o balcao mostra Salvar orcamento", bool(esperar(lambda: tem("Total do orçamento"), 10)))
+    # Onda 3 da UX (5.7): o frete e o Pedido para entrega moram em "Mais opções", recolhida: abre-se aqui, uma vez por balcão.
+    confere("abre Mais opções (o frete e o pedido para entrega moram nela desde a onda 3 da UX)", abrir_mais_opcoes() is True)
 
 
 def adicionar_racao(quantidade):
