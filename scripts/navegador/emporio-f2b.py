@@ -46,7 +46,8 @@ central, loja = lojas["F2b Central"], lojas["F2b Loja"]
 racao, sal = prods["F2b Ração"], prods["F2b Sal"]
 saca = [a for a in api("GET", "/api/v1/emporio/products/" + sal["id"])["body"]["data"]["presentations"] if a["name"] == "Saca 10 kg"][0]
 confere("cenário montado", bool(central and loja and racao and sal and saca))
-confere("cartão Transferências no início", tem("Transferências"))
+abrir_subgrupos()
+confere("menu com Transferências (onda 2: o Início não tem mais esse cartão)", "/emporio/transferencias" in menu(), menu())
 
 passo("1. Composição na tela do produto (Q77)")
 ir("/emporio/produtos/" + racao["id"])

@@ -45,7 +45,8 @@ prod = [p for p in api("GET", "/api/v1/emporio/products")["body"]["data"] if p["
 detalhe = api("GET", "/api/v1/emporio/products/" + prod["id"])["body"]["data"]
 saca = [a for a in detalhe["presentations"] if a["name"] == "Saca 10 kg"][0]
 confere("cenário montado", bool(loja and prod and saca))
-confere("início com cartões Estoque e Compras", tem("Estoque") and tem("Compras"))
+abrir_subgrupos()
+confere("menu com Estoque e Compras (onda 2: o Início não tem mais esses cartões)", "/emporio/estoque" in menu() and "/emporio/compras" in menu(), menu())
 
 passo("1. Estoque inicial pela tela (Q69)")
 ir("/emporio/produtos/" + prod["id"])

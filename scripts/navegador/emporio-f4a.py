@@ -64,7 +64,8 @@ entrar("owner")
 ir("/emporio")
 loja = [l for l in api("GET", "/api/v1/emporio/establishments")["body"]["data"] if l["name"] == "F4a Loja"][0]
 mes = time.strftime("%Y-%m")
-confere("cartões Resultado e Despesas no início", tem("Resultado") and tem("Despesas"))
+abrir_subgrupos()
+confere("menu com Resultado e Despesas (onda 2: o Início não tem mais esses cartões)", "/emporio/resultado" in menu() and "/emporio/despesas" in menu(), menu())
 
 passo("1. O Resultado da Loja na tela (o mês do cenário)")
 ir("/emporio/resultado?loja=" + loja["id"] + "&mes=" + mes)

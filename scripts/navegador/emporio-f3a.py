@@ -69,7 +69,8 @@ entrar("owner")
 ir("/emporio")
 lojas = {l["name"]: l for l in api("GET", "/api/v1/emporio/establishments")["body"]["data"]}
 loja = lojas["F3a Loja"]
-confere("cartões Vender, Vendas, Fiado e Caixa no início", all(tem(x) for x in ["Vender", "Vendas", "Fiado", "Caixa"]))
+abrir_subgrupos()
+confere("menu com Vender, Vendas, Fiado e Caixa (onda 2: o Início não tem mais esses cartões)", all(h in menu() for h in ["/emporio/vender", "/emporio/vendas", "/emporio/fiado", "/emporio/caixa"]), menu())
 ir("/emporio/vender")
 confere("o balcão abre direto na venda", tem("Fechar a venda") and bool(js("!!document.querySelector('input[aria-label=\"Buscar produto\"]')")))
 confere("escolhe a loja", escolher("Loja", "F3a Loja") is True)

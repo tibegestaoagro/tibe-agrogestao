@@ -237,14 +237,15 @@ async function main() {
   const agora = new Date();
   const dia15DoMesPassado = new Date(Date.UTC(agora.getUTCFullYear(), agora.getUTCMonth() - 1, 15, 15, 0, 0));
   const haDias = Math.round((Date.now() - dia15DoMesPassado.getTime()) / DIA);
-  // O fiado vencido (R$ 80,00), vendido ha 25 dias, tambem cai no mes anterior: R$ 220,00 aqui fecham os R$ 300,00 da Loja 1.
+  // O fiado vencido (R$ 80,00) tambem e vendido no dia 15 do mes anterior: R$ 220,00 aqui fecham os R$ 300,00 da Loja 1.
+  // (Era "vendido ha 25 dias", que do dia 26 em diante caia no mes corrente e quebrava a proporcao 3 para 1.)
   await vender("mes-anterior-1", loja1, turno1, 22, { kind: "pix", amount: 220 }, haDias);
   await vender("mes-anterior-2", loja2, turno2, 10, { kind: "pix", amount: 100 }, haDias);
 
   // O Pro Devedor: um fiado que vence daqui a 20 dias e, depois, um vencido ha 20 dias.
   // O em dia primeiro: com o vencido ja gravado, o bloqueio recusaria o segundo.
   await vender("devedor-em-dia", loja1, turno1, 6, { kind: "fiado", amount: 60, due_date: meioDia(somaDias(hojeStr, 20)) }, 0, devedor.id);
-  await vender("devedor-vencido", loja1, turno1, 8, { kind: "fiado", amount: 80, due_date: meioDia(somaDias(hojeStr, -20)) }, 25, devedor.id);
+  await vender("devedor-vencido", loja1, turno1, 8, { kind: "fiado", amount: 80, due_date: meioDia(somaDias(hojeStr, -20)) }, haDias, devedor.id);
 
   // O cartao a vista de R$ 100,00 (a parcela cai daqui a 10 dias) e o cheque de R$ 70,00 (bom para daqui a 40 dias).
   await vender("cartao", loja1, turno1, 10, { kind: "credito_vista", amount: 100 }, 0);
