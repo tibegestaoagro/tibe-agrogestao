@@ -32,7 +32,7 @@ const ATALHOS = [
   { href: "/emporio/relatorios", rotulo: "Estatísticas", pagina: "/emporio/relatorios" },
   { href: "/emporio/produtos", rotulo: "Produtos", pagina: "/emporio/produtos" },
   { href: "/emporio/estoque", rotulo: "Estoque", pagina: "/emporio/estoque" },
-  { href: "/emporio/compras?nova=1", rotulo: "Nova compra", pagina: "/emporio/compras" },
+  { href: "/emporio/compras?nova=1", rotulo: "Nova compra", pagina: "/emporio/compras", chave: "chave:lancar_compra" },
   { href: "/emporio/financeiro/receber", rotulo: "A receber", pagina: "/emporio/financeiro" },
 ] as const;
 
@@ -72,13 +72,23 @@ export default async function EmporioPage() {
   const primeiroNome = user.name?.trim().split(/\s+/)[0];
   const titulo = primeiroNome ? `${saudacao(hora)}, ${primeiroNome}` : saudacao(hora);
 
-  const atalhos = ATALHOS.filter((a) => veAPagina(papel, a.pagina)).map(({ href, rotulo }) => ({ href, rotulo }));
+  // Nova compra: abrir a página de Compras não basta, a pessoa precisa poder lançar compra
+  // (o Financeiro e o Vendedor sem a chave abrem a página mas não lançam).
+  const atalhos = ATALHOS.filter(
+    (a) => veAPagina(papel, a.pagina) && (!("chave" in a) || pode(papel, a.chave)),
+  ).map(({ href, rotulo }) => ({ href, rotulo }));
 
   const passos = pode(papel, "gestor_da_loja") ? await primeirosPassosAction(db, user) : null;
   // O aviso de loja sem Gestor (Q132) é recomendado e entra mesmo com os essenciais prontos.
   const pendenciasPorLoja = passos?.ok
     ? passos.data.establishments.filter((l) => l.sem_gestor || (!passos.data.complete && l.steps.some((s) => !s.done)))
     : [];
+
+  // Conta sem loja nenhuma: quem pode cadastrar (Dono e Gerente geral) vê o passo único.
+  const semLoja =
+    pode(papel, "conta") &&
+    veAPagina(papel, "/emporio/estabelecimentos") &&
+    (await db.establishment.count({ where: { archived_at: null } })) === 0;
 
   return (
     <div className="space-y-6">
@@ -97,7 +107,7 @@ export default async function EmporioPage() {
       )}
 
       <InicioAtalhos atalhos={atalhos} />
-      <InicioPrimeirosPassos lojas={pendenciasPorLoja} />
+      <InicioPrimeirosPassos lojas={pendenciasPorLoja} semLoja={semLoja} />
     </div>
   );
 }

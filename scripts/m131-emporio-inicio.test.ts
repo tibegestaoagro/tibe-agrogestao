@@ -19,6 +19,8 @@ exigirBancoLocal();
  * Seção 5: relógio fixo em 25/11 22h30 de São Paulo (já 26/11 em UTC): orçamento, caixa de ontem, vendas de hoje.
  * Seção 6: gestor de A não enxerga a loja B (alcance).
  * Seção 7: a rota e dois tenants.
+ * Seções 8 a 10: dia de São Paulo, venda cancelada, avisos de dinheiro (com a concordância no plural).
+ * Seção 11: a concordância no singular.
  *
  * Suposições de contrato que o plano não fechava (ver o relato): a chave do aviso por loja/turno pode ser
  * `estoque_baixo` ou `estoque_baixo:<id>` (a suíte casa por prefixo); o `valor` do `pagar_hoje` é a soma
@@ -561,6 +563,11 @@ async function comBanco() {
       const pg = um("pagar_hoje");
       check("pagar hoje: 2 contas (a vencida e a de hoje), 160", daChave(d, "pagar_hoje").length === 1 && Number(pg?.quantidade) === 2 && Number(pg?.valor) === 160, j(pg));
 
+      check("concordância no plural: 2 contas a pagar vencidas ou vencendo hoje",
+        pg?.texto === "2 contas a pagar vencidas ou vencendo hoje", j(pg));
+      check("concordância no plural: 2 boletos e cheques vencidos sem baixa",
+        bc?.texto === "2 boletos e cheques vencidos sem baixa", j(bc));
+
       const n = d.ok ? d.data.numeros : null;
       check("Entra hoje: 215 (fiado 40 + 25, cheques 30 + 70, boleto 50); o fiado de amanhã (15) fica de fora",
         !!n?.entra_hoje && Number(n.entra_hoje.total) === 215, j(n?.entra_hoje));
@@ -574,6 +581,31 @@ async function comBanco() {
         check(`${rotulo}: nenhum aviso de dinheiro`,
           ["fiado_vencido", "pagar_hoje", "aprovacao_pendente", "boleto_cheque_vencido", "conferir_banco"].every((c) => daChave(x, c).length === 0), j(avisosDe(x)));
       }
+    });
+
+    // ------------------------------------------------------------------------------------------ 11
+    await rodar("concordância no singular", async () => {
+      console.log("\n11. Concordância no singular: 1 conta a pagar e 1 boleto vencido (conta própria)");
+      const W5 = await montar("T5", ["A"], []);
+      const c5 = await clienteCompleto(W5, "M131 Cliente T5");
+      const diaStr = (off: number) => new Date(Date.parse(`${hojeStr}T00:00:00Z`) + off * DIA).toISOString().slice(0, 10);
+      const Compras: Dado = await import("@/lib/actions/emporio-compras");
+      const rc = await Compras.criarCompraAction(W5.db, W5.owner, {
+        operation_key: chave("compra5"), establishment_id: W5.lojas.A, purchased_at: new Date(), received: true, freight: 0,
+        items: [{ emporio_product_id: W5.prodId, quantity: 10, item_total: 100 }],
+        payment: { kind: "a_prazo", due_date: meioDia(diaStr(0)) },
+      });
+      if (!rc.ok) throw new Error(`compra T5: ${j(rc)}`);
+      const sid = await vender(W5, "A", 1, c5);
+      const pag = await P.emporioSalePayment.findFirst({ where: { sale_id: sid } });
+      await P.emporioBoleto.create({
+        data: { sale_id: sid, sale_payment_id: pag.id, customer_id: c5.id, establishment_id: W5.lojas.A, tenant_id: W5.tenantId, due_on: new Date(`${diaStr(-1)}T00:00:00Z`), amount: 50, status: "aberto" },
+      });
+      const d = await ler(W5, W5.owner);
+      const pg = daChave(d, "pagar_hoje")[0];
+      const bc = daChave(d, "boleto_cheque_vencido")[0];
+      check("singular: 1 conta a pagar vencida ou vencendo hoje", pg?.texto === "1 conta a pagar vencida ou vencendo hoje", j(pg));
+      check("singular: 1 boleto ou cheque vencido sem baixa", bc?.texto === "1 boleto ou cheque vencido sem baixa", j(bc));
     });
   } finally {
     const cru = P;

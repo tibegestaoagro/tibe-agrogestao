@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { reaisBr } from "@/lib/numero-br";
 import type { AvisoDoInicio } from "@/lib/emporio/inicio";
 
 const ETIQUETA: Record<AvisoDoInicio["coluna"], string> = { gestor: "Gestor", dinheiro: "Financeiro" };
@@ -19,7 +20,14 @@ export function InicioAvisos({ avisos }: { avisos: AvisoDoInicio[] }) {
               <Badge variant="gray" className="shrink-0">
                 {ETIQUETA[a.coluna]}
               </Badge>
-              <span className="min-w-0 break-words text-sm text-texto">{a.texto}</span>
+              <span className="min-w-0 break-words text-sm text-texto">
+                {a.texto}
+                {a.coluna === "dinheiro" && a.valor !== null && a.valor > 0 && (
+                  <>
+                    , <span className="whitespace-nowrap font-semibold">{reaisBr(a.valor)}</span>
+                  </>
+                )}
+              </span>
             </div>
             <Link
               href={a.href}

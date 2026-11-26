@@ -55,6 +55,7 @@ abrir_grupo("Meu Empório")
 confere("menu com Meu Empório", "/emporio" in menu())
 confere("API 200", status_api("/api/v1/emporio") == 200)
 ir("/emporio")
+confere("conta com loja: o Início não pede a primeira loja", "Cadastre a primeira loja" not in texto_principal(5000))
 confere("pagina abre", not eh_404() and re.match(r"^(Bom dia|Boa tarde|Boa noite)", titulo_da_tela()) is not None, texto_principal(80))
 
 passo("4. Estoque da fazenda continua abrindo")
@@ -102,5 +103,8 @@ for p in ["/meu-dia", "/dashboard", "/emporio", "/contatos", "/lista-de-compra",
     confere("abre " + p, destino == p and not eh_404(), destino)
 for p in ["/estoque", "/minha-fazenda", "/rebanho"]:
     confere(p + " leva ao Painel", ir(p) == "/dashboard")
+ir("/emporio")
+links_loja = js("Array.from(document.querySelectorAll('main a')).filter(a => a.innerText.trim() === 'Cadastre a primeira loja').map(a => a.getAttribute('href'))") or []
+confere("conta sem loja: o Início pede para cadastrar a primeira loja (onda 2, achado do juiz)", links_loja == ["/emporio/estabelecimentos"], [links_loja, texto_principal(300)])
 ir("/dashboard")
 confere("Painel rotula o perfil como Empório", "Perfis ativos: Empório" in texto_principal(300))

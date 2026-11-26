@@ -19,8 +19,34 @@ export type LojaComPendencia = {
   sem_gestor: { href: string; message: string } | null;
 };
 
-/** "Primeiros passos": o que falta para o resultado da loja sair confiável. Só entra quando há loja com pendência. */
-export function InicioPrimeirosPassos({ lojas }: { lojas: LojaComPendencia[] }) {
+/**
+ * "Primeiros passos": o que falta para o resultado da loja sair confiável. Só entra quando há loja com pendência.
+ * `semLoja` (conta sem nenhuma loja, e quem abre a página de Lojas pode cadastrar) mostra o passo único.
+ */
+export function InicioPrimeirosPassos({ lojas, semLoja = false }: { lojas: LojaComPendencia[]; semLoja?: boolean }) {
+  if (semLoja && lojas.length === 0) {
+    return (
+      <section className="space-y-4 rounded-lg border border-borda bg-superficie p-5 shadow-sm">
+        <div>
+          <h2 className="text-lg font-semibold text-texto">Primeiros passos</h2>
+          <p className="mt-1 text-sm text-texto-secundario">
+            Sem uma loja, o Empório não tem onde vender nem onde guardar estoque.
+          </p>
+        </div>
+        <ul className="divide-y divide-borda">
+          <li className="flex flex-wrap items-center justify-between gap-2 py-2">
+            <Link
+              href="/emporio/estabelecimentos"
+              className="inline-flex min-h-11 items-center text-sm font-medium text-texto hover:underline sm:min-h-0"
+            >
+              Cadastre a primeira loja
+            </Link>
+            <Badge variant="amber">Pendente</Badge>
+          </li>
+        </ul>
+      </section>
+    );
+  }
   if (lojas.length === 0) return null;
   return (
     <section className="space-y-4 rounded-lg border border-borda bg-superficie p-5 shadow-sm">

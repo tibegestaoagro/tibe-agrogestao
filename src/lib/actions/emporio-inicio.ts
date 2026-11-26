@@ -175,7 +175,7 @@ export async function lerInicioAction(
         coluna: "dinheiro",
         quantidade: qtdPagar,
         valor: (centavos(overdue.total) + centavos(devidoHoje.total)) / 100,
-        texto: `${plural(qtdPagar, "conta", "contas")} a pagar vencida ou vencendo hoje`,
+        texto: plural(qtdPagar, "conta a pagar vencida ou vencendo hoje", "contas a pagar vencidas ou vencendo hoje"),
         href: "/emporio/financeiro/pagar",
         acao: "Pagar",
       });
@@ -209,7 +209,7 @@ export async function lerInicioAction(
         coluna: "dinheiro",
         quantidade: qtdBc,
         valor: cent / 100,
-        texto: `${plural(qtdBc, "boleto ou cheque", "boletos e cheques")} vencido sem baixa`,
+        texto: plural(qtdBc, "boleto ou cheque vencido sem baixa", "boletos e cheques vencidos sem baixa"),
         href: "/emporio/financeiro/receber?ver=vencido",
         acao: "Ver",
       });
