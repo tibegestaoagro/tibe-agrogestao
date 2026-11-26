@@ -25,7 +25,7 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-25 (fim do dia). **Frente em curso: UX e UI só do Empório**, na
+- Atualizado em: 2026-11-26 (madrugada). **Frente em curso: UX e UI só do Empório**, na
   branch `ux-emporio`. O desenho foi aprovado:
   [2026-11-24-emporio-ux-design.md](../superpowers/specs/2026-11-24-emporio-ux-design.md)
   (Q387 a Q397, 6 ondas). O briefing tem a entrevista e os mockups:
@@ -83,11 +83,42 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   `.superpowers/sdd/2026-11-24-emporio-ux-onda1-navegacao/limpeza-roteiros-report.md`
   (git-ignorado).
 
-  **Próximo:** a onda 2 (Início, §5.5), **aprovada pelo usuário em 25/11,
-  com as 8 decisões**. O plano é
-  `docs/superpowers/plans/2026-11-25-emporio-ux-onda2-inicio.md`. Em curso:
-  T1 (a suíte `m131`, escrita a partir do plano, em paralelo com a leitura
-  e a rota). Depois, T2 (a tela) e T3 (a prova viva e o fim da onda).
+  **Onda 2 (Início, §5.5): pronta na branch, NÃO em produção.** Foi aprovada
+  pelo usuário em 25/11, com as 8 decisões. O plano é
+  `docs/superpowers/plans/2026-11-25-emporio-ux-onda2-inicio.md`, e os commits
+  vão de `6d8a73dd` a `4b010009`. O merge precisa de autorização nova, e o
+  mesmo vale para a trava do Caixa (`f52e3723`) e para a limpeza. Não há
+  migração.
+
+  Entregue:
+  - `lerInicioAction` e `GET /api/v1/emporio/inicio`;
+  - avisos por papel com o valor em R$ nos de dinheiro;
+  - números do dia (2 cartões para quem não cuida do dinheiro);
+  - atalhos por papel, com "Nova compra" só para quem lança compra;
+  - "Cadastre a primeira loja" na conta sem loja;
+  - o Caixa entra em Vender e não tem Início no menu.
+
+  Resultados:
+  - juiz 6/10, e os 8 achados foram tratados. Na suíte `m131`, os casos novos
+    reprovam com o defeito plantado: dia em UTC, venda cancelada, fronteira do
+    cheque e Sai hoje zerado;
+  - passada única dos 50 roteiros `emporio-*` verde, no código final;
+  - `test:all` 134/134. A `test:nav` foi corrigida (o Caixa sem Início). A
+    `m19` reprova na segunda rodada da mesma hora, pelo limite de cadastro no
+    Redis local, e passou com as chaves `signup-*` locais apagadas;
+  - roteiro `emporio-ux-onda2` provado nos dois sentidos (Caixa e alcance);
+  - roteiro `emporio-f0` provado nos dois sentidos (primeira loja).
+
+  Escolhas para o olho humano:
+  - as vendas são brutas, sem descontar devolução, como na tela de Vendas;
+  - "Sai hoje" inclui as contas vencidas, como a aba Hoje do Financeiro;
+  - o aviso de orçamento abre todos os abertos, e não só os perto de vencer.
+
+  **Lista da onda 7 (manual).** O `manual-emporio.py` (linhas 148 e 149) e a
+  figura `inicio-primeiros-passos` ainda esperam a grade antiga do Início.
+
+  **Próximo:** o usuário decide o merge da onda 1b (trava do Caixa), da
+  limpeza e da onda 2. Depois vem a onda 3 do desenho.
 
   O roteiro descartável do tour de UX (só no desktop) não é versionado.
 - Em produção desde 24/11 (merge `176a3dba`, CI e Vercel verdes): lint de 30
