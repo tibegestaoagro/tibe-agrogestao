@@ -134,7 +134,7 @@ export async function primeirosPassosAction(
       });
     }
     steps.push(
-      { key: "despesa_fixa", essential: true, done: fixas > 0, href: "/emporio/despesas" },
+      { key: "despesa_fixa", essential: true, done: fixas > 0, href: "/emporio/financeiro/pagar?aba=fixas" },
       { key: "minimo_maximo", essential: false, done: limites > 0, href: "/emporio/produtos" },
       { key: "conta_pix", essential: false, done: loja.pix_bank_account_id !== null, href: "/emporio/caixa" },
     );

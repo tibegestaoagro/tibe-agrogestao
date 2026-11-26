@@ -402,6 +402,20 @@ async function comBanco() {
     await xx("receberFiadoAction", op, { operation_key: chave("rec"), customer_id: C4, establishment_id: L1.id, amount: 10, kind: "dinheiro" });
     check("a ordem é pela VENDA mais antiga (sold_at), mesmo que a mais nova tenha vencimento mais cedo", perto(await pago(eOld.id), 10) && (await pago(eNew.id)) === 0, `antiga pagou ${await pago(eOld.id)}, nova pagou ${await pago(eNew.id)}`);
 
+    // Onda 4 (T1): documento do cliente e venda mais antiga em aberto no fiado por cliente.
+    const vOld = await db.emporioSale.findUnique({ where: { id: await saleId(rOld) }, select: { sold_at: true } });
+    const vQuitada = await db.emporioSale.findUnique({ where: { id: await saleId(rM) }, select: { sold_at: true } });
+    const vAberta = await db.emporioSale.findUnique({ where: { id: M2 }, select: { sold_at: true } });
+    const lstOnda4 = lista(dados(await xx("listarFiadoAction", op)));
+    const f4 = lstOnda4.find((x) => x.customer_id === C4);
+    const f1 = lstOnda4.find((x) => x.customer_id === C1);
+    check("fiado sem documento do cliente: document null", f4 !== undefined && f4.document === null, j(f4));
+    await db.emporioCustomer.update({ where: { id: C4 }, data: { document: "123.456.789-09" } });
+    const f4b = lista(dados(await xx("listarFiadoAction", op))).find((x) => x.customer_id === C4);
+    check("fiado com CPF: devolve o document como gravado", f4b?.document === "123.456.789-09", j(f4b));
+    check("oldest_sale_at é o sold_at da venda em aberto mais antiga (a de 3 dias, não a de 1)", !!vOld && f4?.oldest_sale_at === vOld.sold_at.toISOString(), `${f4?.oldest_sale_at} x ${vOld?.sold_at.toISOString()}`);
+    check("venda já quitada não conta: oldest_sale_at do C1 é a venda em aberto, não a quitada", !!vQuitada && !!vAberta && vQuitada.sold_at.getTime() < vAberta.sold_at.getTime() && f1?.oldest_sale_at === vAberta.sold_at.toISOString(), `${f1?.oldest_sale_at} x ${vAberta?.sold_at.toISOString()}`);
+
     // ---------------------------------------------------------------- 7
     console.log("\n7. Desconto (Q85)");
     check("OPERADOR com 15% de desconto (limite 10%): 403 DISCOUNT_ABOVE_LIMIT em items", recusa(await vender(op, [item(Sal, "Quilo", 1, 17)], [dinheiro(17)]), "DISCOUNT_ABOVE_LIMIT", 403, "items"));

@@ -292,7 +292,7 @@ async function comBanco() {
       check("compra a prazo: 'Pagar Fornecedor A (Loja A)' com valor 50 e link /emporio/compras", !!compraA && perto(compraA.valor, 50) && compraA.href === "/emporio/compras", j(titulosDe(pagarOwner)));
       check("compra da Loja B aparece para o OWNER (sem vínculo vê todas)", pagarOwner.some((i) => i.titulo === "Pagar Fornecedor B (Loja B)"));
       const fixaItem = pagarOwner.find((i) => String(i.titulo).includes("M85 Aluguel"));
-      check("despesa fixa: título com o nome da despesa e a loja, link /emporio/despesas", !!fixaItem && String(fixaItem.titulo).includes("(Loja A)") && fixaItem.href === "/emporio/despesas", j(titulosDe(pagarOwner)));
+      check("despesa fixa: título com o nome da despesa e a loja, link /emporio/financeiro/pagar?aba=fixas", !!fixaItem && String(fixaItem.titulo).includes("(Loja A)") && fixaItem.href === "/emporio/financeiro/pagar?aba=fixas", j(titulosDe(pagarOwner)));
       check("a conta da fazenda (diesel) NÃO vem dos itens do Empório", !pagarOwner.some((i) => perto(i.valor, 77.7)));
 
       const opItens = await dia(opA);

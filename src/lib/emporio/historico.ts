@@ -248,7 +248,7 @@ export function linkDoAlvo(targetType: string, targetId: string | null): string 
       return "/emporio/financeiro/aprovacoes";
     case "conta":
     case "conta_bancaria":
-      return targetId ? `/emporio/financeiro/caixa?lugar=conta:${targetId}` : null;
+      return targetId ? `/emporio/caixa?lugar=conta:${targetId}` : null;
     default:
       return null;
   }

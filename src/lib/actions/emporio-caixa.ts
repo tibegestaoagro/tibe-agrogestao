@@ -70,6 +70,10 @@ export type FiadoClienteView = {
   customer_name: string;
   phone: string | null;
   owed: number;
+  /** Onda 4 (extensão aditiva): CPF/CNPJ do contato, como gravado. */
+  document: string | null;
+  /** Onda 4 (extensão aditiva): ISO do sold_at mais antigo entre as vendas com valor em aberto; null sem venda ligada. */
+  oldest_sale_at: string | null;
   oldest_due_date: string | null;
   overdue_amount: number;
   /** Frente A: o aberto de cada lançamento que vence hoje e o que vence depois (o recorte do cartão do A receber). */
@@ -222,7 +226,7 @@ export async function listarFiadoAction(
   });
   const clientesDb = await db.emporioCustomer.findMany({
     where: { id: { in: [...new Set(abertas.map((e) => e.emporio_customer_id as string))] } },
-    select: { id: true, name: true, phone: true },
+    select: { id: true, name: true, phone: true, document: true },
   });
   const porCliente = new Map(clientesDb.map((c) => [c.id, c]));
   const hoje = hojeEmBrasilia();
@@ -241,6 +245,8 @@ export async function listarFiadoAction(
         customer_id: id,
         customer_name: c.name,
         phone: c.phone,
+        document: c.document,
+        oldest_sale_at: null,
         owed: 0,
         oldest_due_date: null,
         overdue_amount: 0,
@@ -256,6 +262,10 @@ export async function listarFiadoAction(
     else if (diaDoVencimento === hoje.getTime()) cli.due_today_amount = arred2(cli.due_today_amount + aberto);
     else cli.upcoming_amount = arred2(cli.upcoming_amount + aberto);
     if (cli.oldest_due_date === null || venceEm < cli.oldest_due_date) cli.oldest_due_date = venceEm;
+    if (!e.agreement_id) {
+      const vendidoEm = e.sold_at.toISOString();
+      if (cli.oldest_sale_at === null || vendidoEm < cli.oldest_sale_at) cli.oldest_sale_at = vendidoEm;
+    }
     cli.entries.push({
       entry_id: e.id,
       sale_id: e.agreement_id ? null : e.related_id,

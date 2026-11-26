@@ -224,8 +224,8 @@ export async function lerInicioAction(
         valor: h.unreconciled.total,
         texto: `${plural(h.unreconciled.count, "linha", "linhas")} da conta sem conferir com o banco`,
         href: conta
-          ? `/emporio/financeiro/caixa?lugar=conta:${conta.id}&carimbo=sem`
-          : "/emporio/financeiro/caixa",
+          ? `/emporio/caixa?lugar=conta:${conta.id}&carimbo=sem`
+          : "/emporio/caixa",
         acao: "Conferir",
       });
     }
