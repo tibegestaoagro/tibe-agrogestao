@@ -58,8 +58,20 @@ ficha mostrava "Total comprado R$ 0,00" e parecia defeito da ficha. Saída: o
 nome do cliente criado pelo roteiro leva um sufixo por rodada (`time.time()`).
 Vale para qualquer registro que o roteiro cria e o cenário não apaga.
 
+## Acréscimo de 2026-11-26: o pedido de pagamento fica órfão porque não tem chave estrangeira
+
+Na passada dos roteiros da onda 2 de UX, a lista de Aprovações aparecia com
+os pedidos dobrados, e parecia defeito da paginação. `EmporioPaymentRequest.establishment_id`
+não tem chave estrangeira: o cenário que apaga a loja deixa os pedidos dela no
+banco, e nenhum `onDelete` avisa. O cenário da paginação
+(`scripts/_cenario-emporio-paginacao-listas.ts`) passou a apagar os pedidos
+pela assinatura deles (data antes de 2020 e total entre 700 e 724), e não pela
+loja. Vale para qualquer coluna de id sem relação no schema: apagar o pai não
+leva o filho, e o resto aparece em outra tela, na rodada de outro roteiro.
+
 ## Relacionado
 
+- [[o-cenario-com-data-relativa-muda-de-mes-conforme-o-dia-em-que-roda]]
 - [[a-aba-oculta-e-a-leitura-cedo-imitam-defeito-no-navegador]]
 - [[a-suite-e-o-roteiro-no-mesmo-banco-reprovam-sem-defeito]]
 - [[dado-herdado-invalido-trava-o-caminho-novo]]

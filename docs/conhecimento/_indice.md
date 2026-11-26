@@ -114,6 +114,7 @@ grep -rl "^tipo: armadilha" docs/conhecimento/
 | [o roteiro que procura pelo texto pega o primeiro da página](o-roteiro-que-procura-pelo-texto-pega-o-primeiro-da-pagina.md) | armadilha | 7 falhas no Desfazer da antecipação eram o "Desfazer" de uma parcela conferida; procure dentro do bloco |
 | [o fiado que vira acordo perde a venda de vista](o-fiado-que-vira-acordo-perde-a-venda-de-vista.md) | armadilha | as parcelas do acordo nascem sem `sale_id`; quem pergunta "a venda ainda deve?" só pela venda responde "já pagou" |
 | [a suíte e o roteiro no mesmo banco reprovam sem defeito](a-suite-e-o-roteiro-no-mesmo-banco-reprovam-sem-defeito.md) | armadilha | `TransactionWriteConflict` na `m92` e 14 falhas em cascata no roteiro, ambos verdes sozinhos; rode em sequência |
+| [o cenário com data relativa muda de mês conforme o dia em que roda](o-cenario-com-data-relativa-muda-de-mes-conforme-o-dia-em-que-roda.md) | armadilha | "há 25 dias" falha do dia 26 em diante, e a suíte do Início aprovava o dia em UTC; data pelo calendário e venda entre 0h e 3h |
 
 ⚠️ **`[[wikilink]]` para nota que não existe reprova o `npm run check`**
 (conferência 13). É o que impede esta pasta de virar um cemitério de links
