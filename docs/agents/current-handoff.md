@@ -58,8 +58,8 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   - **o manual fica para a onda 7**, depois da 6 (desenho §6). Nas ondas 2 a 6,
     o defasado do manual vai para a lista dela;
   - **o Caixa volta ao Início em Fornecedores e Franqueados** (listas e
-    fichas, por `veAPagina`). Commit `f52e3723`, **só na branch, não em
-    produção** (o merge precisa de autorização nova). Provado nos dois
+    fichas, por `veAPagina`). Commit `f52e3723`, **em produção desde
+    26/11**, no mesmo merge da onda 2. Provado nos dois
     sentidos no roteiro `emporio-ux-onda1` (passo 8): 0 falhas com a trava, 4
     sem ela;
   - a prova do menu no navegador, sem plantio: `emporio-ux-onda1` inteiro, 0
@@ -83,12 +83,12 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   `.superpowers/sdd/2026-11-24-emporio-ux-onda1-navegacao/limpeza-roteiros-report.md`
   (git-ignorado).
 
-  **Onda 2 (Início, §5.5): pronta na branch, NÃO em produção.** Foi aprovada
-  pelo usuário em 25/11, com as 8 decisões. O plano é
+  **Onda 2 (Início, §5.5): em produção desde 26/11**, depois do merge
+  autorizado pelo usuário (avanço rápido de `ux-emporio` sobre `614cb4b2`,
+  sem migração). O mesmo merge levou a trava do Caixa (`f52e3723`) e a
+  limpeza. Foi aprovada pelo usuário em 25/11, com as 8 decisões. O plano é
   `docs/superpowers/plans/2026-11-25-emporio-ux-onda2-inicio.md`, e os commits
-  vão de `6d8a73dd` a `4b010009`. O merge precisa de autorização nova, e o
-  mesmo vale para a trava do Caixa (`f52e3723`) e para a limpeza. Não há
-  migração.
+  vão de `6d8a73dd` a `4b010009`.
 
   Entregue:
   - `lerInicioAction` e `GET /api/v1/emporio/inicio`;
@@ -117,8 +117,8 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   **Lista da onda 7 (manual).** O `manual-emporio.py` (linhas 148 e 149) e a
   figura `inicio-primeiros-passos` ainda esperam a grade antiga do Início.
 
-  **Próximo:** o usuário decide o merge da onda 1b (trava do Caixa), da
-  limpeza e da onda 2. Depois vem a onda 3 do desenho.
+  **Próximo:** a onda 3 do desenho, com plano novo aprovado pelo usuário.
+  As três escolhas acima esperam o olho dele em produção.
 
   O roteiro descartável do tour de UX (só no desktop) não é versionado.
 - Em produção desde 24/11 (merge `176a3dba`, CI e Vercel verdes): lint de 30
