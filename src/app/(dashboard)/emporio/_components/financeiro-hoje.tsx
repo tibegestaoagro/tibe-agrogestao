@@ -58,7 +58,8 @@ export function FinanceiroHoje({ resumo, loja }: { resumo: HojeView; loja: strin
   const { positions, total_balance, payables_due, receivables_due, overdue_fiado, pending_approvals, unreconciled, cards_to_confirm, cards_overdue, checks_to_complete } = resumo;
   // O A receber filtrado, com a loja preservada.
   const enderecoDoReceber = (ver: "hoje" | "vencido") => {
-    const p = new URLSearchParams();
+    // Os dois cartões que usam isto são de parcelas de cartão: a aba que resolve é a dos Cartões.
+    const p = new URLSearchParams({ aba: "cartoes" });
     if (loja) p.set("loja", loja);
     p.set("ver", ver);
     return `/emporio/financeiro/receber?${p.toString()}`;
@@ -67,7 +68,7 @@ export function FinanceiroHoje({ resumo, loja }: { resumo: HojeView; loja: strin
   const enderecoSemCarimbo = conta
     ? `${enderecoDaAba("/emporio/caixa", loja)}${loja ? "&" : "?"}lugar=conta:${conta.id}&carimbo=sem`
     : enderecoDaAba("/emporio/caixa", loja);
-  const enderecoDosCheques = `${enderecoDaAba("/emporio/financeiro/receber", loja)}${loja ? "&" : "?"}cheques=a_completar`;
+  const enderecoDosCheques = `${enderecoDaAba("/emporio/financeiro/receber", loja)}${loja ? "&" : "?"}aba=cheques&cheques=a_completar`;
   const aReceberHoje = receivables_due.fiado.total + receivables_due.checks.total + receivables_due.boletos.total + receivables_due.cards.total;
 
   return (

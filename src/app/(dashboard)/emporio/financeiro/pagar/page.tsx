@@ -80,7 +80,7 @@ export default async function FinanceiroPagarPage({
   const cabecalho = (
     <CabecalhoDaTela
       titulo="A pagar"
-      caminho={[{ rotulo: "Dinheiro", href: "/emporio/financeiro" }]}
+      caminho={pode(papel, "dinheiro") ? [{ rotulo: "Dinheiro", href: "/emporio/financeiro" }] : undefined}
       ajuda="Contas avulsas, das despesas fixas, do Vendeu, Pagou, dos fretes e das compras."
     >
       Pagar tira o dinheiro do caixa do Empório.

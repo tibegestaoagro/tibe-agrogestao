@@ -18,7 +18,7 @@ import { idDoClientePadrao } from "../../_components/cliente-padrao";
 import { Paginacao, paginaDaUrl } from "../../_components/paginacao";
 import { PeriodoFiltro } from "../../_components/periodo-filtro";
 import { RecebidosLista } from "../../_components/recebidos-lista";
-import { valorDoFiadoNoRecorte, verDoReceber } from "../../_components/recorte";
+import { totalDaAbaCartoes, valorDoFiadoNoRecorte, verDoReceber } from "../../_components/recorte";
 import { ResumoFaixa } from "../../_components/resumo-faixa";
 import { paraCaixasDaLoja } from "../../_components/caixas-da-loja";
 import { CabecalhoDaTela } from "../../_components/cabecalho-da-tela";
@@ -109,7 +109,7 @@ export default async function FinanceiroReceberPage({
     fiado: recortado ? soma(recortado.fiado.map((c) => valorDoFiadoNoRecorte(c, verRecorte))) : null,
     cheques: recortado ? soma(recortado.cheques.map((c) => c.amount)) : null,
     boletos: recortado ? soma(recortado.boletos.map((b) => b.amount)) : null,
-    cartoes: recortado ? soma(recortado.cartoes.map((p) => p.effective_net)) : null,
+    cartoes: recortado ? totalDaAbaCartoes(recortado.cartoes) : null,
     vencidos: cobrancaRes.ok ? soma(cobrancaRes.data.customers.map((c) => c.overdue_total)) : null,
   };
   const abaParam = aba === "fiado" ? undefined : aba;
@@ -165,7 +165,7 @@ export default async function FinanceiroReceberPage({
         <ResumoFaixa
           ativo={ver}
           caminho={CAMINHO}
-          params={{ loja, aba: abaParam, de: periodo.de, ate: periodo.ate }}
+          params={{ loja, aba: abaParam, faixa: faixa || undefined, de: periodo.de, ate: periodo.ate }}
           cartoes={[
             { chave: "vencido", rotulo: "Vencido", ...dadosRes.data.summary.overdue, alerta: true },
             { chave: "hoje", rotulo: "Vence hoje", ...dadosRes.data.summary.due_today },
@@ -183,7 +183,7 @@ export default async function FinanceiroReceberPage({
           ]}
         />
       )}
-      <PeriodoFiltro caminho={CAMINHO} de={periodo.de} ate={periodo.ate} extras={{ loja, aba: abaParam, ver: ver ?? undefined }} />
+      <PeriodoFiltro caminho={CAMINHO} de={periodo.de} ate={periodo.ate} extras={{ loja, aba: abaParam, ver: ver ?? undefined, faixa: faixa || undefined }} />
 
       {!dadosRes.ok ? (
         <EmptyState titulo="Não foi possível ler o que receber">{dadosRes.message}</EmptyState>
@@ -198,7 +198,7 @@ export default async function FinanceiroReceberPage({
           {abas}
           {aba === "vencidos" ? (
             <div className="space-y-4">
-              <FaixaFiltro faixa={faixa} loja={loja} />
+              <FaixaFiltro faixa={faixa} loja={loja} ver={ver ?? ""} de={deDaUrl ?? ""} ate={ateDaUrl ?? ""} />
               {cobrancaRes.ok ? (
                 <FinanceiroCobranca dados={cobrancaRes.data} loja={loja} />
               ) : (

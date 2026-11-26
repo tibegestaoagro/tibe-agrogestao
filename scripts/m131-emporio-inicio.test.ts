@@ -555,6 +555,7 @@ async function comBanco() {
       check("fiado vencido: 1 cliente, 40 (o de hoje e o de amanhã ficam de fora)", daChave(d, "fiado_vencido").length === 1 && Number(fv?.quantidade) === 1 && Number(fv?.valor) === 40, j(fv));
       const bc = um("boleto_cheque_vencido");
       check("boleto ou cheque vencido: 2 (o cheque de ontem e o boleto de ontem), 80", daChave(d, "boleto_cheque_vencido").length === 1 && Number(bc?.quantidade) === 2 && Number(bc?.valor) === 80, j(bc));
+      check("boleto ou cheque vencido: o link cai na aba dos boletos (há boleto vencido)", bc?.href === "/emporio/financeiro/receber?aba=boletos&ver=vencido", j(bc));
       check("fronteira do cheque: o cheque bom para HOJE (70) não está vencido, só o de ontem (30) entra", Number(bc?.quantidade) === 2 && Number(bc?.valor) !== 150, j(bc));
       const ap = um("aprovacao_pendente");
       check("aprovação pendente: 2 pedidos, 75 (o aprovado de 999 não conta)", daChave(d, "aprovacao_pendente").length === 1 && Number(ap?.quantidade) === 2 && Number(ap?.valor) === 75, j(ap));

@@ -169,7 +169,17 @@ export default async function ProdutosEmporioPage({
         </Button>
         {filtrando && (
           <Button asChild variant="ghost" size="sm">
-            <Link href={mostrarArquivados ? "/emporio/produtos?arquivados=1" : "/emporio/produtos"}>Limpar busca</Link>
+            <Link
+              href={(() => {
+                const p = new URLSearchParams();
+                if (mostrarArquivados) p.set("arquivados", "1");
+                if (porPagina !== 20) p.set("por_pagina", String(porPagina));
+                const s = p.toString();
+                return s ? `/emporio/produtos?${s}` : "/emporio/produtos";
+              })()}
+            >
+              Limpar busca
+            </Link>
           </Button>
         )}
       </div>

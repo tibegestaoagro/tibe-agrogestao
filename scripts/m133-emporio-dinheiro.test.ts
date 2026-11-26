@@ -8,6 +8,7 @@ import {
   enderecoDaTelaNova,
   agruparContas,
 } from "@/lib/emporio/dinheiro-telas";
+import { totalDaAbaCartoes } from "../src/app/(dashboard)/emporio/_components/recorte";
 import { menuDoEmporio, type EntradaDoMenu } from "@/lib/emporio/menu";
 import { veAPagina } from "@/lib/emporio/paginas";
 import type { PapelContexto, PapelEmporio } from "@/lib/emporio/papel";
@@ -231,6 +232,23 @@ check(
   "o Caixa não muda",
   j(menuCaixa.map((e) => e.rotulo)) === j(["Vender", "Vendas", "Clientes", "Fiado", "Caixa"]),
   j(menuCaixa.map((e) => e.rotulo)),
+);
+
+// Seção 7: o total do título da aba Cartões não soma a parcela já conferida.
+check(
+  "Cartões: conferida de 100 e prevista de 50 dão total 50",
+  totalDaAbaCartoes([
+    { status: "conferida", effective_net: 100 },
+    { status: "prevista", effective_net: 50 },
+  ]) === 50,
+);
+check("Cartões: só conferida dá 0", totalDaAbaCartoes([{ status: "conferida", effective_net: 100 }]) === 0);
+check(
+  "Cartões: a atrasada (o recorte Vencido) entra no total",
+  totalDaAbaCartoes([
+    { status: "atrasada", effective_net: 30.1 },
+    { status: "a_conferir", effective_net: 0.2 },
+  ]) === 30.3,
 );
 
 if (falhas > 0) {

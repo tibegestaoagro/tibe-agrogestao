@@ -210,7 +210,7 @@ export async function lerInicioAction(
         quantidade: qtdBc,
         valor: cent / 100,
         texto: plural(qtdBc, "boleto ou cheque vencido sem baixa", "boletos e cheques vencidos sem baixa"),
-        href: "/emporio/financeiro/receber?ver=vencido",
+        href: `/emporio/financeiro/receber?aba=${boletos.data.length > 0 ? "boletos" : "cheques"}&ver=vencido`,
         acao: "Ver",
       });
     }

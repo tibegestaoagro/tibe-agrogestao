@@ -107,7 +107,7 @@ export async function itensDoEmporioNoDia(
       urgente: false,
       dias: diasAte(c.due_date, agora),
       fazenda: null,
-      href: ehCompra ? "/emporio/compras" : "/emporio/financeiro/pagar?aba=fixas",
+      href: ehCompra ? "/emporio/compras" : "/emporio/financeiro/pagar",
     });
   }
 

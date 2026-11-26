@@ -114,12 +114,27 @@ const FAIXAS = [
 ];
 
 /** O filtro de faixa de atraso (`?faixa=`), que preserva `?loja=`. */
-export function FaixaFiltro({ faixa, loja }: { faixa: string; loja: string }) {
+export function FaixaFiltro({
+  faixa,
+  loja,
+  ver = "",
+  de = "",
+  ate = "",
+}: {
+  faixa: string;
+  loja: string;
+  ver?: string;
+  de?: string;
+  ate?: string;
+}) {
   const router = useRouter();
 
   function ir(nova: string) {
     const q = new URLSearchParams({ aba: "vencidos" });
     if (loja) q.set("loja", loja);
+    if (ver) q.set("ver", ver);
+    if (de) q.set("de", de);
+    if (ate) q.set("ate", ate);
     if (nova) q.set("faixa", nova);
     router.push(`/emporio/financeiro/receber?${q.toString()}`);
   }
