@@ -36,6 +36,7 @@ export function ExtratoPeriodo({
   ate,
   mostrarFiltroCarimbo = false,
   soSemCarimbo = false,
+  preservar = {},
 }: {
   loja: string;
   lugar: string;
@@ -43,9 +44,11 @@ export function ExtratoPeriodo({
   ate: string;
   mostrarFiltroCarimbo?: boolean;
   soSemCarimbo?: boolean;
+  /** O que mais a tela mantém na URL (as páginas do resto do Caixa). */
+  preservar?: Record<string, string | undefined>;
 }) {
-  const caminho = "/emporio/financeiro/caixa";
-  const base = { loja, lugar, carimbo: soSemCarimbo ? "sem" : undefined };
+  const caminho = "/emporio/caixa";
+  const base = { ...preservar, loja, lugar, carimbo: soSemCarimbo ? "sem" : undefined };
   return (
     <div className="space-y-3">
       <PeriodoFiltro caminho={caminho} de={de} ate={ate} extras={base} />

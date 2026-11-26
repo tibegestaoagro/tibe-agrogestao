@@ -7,6 +7,7 @@ import { listarEntregasAction } from "@/lib/actions/emporio-turno";
 import { estadoDaParcela } from "@/lib/actions/emporio-conferencia-cartao";
 import { hojeEmBrasilia } from "@/lib/emporio/cartao";
 import { CabecalhoDaTela } from "../_components/cabecalho-da-tela";
+import { CaixaPosicoes, type FiltrosDaPosicao } from "../_components/caixa-posicoes";
 import { SeloDoEstado } from "../_components/selo-do-estado";
 import { reaisBr } from "@/lib/numero-br";
 import { formatarDocumento } from "@/lib/contatos/cadastro";
@@ -54,11 +55,18 @@ const POR_PAGINA_CAIXA = 20;
 export default async function CaixaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ pagina_ent?: string; pagina_mov?: string; ordem_mov?: string; por_pagina_mov?: string }>;
+  searchParams: Promise<
+    {
+      pagina_ent?: string;
+      pagina_mov?: string;
+      ordem_mov?: string;
+      por_pagina_mov?: string;
+    } & FiltrosDaPosicao
+  >;
 }) {
   const user = await requireFeaturePage("emporio");
-  const { pagina_ent: paginaEntDaUrl, pagina_mov: paginaMovDaUrl, ordem_mov: ordemMovDaUrl, por_pagina_mov: porPaginaMovDaUrl } =
-    await searchParams;
+  const q = await searchParams;
+  const { pagina_ent: paginaEntDaUrl, pagina_mov: paginaMovDaUrl, ordem_mov: ordemMovDaUrl, por_pagina_mov: porPaginaMovDaUrl } = q;
   const paginaEnt = paginaDaUrl(paginaEntDaUrl);
   const paginaMov = paginaDaUrl(paginaMovDaUrl);
   // Valor inválido na URL cai no padrão (mais recentes primeiro, 20 por página).
@@ -134,6 +142,8 @@ export default async function CaixaPage({
     if (mov > 1) p.set("pagina_mov", String(mov));
     if (ordemMov !== "desc") p.set("ordem_mov", ordemMov);
     if (porPaginaMov !== POR_PAGINA_CAIXA) p.set("por_pagina_mov", String(porPaginaMov));
+    // A seção "Saldo de cada lugar" vive na URL: paginar o Caixa não a fecha.
+    for (const k of ["loja", "lugar", "de", "ate", "carimbo"] as const) if (q[k]) p.set(k, q[k] as string);
     const texto = p.toString();
     return texto ? `/emporio/caixa?${texto}` : "/emporio/caixa";
   };
@@ -152,6 +162,21 @@ export default async function CaixaPage({
         titulo="Caixa"
         ajuda="O saldo é sempre a soma dos movimentos: dinheiro em cada caixa, com a gerência de cada loja e PIX nas contas."
       />
+
+      {ehDinheiro && (
+        <CaixaPosicoes
+          db={db}
+          user={user}
+          papel={papel}
+          q={q}
+          paginas={{
+            pagina_ent: paginaEnt > 1 ? String(paginaEnt) : undefined,
+            pagina_mov: paginaMov > 1 ? String(paginaMov) : undefined,
+            ordem_mov: ordemMov !== "desc" ? ordemMov : undefined,
+            por_pagina_mov: porPaginaMov !== POR_PAGINA_CAIXA ? String(porPaginaMov) : undefined,
+          }}
+        />
+      )}
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-texto">Caixas de cada loja</h2>
