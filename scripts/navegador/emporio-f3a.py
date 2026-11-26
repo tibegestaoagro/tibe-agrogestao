@@ -101,10 +101,17 @@ por_aria("Valor em Dinheiro (R$)", "120,00")
 time.sleep(0.5)
 clicar("+ Fiado")
 time.sleep(0.5)
+# Onda 3 da UX (5.7): o cliente já vem como Consumidor final, e "+ Fiado" com ele abre a janela de clientes
+# sozinha, com o motivo. O que este passo prova (a recusa do fiado sem cliente de verdade) segue valendo:
+# fecha-se a janela sem escolher ninguém.
+confere("'+ Fiado' com o Consumidor final abre a janela de clientes com o motivo", bool(esperar(lambda: js("!!document.querySelector('[data-escolha=cliente]')"), 10)) and "Fiado precisa do cliente de verdade" in (js("(document.querySelector('[data-escolha=cliente]') || { innerText: '' }).innerText") or ""))
+cdp("Input.dispatchKeyEvent", type="rawKeyDown", key="Escape", code="Escape", windowsVirtualKeyCode=27, nativeVirtualKeyCode=27)
+cdp("Input.dispatchKeyEvent", type="keyUp", key="Escape", code="Escape", windowsVirtualKeyCode=27, nativeVirtualKeyCode=27)
+confere("fechada a janela sem escolher, a venda segue com o Consumidor final", bool(esperar(lambda: not js("!!document.querySelector('[data-escolha=cliente]')"), 8)))
 confere("o fiado já vem com os R$ 80,00 que faltam", js("(() => { const el = Array.from(document.querySelectorAll('input')).find(x => x.getAttribute('aria-label') === 'Valor em Fiado (R$)'); return el ? el.value : ''; })()") in ("80,00", "R$ 80,00", "80"))
 fechar_venda()
 time.sleep(1.5)
-confere("fiado sem cliente: recusa embaixo de Cliente", bool(esperar(lambda: erro_do_campo("Cliente"), 30)), erro_do_campo("Cliente"))
+confere("fiado sem cliente de verdade (Consumidor final): recusa embaixo de Cliente", bool(esperar(lambda: erro_do_campo("Cliente"), 30)), erro_do_campo("Cliente"))
 confere("escolhe o cliente F3a José", escolher_cliente("F3a José") is True)
 fechar_venda()
 confere("venda de R$ 200,00 registrada, com o cliente", esperar(lambda: "R$ 200,00" in resumo() and "F3a José" in resumo(), 90), resumo()[:200])

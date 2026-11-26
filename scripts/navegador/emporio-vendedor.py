@@ -57,6 +57,12 @@ def texto_do_campo(rotulo):
     return js("(() => { const l = Array.from(document.querySelectorAll('main label')).find(x => x.innerText.replace('*','').trim() === " + repr(rotulo) + "); const el = l && document.getElementById(l.htmlFor); return el ? el.innerText.replace(/\\u00a0/g, ' ') : 'SEM CAMPO'; })()") or ""
 
 
+def vendedor_vazio():
+    """O Caixa escolhe o vendedor em botoes (onda 3 da UX, 5.7): 'vazio' e nenhum botao marcado, com os botoes presentes."""
+    r = js("(() => { const g = document.querySelector('[role=radiogroup][aria-label=\"Vendedor\"]'); if (!g) return null; const b = Array.from(g.querySelectorAll('[role=radio]')); return b.length > 0 && b.every(x => x.getAttribute('aria-checked') !== 'true'); })()")
+    return r is True
+
+
 def href_do_link(rotulo):
     return js("(() => { const a = Array.from(document.querySelectorAll('main a')).find(x => x.innerText.trim() === " + repr(rotulo) + "); return a ? a.getAttribute('href') : ''; })()") or ""
 
@@ -97,21 +103,21 @@ passo("1. O Caixa no balcão: o vendedor é obrigatório, trocar de loja limpa a
 ir("/emporio/vender")
 confere("o balcão abre", caminho() == "/emporio/vender" and tem("Fechar a venda"), caminho())
 confere("escolhe a Loja 1", escolher("Loja", LOJA1) is True)
-confere("o campo Vendedor aparece vazio", "Escolha o vendedor" in texto_do_campo("Vendedor"), texto_do_campo("Vendedor"))
+confere("o campo Vendedor aparece vazio", vendedor_vazio(), texto_do_campo("Vendedor"))
 confere("a lista não tem o Caixa", True if escolher("Vendedor", CAIXA) == "SEM OPCAO" else False)
 js("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))")
 time.sleep(1)
 confere("escolhe o Vendedor", escolher("Vendedor", VENDEDOR) is True)
 confere("o campo mostra o Vendedor escolhido", VENDEDOR in texto_do_campo("Vendedor"), texto_do_campo("Vendedor"))
 confere("troca para a Loja 2", escolher("Loja", LOJA2) is True)
-confere("na Loja 2 o campo volta vazio", "Escolha o vendedor" in texto_do_campo("Vendedor"), texto_do_campo("Vendedor"))
+confere("na Loja 2 o campo volta vazio", vendedor_vazio(), texto_do_campo("Vendedor"))
 confere("escolhe de novo o Vendedor na Loja 2", escolher("Vendedor", VENDEDOR) is True)
 confere("volta para a Loja 1", escolher("Loja", LOJA1) is True)
-confere("loja 1, 2, 1: o campo do Caixa volta vazio", "Escolha o vendedor" in texto_do_campo("Vendedor"), texto_do_campo("Vendedor"))
+confere("loja 1, 2, 1: o campo do Caixa volta vazio", vendedor_vazio(), texto_do_campo("Vendedor"))
 
 montar_venda(LOJA1, "1", "20")
-confere("o campo Vendedor continua vazio", "Escolha o vendedor" in texto_do_campo("Vendedor"), texto_do_campo("Vendedor"))
-confere("com o caixa fechado, o balcão oferece abrir o caixa", esperar(lambda: tem("Abrir o Caixa 1"), 20), texto_principal(300))
+confere("o campo Vendedor continua vazio", vendedor_vazio(), texto_do_campo("Vendedor"))
+confere("com o caixa fechado, o balcão oferece abrir o caixa", esperar(lambda: tem("Abrir o caixa"), 20), texto_principal(300))
 enviar_venda()
 recusa = esperar(lambda: erro_do_campo("Vendedor"), 20)
 confere("finalizar sem vendedor mostra a recusa no campo Vendedor", RECUSA in (recusa or ""), recusa)
@@ -121,14 +127,14 @@ confere("a recusa some ao escolher", esperar(lambda: not erro_do_campo("Vendedor
 enviar_venda()
 time.sleep(2)
 confere("o caixa fechado ainda pede para abrir", not tem("Venda registrada"), texto_principal(200))
-clicar("Abrir o Caixa 1")
+clicar("Abrir o caixa")
 time.sleep(1.5)
 confere("abre o painel do caixa", esperar(painel_aberto, 15))
 confere("preenche o troco contado", preenchido("Troco contado (R$)", "100"))
 enviar_painel()
 confere("a venda sai sozinha depois de abrir o caixa", esperar(lambda: tem("Venda registrada"), 60), texto_principal(300))
 confere("o resumo mostra o vendedor", tem("vendedor " + VENDEDOR), texto_principal(400))
-confere("a segunda venda do Caixa começa com o vendedor vazio", "Escolha o vendedor" in texto_do_campo("Vendedor"), texto_do_campo("Vendedor"))
+confere("a segunda venda do Caixa começa com o vendedor vazio", vendedor_vazio(), texto_do_campo("Vendedor"))
 href_venda1 = href_do_link("Ver a venda")
 href_cupom1 = href_do_link("Imprimir cupom")
 if not href_cupom1:

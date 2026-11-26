@@ -90,7 +90,8 @@ def nomes_na_janela(busca):
     """Abre a janela Escolher cliente, digita `busca` e devolve os nomes das
     linhas (a fixa do topo inclusive) quando a busca termina; fecha com Escape."""
     janela = "document.querySelector('[data-escolha=cliente]')"
-    if not clicar("Escolher cliente") or not esperar(lambda: js("!!" + janela), 10):
+    # Onda 3 da UX: o balcao ja abre com o Consumidor final, e o botao e "Trocar".
+    if not (clicar("Trocar") or clicar("Escolher cliente")) or not esperar(lambda: js("!!" + janela), 10):
         return None
     js("(() => { const el = " + janela + ".querySelector('input[type=search]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, " + repr(busca) + "); el.dispatchEvent(new Event('input', { bubbles: true })); })()")
     time.sleep(1)
@@ -313,6 +314,10 @@ abrir_balcao()
 adicionar_racao("1")
 confere("adiciona o fiado", clicar("+ Fiado"))
 time.sleep(1)
+# Onda 3 da UX (5.7): "+ Fiado" com o Consumidor final (que ja vem escolhido) abre a janela de clientes sozinha;
+# fecha-se esta e escolhe-se pelo caminho de sempre.
+confere("'+ Fiado' com o Consumidor final abre a janela de clientes", bool(esperar(lambda: js("!!document.querySelector('[data-escolha=cliente]')"), 8)))
+esc()
 confere("escolhe o cliente", escolher_cliente(NOME_PF) is True)
 enviar_botao("Fechar a venda")
 confere("a venda fiada é registrada", esperar(lambda: tem("Venda registrada"), 60), texto_principal(300))

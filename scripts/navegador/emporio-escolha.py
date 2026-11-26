@@ -118,7 +118,8 @@ def abrir_janela():
     """Abre a janela Escolher cliente e espera a primeira lista (o termo vazio)."""
     aberta = False
     for _ in range(15):
-        if clicar("Escolher cliente") and esperar(lambda: js("!!" + JANELA), 5):
+        # Onda 3 da UX (5.7): o balcao ja abre com o Consumidor final, e o botao e "Trocar"; "Escolher cliente" fica so sem cliente.
+        if (clicar("Trocar") or clicar("Escolher cliente")) and esperar(lambda: js("!!" + JANELA), 5):
             aberta = True
             break
         time.sleep(2)
@@ -167,11 +168,11 @@ def abrir_balcao():
 
 
 # --- 1 ---------------------------------------------------------------------------------
-passo("1. Vender sem cliente: os dois botões e a janela com o Consumidor final no topo")
+passo("1. Vender: o Consumidor final já escolhido, o botão Trocar e a janela com o Consumidor final no topo")
 entrar("vendedor")
 abrir_balcao()
-confere("o quadro diz Nenhum cliente escolhido", tem("Nenhum cliente escolhido."))
-confere("o botão Cadastrar novo cliente existe", bool(js("Array.from(document.querySelectorAll('main button')).some(b => b.innerText.trim() === 'Cadastrar novo cliente')")))
+confere("o quadro já vem com o Consumidor final (onda 3 da UX), não 'Nenhum cliente escolhido'", "Consumidor final" in escolhido() and not tem("Nenhum cliente escolhido."), escolhido())
+confere("o botão Trocar existe", bool(js("Array.from(document.querySelectorAll('main button')).some(b => b.innerText.trim() === 'Trocar')")))
 confere("abre a janela Escolher cliente", abrir_janela())
 fixo = js("(() => { const b = " + JANELA + ".querySelector('[data-fixo]'); return b ? b.innerText.replace(/\\u00a0/g, ' ') : ''; })()") or ""
 confere("o Consumidor final está no topo, com Cliente padrão", "Consumidor final" in fixo and "Cliente padrão" in fixo, fixo)
@@ -229,7 +230,7 @@ time.sleep(1)
 aberta = bool(js("!!" + JANELA))
 confere("5b: a lista de maria não aparece como atual", not leitura["velha"], leitura)
 confere("5b: o Buscando... continua durante a busca do termo novo", leitura["buscando"], leitura)
-confere("5b: o Enter não escolheu ninguém", aberta and escolhido() == "", escolhido())
+confere("5b: o Enter não escolheu ninguém (o cliente segue o Consumidor final que já vinha)", aberta and "Consumidor final" in escolhido() and "Escolha Maria" not in escolhido(), escolhido())
 esperar(lambda: nomes_do_cenario() == [MARIA_SOUSA], 30)
 confere("5b: depois da resposta do termo novo, só a Maria Sousa (do cenário)", nomes_do_cenario() == [MARIA_SOUSA], nomes_da_lista())
 # Controle: com a lista do termo digitado pronta e um resultado só, o Enter escolhe.
@@ -274,6 +275,9 @@ confere("troca para o Consumidor final", escolher_cliente("Consumidor final") is
 confere("o quadro mostra o Consumidor final", "Consumidor final" in escolhido(), escolhido())
 confere("adiciona o fiado", clicar("+ Fiado"))
 time.sleep(1)
+# Onda 3 da UX: "+ Fiado" com o Consumidor final abre a janela de clientes sozinha; fecha-se sem escolher.
+confere("'+ Fiado' com o Consumidor final abre a janela de clientes", bool(esperar(lambda: js("!!" + JANELA), 8)))
+esc()
 confere("o valor do fiado é 20", preencher_aria("Valor em Fiado (R$)", "20") != "SEM CAMPO")
 enviar_venda()
 recusa = esperar(lambda: erro_do_campo("Cliente"))

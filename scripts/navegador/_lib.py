@@ -145,8 +145,19 @@ def _abrir_select(gatilho):
 def escolher(rotulo, opcao):
     """Escolhe `opcao` no Select (Radix) do campo `rotulo`. O Radix abre no
     pointerdown de mouse de verdade, entao o clique e por coordenada; el.click()
-    nao abre a lista."""
+    nao abre a lista.
+
+    Quando o rotulo aponta para um `radiogroup` (o Vendedor do Caixa no Vender, desde a
+    onda 3 da UX), nao ha lista: o clique e no botao `role=radio` cujo texto TERMINA com
+    `opcao` (o texto e "<n> <nome>"). Devolve True, "SEM CAMPO" ou "SEM OPCAO"."""
     gatilho = "(() => { const raiz = document.querySelector('[role=dialog]') || document; const l = Array.from(raiz.querySelectorAll('label')).find(x => x.innerText.replace('*','').trim() === " + repr(rotulo) + "); return l && document.getElementById(l.htmlFor); })()"
+    if js("(() => { const t = " + gatilho + "; return !!t && t.getAttribute('role') === 'radiogroup'; })()"):
+        xy = _centro("Array.from(" + gatilho + ".querySelectorAll('[role=radio]')).find(b => b.innerText.trim().endsWith(" + repr(opcao) + "))")
+        if not xy:
+            return "SEM OPCAO"
+        click_at_xy(xy[0], xy[1])
+        time.sleep(0.8)
+        return True
     aberto = _abrir_select(gatilho)
     if aberto != "ABERTO":
         return aberto
