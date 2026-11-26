@@ -25,7 +25,7 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-26 (madrugada). **Frente em curso: UX e UI só do Empório**, na
+- Atualizado em: 2026-11-26 (tarde). **Frente em curso: UX e UI só do Empório**, na
   branch `ux-emporio`. O desenho foi aprovado:
   [2026-11-24-emporio-ux-design.md](../superpowers/specs/2026-11-24-emporio-ux-design.md)
   (Q387 a Q397, 6 ondas). O briefing tem a entrevista e os mockups:
@@ -114,11 +114,52 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   - "Sai hoje" inclui as contas vencidas, como a aba Hoje do Financeiro;
   - o aviso de orçamento abre todos os abertos, e não só os perto de vencer.
 
-  **Lista da onda 7 (manual).** O `manual-emporio.py` (linhas 148 e 149) e a
-  figura `inicio-primeiros-passos` ainda esperam a grade antiga do Início.
+  **Onda 3 (Vender, §5.7): pronta na branch, ESPERANDO o merge autorizado
+  pelo usuário.** Plano `docs/superpowers/plans/2026-11-26-emporio-ux-onda3-vender.md`,
+  aprovado em 26/11. Commits de `a555f5b9` (plano) a `35e20af0`; o merge leva
+  também `67562427` (cofre). Sem migração.
 
-  **Próximo:** a onda 3 do desenho, com plano novo aprovado pelo usuário.
-  As três escolhas acima esperam o olho dele em produção.
+  Entregue:
+  - Vender em duas colunas, com "Mais opções" recolhida (desconto no total,
+    frete, entrega, franqueado, nº do orçamento). O título diz o que está
+    preenchido, e a seção abre sozinha na recusa e ao faturar orçamento com
+    algo dentro;
+  - tecla de atalho junto de cada campo, sem a legenda solta;
+  - Consumidor final já escolhido, com "Trocar";
+  - vendedor do Caixa em botões (dígito 1 a 9 e setas);
+  - faixa do caixa (fechado, aberto desde, data de ontem, N caixas);
+  - regras puras em `src/lib/emporio/balcao-tela.ts`, suíte `m132`.
+
+  Resultados:
+  - juiz 8/10. Corrigidos: faturar com frete, setas no vendedor, coluna larga
+    no celular e faixa vazia no pagamento;
+  - roteiro `emporio-ux-onda3` com 137 conferências, provado nos dois sentidos
+    (4, 6 e 9 falhas com os defeitos plantados; 1 no passo 5b);
+  - passada única dos 52 roteiros `emporio-*` verde, depois de 15 ajustados
+    para a tela nova (`35e20af0`);
+  - `npm run textos-defasados` limpo;
+  - `test:all` 135/135.
+
+  Não corrigidos, de propósito:
+  - sem loja escolhida, não aparece faixa (decisão 3 do plano);
+  - cheque e boleto com o Consumidor final mostram "Em nome de: Consumidor
+    final" e o aviso; o servidor recusa a venda;
+  - edição de venda antiga sem cliente cai no Consumidor final
+    (`venda-estado.ts:441`, dado legado);
+  - cadastrar cliente na hora ficou um clique a mais ("Trocar", depois
+    "Não achou? Cadastrar novo").
+
+  **Lista da onda 7 (manual).**
+  - O `manual-emporio.py` (linhas 148 e 149) e a figura
+    `inicio-primeiros-passos` ainda esperam a grade antiga do Início.
+  - Vender: a legenda de atalhos não existe mais; "Escolher cliente" virou
+    "Trocar"; o vendedor do Caixa é em botões; a ordem dos campos mudou;
+    "Abrir o Caixa 1" virou "Abrir o caixa" (`partes-funcao.tsx:267`,
+    `partes-consulta.tsx:130`, `vendedor-imprimir/page.tsx:49` e `:77`).
+
+  **Próximo:** merge da onda 3 quando o usuário autorizar; depois, plano da
+  onda 4 (Dinheiro e listas). As três escolhas da onda 2 esperam o olho dele
+  em produção.
 
   O roteiro descartável do tour de UX (só no desktop) não é versionado.
 - Em produção desde 24/11 (merge `176a3dba`, CI e Vercel verdes): lint de 30
