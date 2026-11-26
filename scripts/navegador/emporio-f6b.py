@@ -11,6 +11,7 @@
 # sessao: owner owner@example.com
 # sessao: gestor1 f6b-gestor1@teste.local
 # sessao: vendedor1 f6b-vendedor1@teste.local
+import re
 
 
 def tem(texto, n=80000):
@@ -64,7 +65,8 @@ esperar(lambda: api("GET", "/api/v1/emporio/team")["status"] == 200, 90)
 
 passo("1. O Dono abre a Equipe, cadastra um Vendedor e liga uma chave")
 ir("/emporio")
-confere("o início tem o cartão Equipe", tem("Quem trabalha nas lojas"))
+abrir_subgrupos()
+confere("o menu do Dono tem a Equipe (onda 2: o Início não tem mais o cartão Equipe)", "/emporio/equipe" in menu(), menu())
 ir("/emporio/equipe")
 confere("a Equipe abre", caminho() == "/emporio/equipe" and tem("Cadastrar pessoa"), caminho())
 confere("mostra as vagas da equipe do Empório (Q190), não os assentos do plano", tem("de 50 na equipe do Empório") and not tem("assento(s) em uso"))
@@ -116,9 +118,8 @@ passo("2. O Vendedor da Loja 1 só vê o Empório")
 entrar("vendedor1")
 ir("/emporio")
 confere("abre o Empório", caminho() == "/emporio", caminho())
-confere("sem o cartão Equipe", not tem("Quem trabalha nas lojas"))
-confere("sem o cartão Histórico, Resultado nem Despesas", not tem("Quem fez o quê") and not tem("Quanto cada loja ganhou") and not tem("Contas a pagar, despesas fixas"))
 abrir_subgrupos()
+confere("o menu do Vendedor não tem Equipe, Resultado nem Despesas (onda 2: os cartões do Início saíram)", not any(h in menu() for h in ("/emporio/equipe", "/emporio/resultado", "/emporio/despesas")), menu())
 confere("o menu do Vendedor não tem o Histórico", "/emporio/historico" not in menu(), menu())
 confere("/emporio/despesas leva ao início do Empório", ir("/emporio/despesas") == "/emporio")
 confere("/emporio/resultado leva ao início do Empório", ir("/emporio/resultado") == "/emporio")
@@ -159,7 +160,7 @@ for destino, dado in (("/financeiro", "Financeiro"), ("/rebanho", "Rebanho"), ("
     sem_recarga = js("window.__sem_recarga === 1")
     confere("por link, " + destino + " acaba em /emporio", final == "/emporio", final)
     confere("foi navegação suave, sem recarregar o documento", sem_recarga is True, sem_recarga)
-    confere("por link, " + destino + " não mostra dado da fazenda", ("Início" in texto) and (dado + " ") not in (" " + texto.split("|")[0].strip() + " "), texto)
+    confere("por link, " + destino + " não mostra dado da fazenda", (re.match(r"(Bom dia|Boa tarde|Boa noite)", texto) is not None) and (dado + " ") not in (" " + texto.split("|")[0].strip() + " "), texto)
 
 ir("/meu-dia")
 confere("o Meu Dia não mostra a fazenda", not tem("Sua fazenda") and not tem("O que aconteceu hoje"))
@@ -195,7 +196,7 @@ passo("3. O Gestor da Loja 1 resolve a diferença")
 entrar("gestor1")
 ir("/emporio")
 abrir_subgrupos()
-confere("o Gestor tem o cartão Histórico e o item no menu", tem("Quem fez o quê") and "/emporio/historico" in menu(), menu())
+confere("o Gestor tem o Histórico no menu", "/emporio/historico" in menu(), menu())
 ir("/meu-dia")
 confere("o Meu Dia pede a resolução", esperar(lambda: tem("chegou com diferença: resolva")))
 ir("/emporio/transferencias")

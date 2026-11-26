@@ -218,16 +218,18 @@ for f in (ficha_fornecedor, ficha_franqueado):
 
 passo("8. Caixa: menu plano, sem subgrupos")
 entrar("caixa")
-ir("/emporio")
+destino = ir("/emporio")
+confere("o caixa entra em /emporio e termina em /emporio/vender (onda 2: o Caixa não tem Início)", destino == "/emporio/vender", destino)
 rot = rotulos_dos_links()
-confere("o menu do caixa tem Início, Vender, Vendas, Clientes, Fiado e Caixa", rot == ["Início", "Vender", "Vendas", "Clientes", "Fiado", "Caixa"], rot)
+confere("o menu do caixa tem Vender, Vendas, Clientes, Fiado e Caixa, sem Início", rot == ["Vender", "Vendas", "Clientes", "Fiado", "Caixa"], rot)
 btn = botoes_do_menu()
 confere("nenhum botão de subgrupo no menu do caixa", not any(s in btn for s in SUBGRUPOS), btn)
-# Fornecedores e franqueados não são do setor do caixa: pelo endereço, ele volta ao Início (decisão de 25/11).
+# Fornecedores e franqueados não são do setor do caixa: pelo endereço, ele volta ao Início (decisão de 25/11),
+# e como o Início do Caixa é Vender, o redirecionamento encadeado termina em /emporio/vender.
 for alvo in ("/emporio/fornecedores", "/emporio/franqueados", ficha_fornecedor, ficha_franqueado):
     if alvo:
         destino = ir(alvo)
-        confere(f"o caixa em {alvo} volta ao Início", destino == "/emporio" and not eh_404(), destino)
+        confere(f"o caixa em {alvo} termina em /emporio/vender", destino == "/emporio/vender" and not eh_404(), destino)
 
 passo("9. Gestor: tela do Dinheiro volta ao Início, sem 404")
 entrar("gestor")

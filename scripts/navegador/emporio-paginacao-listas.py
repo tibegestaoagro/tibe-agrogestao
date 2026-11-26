@@ -375,18 +375,13 @@ texto40 = texto_do_main().replace(chr(160), " ")
 confere("aprovacoes: 40 por pagina volta a pagina 1 (URL sem 'pagina=' solto) e mostra mais de 20 pedidos (inclui R$ 700,00 e R$ 720,00)", "pagina=" not in caminho().replace("por_pagina=", "") and n_pedidos > 20 and "R$ 700,00" in texto40 and "R$ 720,00" in texto40, [caminho(), n_pedidos, mostrando()])
 
 # --- 6 ------------------------------------------------------------------------------------------------------------------
-passo("6. Tela inicial do Emporio: os resumos de sempre")
+passo("6. Tela inicial do Emporio (onda 2): sem paginacao, e sem a grade de cartoes que contava compras e transferencias")
 ir("/emporio")
-esperar(lambda: "Início" in texto_do_main(), 60)
+esperar(lambda: "Vendas hoje" in texto_do_main(), 60)
 t = texto_do_main()
-tv = api("GET", "/api/v1/emporio/transfers?status=em_transito&per_page=100")["body"]["meta"]["total"]
-tc = api("GET", "/api/v1/emporio/purchases?status=pendente&per_page=100")["body"]["meta"]["total"]
 confere("inicio: sem barra de paginas nem 'Mostrando'", nav() is None and "Mostrando" not in t, t[:120])
-confere("inicio: os cartoes de sempre estao la", all(x in t for x in ["Lojas", "Produtos", "Estoque", "Compras", "Transferências", "Vendas", "Fiado", "Caixa"]), t[:200])
-m_c = re.search(r"(\d+)\s*compras? a receber", t)
-m_t = re.search(r"(\d+)\s*transferências? em trânsito", t)
-confere("inicio: o cartao de Compras conta todas as pendentes da conta (igual ao total da API: " + str(tc) + ")", m_c is not None and int(m_c.group(1)) == tc and tc >= 45, [m_c and m_c.group(0), tc])
-confere("inicio: o cartao de Transferencias conta todas as em transito (igual ao total da API: " + str(tv) + ")", m_t is not None and int(m_t.group(1)) == tv and tv >= 45, [m_t and m_t.group(0), tv])
+confere("inicio: a saudacao e os numeros do dia estao la", re.match(r"(Bom dia|Boa tarde|Boa noite)", t) is not None and "Vendas hoje" in t and "Vendas no mês" in t, t[:200])
+confere("inicio: a grade antiga (compras a receber, transferencias em transito) saiu", not re.search(r"\d+\s*compras? a receber", t) and not re.search(r"\d+\s*transferências? em trânsito", t), t[:200])
 
 # --- 7 ------------------------------------------------------------------------------------------------------------------
 passo("7. Curva ABC com tres itens iguais (loja 'Pag Curva', dia " + DIA + ")")

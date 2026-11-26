@@ -7,6 +7,8 @@
 # sessao: so so-emporio@teste.local
 # sessao-plataforma: plat
 
+import re
+
 DETALHE = "/plataforma/tenants/" + tenant("owner")
 
 
@@ -53,7 +55,7 @@ abrir_grupo("Meu Empório")
 confere("menu com Meu Empório", "/emporio" in menu())
 confere("API 200", status_api("/api/v1/emporio") == 200)
 ir("/emporio")
-confere("pagina abre", not eh_404() and titulo_da_tela() == "Início", texto_principal(80))
+confere("pagina abre", not eh_404() and re.match(r"^(Bom dia|Boa tarde|Boa noite)", titulo_da_tela()) is not None, texto_principal(80))
 
 passo("4. Estoque da fazenda continua abrindo")
 ir("/estoque")

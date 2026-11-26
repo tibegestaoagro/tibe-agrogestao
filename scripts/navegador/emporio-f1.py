@@ -20,11 +20,12 @@ def linhas_da_tabela_de_preco():
     return js("(() => { const t = Array.from(document.querySelectorAll('table')).find(x => x.innerText.toLowerCase().includes('sugerido')); return t ? Array.from(t.querySelectorAll('tbody tr')).map(r => r.innerText.replace(/\\s+/g, ' ').trim()) : []; })()") or []
 
 
-passo("0. Início do Empório com os dois cartões (Q59)")
+passo("0. Início do Empório (onda 2: saudação, números do dia e atalhos; os cartões Lojas e Produtos saíram)")
 entrar("owner")
 ir("/emporio")
-confere("cartão Lojas", tem("Lojas"))
-confere("cartão Produtos", tem("Produtos"))
+confere("a saudação no cabeçalho", any(tem(s + ",") for s in ("Bom dia", "Boa tarde", "Boa noite")), texto_principal(60))
+confere("o bloco Vendas hoje", tem("Vendas hoje"))
+confere("o atalho Produtos", tem("Produtos"))
 
 passo("1. Cadastrar loja pela tela")
 ir("/emporio/estabelecimentos")

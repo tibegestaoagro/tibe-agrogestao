@@ -77,6 +77,9 @@ async function limpar(tenant_id: string) {
   await prisma.emporioCustomer.deleteMany({ where: { tenant_id, id: { in: clientes } } });
   await prisma.cashHandover.deleteMany({ where: { tenant_id, establishment_id: { in: lojas } } });
   await prisma.emporioPaymentRequest.deleteMany({ where: { tenant_id, establishment_id: { in: lojas } } });
+  // O pedido guarda a loja sem chave estrangeira: se outro cenario apagou as lojas Pag, os 25 pedidos ficam
+  // orfaos e a lista de Aprovacoes dobra. Apaga tambem pela assinatura deles (2019, R$ 700 a 724).
+  await prisma.emporioPaymentRequest.deleteMany({ where: { tenant_id, created_at: { lt: new Date(Date.UTC(2020, 0, 1)) }, total: { gte: 700, lte: 724 } } });
   await prisma.cashSession.deleteMany({ where: { tenant_id, establishment_id: { in: lojas } } });
   await prisma.cashRegister.deleteMany({ where: { tenant_id, establishment_id: { in: lojas } } });
   await prisma.stockLimit.deleteMany({ where: { tenant_id, establishment_id: { in: lojas } } });
