@@ -536,7 +536,7 @@ export function CampoDoPagamento({
                       <p className="text-xs text-texto-secundario">Cheque de terceiros: troque o nome.</p>
                     </div>
                     <DadosDoCheque v={v} p={p} limpar={() => limpar("payments")} />
-                    {!v.cliente && (
+                    {(!v.cliente || v.cliente.fixed) && (
                       <p className="text-xs text-atencao-tinta sm:col-span-2">
                         O cheque precisa de um cliente: escolha acima.
                       </p>
@@ -574,7 +574,7 @@ export function CampoDoPagamento({
                         }}
                       />
                     </div>
-                    {!v.cliente && (
+                    {(!v.cliente || v.cliente.fixed) && (
                       <p className="text-xs text-atencao-tinta sm:col-span-2">
                         O boleto precisa de um cliente: escolha acima.
                       </p>

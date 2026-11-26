@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { reaisBr } from "@/lib/numero-br";
@@ -48,7 +48,16 @@ export function EscolherCliente({
   permitirCadastro = true,
   aviso = null,
   travado = false,
+  pedirTroca = null,
+  tecla,
 }: {
+  /**
+   * A tela pede a troca do Consumidor final por um cliente de verdade (cheque, boleto, fiado): a janela
+   * abre quando o `n` muda, e o motivo fica junto do cliente enquanto ele for o Consumidor final.
+   */
+  pedirTroca?: { n: number; motivo: string } | null;
+  /** A tecla do atalho do cliente, ao lado do "Trocar" ou do "Escolher cliente". */
+  tecla?: ReactNode;
   /** Venda que nasce de orçamento: o cliente é o do orçamento, sem "Trocar" (Q382). */
   travado?: boolean;
   campo: CampoDoField;
@@ -64,6 +73,12 @@ export function EscolherCliente({
   const [novo, setNovo] = useState(false);
   const [inicial, setInicial] = useState<{ name?: string; phone?: string } | undefined>(undefined);
   const busca = useBuscaNoServidor<ClienteDaBusca>("/api/v1/emporio/customers/search", janela);
+  // Abre a janela quando o pedido de troca é NOVO (o `n` muda), nunca na montagem com um `n` já posto.
+  const [pedidoVisto, setPedidoVisto] = useState(pedirTroca?.n ?? 0);
+  if (pedirTroca && pedirTroca.n !== pedidoVisto) {
+    setPedidoVisto(pedirTroca.n);
+    if (!travado) setJanela(true);
+  }
 
   function escolher(c: ClienteEscolhido) {
     onEscolher(c);
@@ -76,8 +91,17 @@ export function EscolherCliente({
     setNovo(true);
   }
 
+  // A janela cobre a coluna do cliente: o motivo também vai dentro dela, onde a pessoa está olhando.
+  const motivoNaJanela = pedirTroca && valor?.fixed ? pedirTroca.motivo : null;
+
   const fixo = (
-    <button
+    <>
+      {motivoNaJanela && (
+        <p role="status" className="rounded-md bg-atencao-suave px-3 py-2 text-sm font-medium text-atencao-tinta">
+          {motivoNaJanela}
+        </p>
+      )}
+      <button
       type="button"
       data-opcao
       data-fixo
@@ -91,6 +115,7 @@ export function EscolherCliente({
       </span>
       <span className="text-xs text-texto-secundario">{AVISO_CONSUMIDOR_FINAL}</span>
     </button>
+    </>
   );
 
   // O que o quadro pede para completar: o aviso do plano 3, senão o cadastro incompleto.
@@ -120,11 +145,19 @@ export function EscolherCliente({
             {travado ? (
               <p className="text-xs text-texto-secundario">Cliente do orçamento</p>
             ) : (
-              <Button type="button" variant="outline" size="sm" aria-label="Trocar cliente" onClick={() => setJanela(true)}>
-                Trocar
-              </Button>
+              <div className="flex items-center gap-2">
+                {tecla}
+                <Button type="button" variant="outline" size="sm" aria-label="Trocar cliente" onClick={() => setJanela(true)}>
+                  Trocar
+                </Button>
+              </div>
             )}
           </div>
+          {pedirTroca && valor.fixed && (
+            <p role="status" className="text-sm font-medium text-atencao-tinta">
+              {pedirTroca.motivo}
+            </p>
+          )}
           {pendencia && (
             <div className="flex flex-wrap items-center gap-2 rounded-md bg-atencao-suave px-3 py-2 text-sm text-atencao-tinta">
               <span>{pendencia}</span>
@@ -149,10 +182,11 @@ export function EscolherCliente({
       ) : (
         <>
           <p className="text-sm text-texto-secundario">Nenhum cliente escolhido.</p>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button type="button" variant="outline" onClick={() => setJanela(true)}>
               Escolher cliente
             </Button>
+            {tecla}
             {permitirCadastro && (
               <Button type="button" variant="outline" onClick={() => cadastrar("")}>
                 Cadastrar novo cliente

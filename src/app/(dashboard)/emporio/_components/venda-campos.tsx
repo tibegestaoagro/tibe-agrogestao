@@ -187,10 +187,7 @@ export function CampoDoDescontoNoTotal({
   );
 }
 
-/**
- * O cliente da venda. `pedirTroca` é aceita para a tela que pedir a troca de cliente com o motivo, e
- * por enquanto não muda nada.
- */
+/** O cliente da venda. */
 export function CampoDoCliente({
   v,
   consumidorFinal,
@@ -201,6 +198,7 @@ export function CampoDoCliente({
   avisoDoCliente,
   aoEscolherCliente,
   clienteTravado,
+  pedirTroca,
   teclaDoCliente,
 }: {
   v: EstadoDaVenda;
@@ -217,8 +215,9 @@ export function CampoDoCliente({
   aoEscolherCliente?: (c: ClienteEscolhido) => void;
   /** Q382: venda que nasce de orçamento: o cliente é o do orçamento e não se troca. */
   clienteTravado?: boolean;
+  /** Pede a troca do Consumidor final: a janela abre quando o `n` muda e o motivo fica junto do cliente. */
   pedirTroca?: { n: number; motivo: string } | null;
-  /** A tecla do atalho do cliente (um `TeclaDoAtalho`): posta na linha do rótulo, acima do "Trocar"; sem ela, nada muda. */
+  /** A tecla do atalho do cliente (um `TeclaDoAtalho`): ao lado do "Trocar" ou do "Escolher cliente"; sem ela, nada muda. */
   teclaDoCliente?: ReactNode;
 }) {
   const campo = (
@@ -236,18 +235,13 @@ export function CampoDoCliente({
           permitirCadastro={!!permitirCadastro}
           aviso={avisoDoCliente ?? null}
           travado={!!clienteTravado}
+          pedirTroca={pedirTroca ?? null}
+          tecla={teclaDoCliente}
         />
       )}
     </Field>
   );
-  return teclaDoCliente ? (
-    <div className="relative">
-      {teclaDoCliente}
-      {campo}
-    </div>
-  ) : (
-    campo
-  );
+  return campo;
 }
 
 /** O frete cobrado e, na venda, a origem. Os ids são `freight_amount` e `origin`. */

@@ -186,9 +186,9 @@ def rolagem_horizontal():
 def legenda():
     """As teclas dos atalhos, hoje junto do campo que cada uma aciona (onda 3 da UX, §5.7: a legenda do rodape saiu).
     None se nao ha tecla nenhuma no DOM; senao [texto, ok]: o texto e 'acao tecla' de cada uma, e ok e verdadeiro so
-    quando TODAS estao visiveis E vizinhas do proprio campo (busca, grupo Cliente, rotulo Vendedor, primeira forma de
-    pagamento, botao de fechar)."""
-    return js("(() => { const ks = Array.from(document.querySelectorAll('kbd[data-tecla-de]')); if (!ks.length) return null; const junto = { produto: '[data-atalho=\"busca\"]', cliente: '[role=\"group\"][aria-label=\"Cliente\"]', vendedor: 'label[for=\"seller_user_id\"]', pagamento: '[data-atalho=\"forma-de-pagamento\"]', fechar: '[data-atalho=\"fechar\"]' }; const ok = ks.every(k => getComputedStyle(k).display !== 'none' && k.getBoundingClientRect().width > 0 && !!k.parentElement.querySelector(junto[k.dataset.teclaDe])); return [ks.map(k => k.dataset.teclaDe + ' ' + k.textContent.trim()).join(' | '), ok]; })()")
+    quando TODAS estao visiveis E vizinhas do proprio campo (busca, botao Trocar ou Escolher cliente, rotulo Vendedor,
+    primeira forma de pagamento, botao de fechar)."""
+    return js("(() => { const ks = Array.from(document.querySelectorAll('kbd[data-tecla-de]')); if (!ks.length) return null; const junto = { produto: '[data-atalho=\"busca\"]', vendedor: 'label[for=\"seller_user_id\"]', pagamento: '[data-atalho=\"forma-de-pagamento\"]', fechar: '[data-atalho=\"fechar\"]' }; const vizinho = k => k.dataset.teclaDe === 'cliente' ? Array.from(k.parentElement.querySelectorAll('button')).some(b => ['Trocar', 'Escolher cliente'].includes(b.innerText.trim())) : !!k.parentElement.querySelector(junto[k.dataset.teclaDe]); const ok = ks.every(k => getComputedStyle(k).display !== 'none' && k.getBoundingClientRect().width > 0 && vizinho(k)); return [ks.map(k => k.dataset.teclaDe + ' ' + k.textContent.trim()).join(' | '), ok]; })()")
 
 
 def rotulo_comeca(prefixo):

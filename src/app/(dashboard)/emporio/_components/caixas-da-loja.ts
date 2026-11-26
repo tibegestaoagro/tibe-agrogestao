@@ -13,6 +13,8 @@ export type CaixaDaLoja = {
   aberto_por_id: string | null;
   aberto_por_nome: string | null;
   saldo: number;
+  /** Quando o turno aberto começou (ISO); `null` = caixa fechado. A faixa do balcão mostra a hora. */
+  aberto_em: string | null;
 };
 
 export function paraCaixasDaLoja(views: CaixaRegistradoView[]): CaixaDaLoja[] {
@@ -23,6 +25,7 @@ export function paraCaixasDaLoja(views: CaixaRegistradoView[]): CaixaDaLoja[] {
     aberto_por_id: c.turno_aberto?.aberto_por.id ?? null,
     aberto_por_nome: c.turno_aberto?.aberto_por.name ?? null,
     saldo: c.saldo,
+    aberto_em: c.turno_aberto?.aberto_em ?? null,
   }));
 }
 

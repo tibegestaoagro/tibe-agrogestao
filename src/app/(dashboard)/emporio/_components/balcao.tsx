@@ -16,7 +16,7 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import type { VendaView } from "@/lib/actions/emporio-vendas";
-import type { ClienteEscolhido } from "@/lib/emporio/cliente-escolhido";
+import { consumidorFinalEscolhido, type ClienteEscolhido } from "@/lib/emporio/cliente-escolhido";
 import type { CaixaRegistradoView } from "@/lib/actions/emporio-caixa";
 import type { CreditoView } from "@/lib/actions/emporio-credito";
 import type { OrcamentoView } from "@/lib/actions/emporio-orcamentos";
@@ -34,10 +34,14 @@ import {
 import { CaixaDaOperacao } from "./caixa-da-operacao";
 import { ProvedorDasTeclas, TeclaDoAtalho, useAtalhosDoBalcao } from "./atalhos-do-balcao";
 import { BalcaoMaisOpcoes } from "./balcao-mais-opcoes";
+import { VendedorDoBalcao } from "./balcao-vendedor";
+import { FaixaDoCaixa } from "./balcao-faixa-do-caixa";
 import {
   algoNasMaisOpcoes,
   CAMPOS_DAS_MAIS_OPCOES,
+  formaPedeClienteDeVerdade,
   tituloDasMaisOpcoes,
+  vendedorQueVemEscolhido,
   type MaisOpcoesPreenchidas,
 } from "@/lib/emporio/balcao-tela";
 import type { AcaoDeAtalho } from "@/lib/emporio/atalhos";
@@ -216,6 +220,9 @@ export function Balcao({
       orcamentoInicial?.establishment_id ??
       (lojas.length === 1 ? lojas[0].id : ""),
     cargaInicial,
+    // O balcão começa (e recomeça, depois de cada venda, orçamento salvo e "Novo atendimento") no Consumidor final.
+    // A edição, o orçamento refeito e o carregado trazem o cliente DELES por cima disto.
+    clienteInicial: consumidorFinalEscolhido(consumidorFinal),
     inicial: daEdicao?.inicial ?? null,
     comFranquia: true,
     comDescontoNoTotal: true,
@@ -324,11 +331,10 @@ export function Balcao({
   );
   // Nunca atravessa lojas: A, B, A volta vazio (o Caixa escolhe de novo, o resto cai nele mesmo).
   const vendedores = vendedoresPorLoja[loja] ?? [];
-  const vendedor = vendedores.some((u) => u.id === vendedorEscolhido)
-    ? vendedorEscolhido
-    : !ehCaixa && vendedores.some((u) => u.id === usuarioId)
-      ? usuarioId
-      : "";
+  const vendedor = vendedorQueVemEscolhido({ vendedores, ehCaixa, usuarioId, escolhido: vendedorEscolhido });
+  // Cheque, boleto e fiado pedem o cliente de verdade: com o Consumidor final, a janela de clientes abre.
+  const [pedirTroca, setPedirTroca] = useState<{ n: number; motivo: string } | null>(null);
+  const precisaDeClienteDeVerdade = v.pagamentos.some((p) => formaPedeClienteDeVerdade(p.kind));
 
   const caixasDaLoja = lidos && lidos.lojaId === loja ? lidos.lista : null;
   const abertos = caixasDaLoja ? abertosDaLoja(caixasDaLoja, loja) : [];
@@ -337,8 +343,13 @@ export function Balcao({
   const alvoDaAbertura = fechados.length === 1 ? fechados[0] : fechados.find((c) => c.id === caixaParaAbrir);
   // Um caixa aberto só: o servidor resolve e a tela não pergunta. Zero ou vários, ou uma recusa do servidor: pergunta.
   // O orçamento não mexe em dinheiro: no modo Orçamento o caixa nem aparece.
-  const mostrarCaixa =
-    modo === "venda" && loja !== "" && caixasDaLoja !== null && (abertos.length !== 1 || !!err.erros.cash_register_id);
+  // A faixa só nasce depois de ler os caixas no navegador (o efeito acima): o texto dela depende do relógio,
+  // e o HTML do servidor nunca a contém, então não há hidratação a divergir.
+  const mostrarFaixa = modo === "venda" && loja !== "" && caixasDaLoja !== null;
+  const lojaNome = lojas.find((l) => l.id === loja)?.name ?? "";
+  const caixaComTurno = abertos.find((c) => c.id === caixaEscolhido) ?? null;
+  // A escolha entre caixas fica embaixo da faixa: vários abertos, ou uma recusa do servidor com um só.
+  const escolherEntreCaixas = abertos.length > 1 || (abertos.length === 1 && !!err.erros.cash_register_id);
   // Faturando um orçamento, o vendedor é o dele (o servidor o herda): a tela mostra e não pergunta.
   const vendedorTravado = modo === "venda" && orcamento !== null;
   // O botão principal do rodapé, parado: o que o atalho de fechar aciona e a legenda nomeia.
@@ -794,75 +805,78 @@ export function Balcao({
         className="space-y-4"
       >
 
-        {mostrarCaixa && (
-          <div className="rounded-lg border border-borda bg-superficie p-4 shadow-sm">
-            <Field
-              label="Caixa"
-              required
-              id={err.idDe("cash_register_id")}
-              error={err.erros.cash_register_id}
-              hint={abertos.length === 0 ? "A venda continua aqui assim que o caixa abrir." : undefined}
-            >
-              {({ id, ...aria }) =>
-                abertos.length === 0 ? (
-                  <div id={id} tabIndex={-1} {...aria} className="space-y-2">
-                    <p className="text-sm text-texto-secundario">{AVISO_SEM_CAIXA}</p>
-                    {fechados.length > 1 && (
-                      <Select
-                        value={caixaParaAbrir}
-                        onValueChange={(c) => {
-                          setCaixaParaAbrir(c);
-                          err.limparCampo("cash_register_id");
-                        }}
-                      >
-                        <SelectTrigger aria-label="Caixa a abrir">
-                          <SelectValue placeholder="Escolha o caixa a abrir" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {fechados.map((c) => (
-                            <SelectItem key={c.id} value={c.id}>
-                              {c.nome}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                    {alvoDaAbertura ? (
-                      <AbrirTurnoForm
-                        key={alvoDaAbertura.id}
-                        caixaId={alvoDaAbertura.id}
-                        caixaNome={alvoDaAbertura.nome}
-                        saldoCent={Math.round(alvoDaAbertura.saldo * 100)}
-                        trigger={
-                          <Button type="button" variant="outline">
-                            Abrir o {alvoDaAbertura.nome}
-                          </Button>
-                        }
-                        aoFechar={() => {
-                          retomar.current = false;
-                        }}
-                        aoAbrir={async (aberto) => {
-                          const res = await apiGet<CaixaRegistradoView[]>(
-                            `/api/v1/emporio/cash/registers?establishment_id=${encodeURIComponent(loja)}`,
-                          );
-                          if (res.ok) setLidos({ lojaId: loja, lista: paraCaixasDaLoja(res.data) });
-                          setCaixa(aberto);
-                          err.limparCampo("cash_register_id");
-                          if (retomar.current) {
-                            retomar.current = false;
-                            void enviar(aberto);
-                          }
-                        }}
-                      />
-                    ) : (
-                      fechados.length === 0 && (
-                        <Link href="/emporio/caixa" className="text-sm font-medium text-texto-marca hover:underline">
-                          Ir para o Caixa
-                        </Link>
-                      )
-                    )}
-                  </div>
-                ) : (
+        {mostrarFaixa && (
+          <Field label={<span className="sr-only">Caixa</span>} id={err.idDe("cash_register_id")} error={err.erros.cash_register_id}>
+            {({ id, ...aria }) => (
+              <div className="space-y-2">
+                <FaixaDoCaixa
+                  id={escolherEntreCaixas ? undefined : id}
+                  aria={escolherEntreCaixas ? undefined : aria}
+                  escolhido={caixaComTurno}
+                  abertos={abertos.length}
+                  lojaNome={lojaNome}
+                  acao={
+                    abertos.length === 0 ? (
+                      <div className="flex flex-wrap items-center gap-2">
+                        {fechados.length > 1 && (
+                          <Select
+                            value={caixaParaAbrir}
+                            onValueChange={(c) => {
+                              setCaixaParaAbrir(c);
+                              err.limparCampo("cash_register_id");
+                            }}
+                          >
+                            <SelectTrigger aria-label="Caixa a abrir" className="w-56 bg-superficie text-texto">
+                              <SelectValue placeholder="Escolha o caixa a abrir" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {fechados.map((c) => (
+                                <SelectItem key={c.id} value={c.id}>
+                                  {c.nome}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                        {alvoDaAbertura ? (
+                          <AbrirTurnoForm
+                            key={alvoDaAbertura.id}
+                            caixaId={alvoDaAbertura.id}
+                            caixaNome={alvoDaAbertura.nome}
+                            saldoCent={Math.round(alvoDaAbertura.saldo * 100)}
+                            trigger={
+                              <Button type="button" variant="outline" size="sm">
+                                Abrir o caixa
+                              </Button>
+                            }
+                            aoFechar={() => {
+                              retomar.current = false;
+                            }}
+                            aoAbrir={async (aberto) => {
+                              const res = await apiGet<CaixaRegistradoView[]>(
+                                `/api/v1/emporio/cash/registers?establishment_id=${encodeURIComponent(loja)}`,
+                              );
+                              if (res.ok) setLidos({ lojaId: loja, lista: paraCaixasDaLoja(res.data) });
+                              setCaixa(aberto);
+                              err.limparCampo("cash_register_id");
+                              if (retomar.current) {
+                                retomar.current = false;
+                                void enviar(aberto);
+                              }
+                            }}
+                          />
+                        ) : (
+                          fechados.length === 0 && (
+                            <Link href="/emporio/caixa" className="text-sm font-medium underline">
+                              Ir para o Caixa
+                            </Link>
+                          )
+                        )}
+                      </div>
+                    ) : undefined
+                  }
+                />
+                {escolherEntreCaixas && (
                   <CaixaDaOperacao
                     id={id}
                     aria={aria}
@@ -873,10 +887,10 @@ export function Balcao({
                       err.limparCampo("cash_register_id");
                     }}
                   />
-                )
-              }
-            </Field>
-          </div>
+                )}
+              </div>
+            )}
+          </Field>
         )}
 
         {/* Duas colunas a partir de `lg`; abaixo, uma só (produtos, depois a coluna da direita). */}
@@ -948,7 +962,8 @@ export function Balcao({
                   }
                   setEscolhaDoCliente((n) => n + 1);
                 }}
-                teclaDoCliente={<TeclaDoAtalho acao="cliente" className="absolute right-0 top-0" />}
+                pedirTroca={precisaDeClienteDeVerdade ? pedirTroca : null}
+                teclaDoCliente={<TeclaDoAtalho acao="cliente" />}
               />
 
               {loja !== "" && (
@@ -972,6 +987,17 @@ export function Balcao({
                         <p id={id} tabIndex={-1} {...aria} className="text-sm font-medium text-texto">
                           {orcamento?.seller_name ?? "Sem vendedor no orçamento"}
                         </p>
+                      ) : ehCaixa ? (
+                        <VendedorDoBalcao
+                          id={id}
+                          aria={aria}
+                          vendedores={vendedores}
+                          valor={vendedor}
+                          aoEscolher={(escolhido) => {
+                            setVendedorEscolhido(escolhido);
+                            err.limparCampo("seller_user_id");
+                          }}
+                        />
                       ) : (
                         <Select
                           value={vendedor}
@@ -1009,6 +1035,14 @@ export function Balcao({
                     idDe={err.idDe}
                     limpar={err.limparCampo}
                     creditoDoFiado={creditoDoFiado}
+                    aoAdicionarForma={(kind) => {
+                      // A linha entra normalmente; com o Consumidor final, a janela pede o cliente de verdade.
+                      if (!formaPedeClienteDeVerdade(kind) || !v.cliente?.fixed) return;
+                      setPedirTroca((p) => ({
+                        n: (p?.n ?? 0) + 1,
+                        motivo: `${FORMA_ROTULO[kind]} precisa do cliente de verdade: escolha quem paga.`,
+                      }));
+                    }}
                     teclaDoPagamento={<TeclaDoAtalho acao="pagamento" className="absolute right-0 top-0" />}
                   />
                   {recusaDeCredito && err.erros.payments && v.cliente && (
