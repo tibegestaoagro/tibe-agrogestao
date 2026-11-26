@@ -1,6 +1,7 @@
 import "./_env-local";
 import { prisma, prismaForTenant } from "@/lib/prisma";
 import { exigirBancoLocal } from "./_banco-local";
+import { soltarDespesaFixa } from "./_cenario-despesa-fixa";
 import { setTenantFeatureAction } from "@/lib/actions/platform-features";
 import { abrirTurnoDeTeste } from "./_emporio-turno";
 
@@ -46,6 +47,7 @@ async function limpar(tenant_id: string) {
   await prisma.saleVariableExpense.deleteMany({ where: { tenant_id, sale_id: { in: vendas } } });
   await prisma.emporioSalePayment.deleteMany({ where: { tenant_id, sale_id: { in: vendas } } });
   await prisma.financialPayment.deleteMany({ where: { tenant_id, entry_id: { in: lancamentos } } });
+  await soltarDespesaFixa(prisma, { tenant_id, lojas, lancamentos });
   await prisma.financialEntry.deleteMany({ where: { tenant_id, id: { in: lancamentos } } });
   // A venda nova da edição aponta para a antiga (e a da troca, para a devolução).
   await prisma.emporioSale.updateMany({ where: { tenant_id, id: { in: vendas } }, data: { exchange_return_id: null } });

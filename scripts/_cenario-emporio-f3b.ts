@@ -2,6 +2,7 @@ import "./_env-local";
 import { limparTaxasDeCenario } from "./_cartao-cenario";
 import { prisma, prismaForTenant } from "@/lib/prisma";
 import { exigirBancoLocal } from "./_banco-local";
+import { soltarDespesaFixa } from "./_cenario-despesa-fixa";
 import { setTenantFeatureAction } from "@/lib/actions/platform-features";
 import { abrirTurnoDeTeste } from "./_emporio-turno";
 
@@ -57,6 +58,7 @@ async function limpar(tenant_id: string) {
   await prisma.financialPayment.deleteMany({ where: { tenant_id, entry_id: { in: lancamentos } } });
   // A ocorrência de despesa fixa aponta para o lançamento que ela gerou (a tela de Despesas as cria ao abrir): sai antes dele.
   await prisma.fixedExpenseOccurrence.deleteMany({ where: { tenant_id, OR: [{ financial_entry_id: { in: lancamentos } }, { establishment_id: { in: lojas } }] } });
+  await soltarDespesaFixa(prisma, { tenant_id, lojas, lancamentos });
   await prisma.financialEntry.deleteMany({ where: { tenant_id, id: { in: lancamentos } } });
   // A venda nova da troca aponta para a devolucao, e a devolucao para a venda.
   await prisma.emporioSale.updateMany({ where: { tenant_id, id: { in: vendas } }, data: { exchange_return_id: null } });

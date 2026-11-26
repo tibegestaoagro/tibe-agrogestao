@@ -307,9 +307,22 @@ for formato, nome in (("a4", "A4"), ("cupom", "cupom")):
 passo("7. Fiado como Caixa da loja A: receber por PIX")
 ir("/emporio/fiado")
 confere("a tela do fiado abre para o Caixa", caminho() == "/emporio/fiado" and tem("Px Cliente"), caminho() + " " + texto_principal(200))
+def abrir_painel_com(acao):
+    """No next dev o clique antes da hidratacao nao abre nada: repete ate o painel abrir (como nos roteiros de acordo)."""
+    fim_em = time.time() + 90
+    while time.time() < fim_em:
+        acao()
+        if esperar(painel_aberto, 6):
+            time.sleep(1)
+            return True
+        time.sleep(2)
+    return False
+
+
 confere("abre Receber do Px Cliente", bool(esperar(lambda: clicar_na_linha("Px Cliente", "Receber"), 20)))
 time.sleep(1.5)
-confere("painel abriu", painel_aberto())
+confere("painel abriu", painel_aberto() or abrir_painel_com(lambda: clicar_na_linha("Px Cliente", "Receber")))
+time.sleep(1)
 confere("escolhe PIX como forma", escolher_prefixo("Como o cliente pagou", "PIX") is True)
 loja_txt = texto_do_campo("Loja que recebe")
 if LOJA_A not in loja_txt:
@@ -416,6 +429,8 @@ confere("escolhe Não recebe PIX", escolher("Disponível para PIX em", "Não rec
 confere("o campo Lojas some", esperar(lambda: erro_do_campo("Lojas") == "" and "Lojas escolhidas" not in texto_do_campo("Disponível para PIX em"), 5))
 enviar_painel()
 confere("o painel fechou", esperar(lambda: not painel_aberto(), 60))
+# A tabela só troca depois do refresh que vem com o painel fechando: espera em vez de ler na hora.
+esperar(lambda: ((linha_da_tabela(NOVA) or "").split(" | ") + [""] * 6)[5] == "Não recebe PIX", 30)
 ln = linha_da_tabela(NOVA)
 confere("a tabela mostra Não recebe PIX na conta nova", bool(ln) and ln.split(" | ")[5] == "Não recebe PIX", ln)
 res = api("PATCH", "/api/v1/emporio/bank-accounts/" + CONTAS[CONTA_SITE]["id"], {"receives_pix": False})

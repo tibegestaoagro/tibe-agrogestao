@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { limparTaxasDeCenario } from "./_cartao-cenario";
 import { prisma, prismaForTenant } from "@/lib/prisma";
 import { exigirBancoLocal } from "./_banco-local";
+import { soltarDespesaFixa } from "./_cenario-despesa-fixa";
 import { abrirTurnoDeTeste } from "./_emporio-turno";
 import { setTenantFeatureAction } from "@/lib/actions/platform-features";
 
@@ -56,6 +57,7 @@ async function limpar(tenant_id: string) {
   await prisma.cardReceivable.deleteMany({ where: { tenant_id, sale_id: { in: vendas } } });
   await prisma.emporioSalePayment.deleteMany({ where: { tenant_id, sale_id: { in: vendas } } });
   await prisma.financialPayment.deleteMany({ where: { tenant_id, entry_id: { in: lancamentos } } });
+  await soltarDespesaFixa(prisma, { tenant_id, lojas, lancamentos });
   await prisma.financialEntry.deleteMany({ where: { tenant_id, id: { in: lancamentos } } });
   await prisma.emporioSaleItem.deleteMany({ where: { tenant_id, sale_id: { in: vendas } } });
   // A venda faturada aponta para o orcamento e ele para ela: solta os dois lados antes.

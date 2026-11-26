@@ -132,7 +132,7 @@ confere("José deve R$ 30,00, sem venda nova", deve("F3a José") == 30 and len(a
 passo("4. O caixa: a gaveta é a soma dos movimentos")
 ir("/emporio/caixa")
 confere("gaveta da F3a Loja em R$ 182,00 (12 + 120 + 50)", gaveta(loja["id"]) == 182 and tem("R$ 182,00"), gaveta(loja["id"]))
-confere("movimentos com a origem em português", tem("Venda") and tem("Recebimento de fiado"))
+confere("movimentos com a origem em português", tem("Venda") and tem("Recebimento de fiado"), texto_principal(1500))
 
 passo("5. Cancelar a venda do sal pela tela")
 ir("/emporio/vendas/" + venda_sal["id"])

@@ -209,7 +209,7 @@ confere("Pagos mostra BOL-A, Pago, a data de ontem e a conta", esperar(lambda: a
 passo("8. Mandar para o fiado: recusa sem motivo, depois No fiado")
 confere("volta para Abertos", clicar("Abertos"))
 confere("o outro boleto da Bol Maria segue aberto (R$ 15,00)", esperar(lambda: tem("R$ 15,00") and not tem("BOL-A"), 30), texto_principal(800))
-confere("abre Mandar para o fiado", clicar_na_linha("Bol Maria", "Mandar para o fiado"))
+confere("abre Mandar para o fiado", clicar_na_linha("Bol Maria", "Mandar para o fiado"), js("Array.from(document.querySelectorAll('main tr')).filter(r => r.innerText.includes('Bol')).map(r => r.innerText.replace(/\\s+/g, ' ').slice(0, 160) + ' [' + Array.from(r.querySelectorAll('button')).map(b => b.innerText.trim()).join(',') + ']')"))
 time.sleep(1.5)
 confere("painel abriu", painel_aberto())
 enviar_painel()

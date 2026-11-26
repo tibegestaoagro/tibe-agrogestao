@@ -2,6 +2,7 @@ import "./_env-local";
 import { limparTaxasDeCenario } from "./_cartao-cenario";
 import { prisma, prismaForTenant } from "@/lib/prisma";
 import { exigirBancoLocal } from "./_banco-local";
+import { soltarDespesaFixa } from "./_cenario-despesa-fixa";
 import { setTenantFeatureAction } from "@/lib/actions/platform-features";
 
 /**
@@ -40,6 +41,7 @@ async function limpar(tenant_id: string) {
   await prisma.cashCount.deleteMany({ where: { tenant_id, establishment_id: { in: lojas } } });
   await prisma.stockMovement.deleteMany({ where: { tenant_id, OR: [{ establishment_id: { in: lojas } }, { product_id: { in: produtos } }] } });
   await prisma.financialPayment.deleteMany({ where: { tenant_id, entry_id: { in: lancamentos } } });
+  await soltarDespesaFixa(prisma, { tenant_id, lojas, lancamentos });
   await prisma.financialEntry.deleteMany({ where: { tenant_id, id: { in: lancamentos } } });
   await prisma.emporioPurchaseItem.deleteMany({ where: { tenant_id, purchase_id: { in: compras } } });
   await prisma.emporioPurchase.deleteMany({ where: { tenant_id, id: { in: compras } } });

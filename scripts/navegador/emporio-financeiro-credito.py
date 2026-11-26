@@ -187,7 +187,7 @@ confere("preenche a mensagem com {nome}", preencher("Mensagem de cobrança", MEN
 enviar_painel()
 confere("o painel fechou (gravou)", esperar(lambda: not painel_aberto(), 60), erro_do_campo("Limite padrão (R$)"))
 confere("a lista mostra o limite padrao de R$ 500,00", esperar(lambda: tem("Limite padrão") and tem("R$ 500,00"), 30), texto_principal(600))
-confere("e a mensagem nova", tem("Oi {nome}"), texto_principal(900))
+confere("e a mensagem nova", bool(esperar(lambda: tem("Oi {nome}"), 30)), texto_principal(900))
 
 # --- 2 ---------------------------------------------------------------------------------
 passo("2. O Caixa tenta fiado ao Cred Bloqueado: aviso, recusa e venda nao gravada")
