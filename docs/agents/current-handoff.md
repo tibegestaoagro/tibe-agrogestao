@@ -66,22 +66,28 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
     falhas.
 
   Para roteiros, suba o `next dev` com `--disable-source-maps` e
-  `NODE_OPTIONS=--max-old-space-size=3072` (o comum passou de 5 GB e foi
+  `NODE_OPTIONS=--max-old-space-size=4096` (o comum passou de 5 GB e foi
   derrubado). Se o navegador recarregar sem parar ("HMR hash mismatch" no
-  WebSocket), religue o `next dev`.
+  WebSocket), religue o `next dev`. Se continuar depois de religar, pare,
+  apague `.next/dev` (o cache do Turbopack chegou a 5,9 GB e corrompeu) e
+  religue.
 
-  **Próximo, nesta ordem:**
-  1. a limpeza dos roteiros antigos, prioridade antes da onda 2, **em
-     curso**. O briefing e o relato estão em
-     `.superpowers/sdd/2026-11-24-emporio-ux-onda1-navegacao/`
-     (`limpeza-roteiros-brief.md` e `limpeza-roteiros-report.md`,
-     git-ignorados). Até agora, só em `scripts/` e sem commit: 26 roteiros
-     verdes, 9 corrigidos à espera de nova rodada, f1, f2a e f3b sem
-     diagnóstico, e 10 que ainda não rodaram;
-  2. a onda 2 (Início, §5.5). O plano é
-     `docs/superpowers/plans/2026-11-25-emporio-ux-onda2-inicio.md` (commit
-     `4d0f91d1`), e espera a aprovação do usuário e das 8 decisões listadas
-     nele.
+  **Limpeza dos roteiros antigos: feita** (commits `3fa2e12c` e
+  `c2c6d6c5`, só em `scripts/`). Numa passada única, 45 dos 49 roteiros
+  `emporio-*` passaram. Os 4 vermelhos (boleto, f3a, contas-pix e
+  financeiro-credito) passaram depois, cada um com o roteiro vizinho de
+  antes e o de depois. As causas foram textos e fluxos mudados de propósito
+  (Q215, Q222, Q327, Q336), paginação poluída por dados de outros cenários
+  e a despesa fixa de um cenário travando a limpeza dos outros
+  (`scripts/_cenario-despesa-fixa.ts`). O relato está em
+  `.superpowers/sdd/2026-11-24-emporio-ux-onda1-navegacao/limpeza-roteiros-report.md`
+  (git-ignorado).
+
+  **Próximo:** a onda 2 (Início, §5.5), **aprovada pelo usuário em 25/11,
+  com as 8 decisões**. O plano é
+  `docs/superpowers/plans/2026-11-25-emporio-ux-onda2-inicio.md`. Em curso:
+  T1 (a suíte `m131`, escrita a partir do plano, em paralelo com a leitura
+  e a rota). Depois, T2 (a tela) e T3 (a prova viva e o fim da onda).
 
   O roteiro descartável do tour de UX (só no desktop) não é versionado.
 - Em produção desde 24/11 (merge `176a3dba`, CI e Vercel verdes): lint de 30
