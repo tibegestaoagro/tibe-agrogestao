@@ -118,11 +118,10 @@ export function FaixaFiltro({ faixa, loja }: { faixa: string; loja: string }) {
   const router = useRouter();
 
   function ir(nova: string) {
-    const q = new URLSearchParams();
+    const q = new URLSearchParams({ aba: "vencidos" });
     if (loja) q.set("loja", loja);
     if (nova) q.set("faixa", nova);
-    const s = q.toString();
-    router.push(s ? `/emporio/financeiro/cobranca?${s}` : "/emporio/financeiro/cobranca");
+    router.push(`/emporio/financeiro/receber?${q.toString()}`);
   }
 
   return (

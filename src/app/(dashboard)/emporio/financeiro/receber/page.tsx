@@ -10,17 +10,21 @@ import { listarContasAReceberAction } from "@/lib/actions/emporio-financeiro";
 import { hojeEmBrasilia } from "@/lib/emporio/cartao";
 import { dataBr, hojeEmBrasilia as hojeIsoEmBrasilia } from "@/lib/emporio/datas";
 import { periodoDaUrl } from "@/lib/emporio/periodo";
+import { abaDoReceber } from "@/lib/emporio/dinheiro-telas";
+import { FAIXAS_DE_COBRANCA, listarCobrancaAction, type FaixaDeCobranca } from "@/lib/actions/emporio-credito";
+import { reaisBr } from "@/lib/numero-br";
 import { EmptyState } from "@/components/ui/empty-state";
 import { idDoClientePadrao } from "../../_components/cliente-padrao";
 import { Paginacao, paginaDaUrl } from "../../_components/paginacao";
 import { PeriodoFiltro } from "../../_components/periodo-filtro";
 import { RecebidosLista } from "../../_components/recebidos-lista";
-import { verDoReceber } from "../../_components/recorte";
+import { valorDoFiadoNoRecorte, verDoReceber } from "../../_components/recorte";
 import { ResumoFaixa } from "../../_components/resumo-faixa";
 import { paraCaixasDaLoja } from "../../_components/caixas-da-loja";
 import { CabecalhoDaTela } from "../../_components/cabecalho-da-tela";
-import { FinanceiroAbas } from "../../_components/financeiro-abas";
-import { FinanceiroReceber } from "../../_components/financeiro-receber";
+import { AbasDaTela } from "../../_components/abas-da-tela";
+import { FaixaFiltro, FinanceiroCobranca } from "../../_components/financeiro-cobranca";
+import { FinanceiroReceber, recortarReceber } from "../../_components/financeiro-receber";
 import { LojaFiltro } from "../../_components/loja-filtro";
 
 const CAMINHO = "/emporio/financeiro/receber";
@@ -29,11 +33,31 @@ const CAMINHO = "/emporio/financeiro/receber";
 export default async function FinanceiroReceberPage({
   searchParams,
 }: {
-  searchParams: Promise<{ loja?: string; ver?: string; cheques?: string; de?: string; ate?: string; pagina_ant?: string }>;
+  searchParams: Promise<{
+    loja?: string;
+    ver?: string;
+    cheques?: string;
+    de?: string;
+    ate?: string;
+    pagina_ant?: string;
+    aba?: string;
+    faixa?: string;
+  }>;
 }) {
   const user = await requireFeaturePage("emporio");
-  const { loja: lojaDaUrl = "", ver: verDaUrl, cheques: chequesDaUrl, de: deDaUrl, ate: ateDaUrl, pagina_ant: paginaAntDaUrl } = await searchParams;
+  const {
+    loja: lojaDaUrl = "",
+    ver: verDaUrl,
+    cheques: chequesDaUrl,
+    de: deDaUrl,
+    ate: ateDaUrl,
+    pagina_ant: paginaAntDaUrl,
+    aba: abaDaUrl,
+    faixa: faixaDaUrl = "",
+  } = await searchParams;
   const ver = verDoReceber(verDaUrl);
+  const aba = abaDoReceber(abaDaUrl, chequesDaUrl);
+  const faixa = (FAIXAS_DE_COBRANCA as readonly string[]).includes(faixaDaUrl) ? (faixaDaUrl as FaixaDeCobranca) : "";
   // Filtro próprio (não é um valor do ?ver=): a faixa, o fiado e os cartões ficam como estão.
   const soACompletar = chequesDaUrl === "a_completar";
   // Sem `de` e `ate` válidos, o período é Este mês (o Recebido do cartão abre nele).
@@ -47,8 +71,10 @@ export default async function FinanceiroReceberPage({
   const lojas = lojasRes.ok ? lojasRes.data.map((l) => ({ id: l.id, name: l.name })) : [];
   const loja = lojas.some((l) => l.id === lojaDaUrl) ? lojaDaUrl : "";
 
-  const [dadosRes, antecipacoesRes, contasDoBanco, padraoId] = await Promise.all([
+  const [dadosRes, cobrancaRes, antecipacoesRes, contasDoBanco, padraoId] = await Promise.all([
     listarContasAReceberAction(db, user, { establishment_id: loja || undefined, de: periodo.de, ate: periodo.ate }),
+    // A aba Vencidos (a antiga Cobrança) não usa o recorte; a leitura é barata e dá o total do título da aba.
+    listarCobrancaAction(db, user, { establishment_id: loja || undefined, faixa: faixa || undefined }),
     // Quem não antecipa recebe a recusa de permissão: a lista fica vazia, sem erro na tela.
     listarAntecipacoesAction(db, user, {
       establishment_id: loja || undefined,
@@ -65,7 +91,7 @@ export default async function FinanceiroReceberPage({
 
   // Os demais parâmetros da tela seguem como vieram; só a página das antecipações muda.
   function hrefDaAntecipacao(n: number): string {
-    const p = new URLSearchParams();
+    const p = new URLSearchParams({ aba: "cartoes" });
     if (loja) p.set("loja", loja);
     if (ver) p.set("ver", ver);
     if (deDaUrl) p.set("de", deDaUrl);
@@ -75,6 +101,44 @@ export default async function FinanceiroReceberPage({
     return texto ? `${CAMINHO}?${texto}` : CAMINHO;
   }
 
+  // O recorte da faixa filtra a aba aberta, e o título de cada aba soma o que ela lista (o mesmo recorte das listas).
+  const verRecorte = ver === "recebido" ? null : ver;
+  const recortado = dadosRes.ok ? recortarReceber(dadosRes.data, verRecorte, hoje, soACompletar && aba === "cheques") : null;
+  const soma = (xs: number[]) => xs.reduce((t, x) => t + Math.round(x * 100), 0) / 100;
+  const totais: Record<string, number | null> = {
+    fiado: recortado ? soma(recortado.fiado.map((c) => valorDoFiadoNoRecorte(c, verRecorte))) : null,
+    cheques: recortado ? soma(recortado.cheques.map((c) => c.amount)) : null,
+    boletos: recortado ? soma(recortado.boletos.map((b) => b.amount)) : null,
+    cartoes: recortado ? soma(recortado.cartoes.map((p) => p.effective_net)) : null,
+    vencidos: cobrancaRes.ok ? soma(cobrancaRes.data.customers.map((c) => c.overdue_total)) : null,
+  };
+  const abaParam = aba === "fiado" ? undefined : aba;
+  const hrefDaAba = (valor: string) => {
+    const q = new URLSearchParams();
+    if (valor !== "fiado") q.set("aba", valor);
+    if (loja) q.set("loja", loja);
+    if (ver) q.set("ver", ver);
+    if (deDaUrl) q.set("de", deDaUrl);
+    if (ateDaUrl) q.set("ate", ateDaUrl);
+    const qs = q.toString();
+    return qs ? `${CAMINHO}?${qs}` : CAMINHO;
+  };
+  const tituloDaAba = (valor: string, rotulo: string) =>
+    totais[valor] === null ? rotulo : `${rotulo} ${reaisBr(totais[valor] as number)}`;
+  const abas = (
+    <AbasDaTela
+      rotulo="Abas de A receber"
+      atual={aba}
+      abas={[
+        { valor: "fiado", rotulo: tituloDaAba("fiado", "Fiado"), href: hrefDaAba("fiado") },
+        { valor: "cheques", rotulo: tituloDaAba("cheques", "Cheques"), href: hrefDaAba("cheques") },
+        { valor: "boletos", rotulo: tituloDaAba("boletos", "Boletos"), href: hrefDaAba("boletos") },
+        { valor: "cartoes", rotulo: tituloDaAba("cartoes", "Cartões"), href: hrefDaAba("cartoes") },
+        { valor: "vencidos", rotulo: tituloDaAba("vencidos", "Vencidos"), href: hrefDaAba("vencidos") },
+      ]}
+    />
+  );
+
   return (
     <div className="space-y-6">
       <CabecalhoDaTela
@@ -83,19 +147,25 @@ export default async function FinanceiroReceberPage({
         ajuda="O que ainda vai entrar: fiado, cheques, boletos e parcelas de cartão."
       />
 
-      <FinanceiroAbas atual="/emporio/financeiro/receber" loja={loja} />
       <LojaFiltro
         lojas={lojas}
         loja={loja}
         caminho="/emporio/financeiro/receber"
-        preservar={{ ver: ver ?? undefined, cheques: soACompletar ? "a_completar" : undefined, de: deDaUrl, ate: ateDaUrl }}
+        preservar={{
+          aba: abaParam,
+          ver: ver ?? undefined,
+          cheques: soACompletar ? "a_completar" : undefined,
+          faixa: faixa || undefined,
+          de: deDaUrl,
+          ate: ateDaUrl,
+        }}
       />
 
       {dadosRes.ok && (
         <ResumoFaixa
           ativo={ver}
           caminho={CAMINHO}
-          params={{ loja, de: periodo.de, ate: periodo.ate }}
+          params={{ loja, aba: abaParam, de: periodo.de, ate: periodo.ate }}
           cartoes={[
             { chave: "vencido", rotulo: "Vencido", ...dadosRes.data.summary.overdue, alerta: true },
             { chave: "hoje", rotulo: "Vence hoje", ...dadosRes.data.summary.due_today },
@@ -113,7 +183,7 @@ export default async function FinanceiroReceberPage({
           ]}
         />
       )}
-      <PeriodoFiltro caminho={CAMINHO} de={periodo.de} ate={periodo.ate} extras={{ loja, ver: ver ?? undefined }} />
+      <PeriodoFiltro caminho={CAMINHO} de={periodo.de} ate={periodo.ate} extras={{ loja, aba: abaParam, ver: ver ?? undefined }} />
 
       {!dadosRes.ok ? (
         <EmptyState titulo="Não foi possível ler o que receber">{dadosRes.message}</EmptyState>
@@ -124,7 +194,20 @@ export default async function FinanceiroReceberPage({
           periodo={`De ${dataBr(periodo.de)} a ${dataBr(periodo.ate)}.`}
         />
       ) : (
+        <>
+          {abas}
+          {aba === "vencidos" ? (
+            <div className="space-y-4">
+              <FaixaFiltro faixa={faixa} loja={loja} />
+              {cobrancaRes.ok ? (
+                <FinanceiroCobranca dados={cobrancaRes.data} loja={loja} />
+              ) : (
+                <EmptyState titulo="Não foi possível ler a cobrança">{cobrancaRes.message}</EmptyState>
+              )}
+            </div>
+          ) : (
         <FinanceiroReceber
+          aba={aba}
           ver={ver}
           soACompletar={soACompletar}
           loja={loja}
@@ -148,6 +231,8 @@ export default async function FinanceiroReceberPage({
             ) : null
           }
         />
+          )}
+        </>
       )}
     </div>
   );
