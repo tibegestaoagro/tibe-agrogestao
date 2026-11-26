@@ -251,6 +251,7 @@ export function Balcao({
   const [modo, setModo] = useState<ModoDoBalcao>(refazer ? "orcamento" : "venda");
   // O orçamento posto na Venda para faturar: o envio leva `quote_id`.
   const [orcamento, setOrcamento] = useState<OrcamentoView | null>(orcamentoInicial);
+  const [orcamentosCarregados, setOrcamentosCarregados] = useState(0);
   const [notas, setNotas] = useState(edicao?.venda.notes ?? refazer?.orcamento.notes ?? "");
   const [orcamentoSalvo, setOrcamentoSalvo] = useState<OrcamentoView | null>(null);
   const [pedido, setPedido] = useState<PedidoParaEntregaValor>(() =>
@@ -419,6 +420,7 @@ export function Balcao({
     v.carregarOrcamento(carga);
     setPedido(carga.pedido);
     setOrcamento(q);
+    setOrcamentosCarregados((n) => n + 1);
     setVendedorEscolhido("");
     setModo("venda");
     setResumo(null);
@@ -894,7 +896,7 @@ export function Balcao({
         )}
 
         {/* Duas colunas a partir de `lg`; abaixo, uma só (produtos, depois a coluna da direita). */}
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] lg:items-start">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] lg:items-start">
           <div className="space-y-5 rounded-lg border border-borda bg-superficie p-4 shadow-sm">
             <CamposDosItens
               v={v}
@@ -1067,6 +1069,8 @@ export function Balcao({
                 abertoDeInicio={algoNasMaisOpcoes(maisOpcoes) && !!(edicao || refazer || orcamentoInicial)}
                 temRecusa={recusaEmMaisOpcoes}
                 recusa={err.tentativa}
+                carga={orcamentosCarregados}
+                algoPreenchido={algoNasMaisOpcoes(maisOpcoes)}
               >
                 <CampoDoDescontoNoTotal v={v} erros={err.erros} idDe={err.idDe} limpar={err.limparCampo} />
                 <CamposDoFrete

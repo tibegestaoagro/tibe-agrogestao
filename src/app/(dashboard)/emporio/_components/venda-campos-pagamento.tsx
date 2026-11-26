@@ -603,7 +603,8 @@ export function CampoDoPagamento({
               </div>
             ))}
 
-            <div className="space-y-1 rounded-lg bg-superficie-afundada px-3 py-2 text-sm" aria-live="polite">
+            {/* `empty:hidden`: sem item nem pagamento o resumo não tem filho, e a caixa vazia aparecia como uma faixa clara. */}
+            <div className="space-y-1 rounded-lg bg-superficie-afundada px-3 py-2 text-sm empty:hidden" aria-live="polite">
               {v.freteCent > 0 && (
                 <p className="text-texto-secundario">
                   Itens {reaisBr(v.totalCent / 100)} + frete {reaisBr(v.freteCent / 100)}. Total com frete:{" "}

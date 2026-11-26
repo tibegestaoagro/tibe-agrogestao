@@ -17,19 +17,30 @@ export function BalcaoMaisOpcoes({
   abertoDeInicio,
   temRecusa,
   recusa,
+  carga,
+  algoPreenchido,
   children,
 }: {
   titulo: string;
   abertoDeInicio: boolean;
   temRecusa: boolean;
   recusa: number;
+  /** Muda a cada orçamento carregado para faturar depois de a tela abrir ("Faturar" ou a busca pelo número). */
+  carga: number;
+  /** Algo da seção está preenchido: ao faturar um orçamento com frete ou franqueado, ela abre, como na edição. */
+  algoPreenchido: boolean;
   children: ReactNode;
 }) {
   const [aberto, setAberto] = useState(abertoDeInicio);
   const [recusaVista, setRecusaVista] = useState(recusa);
+  const [cargaVista, setCargaVista] = useState(carga);
   if (recusa !== recusaVista) {
     setRecusaVista(recusa);
     if (temRecusa && !aberto) setAberto(true);
+  }
+  if (carga !== cargaVista) {
+    setCargaVista(carga);
+    if (algoPreenchido && !aberto) setAberto(true);
   }
 
   return (

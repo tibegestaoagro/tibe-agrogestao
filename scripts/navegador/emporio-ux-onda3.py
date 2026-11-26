@@ -365,6 +365,20 @@ confere("clica em 'Novo atendimento'", js("(() => { const b = Array.from(documen
 confere("depois de 'Novo atendimento', o foco está na busca", foco_na_busca(), foco())
 confere("e o cliente é o Consumidor final", CONSUMIDOR in cliente_agora(), cliente_agora())
 
+passo("5b. Orçamento com frete, 'Faturar agora': a venda abre com 'Mais opções' aberto (achado do juiz)")
+confere("monta o item do orçamento com frete", montar_item("1"))
+confere("escolhe o vendedor Ana", escolher("Vendedor", "Ana U3") is True)
+confere("abre a seção para o frete", abrir_mais_opcoes() is True)
+confere("preenche o frete de R$ 30,00 no orçamento", preencher(FRETE_ROTULO, "30,00") == "freight_amount")
+fechar_mais_opcoes()
+confere("a seção fica fechada antes de salvar", (mais_opcoes() or [None, None])[1] is False, mais_opcoes())
+confere("clica em 'Salvar orçamento'", js("(() => { const b = Array.from(document.querySelectorAll('button[type=submit]')).find(x => x.innerText.includes('Salvar orçamento')); if (!b) return false; b.click(); return true; })()") is True)
+confere("o orçamento com frete é salvo", bool(esperar(lambda: tem("salvo, válido até"), 40)), texto_principal(300))
+confere("clica em 'Faturar agora'", clicar("Faturar agora"))
+time.sleep(1.5)
+mo = mais_opcoes()
+confere("na venda faturada, 'Mais opções' já vem aberto com o frete no título", bool(mo) and mo[1] is True and "frete R$ 30,00" in mo[0], mo)
+
 # --- 6. Editar a venda com frete: 'Mais opções' já aberto ---------------------------------
 passo("6. Dono: editar a venda com frete abre 'Mais opções' já aberto")
 entrar("dono")
