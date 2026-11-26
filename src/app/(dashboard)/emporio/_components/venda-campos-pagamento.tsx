@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MoneyInput } from "@/components/ui/money-input";
@@ -378,8 +378,7 @@ function AvisoDoFiado({ credito }: { credito: CreditoView }) {
 
 /**
  * O campo Pagamento: as formas, uma linha por pagamento e o fechamento da conta. O `id` é o da API
- * (`payments`). `aoAdicionarForma` roda depois de a forma entrar. `teclaDoPagamento` é aceita para a
- * tela que mostrar a tecla do atalho, e por enquanto não muda nada.
+ * (`payments`). `aoAdicionarForma` roda depois de a forma entrar.
  */
 export function CampoDoPagamento({
   v,
@@ -388,6 +387,7 @@ export function CampoDoPagamento({
   limpar,
   creditoDoFiado,
   aoAdicionarForma,
+  teclaDoPagamento,
 }: {
   v: EstadoDaVenda;
   erros: Partial<Record<CampoDaVenda, string>>;
@@ -395,11 +395,12 @@ export function CampoDoPagamento({
   limpar: (campo: CampoDaVenda) => void;
   creditoDoFiado?: CreditoView | null;
   aoAdicionarForma?: (kind: string) => void;
-  teclaDoPagamento?: string;
+  /** A tecla do atalho do pagamento (um `TeclaDoAtalho`): posta na linha do rótulo; sem ela, nada muda. */
+  teclaDoPagamento?: ReactNode;
 }) {
   const [semTaxaDeCartao, setSemTaxaDeCartao] = useState(false);
   const hoje = diaDeHoje();
-  return (
+  const campo = (
       <Field label="Pagamento" required={v.aPagarCent > 0} id={idDe("payments")} error={erros.payments}>
         {({ id, ...aria }) => (
           <div id={id} tabIndex={-1} {...aria} className="space-y-3">
@@ -641,5 +642,14 @@ export function CampoDoPagamento({
           </div>
         )}
       </Field>
+  );
+  // A tecla fica solta à direita da linha do rótulo (fora do `<label>`, para o nome do campo não mudar).
+  return teclaDoPagamento ? (
+    <div className="relative">
+      {teclaDoPagamento}
+      {campo}
+    </div>
+  ) : (
+    campo
   );
 }

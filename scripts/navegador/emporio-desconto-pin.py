@@ -221,6 +221,8 @@ confere("a tela da venda mostra: Desconto autorizado por Dp Gestor", ("Desconto 
 passo("7. Desconto no total (R$ 10,00): passa e o papel mostra Desconto no total")
 abrir_balcao()
 adicionar("Dp Aru", ARUANA, 1, "1")
+confere("abre Mais opções (o desconto no total mora nela desde a onda 3)", abrir_mais_opcoes() is True)
+time.sleep(0.5)
 confere("digita o desconto no total", preencher("Desconto no total (R$, opcional)", "10,00") not in ("SEM ROTULO", "SEM CAMPO"))
 time.sleep(1)
 confere("o resumo mostra itens R$ 230,00, desconto R$ 10,00, total R$ 220,00", bool(re.search(r"Itens R\$\s*230,00, desconto R\$\s*10,00, total\s*R\$\s*220,00", texto_do_main())), texto_do_main()[-600:])

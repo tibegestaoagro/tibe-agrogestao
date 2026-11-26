@@ -32,7 +32,14 @@ import {
   type ModoDoBalcao,
 } from "./balcao-orcamento";
 import { CaixaDaOperacao } from "./caixa-da-operacao";
-import { LegendaDosAtalhos, useAtalhosDoBalcao } from "./atalhos-do-balcao";
+import { ProvedorDasTeclas, TeclaDoAtalho, useAtalhosDoBalcao } from "./atalhos-do-balcao";
+import { BalcaoMaisOpcoes } from "./balcao-mais-opcoes";
+import {
+  algoNasMaisOpcoes,
+  CAMPOS_DAS_MAIS_OPCOES,
+  tituloDasMaisOpcoes,
+  type MaisOpcoesPreenchidas,
+} from "@/lib/emporio/balcao-tela";
 import type { AcaoDeAtalho } from "@/lib/emporio/atalhos";
 import {
   AVISO_SEM_ESCOLHA,
@@ -43,8 +50,10 @@ import {
   type PedidoParaEntregaValor,
 } from "./pedido-para-entrega-campos";
 import { abertosDaLoja, caixaInicial, fechadosDaLoja, paraCaixasDaLoja, type CaixaDaLoja } from "./caixas-da-loja";
-import { FranquiaCampos, VendaCampos } from "./venda-campos";
-import { numeroBr, numeroDaVenda } from "./formato";
+import { CampoDoCliente, CampoDoDescontoNoTotal, CampoDaLoja, CamposDoFrete, FranquiaCampos, ResumoDoOrcamentoNaTela } from "./venda-campos";
+import { CampoDaAutorizacao, CamposDosItens } from "./venda-campos-itens";
+import { CampoDoPagamento } from "./venda-campos-pagamento";
+import { numeroBr, numeroDaVenda, pctBr } from "./formato";
 import { FORMA_ROTULO } from "./venda-rotulos";
 import {
   inicialDaVenda,
@@ -61,7 +70,7 @@ import {
  *
  * Não é um `FormSheet`: o balcão é uma PÁGINA, e abrir um painel lateral por
  * cima de um balcão que já ocupa a tela só adicionaria um toque a cada venda.
- * Os campos (`VendaCampos`) vivem no kit (`Field`), a recusa do servidor cai
+ * Os campos (os blocos de `venda-campos*.tsx`, montados aqui em duas colunas) vivem no kit (`Field`), a recusa do servidor cai
  * embaixo do campo certo pelo `useErrosDeFormulario`, e o foco vai para o
  * primeiro campo recusado, como no `FormSheet`.
  *
@@ -79,14 +88,22 @@ import {
  * entra na assinatura da chave: mudar a marca ou o endereço é outra operação.
  */
 
+/**
+ * A ordem VISUAL do balcão: o caixa no topo, os produtos à esquerda, a coluna da direita de cima para
+ * baixo, e "Mais opções" por último (os campos dela, na ordem de `CAMPOS_DAS_MAIS_OPCOES`).
+ */
 const ORDEM = [
-  "establishment_id",
-  "number",
-  "quote_id",
+  "cash_register_id",
   "items",
-  "order_discount_amount",
   "discount_authorization",
+  "establishment_id",
   "customer_id",
+  "seller_user_id",
+  "payments",
+  "acquirer_id",
+  "order_discount_amount",
+  "freight_amount",
+  "origin",
   "for_delivery",
   "delivery_address_kind",
   "delivery_zip",
@@ -96,15 +113,11 @@ const ORDEM = [
   "delivery_district",
   "delivery_city",
   "delivery_state",
-  "freight_amount",
-  "origin",
   "franchisee_id",
   "franchisee_credit",
-  "acquirer_id",
-  "payments",
+  "number",
+  "quote_id",
   "notes",
-  "seller_user_id",
-  "cash_register_id",
 ] as const;
 
 /** A mesma frase do servidor (`SELLER_REQUIRED`): a recusa daqui e a de lá são indistinguíveis. */
@@ -114,6 +127,11 @@ const AVISO_SEM_CAIXA = "Nenhum caixa aberto nesta loja. Abra o caixa com o troc
 const AVISO_VARIOS = "Há mais de um caixa aberto. Escolha o caixa.";
 
 const CHAVE_LOJA = "tibe:emporio:loja-do-balcao";
+
+/** O foco vai à busca de produto: ao abrir a tela e a cada atendimento novo (venda gravada, orçamento salvo). */
+function focarBusca() {
+  document.querySelector<HTMLElement>('[data-atalho="busca"]')?.focus({ preventScroll: true });
+}
 
 type VendaGravada = {
   id: string;
@@ -333,6 +351,27 @@ export function Balcao({
         ? "Salvar a venda nova"
         : "Fechar a venda";
 
+  // "Mais opções": o que está preenchido lá dentro dá o título, e uma recusa de campo de dentro a abre.
+  // O orçamento já carregado tem o campo dele fora da seção (na coluna), então a recusa dele não a abre.
+  const maisOpcoes: MaisOpcoesPreenchidas = {
+    descontoNoTotalCent: v.descontoNoTotalCent,
+    freteCent: v.freteCent,
+    origem: modo === "venda" ? v.origem : "balcao",
+    paraEntrega: pedido.for_delivery,
+    franqueadoNome: v.franqueadoId
+      ? (franqueadosDaTela.find((f) => f.id === v.franqueadoId)?.name ?? "Franqueado")
+      : null,
+    creditoDoFranqueadoCent: v.creditoCent,
+    orcamentoNumero: modo === "venda" && orcamento ? orcamento.numero : null,
+  };
+  const errosPorNome: Record<string, string | undefined> = err.erros;
+  const recusaEmMaisOpcoes = CAMPOS_DAS_MAIS_OPCOES.some(
+    (c) => !!errosPorNome[c] && !(c === "quote_id" && orcamento),
+  );
+
+  // A busca de produto é onde o balcão começa.
+  useEffect(focarBusca, []);
+
   // O mesmo efeito do FormSheet: leva o foco ao primeiro campo recusado.
   useEffect(() => {
     if (!err.focarCampoId) return;
@@ -395,6 +434,7 @@ export function Balcao({
     chave.current = null;
     err.limparTudo();
     window.scrollTo({ top: 0, behavior: "smooth" });
+    focarBusca();
   }
 
   /** O servidor recusou o desconto (acima do limite, ou autorização que não vale): abre o pedido ao gestor. */
@@ -473,6 +513,7 @@ export function Balcao({
     // Como na venda: a escolha do vendedor não passa para o próximo atendimento.
     setVendedorEscolhido("");
     window.scrollTo({ top: 0, behavior: "smooth" });
+    focarBusca();
   }
 
   async function enviar(recemAberto?: string) {
@@ -578,9 +619,33 @@ export function Balcao({
       window.history.replaceState(null, "", "/emporio/vender");
     }
     window.scrollTo({ top: 0, behavior: "smooth" });
+    focarBusca();
   }
 
+  const lojasDaTela =
+    refazer?.tipo === "editar" ? lojas.filter((l) => l.id === refazer.orcamento.establishment_id) : lojas;
+  // O orçamento a faturar tem dois lugares: carregado, fica na coluna (é o que se está faturando);
+  // ainda por carregar, o campo do número fica em "Mais opções".
+  const orcamentoNaVenda = (
+    <OrcamentoNaVenda
+      loja={loja}
+      orcamento={orcamento}
+      produtos={produtos}
+      erros={err.erros}
+      idDe={err.idDe}
+      limpar={err.limparCampo}
+      reprovar={(novos) => {
+        err.setGlobal(null);
+        err.reprovar(novos);
+      }}
+      aoRecusar={err.doServidor}
+      aoCarregar={carregarNaVenda}
+      aoTirar={tirarOrcamento}
+    />
+  );
+
   return (
+    <ProvedorDasTeclas value={legendaDosAtalhos ? atalhos : null}>
     <div className="space-y-4">
       {refazer ? (
         <section className="space-y-1 rounded-lg bg-atencao-suave px-4 py-3 text-sm text-atencao-tinta">
@@ -728,155 +793,6 @@ export function Balcao({
         }}
         className="space-y-4"
       >
-        <div className="rounded-lg border border-borda bg-superficie p-4 shadow-sm">
-          <VendaCampos
-            v={v}
-            produtos={produtos}
-            lojas={refazer?.tipo === "editar" ? lojas.filter((l) => l.id === refazer.orcamento.establishment_id) : lojas}
-            consumidorFinal={consumidorFinal}
-            erros={err.erros}
-            idDe={err.idDe}
-            limpar={err.limparCampo}
-            permitirCadastro
-            aoEscolherLoja={lembrarLoja}
-            semPagamento={modo === "orcamento"}
-            comFrete={modo === "venda"}
-            freteNoOrcamento={modo === "orcamento"}
-            descontoNoTotal
-            clienteTravado={modo === "venda" && (!!orcamento || !!edicao?.venda.quote)}
-            autorizacaoHerdada={
-              !!orcamento?.discount_authorized_by_user_id || !!edicao?.venda.discount_authorized_by_user_id
-            }
-            depoisDoFrete={
-              <FranquiaCampos
-                v={v}
-                franqueados={franqueadosDaTela}
-                erros={err.erros}
-                idDe={err.idDe}
-                limpar={err.limparCampo}
-              />
-            }
-            creditoDoFiado={creditoDoFiado}
-            depoisDoPagamento={
-              recusaDeCredito && err.erros.payments && v.cliente ? (
-                <p className="text-sm text-texto-secundario">
-                  {/* Em outra aba: a venda montada vive só no estado do balcão e se perderia na navegação. */}
-                  <Link
-                    href={`/emporio/clientes/${v.cliente.id}`}
-                    target="_blank"
-                    rel="noopener"
-                    className="font-medium text-texto-marca hover:underline"
-                  >
-                    Abrir a ficha do cliente para o gestor liberar
-                  </Link>{" "}
-                  (abre em outra aba; a venda fica aqui). Ou troque a forma de pagamento.
-                </p>
-              ) : undefined
-            }
-            avisoDoCliente={pedido.for_delivery && modo === "venda" ? faltaDoPedido : null}
-            aoEscolherCliente={(c) => {
-              // Trocar o cliente limpa a escolha do endereço e mantém a marca.
-              if (c.id !== v.cliente?.id) {
-                setPedido((p) => ({ ...p, delivery_address_kind: "" }));
-                err.limparCampo("delivery_address_kind");
-              }
-              setEscolhaDoCliente((n) => n + 1);
-            }}
-            depoisDoCliente={
-              <PedidoParaEntregaCampos
-                key={escolhaDoCliente}
-                valor={pedido}
-                aoMudar={setPedido}
-                customerId={v.cliente?.id ?? null}
-                erros={err.erros}
-                idDe={err.idDe}
-                limpar={err.limparCampo}
-                aoVerFalta={setFaltaDoPedido}
-                opcional={modo === "orcamento"}
-              />
-            }
-            depoisDaLoja={
-              modo === "venda" ? (
-                <OrcamentoNaVenda
-                  loja={loja}
-                  orcamento={orcamento}
-                  produtos={produtos}
-                  erros={err.erros}
-                  idDe={err.idDe}
-                  limpar={err.limparCampo}
-                  reprovar={(novos) => {
-                    err.setGlobal(null);
-                    err.reprovar(novos);
-                  }}
-                  aoRecusar={err.doServidor}
-                  aoCarregar={carregarNaVenda}
-                  aoTirar={tirarOrcamento}
-                />
-              ) : undefined
-            }
-          />
-        </div>
-
-        {modo === "orcamento" && (
-          <div className="rounded-lg border border-borda bg-superficie p-4 shadow-sm">
-            <ObservacaoDoOrcamento
-              id={err.idDe("notes")}
-              valor={notas}
-              erro={err.erros.notes}
-              aoMudar={(valor) => {
-                setNotas(valor);
-                err.limparCampo("notes");
-              }}
-            />
-          </div>
-        )}
-
-        {loja !== "" && (
-          <div className="rounded-lg border border-borda bg-superficie p-4 shadow-sm">
-            <Field
-              label="Vendedor"
-              required={ehCaixa && !vendedorTravado}
-              id={err.idDe("seller_user_id")}
-              error={err.erros.seller_user_id}
-              hint={
-                vendedorTravado
-                  ? "O vendedor do orçamento."
-                  : vendedores.length === 0
-                    ? "Nenhum vendedor vinculado a esta loja."
-                    : undefined
-              }
-            >
-              {({ id, ...aria }) =>
-                vendedorTravado ? (
-                  <p id={id} tabIndex={-1} {...aria} className="text-sm font-medium text-texto">
-                    {orcamento?.seller_name ?? "Sem vendedor no orçamento"}
-                  </p>
-                ) : (
-                  <Select
-                    value={vendedor}
-                    onValueChange={(valor) => {
-                      // O Radix dispara "" quando o valor some da lista: nunca é escolha de ninguém.
-                      if (valor === "") return;
-                      setVendedorEscolhido(valor);
-                      err.limparCampo("seller_user_id");
-                    }}
-                  >
-                    <SelectTrigger id={id} {...aria}>
-                      <SelectValue placeholder="Escolha o vendedor" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {vendedores.map((u) => (
-                        <SelectItem key={u.id} value={u.id}>
-                          {u.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )
-              }
-            </Field>
-          </div>
-        )}
 
         {mostrarCaixa && (
           <div className="rounded-lg border border-borda bg-superficie p-4 shadow-sm">
@@ -963,68 +879,276 @@ export function Balcao({
           </div>
         )}
 
-        <div className="sticky bottom-0 -mx-1 space-y-2 border-t border-borda bg-superficie px-4 py-3 shadow-sm sm:mx-0 sm:rounded-lg sm:border">
-          {err.global && (
-            <p role="alert" className="rounded-md bg-perigo-suave px-3 py-2 text-sm text-perigo-tinta">
-              {err.global}
-            </p>
-          )}
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-xs text-texto-secundario">
-                {modo === "orcamento"
-                  ? "Total do orçamento"
-                  : v.freteCent > 0 || v.creditoCent > 0
-                    ? "Total a pagar"
-                    : "Total da venda"}
+        {/* Duas colunas a partir de `lg`; abaixo, uma só (produtos, depois a coluna da direita). */}
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] lg:items-start">
+          <div className="space-y-5 rounded-lg border border-borda bg-superficie p-4 shadow-sm">
+            <CamposDosItens
+              v={v}
+              produtos={produtos}
+              erros={err.erros}
+              idDe={err.idDe}
+              limpar={err.limparCampo}
+              teclaDaBusca={<TeclaDoAtalho acao="produto" />}
+            />
+
+            {/* A autorização fica fora de "Mais opções": o desconto de item também a pede. */}
+            <CampoDaAutorizacao
+              v={v}
+              erros={err.erros}
+              idDe={err.idDe}
+              limpar={err.limparCampo}
+              autorizacaoHerdada={
+                !!orcamento?.discount_authorized_by_user_id || !!edicao?.venda.discount_authorized_by_user_id
+              }
+            />
+
+            {v.linhas.length > 0 && v.descontoNoTotalCent > 0 && (
+              <p className="rounded-lg bg-superficie-afundada px-3 py-2 text-sm text-texto-secundario" aria-live="polite">
+                Itens {reaisBr(v.somaItensCent / 100)}, desconto {reaisBr(v.descontoNoTotalCent / 100)}, total{" "}
+                <strong className="text-texto">{reaisBr(v.totalCent / 100)}</strong>
               </p>
-              <p className="text-xl font-semibold text-texto">
-                {reaisBr((v.totalCent + v.freteCent + v.creditoCent) / 100)}
+            )}
+
+            {v.descontoCent > 0 && (
+              <p className="rounded-lg bg-atencao-suave px-3 py-2 text-sm text-atencao-tinta">
+                Desconto total: {reaisBr(v.descontoCent / 100)} ({pctBr(Math.round(v.descontoPct * 100) / 100)} sobre o
+                preço sugerido).
               </p>
-              {v.freteCent > 0 && (
-                <p className="text-xs text-texto-secundario">
-                  Itens {reaisBr(v.totalCent / 100)} + frete {reaisBr(v.freteCent / 100)}
-                </p>
-              )}
-              {v.creditoCent > 0 && (
-                <p className="text-xs text-texto-secundario">
-                  Crédito do franqueado {reaisBr(v.creditoCent / 100)} (fora do faturamento)
-                </p>
-              )}
-            </div>
-            {modo === "orcamento" ? (
-              <div className="flex flex-wrap gap-2">
-                {/* Faturar sem salvar: passa o carrinho para a Venda, sem `quote_id`. */}
-                {!refazer && (
-                  <Button type="button" variant="outline" size="lg" disabled={enviando} onClick={() => mudarModo("venda")}>
-                    Faturar
-                  </Button>
-                )}
-                <Button type="submit" data-atalho="fechar" size="lg" disabled={enviando} className="min-w-40">
-                  {enviando ? "Salvando..." : rotuloDoFechar}
-                </Button>
-              </div>
-            ) : (
-              <Button
-                type="submit"
-                data-atalho="fechar"
-                size="lg"
-                disabled={enviando || v.cartaoIncompleto}
-                className="min-w-40"
-              >
-                {enviando
-                  ? edicao
-                    ? "Salvando..."
-                    : "Registrando..."
-                  : edicao
-                    ? "Salvar a venda nova"
-                    : "Fechar a venda"}
-              </Button>
             )}
           </div>
-          {legendaDosAtalhos && <LegendaDosAtalhos teclas={atalhos} fechar={rotuloDoFechar} />}
+
+          {/* Abaixo de `lg` o wrapper some (`contents`): o cartão e a barra do total viram itens da grade, e a barra gruda no rodapé da tela toda. */}
+          <div className="contents lg:flex lg:flex-col lg:gap-4">
+            <div className="space-y-5 rounded-lg border border-borda bg-superficie p-4 shadow-sm">
+              <CampoDaLoja
+                v={v}
+                lojas={lojasDaTela}
+                erros={err.erros}
+                idDe={err.idDe}
+                limpar={err.limparCampo}
+                aoEscolherLoja={lembrarLoja}
+              />
+
+              {modo === "venda" && orcamento && orcamentoNaVenda}
+
+              <CampoDoCliente
+                v={v}
+                consumidorFinal={consumidorFinal}
+                erros={err.erros}
+                idDe={err.idDe}
+                limpar={err.limparCampo}
+                permitirCadastro
+                avisoDoCliente={pedido.for_delivery && modo === "venda" ? faltaDoPedido : null}
+                clienteTravado={modo === "venda" && (!!orcamento || !!edicao?.venda.quote)}
+                aoEscolherCliente={(c) => {
+                  // Trocar o cliente limpa a escolha do endereço e mantém a marca.
+                  if (c.id !== v.cliente?.id) {
+                    setPedido((p) => ({ ...p, delivery_address_kind: "" }));
+                    err.limparCampo("delivery_address_kind");
+                  }
+                  setEscolhaDoCliente((n) => n + 1);
+                }}
+                teclaDoCliente={<TeclaDoAtalho acao="cliente" className="absolute right-0 top-0" />}
+              />
+
+              {loja !== "" && (
+                <div className="relative">
+                  <TeclaDoAtalho acao="vendedor" className="absolute right-0 top-0" />
+                  <Field
+                    label="Vendedor"
+                    required={ehCaixa && !vendedorTravado}
+                    id={err.idDe("seller_user_id")}
+                    error={err.erros.seller_user_id}
+                    hint={
+                      vendedorTravado
+                        ? "O vendedor do orçamento."
+                        : vendedores.length === 0
+                          ? "Nenhum vendedor vinculado a esta loja."
+                          : undefined
+                    }
+                  >
+                    {({ id, ...aria }) =>
+                      vendedorTravado ? (
+                        <p id={id} tabIndex={-1} {...aria} className="text-sm font-medium text-texto">
+                          {orcamento?.seller_name ?? "Sem vendedor no orçamento"}
+                        </p>
+                      ) : (
+                        <Select
+                          value={vendedor}
+                          onValueChange={(valor) => {
+                            // O Radix dispara "" quando o valor some da lista: nunca é escolha de ninguém.
+                            if (valor === "") return;
+                            setVendedorEscolhido(valor);
+                            err.limparCampo("seller_user_id");
+                          }}
+                        >
+                          <SelectTrigger id={id} {...aria}>
+                            <SelectValue placeholder="Escolha o vendedor" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {vendedores.map((u) => (
+                              <SelectItem key={u.id} value={u.id}>
+                                {u.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )
+                    }
+                  </Field>
+                </div>
+              )}
+
+              {modo === "orcamento" ? (
+                <ResumoDoOrcamentoNaTela v={v} />
+              ) : (
+                <>
+                  <CampoDoPagamento
+                    v={v}
+                    erros={err.erros}
+                    idDe={err.idDe}
+                    limpar={err.limparCampo}
+                    creditoDoFiado={creditoDoFiado}
+                    teclaDoPagamento={<TeclaDoAtalho acao="pagamento" className="absolute right-0 top-0" />}
+                  />
+                  {recusaDeCredito && err.erros.payments && v.cliente && (
+                    <p className="text-sm text-texto-secundario">
+                      {/* Em outra aba: a venda montada vive só no estado do balcão e se perderia na navegação. */}
+                      <Link
+                        href={`/emporio/clientes/${v.cliente.id}`}
+                        target="_blank"
+                        rel="noopener"
+                        className="font-medium text-texto-marca hover:underline"
+                      >
+                        Abrir a ficha do cliente para o gestor liberar
+                      </Link>{" "}
+                      (abre em outra aba; a venda fica aqui). Ou troque a forma de pagamento.
+                    </p>
+                  )}
+                </>
+              )}
+
+              <BalcaoMaisOpcoes
+                titulo={tituloDasMaisOpcoes(maisOpcoes)}
+                abertoDeInicio={algoNasMaisOpcoes(maisOpcoes) && !!(edicao || refazer || orcamentoInicial)}
+                temRecusa={recusaEmMaisOpcoes}
+                recusa={err.tentativa}
+              >
+                <CampoDoDescontoNoTotal v={v} erros={err.erros} idDe={err.idDe} limpar={err.limparCampo} />
+                <CamposDoFrete
+                  v={v}
+                  erros={err.erros}
+                  idDe={err.idDe}
+                  limpar={err.limparCampo}
+                  comOrigem={modo === "venda"}
+                />
+                <PedidoParaEntregaCampos
+                  key={escolhaDoCliente}
+                  valor={pedido}
+                  aoMudar={setPedido}
+                  customerId={v.cliente?.id ?? null}
+                  erros={err.erros}
+                  idDe={err.idDe}
+                  limpar={err.limparCampo}
+                  aoVerFalta={setFaltaDoPedido}
+                  opcional={modo === "orcamento"}
+                />
+                <FranquiaCampos
+                  v={v}
+                  franqueados={franqueadosDaTela}
+                  erros={err.erros}
+                  idDe={err.idDe}
+                  limpar={err.limparCampo}
+                />
+                {modo === "venda" && !orcamento && orcamentoNaVenda}
+              </BalcaoMaisOpcoes>
+
+              {modo === "orcamento" && (
+                <ObservacaoDoOrcamento
+                  id={err.idDe("notes")}
+                  valor={notas}
+                  erro={err.erros.notes}
+                  aoMudar={(valor) => {
+                    setNotas(valor);
+                    err.limparCampo("notes");
+                  }}
+                />
+              )}
+            </div>
+
+            <div className="sticky bottom-0 z-10 space-y-2 border-t border-borda bg-superficie px-4 py-3 shadow-sm lg:rounded-lg lg:border">
+              {err.global && (
+                <p role="alert" className="rounded-md bg-perigo-suave px-3 py-2 text-sm text-perigo-tinta">
+                  {err.global}
+                </p>
+              )}
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs text-texto-secundario">
+                    {modo === "orcamento"
+                      ? "Total do orçamento"
+                      : v.freteCent > 0 || v.creditoCent > 0
+                        ? "Total a pagar"
+                        : "Total da venda"}
+                  </p>
+                  <p className="text-xl font-semibold text-texto">
+                    {reaisBr((v.totalCent + v.freteCent + v.creditoCent) / 100)}
+                  </p>
+                  {v.freteCent > 0 && (
+                    <p className="text-xs text-texto-secundario">
+                      Itens {reaisBr(v.totalCent / 100)} + frete {reaisBr(v.freteCent / 100)}
+                    </p>
+                  )}
+                  {v.creditoCent > 0 && (
+                    <p className="text-xs text-texto-secundario">
+                      Crédito do franqueado {reaisBr(v.creditoCent / 100)} (fora do faturamento)
+                    </p>
+                  )}
+                </div>
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  {modo === "orcamento" ? (
+                    <>
+                      {/* Faturar sem salvar: passa o carrinho para a Venda, sem `quote_id`. */}
+                      {!refazer && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="lg"
+                          disabled={enviando}
+                          onClick={() => mudarModo("venda")}
+                        >
+                          Faturar
+                        </Button>
+                      )}
+                      <Button type="submit" data-atalho="fechar" size="lg" disabled={enviando} className="min-w-40">
+                        {enviando ? "Salvando..." : rotuloDoFechar}
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      type="submit"
+                      data-atalho="fechar"
+                      size="lg"
+                      disabled={enviando || v.cartaoIncompleto}
+                      className="min-w-40"
+                    >
+                      {enviando
+                        ? edicao
+                          ? "Salvando..."
+                          : "Registrando..."
+                        : edicao
+                          ? "Salvar a venda nova"
+                          : "Fechar a venda"}
+                    </Button>
+                  )}
+                  <TeclaDoAtalho acao="fechar" />
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </form>
     </div>
+    </ProvedorDasTeclas>
   );
 }

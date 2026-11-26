@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MoneyInput } from "@/components/ui/money-input";
@@ -29,8 +29,7 @@ import {
 const MAX_RESULTADOS = 8;
 
 /**
- * A busca e as linhas dos itens. O `id` do `Field` é `items`, o nome da API. `teclaDaBusca` é aceita
- * para a tela que mostrar a tecla do atalho, e por enquanto não muda nada.
+ * A busca e as linhas dos itens. O `id` do `Field` é `items`, o nome da API.
  */
 export function CamposDosItens({
   v,
@@ -38,13 +37,15 @@ export function CamposDosItens({
   erros,
   idDe,
   limpar,
+  teclaDaBusca,
 }: {
   v: EstadoDaVenda;
   produtos: ProdutoVenda[];
   erros: Partial<Record<CampoDaVenda, string>>;
   idDe: (campo: CampoDaVenda) => string;
   limpar: (campo: CampoDaVenda) => void;
-  teclaDaBusca?: string;
+  /** A tecla do atalho da busca (um `TeclaDoAtalho`), posta ao lado do campo; sem ela, nada muda. */
+  teclaDaBusca?: ReactNode;
 }) {
   const [busca, setBusca] = useState("");
   // O produto que não entrou no carrinho por falta de preço na loja (Q328).
@@ -64,35 +65,45 @@ export function CamposDosItens({
     limpar("items");
     setBusca("");
   }
+  const campoDeBusca = (
+    <Input
+      type="search"
+      aria-label="Buscar produto"
+      data-atalho="busca"
+      placeholder="Buscar por nome, marca ou código"
+      autoComplete="off"
+      value={busca}
+      onChange={(e) => setBusca(e.target.value)}
+      onKeyDown={(e) => {
+        // Enter no campo de busca não pode fechar a venda: com um só resultado, ele escolhe.
+        if (e.key !== "Enter") return;
+        e.preventDefault();
+        // O Ctrl+Enter é do atalho de fechar (`atalhos-do-balcao`): aqui não lê nem escolhe.
+        if (e.ctrlKey) return;
+        // O leitor digita o código e manda Enter: o código exato entra na apresentação lida,
+        // antes de qualquer resultado da busca por texto (que escolheria a padrão).
+        const codigo = codigoParaBusca(busca);
+        const lido = codigo ? apresentacaoDoCodigo(produtos, codigo) : null;
+        if (lido) {
+          escolher(lido.produto, lido.apresentacao);
+          return;
+        }
+        if (resultados.length === 1) escolher(resultados[0]);
+      }}
+    />
+  );
   return (
     <Field label="Produtos" required id={idDe("items")} error={erros.items}>
       {({ id, ...aria }) => (
         <div id={id} tabIndex={-1} {...aria} className="space-y-3">
-          <Input
-            type="search"
-            aria-label="Buscar produto"
-            data-atalho="busca"
-            placeholder="Buscar por nome, marca ou código"
-            autoComplete="off"
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            onKeyDown={(e) => {
-              // Enter no campo de busca não pode fechar a venda: com um só resultado, ele escolhe.
-              if (e.key !== "Enter") return;
-              e.preventDefault();
-              // O Ctrl+Enter é do atalho de fechar (`atalhos-do-balcao`): aqui não lê nem escolhe.
-              if (e.ctrlKey) return;
-              // O leitor digita o código e manda Enter: o código exato entra na apresentação lida,
-              // antes de qualquer resultado da busca por texto (que escolheria a padrão).
-              const codigo = codigoParaBusca(busca);
-              const lido = codigo ? apresentacaoDoCodigo(produtos, codigo) : null;
-              if (lido) {
-                escolher(lido.produto, lido.apresentacao);
-                return;
-              }
-              if (resultados.length === 1) escolher(resultados[0]);
-            }}
-          />
+          {teclaDaBusca ? (
+            <div className="flex items-center gap-2">
+              <div className="min-w-0 flex-1">{campoDeBusca}</div>
+              {teclaDaBusca}
+            </div>
+          ) : (
+            campoDeBusca
+          )}
 
           {termo !== "" && (
             <div className="space-y-1">

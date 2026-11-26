@@ -136,7 +136,7 @@ export default async function VenderPage({
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-4">
+    <div className="mx-auto max-w-6xl space-y-4">
       <CabecalhoDaTela titulo="Vender" />
 
       {avisoDaEdicao && (

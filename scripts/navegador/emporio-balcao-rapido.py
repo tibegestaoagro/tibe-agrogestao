@@ -184,8 +184,11 @@ def rolagem_horizontal():
 
 
 def legenda():
-    """None se a legenda nao esta no DOM; senao [texto, visivel]."""
-    return js("(() => { const u = document.querySelector('ul[aria-label=\"Atalhos do teclado\"]'); if (!u) return null; return [u.innerText.replace(/\\s+/g, ' '), getComputedStyle(u).display !== 'none' && u.getBoundingClientRect().width > 0]; })()")
+    """As teclas dos atalhos, hoje junto do campo que cada uma aciona (onda 3 da UX, §5.7: a legenda do rodape saiu).
+    None se nao ha tecla nenhuma no DOM; senao [texto, ok]: o texto e 'acao tecla' de cada uma, e ok e verdadeiro so
+    quando TODAS estao visiveis E vizinhas do proprio campo (busca, grupo Cliente, rotulo Vendedor, primeira forma de
+    pagamento, botao de fechar)."""
+    return js("(() => { const ks = Array.from(document.querySelectorAll('kbd[data-tecla-de]')); if (!ks.length) return null; const junto = { produto: '[data-atalho=\"busca\"]', cliente: '[role=\"group\"][aria-label=\"Cliente\"]', vendedor: 'label[for=\"seller_user_id\"]', pagamento: '[data-atalho=\"forma-de-pagamento\"]', fechar: '[data-atalho=\"fechar\"]' }; const ok = ks.every(k => getComputedStyle(k).display !== 'none' && k.getBoundingClientRect().width > 0 && !!k.parentElement.querySelector(junto[k.dataset.teclaDe])); return [ks.map(k => k.dataset.teclaDe + ' ' + k.textContent.trim()).join(' | '), ok]; })()")
 
 
 def rotulo_comeca(prefixo):
@@ -435,7 +438,7 @@ confere("com cliente, F4 abre a janela do 'Trocar'", bool(esperar(lambda: js("!!
 escape()
 esperar(lambda: not painel_aberto(), 10)
 
-confere("legenda visivel a 1280 px, com as teclas padrao", (legenda() or [""])[0].find("F2") >= 0 and legenda()[1] is True and "Ctrl+Enter" in legenda()[0], legenda())
+confere("as teclas padrao aparecem a 1280 px, cada uma junto do campo que aciona", (legenda() or [""])[0].find("F2") >= 0 and legenda()[1] is True and "Ctrl+Enter" in legenda()[0], legenda())
 
 # Ctrl+Enter incompleto: recusa como o botao (sem forma de pagamento) e nenhuma venda.
 n_antes = vendas_da_loja(LOJA_ID)
@@ -509,7 +512,7 @@ confere("a pagina mostra Produto Alt+1 nas configuracoes", "Produto Alt+1" in te
 passo("4b. Alt+1 no balcao: age sem escrever; o F2 deixou de agir")
 confere("balcao novo", na_pagina_do_balcao())
 ler_codigo(MILHO_PACOTE)
-confere("legenda mostra Alt+1", "Alt+1" in ((legenda() or [""])[0]) and "F2" not in ((legenda() or [""])[0]), legenda())
+confere("a tecla do produto mostra Alt+1", "Alt+1" in ((legenda() or [""])[0]) and "F2" not in ((legenda() or [""])[0]), legenda())
 focar_seletor(QTD)
 alt("1")
 confere("Alt+1 com o foco na quantidade: foca a busca", em_foco().startswith("busca"), em_foco())
@@ -531,7 +534,7 @@ enviar_painel()
 confere("salvar fecha o painel", bool(esperar(lambda: not painel_aberto(), 60)))
 time.sleep(1.5)
 confere("balcao novo", na_pagina_do_balcao())
-confere("com a legenda desligada, ela nao existe no balcao", legenda() is None, legenda())
+confere("com a legenda desligada, nenhuma tecla existe no balcao", legenda() is None, legenda())
 
 # --- 5 ------------------------------------------------------------------------------------------------------------------
 passo("5. Etiquetas: a tela de escolha")
@@ -695,7 +698,7 @@ confere("religa a legenda pela API (para medir o celular)", r["status"] == 200, 
 tela(390, 844, 1, True)
 na_pagina_do_balcao()
 lg = legenda()
-confere("a 390 px a legenda existe no DOM mas esta oculta (display none)", lg is not None and lg[1] is False, lg)
+confere("a 390 px as teclas existem no DOM mas estao ocultas (display none)", lg is not None and lg[1] is False, lg)
 larg = rolagem_horizontal()
 confere("balcao a 390 px: sem rolagem horizontal", larg[0] <= larg[1], larg)
 cdp("Emulation.clearDeviceMetricsOverride")

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { createContext, useContext, useEffect, useRef } from "react";
+import { cn } from "@/lib/utils";
 import { ACOES_DE_ATALHO, teclaDoEvento, type AcaoDeAtalho } from "@/lib/emporio/atalhos";
 
 /**
@@ -9,14 +10,6 @@ import { ACOES_DE_ATALHO, teclaDoEvento, type AcaoDeAtalho } from "@/lib/emporio
  * Orçamento não tem pagamento): alvo ausente não faz nada, mas a tecla de uma ação é retida
  * mesmo assim (o `preventDefault` vem antes de procurar o alvo).
  */
-
-const ROTULO_DA_ACAO: Record<AcaoDeAtalho, string> = {
-  produto: "Produto",
-  cliente: "Cliente",
-  vendedor: "Vendedor",
-  pagamento: "Pagamento",
-  fechar: "Fechar a venda",
-};
 
 /** O alvo de cada ação, ou nulo se a tela não o tem agora. */
 function alvoDaAcao(acao: AcaoDeAtalho, idDoVendedor: string): HTMLElement | null {
@@ -86,25 +79,30 @@ export function useAtalhosDoBalcao({
   }, []);
 }
 
-/** A legenda fixa no rodapé do balcão: só a partir de `md` (no celular não há teclado). */
-export function LegendaDosAtalhos({
-  teclas,
-  fechar,
-}: {
-  teclas: Record<AcaoDeAtalho, string>;
-  /** O rótulo do botão principal do rodapé neste momento ("Salvar orçamento", "Fechar a venda"...). */
-  fechar: string;
-}) {
+/**
+ * As teclas que a tela mostra junto de cada campo: o balcão provê o mapa configurado quando a
+ * configuração "mostrar legenda" está ligada, e `null` (o padrão) apaga todas.
+ */
+const TeclasDaTela = createContext<Record<AcaoDeAtalho, string> | null>(null);
+export const ProvedorDasTeclas = TeclasDaTela.Provider;
+
+/**
+ * A tecla do atalho de `acao`, junto do que ela aciona. Só a partir de `lg` (no celular não há
+ * teclado) e só com a legenda ligada. Sai da configuração, nunca fixa.
+ */
+export function TeclaDoAtalho({ acao, className }: { acao: AcaoDeAtalho; className?: string }) {
+  const teclas = useContext(TeclasDaTela);
+  if (!teclas) return null;
   return (
-    <ul aria-label="Atalhos do teclado" className="hidden flex-wrap gap-x-4 gap-y-1 text-xs text-texto-secundario md:flex">
-      {ACOES_DE_ATALHO.map((a) => (
-        <li key={a} className="flex items-center gap-1">
-          <kbd className="rounded border border-borda bg-superficie-afundada px-1.5 py-0.5 font-sans font-medium text-texto">
-            {teclas[a]}
-          </kbd>
-          {a === "fechar" ? fechar : ROTULO_DA_ACAO[a]}
-        </li>
-      ))}
-    </ul>
+    <kbd
+      data-tecla-de={acao}
+      aria-hidden="true"
+      className={cn(
+        "hidden rounded border border-borda bg-superficie-afundada px-1.5 py-0.5 font-sans text-xs font-medium text-texto lg:inline-flex",
+        className,
+      )}
+    >
+      {teclas[acao]}
+    </kbd>
   );
 }

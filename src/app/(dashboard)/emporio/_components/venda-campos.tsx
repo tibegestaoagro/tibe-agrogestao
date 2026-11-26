@@ -201,6 +201,7 @@ export function CampoDoCliente({
   avisoDoCliente,
   aoEscolherCliente,
   clienteTravado,
+  teclaDoCliente,
 }: {
   v: EstadoDaVenda;
   erros: Partial<Record<CampoDaVenda, string>>;
@@ -217,8 +218,10 @@ export function CampoDoCliente({
   /** Q382: venda que nasce de orçamento: o cliente é o do orçamento e não se troca. */
   clienteTravado?: boolean;
   pedirTroca?: { n: number; motivo: string } | null;
+  /** A tecla do atalho do cliente (um `TeclaDoAtalho`): posta na linha do rótulo, acima do "Trocar"; sem ela, nada muda. */
+  teclaDoCliente?: ReactNode;
 }) {
-  return (
+  const campo = (
     <Field label="Cliente" required id={idDe("customer_id")} error={erros.customer_id}>
       {(campo) => (
         <EscolherCliente
@@ -236,6 +239,14 @@ export function CampoDoCliente({
         />
       )}
     </Field>
+  );
+  return teclaDoCliente ? (
+    <div className="relative">
+      {teclaDoCliente}
+      {campo}
+    </div>
+  ) : (
+    campo
   );
 }
 

@@ -110,6 +110,14 @@ def preencher(rotulo, valor):
     return js("(() => { const raiz = document.querySelector('[role=dialog]') || document; const l = Array.from(raiz.querySelectorAll('label')).find(x => x.innerText.replace('*','').trim() === " + repr(rotulo) + "); if (!l) return 'SEM ROTULO'; const el = document.getElementById(l.htmlFor); if (!el) return 'SEM CAMPO'; const proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype; Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, " + repr(valor) + "); el.dispatchEvent(new Event('input', { bubbles: true })); return el.id; })()")
 
 
+def abrir_mais_opcoes():
+    """No Vender (onda 3 da UX), o desconto no total, o frete, a origem, a entrega,
+    o franqueado e o numero do orcamento ficam em "Mais opções", recolhido. Campo
+    recolhido tem `innerText` vazio no rotulo, e o `preencher` nao o acha: abra
+    antes. Devolve True com a secao aberta, ou 'SEM SECAO'."""
+    return js("(() => { const d = Array.from(document.querySelectorAll('details')).find(x => ((x.querySelector('summary') || { innerText: '' }).innerText || '').trim().startsWith('Mais opções')); if (!d) return 'SEM SECAO'; if (!d.open) d.querySelector('summary').click(); return d.open; })()")
+
+
 def _centro(expr_elemento):
     r = js("(() => { const el = " + expr_elemento + "; if (!el) return null; el.scrollIntoView({ block: 'center' }); const b = el.getBoundingClientRect(); return [b.left + b.width / 2, b.top + b.height / 2]; })()")
     return r
