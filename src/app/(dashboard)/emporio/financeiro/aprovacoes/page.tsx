@@ -7,7 +7,6 @@ import { veAPagina } from "@/lib/emporio/paginas";
 import { listarPedidosDePagamentoAction } from "@/lib/actions/emporio-aprovacoes";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CabecalhoDaTela } from "../../_components/cabecalho-da-tela";
-import { FinanceiroAbas } from "../../_components/financeiro-abas";
 import { FinanceiroAprovacoes } from "../../_components/financeiro-aprovacoes";
 import { Paginacao, paginaDaUrl } from "../../_components/paginacao";
 import { PaginacaoDaUrl } from "../../_components/paginacao-da-url";
@@ -56,7 +55,6 @@ export default async function FinanceiroAprovacoesPage({
         Aprovar paga naquele momento; recusar exige um motivo.
       </CabecalhoDaTela>
 
-      <FinanceiroAbas atual="/emporio/financeiro/aprovacoes" loja="" />
       <nav aria-label="Filtrar pedidos" className="flex flex-wrap gap-2">
         {FILTROS.map((f) => (
           <Link

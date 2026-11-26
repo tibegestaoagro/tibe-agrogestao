@@ -15,7 +15,6 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { RelatorioAcoes, consulta } from "../../_components/relatorio-acoes";
 import { idDoClientePadrao } from "../../_components/cliente-padrao";
 import { CabecalhoDaTela } from "../../_components/cabecalho-da-tela";
-import { FinanceiroAbas } from "../../_components/financeiro-abas";
 import { LojaFiltro } from "../../_components/loja-filtro";
 import {
   AReceberPorIdadeBloco,
@@ -69,7 +68,6 @@ export default async function FinanceiroRelatoriosPage({
         Sem período, o a pagar mostra os próximos 30 dias e a posição de caixa, os últimos 30.
       </CabecalhoDaTela>
 
-      <FinanceiroAbas atual="/emporio/financeiro/relatorios" loja={loja} />
       <LojaFiltro lojas={lojas} loja={loja} caminho="/emporio/financeiro/relatorios" />
       <RelatoriosPeriodo loja={loja} de={deUrl} ate={ateUrl} />
 

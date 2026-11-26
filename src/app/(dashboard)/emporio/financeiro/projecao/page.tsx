@@ -8,7 +8,6 @@ import { lerFluxoProjetadoAction } from "@/lib/actions/emporio-projecao";
 import { EmptyState } from "@/components/ui/empty-state";
 import { RelatorioAcoes, consulta } from "../../_components/relatorio-acoes";
 import { CabecalhoDaTela } from "../../_components/cabecalho-da-tela";
-import { FinanceiroAbas } from "../../_components/financeiro-abas";
 import { LojaFiltro } from "../../_components/loja-filtro";
 import { FluxoProjetadoTabela, ProjecaoJanelas } from "../../_components/financeiro-projecao";
 
@@ -39,7 +38,6 @@ export default async function FinanceiroProjecaoPage({
         ajuda="O que deve entrar e sair por semana, a partir do saldo de hoje."
       />
 
-      <FinanceiroAbas atual="/emporio/financeiro/projecao" loja={loja} />
       <LojaFiltro lojas={lojas} loja={loja} caminho="/emporio/financeiro/projecao" />
       <ProjecaoJanelas dias={dias} loja={loja} />
 

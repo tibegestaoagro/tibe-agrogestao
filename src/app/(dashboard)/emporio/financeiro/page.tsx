@@ -7,7 +7,6 @@ import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
 import { lerResumoHojeAction } from "@/lib/actions/emporio-financeiro";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CabecalhoDaTela } from "../_components/cabecalho-da-tela";
-import { FinanceiroAbas } from "../_components/financeiro-abas";
 import { FinanceiroHoje } from "../_components/financeiro-hoje";
 import { LojaFiltro } from "../_components/loja-filtro";
 
@@ -32,7 +31,6 @@ export default async function FinanceiroPage({
     <div className="space-y-6">
       <CabecalhoDaTela titulo="Hoje" ajuda="O dinheiro das lojas hoje: onde está, o que pagar e o que receber." />
 
-      <FinanceiroAbas atual="/emporio/financeiro" loja={loja} />
       <LojaFiltro lojas={lojas} loja={loja} caminho="/emporio/financeiro" />
 
       {resumo.ok ? (

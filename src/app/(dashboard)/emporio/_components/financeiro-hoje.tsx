@@ -65,8 +65,8 @@ export function FinanceiroHoje({ resumo, loja }: { resumo: HojeView; loja: strin
   };
   const conta = positions.find((p) => p.kind === "conta");
   const enderecoSemCarimbo = conta
-    ? `${enderecoDaAba("/emporio/financeiro/caixa", loja)}${loja ? "&" : "?"}lugar=conta:${conta.id}&carimbo=sem`
-    : enderecoDaAba("/emporio/financeiro/caixa", loja);
+    ? `${enderecoDaAba("/emporio/caixa", loja)}${loja ? "&" : "?"}lugar=conta:${conta.id}&carimbo=sem`
+    : enderecoDaAba("/emporio/caixa", loja);
   const enderecoDosCheques = `${enderecoDaAba("/emporio/financeiro/receber", loja)}${loja ? "&" : "?"}cheques=a_completar`;
   const aReceberHoje = receivables_due.fiado.total + receivables_due.checks.total + receivables_due.boletos.total + receivables_due.cards.total;
 
@@ -137,7 +137,7 @@ export function FinanceiroHoje({ resumo, loja }: { resumo: HojeView; loja: strin
         </Cartao>
       )}
 
-      <Cartao titulo="Posição de caixa" href={enderecoDaAba("/emporio/financeiro/caixa", loja)} verTudo="Ver as posições e o extrato">
+      <Cartao titulo="Posição de caixa" href={enderecoDaAba("/emporio/caixa", loja)} verTudo="Ver as posições e o extrato">
         {positions.length === 0 ? (
           <EmptyState compacto titulo="Nenhum lugar com dinheiro ainda." />
         ) : (
