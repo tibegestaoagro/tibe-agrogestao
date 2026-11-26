@@ -287,7 +287,7 @@ confere("o campo Orçamento nº volta", campo_existe("Orçamento nº"))
 entrar("caixa")
 passo("5. O Caixa abre /emporio/orcamentos: volta ao início, e o menu não oferece")
 ir("/emporio/orcamentos")
-confere("volta ao /emporio", caminho() == "/emporio", caminho())
+confere("volta ao Início do Caixa, que é /emporio/vender (onda 2)", caminho() == "/emporio/vender", caminho())
 abrir_subgrupos()
 vistos = [h for h in menu() if h.startswith("/emporio")]
 confere("o menu do Caixa tem Vender e Vendas", "/emporio/vender" in vistos and "/emporio/vendas" in vistos, vistos)

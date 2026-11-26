@@ -203,7 +203,9 @@ c_mes = cartao("Vendas no mês")
 confere("o cartão Vendas no mês existe", c_mes is not None)
 if c_mes:
     print("   Vendas no mês:", c_mes)
-    confere("a comparação do mês é uma frase com 'de outubro' (ou some)", len(c_mes) == 2 or "outubro" in c_mes[2], c_mes)
+    _meses = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"]
+    _anterior = _meses[((_dt.datetime.now(_dt.timezone(_dt.timedelta(hours=-3))).month - 2) % 12)]
+    confere("a comparação do mês é uma frase com 'de " + _anterior + "' (ou some)", len(c_mes) == 2 or _anterior in c_mes[2], c_mes)
     confere("sem 'NaN' nem 'Infinity' no cartão do mês", not any("NaN" in x or "Infinity" in x for x in c_mes), c_mes)
 c_sai = cartao("Sai hoje")
 c_entra = cartao("Entra hoje")
