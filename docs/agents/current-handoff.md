@@ -114,10 +114,11 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   - "Sai hoje" inclui as contas vencidas, como a aba Hoje do Financeiro;
   - o aviso de orçamento abre todos os abertos, e não só os perto de vencer.
 
-  **Onda 3 (Vender, §5.7): pronta na branch, ESPERANDO o merge autorizado
-  pelo usuário.** Plano `docs/superpowers/plans/2026-11-26-emporio-ux-onda3-vender.md`,
-  aprovado em 26/11. Commits de `a555f5b9` (plano) a `35e20af0`; o merge leva
-  também `67562427` (cofre). Sem migração.
+  **Onda 3 (Vender, §5.7): em produção desde 26/11**, depois do merge
+  autorizado pelo usuário (avanço rápido de `ux-emporio` sobre `c2f9b61e`
+  até `e8c53116`, sem migração; Vercel verde). Plano
+  `docs/superpowers/plans/2026-11-26-emporio-ux-onda3-vender.md`, aprovado em
+  26/11. Commits de `a555f5b9` (plano) a `35e20af0`, mais `67562427` (cofre).
 
   Entregue:
   - Vender em duas colunas, com "Mais opções" recolhida (desconto no total,
@@ -157,9 +158,8 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
     "Abrir o Caixa 1" virou "Abrir o caixa" (`partes-funcao.tsx:267`,
     `partes-consulta.tsx:130`, `vendedor-imprimir/page.tsx:49` e `:77`).
 
-  **Próximo:** merge da onda 3 quando o usuário autorizar; depois, plano da
-  onda 4 (Dinheiro e listas). As três escolhas da onda 2 esperam o olho dele
-  em produção.
+  **Próximo:** plano da onda 4 (Dinheiro e listas), para aprovação do
+  usuário. As três escolhas da onda 2 esperam o olho dele em produção.
 
   O roteiro descartável do tour de UX (só no desktop) não é versionado.
 - Em produção desde 24/11 (merge `176a3dba`, CI e Vercel verdes): lint de 30
