@@ -94,13 +94,16 @@ const centavosParaCampo = (c: number) => (c / 100).toFixed(2).replace(".", ",");
 export function CompraForm({
   lojas,
   produtos,
+  abrirAoEntrar = false,
 }: {
   lojas: { id: string; name: string }[];
   produtos: ProdutoParaCompra[];
+  /** O atalho "Nova compra" do Início chega por `?nova=1` com o painel já aberto. */
+  abrirAoEntrar?: boolean;
 }) {
   const router = useRouter();
   const err = useErrosDeFormulario(ORDEM, "compra");
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(abrirAoEntrar);
   const [loading, setLoading] = useState(false);
   const chave = useRef<string | null>(null);
   const contador = useRef(1);

@@ -108,8 +108,8 @@ console.log("\n3. Caixa: menu plano");
 const caixa = menuDoEmporio(CONTEXTOS.caixa);
 check("nenhum grupo", grupos(caixa).length === 0, j(caixa));
 check(
-  "exatamente Início, Vender, Vendas, Clientes, Fiado, Caixa",
-  j(caixa.map((e) => e.rotulo)) === j(["Início", "Vender", "Vendas", "Clientes", "Fiado", "Caixa"]),
+  "exatamente Vender, Vendas, Clientes, Fiado, Caixa (sem Início: ele entra direto em Vender)",
+  j(caixa.map((e) => e.rotulo)) === j(["Vender", "Vendas", "Clientes", "Fiado", "Caixa"]),
   j(caixa.map((e) => e.rotulo)),
 );
 

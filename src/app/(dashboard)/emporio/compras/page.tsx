@@ -41,7 +41,7 @@ const DATA = new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC" });
 export default async function ComprasPage({
   searchParams,
 }: {
-  searchParams: Promise<{ loja?: string; situacao?: string; pagina?: string; por_pagina?: string; ordem?: string }>;
+  searchParams: Promise<{ loja?: string; situacao?: string; pagina?: string; por_pagina?: string; ordem?: string; nova?: string }>;
 }) {
   const user = await requireFeaturePage("emporio");
   const params = await searchParams;
@@ -116,7 +116,9 @@ export default async function ComprasPage({
         titulo="Compras"
         ajuda="O que as lojas compraram dos fornecedores. A conta a pagar nasce junto."
         acoes={
-          lojasDoLancamento.length > 0 && <CompraForm lojas={lojasDoLancamento} produtos={produtosForm} />
+          lojasDoLancamento.length > 0 && (
+            <CompraForm lojas={lojasDoLancamento} produtos={produtosForm} abrirAoEntrar={params.nova === "1"} />
+          )
         }
       />
 

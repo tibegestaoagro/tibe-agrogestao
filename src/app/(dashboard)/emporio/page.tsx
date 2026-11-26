@@ -1,60 +1,80 @@
-import Link from "next/link";
+import { redirect } from "next/navigation";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
-import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
-import { precisaReporAction } from "@/lib/actions/emporio-estoque";
-import { listarComprasAction } from "@/lib/actions/emporio-compras";
-import { listarTransferenciasAction } from "@/lib/actions/emporio-transferencias";
-import { listarVendasAction } from "@/lib/actions/emporio-vendas";
-import { listarFiadoAction } from "@/lib/actions/emporio-caixa";
+import { lerInicioAction } from "@/lib/actions/emporio-inicio";
+import { primeirosPassosAction } from "@/lib/actions/emporio-primeiros-passos";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { veAPagina } from "@/lib/emporio/paginas";
-import { primeirosPassosAction, type PassoKey, type PassoView } from "@/lib/actions/emporio-primeiros-passos";
-import { Badge } from "@/components/ui/badge";
+import { caixaEntraEmVender } from "@/lib/emporio/menu";
 import { CabecalhoDaTela } from "./_components/cabecalho-da-tela";
+import { InicioAvisos } from "./_components/inicio-avisos";
+import { InicioNumeros } from "./_components/inicio-numeros";
+import { InicioAtalhos } from "./_components/inicio-atalhos";
+import { InicioPrimeirosPassos } from "./_components/inicio-primeiros-passos";
 
-const ROTULO_DO_PASSO: Record<PassoKey, string> = {
-  preco: "Preço de venda",
-  estoque_inicial: "Estoque inicial com custo",
-  saldo_caixa: "Saldo inicial do caixa",
-  taxa_cartao: "Taxa do cartão",
-  despesa_fixa: "Despesa fixa",
-  minimo_maximo: "Mínimo e máximo",
-  conta_pix: "Conta PIX",
-};
+const MESES = [
+  "janeiro",
+  "fevereiro",
+  "março",
+  "abril",
+  "maio",
+  "junho",
+  "julho",
+  "agosto",
+  "setembro",
+  "outubro",
+  "novembro",
+  "dezembro",
+];
 
-/** Meia-noite de hoje em Brasília (sem horário de verão desde 2019), como instante UTC. */
-function inicioDoDiaEmBrasilia(): Date {
-  const ymd = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
-  return new Date(`${ymd}T00:00:00-03:00`);
+/** Ordem do Início: Estatísticas, Produtos, Estoque, Nova compra, A receber. */
+const ATALHOS = [
+  { href: "/emporio/relatorios", rotulo: "Estatísticas", pagina: "/emporio/relatorios" },
+  { href: "/emporio/produtos", rotulo: "Produtos", pagina: "/emporio/produtos" },
+  { href: "/emporio/estoque", rotulo: "Estoque", pagina: "/emporio/estoque" },
+  { href: "/emporio/compras?nova=1", rotulo: "Nova compra", pagina: "/emporio/compras" },
+  { href: "/emporio/financeiro/receber", rotulo: "A receber", pagina: "/emporio/financeiro" },
+] as const;
+
+/** Hora e mês de hoje no fuso de São Paulo (o servidor roda em UTC). */
+function agoraEmSaoPaulo(): { hora: number; mesAnterior: string } {
+  const partes = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    hour: "2-digit",
+    month: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date());
+  const hora = Number(partes.find((p) => p.type === "hour")?.value ?? "0");
+  const mes = Number(partes.find((p) => p.type === "month")?.value ?? "1");
+  return { hora, mesAnterior: MESES[(mes + 10) % 12] };
+}
+
+function saudacao(hora: number): string {
+  if (hora >= 5 && hora < 12) return "Bom dia";
+  if (hora >= 12 && hora < 18) return "Boa tarde";
+  return "Boa noite";
 }
 
 /**
- * Meu Empório: o início. Cartões, sem item novo no menu (Q59, Q71).
+ * Meu Empório: o Início. O que precisa de você, os números do dia e os atalhos.
  *
  * `requireFeaturePage` devolve 404 quando o recurso não é visível para o
- * usuário, como se a rota não existisse.
+ * usuário, como se a rota não existisse. O Caixa não tem Início: entra em Vender.
  */
 export default async function EmporioPage() {
   const user = await requireFeaturePage("emporio");
   const db = await getTenantDb();
-  // F6b: cartões e avisos decidem pelo papel do Empório, não pela role da conta.
   const papel = await papelDoEmporio(db, user);
-  const ehGestor = pode(papel, "gestor_da_loja");
-  const lojas = await listarEstabelecimentosAction(db, user);
-  const estabelecimentos = lojas.ok ? lojas.data.length : 0;
-  const produtos = await db.emporioProduct.count({ where: { archived_at: null } });
-  const repor = await precisaReporAction(db, user);
-  const aRepor = repor.ok ? repor.data.length : 0;
-  const pendentes = await listarComprasAction(db, user, { status: "pendente", limit: 200 });
-  const comprasPendentes = pendentes.ok ? pendentes.data.linhas.length : 0;
-  const emTransito = await listarTransferenciasAction(db, user, { status: "em_transito", limit: 200 });
-  const transferenciasEmTransito = emTransito.ok ? emTransito.data.linhas.length : 0;
-  const hoje = await listarVendasAction(db, user, { status: "concluida", de: inicioDoDiaEmBrasilia(), limit: 200 });
-  const vendasHoje = hoje.ok ? hoje.data.linhas.length : 0;
-  const fiado = await listarFiadoAction(db, user);
-  const clientesNoFiado = fiado.ok ? fiado.data.length : 0;
-  const passos = ehGestor ? await primeirosPassosAction(db, user) : null;
+  if (caixaEntraEmVender(papel)) redirect("/emporio/vender");
+
+  const inicio = await lerInicioAction(db, user);
+  const { hora, mesAnterior } = agoraEmSaoPaulo();
+  const primeiroNome = user.name?.trim().split(/\s+/)[0];
+  const titulo = primeiroNome ? `${saudacao(hora)}, ${primeiroNome}` : saudacao(hora);
+
+  const atalhos = ATALHOS.filter((a) => veAPagina(papel, a.pagina)).map(({ href, rotulo }) => ({ href, rotulo }));
+
+  const passos = pode(papel, "gestor_da_loja") ? await primeirosPassosAction(db, user) : null;
   // O aviso de loja sem Gestor (Q132) é recomendado e entra mesmo com os essenciais prontos.
   const pendenciasPorLoja = passos?.ok
     ? passos.data.establishments.filter((l) => l.sem_gestor || (!passos.data.complete && l.steps.some((s) => !s.done)))
@@ -62,170 +82,22 @@ export default async function EmporioPage() {
 
   return (
     <div className="space-y-6">
-      <CabecalhoDaTela titulo="Início" ajuda="Suas lojas e o catálogo de produtos que elas vendem." />
+      <CabecalhoDaTela
+        titulo={titulo}
+        ajuda="O que precisa de você hoje nas suas lojas, os números do dia e os atalhos mais usados."
+      />
 
-      {pendenciasPorLoja.length > 0 && (
-        <section className="space-y-4 rounded-lg border border-borda bg-superficie p-5 shadow-sm">
-          <div>
-            <h2 className="text-lg font-semibold text-texto">Primeiros passos</h2>
-            <p className="mt-1 text-sm text-texto-secundario">
-              O que falta para o resultado da loja sair confiável. Sem os essenciais, ele sai estimado.
-            </p>
-          </div>
-          {pendenciasPorLoja.map((loja) => (
-            <div key={loja.establishment_id} className="space-y-3">
-              <h3 className="text-sm font-semibold text-texto">{loja.name}</h3>
-              <ListaDePassos titulo="Essenciais" passos={loja.steps.filter((s) => s.essential)} />
-              <ListaDePassos titulo="Recomendados" passos={loja.steps.filter((s) => !s.essential)} />
-              {loja.sem_gestor && (
-                <div>
-                  <Link
-                    href={loja.sem_gestor.href}
-                    className="inline-flex min-h-11 items-center text-sm font-medium text-texto hover:underline sm:min-h-0"
-                  >
-                    {loja.sem_gestor.message}
-                  </Link>
-                  <Badge variant="amber" className="ml-2">
-                    Recomendado
-                  </Badge>
-                </div>
-              )}
-            </div>
-          ))}
-        </section>
+      {inicio.ok ? (
+        <>
+          <InicioAvisos avisos={inicio.data.avisos} />
+          <InicioNumeros numeros={inicio.data.numeros} mesAnterior={mesAnterior} />
+        </>
+      ) : (
+        <p className="rounded-lg bg-superficie-afundada px-4 py-3 text-sm text-texto-secundario">{inicio.message}</p>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Cartao
-          href="/emporio/estabelecimentos"
-          titulo="Lojas"
-          contagem={estabelecimentos}
-          singular="loja"
-          plural="lojas"
-        />
-        <Cartao
-          href="/emporio/produtos"
-          titulo="Produtos"
-          contagem={produtos}
-          singular="produto"
-          plural="produtos"
-        />
-        <Cartao
-          href="/emporio/estoque"
-          titulo="Estoque"
-          contagem={aRepor}
-          singular="produto precisa repor"
-          plural="produtos precisam repor"
-        />
-        <Cartao
-          href="/emporio/compras"
-          titulo="Compras"
-          contagem={comprasPendentes}
-          singular="compra a receber"
-          plural="compras a receber"
-        />
-        <Cartao
-          href="/emporio/transferencias"
-          titulo="Transferências"
-          contagem={transferenciasEmTransito}
-          singular="transferência em trânsito"
-          plural="transferências em trânsito"
-        />
-        {veAPagina(papel, "/emporio/vender") && <CartaoTexto href="/emporio/vender" titulo="Vender" texto="Abrir o balcão e registrar uma venda" />}
-        <Cartao
-          href="/emporio/vendas"
-          titulo="Vendas"
-          contagem={vendasHoje}
-          singular="venda hoje"
-          plural="vendas hoje"
-        />
-        <Cartao
-          href="/emporio/fiado"
-          titulo="Fiado"
-          contagem={clientesNoFiado}
-          singular="cliente com fiado em aberto"
-          plural="clientes com fiado em aberto"
-        />
-        <CartaoTexto href="/emporio/caixa" titulo="Caixa" texto="Saldo das gavetas e das contas, e os movimentos" />
-        {veAPagina(papel, "/emporio/financeiro") && (
-          <CartaoTexto href="/emporio/financeiro" titulo="Financeiro" texto="O dinheiro de hoje: posição de caixa, o que pagar e o que receber" />
-        )}
-        {veAPagina(papel, "/emporio/equipe") && (
-          <CartaoTexto href="/emporio/equipe" titulo="Equipe" texto="Quem trabalha nas lojas e o que cada um pode fazer" />
-        )}
-        {veAPagina(papel, "/emporio/resultado") && (
-          <CartaoTexto href="/emporio/resultado" titulo="Resultado" texto="Quanto cada loja ganhou no mês e o ponto de equilíbrio" />
-        )}
-        {veAPagina(papel, "/emporio/despesas") && (
-          <CartaoTexto href="/emporio/despesas" titulo="Despesas" texto="Contas a pagar, despesas fixas e o Vendeu, Pagou" />
-        )}
-        {veAPagina(papel, "/emporio/historico") && (
-          <CartaoTexto href="/emporio/historico" titulo="Histórico" texto="Quem fez o quê nas lojas, com data e hora" />
-        )}
-      </div>
+      <InicioAtalhos atalhos={atalhos} />
+      <InicioPrimeirosPassos lojas={pendenciasPorLoja} />
     </div>
-  );
-}
-
-function ListaDePassos({ titulo, passos }: { titulo: string; passos: PassoView[] }) {
-  if (passos.length === 0) return null;
-  return (
-    <div>
-      <p className="text-xs font-semibold uppercase tracking-wide text-texto-secundario">{titulo}</p>
-      <ul className="mt-1 divide-y divide-borda">
-        {passos.map((p) => (
-          <li key={p.key} className="flex flex-wrap items-center justify-between gap-2 py-2">
-            <div className="min-w-0">
-              <Link
-                href={p.key === "taxa_cartao" ? "/emporio/configuracoes" : p.href}
-                className="inline-flex min-h-11 items-center text-sm font-medium text-texto hover:underline sm:min-h-0"
-              >
-                {ROTULO_DO_PASSO[p.key]}
-              </Link>
-              {p.detail && <p className="text-xs text-texto-discreto">{p.detail}</p>}
-            </div>
-            <Badge variant={p.done ? "green" : "amber"}>{p.done ? "Feito" : "Pendente"}</Badge>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function CartaoTexto({ href, titulo, texto }: { href: string; titulo: string; texto: string }) {
-  return (
-    <Link
-      href={href}
-      className="block rounded-lg border border-borda bg-superficie p-5 shadow-sm hover:border-borda-forte focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primaria"
-    >
-      <h2 className="text-lg font-semibold text-texto">{titulo}</h2>
-      <p className="mt-1 text-sm text-texto-secundario">{texto}</p>
-    </Link>
-  );
-}
-
-function Cartao({
-  href,
-  titulo,
-  contagem,
-  singular,
-  plural,
-}: {
-  href: string;
-  titulo: string;
-  contagem: number;
-  singular: string;
-  plural: string;
-}) {
-  return (
-    <Link
-      href={href}
-      className="block rounded-lg border border-borda bg-superficie p-5 shadow-sm hover:border-borda-forte focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primaria"
-    >
-      <h2 className="text-lg font-semibold text-texto">{titulo}</h2>
-      <p className="mt-1 text-sm text-texto-secundario">
-        {contagem} {contagem === 1 ? singular : plural}
-      </p>
-    </Link>
   );
 }

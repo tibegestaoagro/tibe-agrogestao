@@ -68,15 +68,22 @@ function abre(c: PapelContexto, href: string): boolean {
   return veAPagina(c, href.startsWith("/emporio/financeiro/") ? "/emporio/financeiro" : href);
 }
 
+/** Papel exatamente `caixa` que abre Vender: o Início dele é o balcão. A página e o menu leem esta mesma regra. */
+export function caixaEntraEmVender(c: PapelContexto): boolean {
+  return c.papel === "caixa" && veAPagina(c, "/emporio/vender");
+}
+
 /**
  * O menu do Empório para o papel: só o que ele abre, sem grupo vazio, com o
  * grupo de um item só virando item. Sobrando até 5 itens além de Início e
- * Vender, o menu sai plano (é o menu do Caixa).
+ * Vender, o menu sai plano (é o menu do Caixa, sem Início).
  */
 export function menuDoEmporio(c: PapelContexto): EntradaDoMenu[] {
   const entradas: EntradaDoMenu[] = [];
   for (const e of ESTRUTURA) {
     if (e.tipo === "item") {
+      // O Caixa não passa pelo Início: /emporio manda ele a Vender, então o menu não oferece o desvio.
+      if (e.href === "/emporio" && caixaEntraEmVender(c)) continue;
       if (abre(c, e.href)) entradas.push(e);
       continue;
     }
