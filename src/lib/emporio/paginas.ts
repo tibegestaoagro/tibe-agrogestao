@@ -25,7 +25,7 @@ export const PAGINAS_DO_EMPORIO: readonly {
   { href: "/emporio/fornecedores", rotulo: "Fornecedores", exige: "fora_do_caixa" },
   { href: "/emporio/franqueados", rotulo: "Franqueados", exige: "fora_do_caixa" },
   { href: "/emporio/transferencias", rotulo: "Transferências", exige: "fora_do_caixa" },
-  { href: "/emporio/despesas", rotulo: "Despesas", exige: ["gestor_da_loja", "dinheiro"] },
+  { href: "/emporio/financeiro/pagar", rotulo: "A pagar", exige: ["gestor_da_loja", "dinheiro"] },
   { href: "/emporio/resultado", rotulo: "Resultado", exige: ["gestor_da_loja", "dinheiro"] },
   { href: "/emporio/relatorios", rotulo: "Relatórios", exige: ["gestor_da_loja", "dinheiro"] },
   { href: "/emporio/equipe", rotulo: "Equipe", exige: "conta" },

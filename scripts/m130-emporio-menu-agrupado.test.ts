@@ -73,12 +73,12 @@ check(
 );
 check(
   "grupo Dinheiro",
-  j(rotulosDe(grupo(dono, "Dinheiro"))) === j(["Hoje", "Caixa", "A receber", "A pagar", "Despesas", "Aprovações"]),
+  j(rotulosDe(grupo(dono, "Dinheiro"))) === j(["Hoje", "Caixa", "A receber", "A pagar", "Aprovações"]),
   j(rotulosDe(grupo(dono, "Dinheiro"))),
 );
 check(
   "grupo Estatísticas",
-  j(rotulosDe(grupo(dono, "Estatísticas"))) === j(["Relatórios", "Resultado", "Projeção"]),
+  j(rotulosDe(grupo(dono, "Estatísticas"))) === j(["Relatórios", "Resultado", "Projeção", "Relatórios do dinheiro"]),
   j(rotulosDe(grupo(dono, "Estatísticas"))),
 );
 check(
@@ -93,8 +93,8 @@ const hrefs: Record<string, string> = {
   Caixa: "/emporio/caixa",
   "A receber": "/emporio/financeiro/receber",
   "A pagar": "/emporio/financeiro/pagar",
-  Despesas: "/emporio/despesas",
   Aprovações: "/emporio/financeiro/aprovacoes",
+  "Relatórios do dinheiro": "/emporio/financeiro/relatorios",
   Relatórios: "/emporio/relatorios",
   Resultado: "/emporio/resultado",
   Projeção: "/emporio/financeiro/projecao",
@@ -117,11 +117,16 @@ console.log("\n4. Gestor da loja");
 const gestor = menuDoEmporio(CONTEXTOS.gestor);
 const hrefsGestor = todosOsItens(gestor).map((i) => i.href);
 check(
-  "nenhum item de /emporio/financeiro",
-  !hrefsGestor.some((h) => h.startsWith("/emporio/financeiro")),
+  "do /emporio/financeiro só A pagar",
+  j(hrefsGestor.filter((h) => h.startsWith("/emporio/financeiro"))) === j(["/emporio/financeiro/pagar"]),
   j(hrefsGestor.filter((h) => h.startsWith("/emporio/financeiro"))),
 );
-check("grupo Dinheiro com Caixa e Despesas", j(rotulosDe(grupo(gestor, "Dinheiro"))) === j(["Caixa", "Despesas"]), j(rotulosDe(grupo(gestor, "Dinheiro"))));
+check("grupo Dinheiro com Caixa e A pagar", j(rotulosDe(grupo(gestor, "Dinheiro"))) === j(["Caixa", "A pagar"]), j(rotulosDe(grupo(gestor, "Dinheiro"))));
+check(
+  "sem Despesas, Hoje nem A receber",
+  !hrefsGestor.includes("/emporio/despesas") && !hrefsGestor.includes("/emporio/financeiro") && !hrefsGestor.includes("/emporio/financeiro/receber"),
+  j(hrefsGestor),
+);
 const estGestor = rotulosDe(grupo(gestor, "Estatísticas"));
 check("Estatísticas tem Relatórios e Resultado", !!estGestor && estGestor.includes("Relatórios") && estGestor.includes("Resultado"), j(estGestor));
 check("Estatísticas não tem Projeção", !!estGestor && !estGestor.includes("Projeção"), j(estGestor));
@@ -132,9 +137,14 @@ const rotulosFin = todosOsItens(fin).map((i) => i.rotulo);
 check("não tem Vender", !rotulosFin.includes("Vender"), j(rotulosFin));
 check("não tem Equipe", !rotulosFin.includes("Equipe"), j(rotulosFin));
 check(
-  "Dinheiro com os 6 itens",
-  j(rotulosDe(grupo(fin, "Dinheiro"))) === j(["Hoje", "Caixa", "A receber", "A pagar", "Despesas", "Aprovações"]),
+  "Dinheiro com os 5 itens",
+  j(rotulosDe(grupo(fin, "Dinheiro"))) === j(["Hoje", "Caixa", "A receber", "A pagar", "Aprovações"]),
   j(rotulosDe(grupo(fin, "Dinheiro"))),
+);
+check(
+  "Estatísticas com Relatórios do dinheiro",
+  (rotulosDe(grupo(fin, "Estatísticas")) ?? []).includes("Relatórios do dinheiro"),
+  j(rotulosDe(grupo(fin, "Estatísticas"))),
 );
 
 console.log("\n6. Grupo de um item só vira item solto (vendedor)");

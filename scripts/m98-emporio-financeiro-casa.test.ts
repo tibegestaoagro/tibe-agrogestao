@@ -92,7 +92,7 @@ async function secao1Pura() {
   check("vendedor NÃO vê /emporio/financeiro", Pg.veAPagina(vend, "/emporio/financeiro") === false);
   check("gestor NÃO vê /emporio/financeiro", Pg.veAPagina(ctx("gestor", ["L"]), "/emporio/financeiro") === false);
   check("dono vê /emporio/financeiro", Pg.veAPagina(ctx("dono"), "/emporio/financeiro") === true);
-  check("financeiro vê Clientes (a ficha abre para ele) e Despesas", Pg.veAPagina(fin, "/emporio/clientes") && Pg.veAPagina(fin, "/emporio/despesas"));
+  check("financeiro vê Clientes (a ficha abre para ele) e A pagar", Pg.veAPagina(fin, "/emporio/clientes") && Pg.veAPagina(fin, "/emporio/financeiro/pagar"));
   check("financeiro NÃO vê Vender nem Equipe", !Pg.veAPagina(fin, "/emporio/vender") && !Pg.veAPagina(fin, "/emporio/equipe"));
   check("o Financeiro aparece no menu só para quem passa em `dinheiro`",
     Pg.paginasVisiveis(fin).some((p) => p.href === "/emporio/financeiro") && !Pg.paginasVisiveis(vend).some((p) => p.href === "/emporio/financeiro"));

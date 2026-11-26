@@ -1,4 +1,4 @@
-import { veAPagina } from "@/lib/emporio/paginas";
+import { PAGINAS_DO_EMPORIO, veAPagina } from "@/lib/emporio/paginas";
 import type { PapelContexto } from "@/lib/emporio/papel";
 
 export type ItemDoMenu = { href: string; rotulo: string; exact?: boolean; destaque?: boolean };
@@ -38,7 +38,6 @@ const ESTRUTURA: readonly EntradaDoMenu[] = [
       { href: "/emporio/caixa", rotulo: "Caixa" },
       { href: "/emporio/financeiro/receber", rotulo: "A receber" },
       { href: "/emporio/financeiro/pagar", rotulo: "A pagar" },
-      { href: "/emporio/despesas", rotulo: "Despesas" },
       { href: "/emporio/financeiro/aprovacoes", rotulo: "Aprovações" },
     ],
   },
@@ -49,6 +48,8 @@ const ESTRUTURA: readonly EntradaDoMenu[] = [
       { href: "/emporio/relatorios", rotulo: "Relatórios" },
       { href: "/emporio/resultado", rotulo: "Resultado" },
       { href: "/emporio/financeiro/projecao", rotulo: "Projeção" },
+      // Provisório: os relatórios do financeiro ficariam sem caminho até a onda 5, que o remove.
+      { href: "/emporio/financeiro/relatorios", rotulo: "Relatórios do dinheiro" },
     ],
   },
   {
@@ -63,9 +64,10 @@ const ESTRUTURA: readonly EntradaDoMenu[] = [
   },
 ];
 
-/** As subtelas do financeiro abrem para quem abre o financeiro: a página-mãe decide. */
+/** Subtela com entrada própria em PAGINAS_DO_EMPORIO decide por ela; sem entrada, a página-mãe do financeiro decide. */
 function abre(c: PapelContexto, href: string): boolean {
-  return veAPagina(c, href.startsWith("/emporio/financeiro/") ? "/emporio/financeiro" : href);
+  const propria = PAGINAS_DO_EMPORIO.some((p) => p.href === href);
+  return veAPagina(c, !propria && href.startsWith("/emporio/financeiro/") ? "/emporio/financeiro" : href);
 }
 
 /** Papel exatamente `caixa` que abre Vender: o Início dele é o balcão. A página e o menu leem esta mesma regra. */

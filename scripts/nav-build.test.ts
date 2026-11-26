@@ -131,8 +131,8 @@ function main() {
     "Financeiro não vê Vender nem Equipe",
   );
   assert(
-    ["/emporio/despesas", "/emporio/resultado", "/emporio/clientes", "/emporio/historico"].every((h) => hrefsFin.includes(h)),
-    "Financeiro vê Despesas, Resultado, Clientes e Histórico",
+    ["/emporio/financeiro/pagar", "/emporio/resultado", "/emporio/clientes", "/emporio/historico"].every((h) => hrefsFin.includes(h)),
+    "Financeiro vê A pagar, Resultado, Clientes e Histórico",
   );
   assert(gDono?.show === true && gDono.icon === "emporio", "o grupo Meu Empório aparece com o ícone do Empório");
   const primeira = gDono?.children[0];
@@ -152,8 +152,8 @@ function main() {
   const hrefsVend = folhasDe(gVend).map((c) => c.href);
   assert(!!gVend, "com soDaLoja, o grupo Meu Empório continua lá");
   assert(
-    ["/emporio/despesas", "/emporio/resultado", "/emporio/equipe", "/emporio/historico"].every((h) => !hrefsVend.includes(h)),
-    "vendedor não vê Despesas, Resultado, Equipe nem Histórico",
+    ["/emporio/financeiro/pagar", "/emporio/resultado", "/emporio/equipe", "/emporio/historico"].every((h) => !hrefsVend.includes(h)),
+    "vendedor não vê A pagar, Resultado, Equipe nem Histórico",
   );
   assert(hrefsVend.includes("/emporio/vender"), "vendedor vê Vender");
 
