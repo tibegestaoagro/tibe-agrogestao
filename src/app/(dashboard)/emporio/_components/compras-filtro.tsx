@@ -9,6 +9,7 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { PaginacaoSeletores } from "./paginacao-seletores";
+import { BarraDeFiltros } from "./barra-de-filtros";
 
 const TODAS = "__todas__";
 
@@ -49,7 +50,9 @@ export function ComprasFiltro({
   }
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <BarraDeFiltros
+      filtros={
+        <>
       <Select value={loja || TODAS} onValueChange={(v) => ir({ loja: v === TODAS ? "" : v })}>
         <SelectTrigger aria-label="Filtrar por loja">
           <SelectValue />
@@ -78,12 +81,16 @@ export function ComprasFiltro({
         </SelectContent>
       </Select>
 
-      <PaginacaoSeletores
-        ordem={ordem}
-        porPagina={porPagina}
-        onOrdem={(v) => ir({ ordem: v })}
-        onPorPagina={(v) => ir({ porPagina: v })}
-      />
-    </div>
+        </>
+      }
+      ajustes={
+        <PaginacaoSeletores
+          ordem={ordem}
+          porPagina={porPagina}
+          onOrdem={(v) => ir({ ordem: v })}
+          onPorPagina={(v) => ir({ porPagina: v })}
+        />
+      }
+    />
   );
 }

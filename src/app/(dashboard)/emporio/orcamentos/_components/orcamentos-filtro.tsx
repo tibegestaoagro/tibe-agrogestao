@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { BarraDeFiltros } from "../../_components/barra-de-filtros";
 import {
   Select,
   SelectTrigger,
@@ -52,7 +53,28 @@ export function OrcamentosFiltro({
   }
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    <BarraDeFiltros
+      busca={
+      <form
+        className="flex gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          ir({});
+        }}
+      >
+        <Input
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          placeholder="Telefone, CPF, CNPJ, nome ou nº"
+          aria-label="Buscar orçamento"
+        />
+        <Button type="submit" variant="outline">
+          Buscar
+        </Button>
+      </form>
+      }
+      filtros={
+        <>
       <Select value={loja || TODAS} onValueChange={(v) => ir({ loja: v === TODAS ? "" : v })}>
         <SelectTrigger aria-label="Filtrar por loja">
           <SelectValue />
@@ -79,25 +101,10 @@ export function OrcamentosFiltro({
           ))}
         </SelectContent>
       </Select>
-
-      <form
-        className="flex gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          ir({});
-        }}
-      >
-        <Input
-          value={busca}
-          onChange={(e) => setBusca(e.target.value)}
-          placeholder="Telefone, CPF, CNPJ, nome ou nº"
-          aria-label="Buscar orçamento"
-        />
-        <Button type="submit" variant="outline">
-          Buscar
-        </Button>
-      </form>
-
+        </>
+      }
+      ajustes={
+        <>
       <Select value={ordem} onValueChange={(v) => ir({ ordem: v })}>
         <SelectTrigger aria-label="Ordem">
           <SelectValue />
@@ -123,6 +130,8 @@ export function OrcamentosFiltro({
           ))}
         </SelectContent>
       </Select>
-    </div>
+        </>
+      }
+    />
   );
 }

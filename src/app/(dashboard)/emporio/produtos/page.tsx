@@ -26,22 +26,31 @@ import {
 import { ProdutoNovoForm, ProdutoDaFazendaForm } from "../_components/produto-novo-form";
 import { nomeComConteudo } from "../_components/formato";
 import { CabecalhoDaTela } from "../_components/cabecalho-da-tela";
+import { BarraDeFiltros } from "../_components/barra-de-filtros";
+import { Paginacao } from "../_components/paginacao";
+import { PaginacaoDaUrl } from "../_components/paginacao-da-url";
+import { lerPaginacaoDaUrl } from "../_components/paginacao-opcoes";
+import { fatiarPagina } from "@/lib/emporio/dinheiro-telas";
 
 export default async function ProdutosEmporioPage({
   searchParams,
 }: {
-  searchParams: Promise<{ arquivados?: string; q?: string; species?: string }>;
+  searchParams: Promise<{ arquivados?: string; q?: string; species?: string; pagina?: string; por_pagina?: string }>;
 }) {
   const user = await requireFeaturePage("emporio");
-  const { arquivados, q = "", species = "" } = await searchParams;
+  const params = await searchParams;
+  const { arquivados, q = "", species = "" } = params;
+  const { pagina, porPagina } = lerPaginacaoDaUrl(params);
   const mostrarArquivados = arquivados === "1";
   const busca = q.trim();
   const filtrando = busca !== "" || species !== "";
+  // Mudar arquivados, busca ou espécie larga a `pagina`: a lista é outra.
   const linkSemArquivados = (arq: boolean) => {
     const params = new URLSearchParams();
     if (busca) params.set("q", busca);
     if (species) params.set("species", species);
     if (arq) params.set("arquivados", "1");
+    if (porPagina !== 20) params.set("por_pagina", String(porPagina));
     const texto = params.toString();
     return texto ? `/emporio/produtos?${texto}` : "/emporio/produtos";
   };
@@ -71,7 +80,20 @@ export default async function ProdutosEmporioPage({
       select: { emporio_product_id: true },
     }),
   ]);
-  const produtos = res.ok ? res.data : [];
+  const todos = res.ok ? res.data : [];
+  const fatia = fatiarPagina(todos, pagina, porPagina);
+  const produtos = fatia.linhas;
+
+  function hrefDe(n: number): string {
+    const p = new URLSearchParams();
+    if (busca) p.set("q", busca);
+    if (species) p.set("species", species);
+    if (mostrarArquivados) p.set("arquivados", "1");
+    if (porPagina !== 20) p.set("por_pagina", String(porPagina));
+    if (n > 1) p.set("pagina", String(n));
+    const texto = p.toString();
+    return texto ? `/emporio/produtos?${texto}` : "/emporio/produtos";
+  }
   const candidatos = candidatosRes && candidatosRes.ok ? candidatosRes.data : [];
 
   const qtdApresentacoes = new Map<string, number>();
@@ -102,31 +124,41 @@ export default async function ProdutosEmporioPage({
       />
 
       {/* Formulário comum (GET): a busca vive na URL e a página server relê. */}
-      <form method="get" action="/emporio/produtos" className="grid gap-3 sm:max-w-2xl sm:grid-cols-[1fr_12rem_auto] sm:items-end">
+      <form method="get" action="/emporio/produtos">
         {mostrarArquivados && <input type="hidden" name="arquivados" value="1" />}
-        <div className="space-y-1">
-          <Label htmlFor="busca-q">Buscar</Label>
-          <Input id="busca-q" name="q" defaultValue={busca} placeholder="Nome, marca, fabricante ou código" />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="busca-species">Espécie</Label>
-          <select
-            id="busca-species"
-            name="species"
-            defaultValue={species}
-            className="flex min-h-11 w-full rounded-lg border border-borda-campo bg-superficie px-3 py-1 text-base shadow-sm sm:h-9 sm:min-h-0 sm:text-sm"
-          >
-            <option value="">Todas</option>
-            {EMPORIO_SPECIES.map((e) => (
-              <option key={e.id} value={e.id}>
-                {e.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <Button type="submit" variant="outline">
-          Buscar
-        </Button>
+        {porPagina !== 20 && <input type="hidden" name="por_pagina" value={porPagina} />}
+        <BarraDeFiltros
+          busca={
+            <div className="space-y-1">
+              <Label htmlFor="busca-q">Buscar</Label>
+              <Input id="busca-q" name="q" defaultValue={busca} placeholder="Nome, marca, fabricante ou código" />
+            </div>
+          }
+          filtros={
+            <>
+              <div className="w-full space-y-1 sm:w-48">
+                <Label htmlFor="busca-species">Espécie</Label>
+                <select
+                  id="busca-species"
+                  name="species"
+                  defaultValue={species}
+                  className="flex min-h-11 w-full rounded-lg border border-borda-campo bg-superficie px-3 py-1 text-base shadow-sm sm:h-9 sm:min-h-0 sm:text-sm"
+                >
+                  <option value="">Todas</option>
+                  {EMPORIO_SPECIES.map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {e.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <Button type="submit" variant="outline">
+                Buscar
+              </Button>
+            </>
+          }
+          ajustes={<PaginacaoDaUrl porPagina={porPagina} chavePorPagina="por_pagina" chavePagina="pagina" />}
+        />
       </form>
 
       <div className="flex flex-wrap gap-2">
@@ -185,6 +217,8 @@ export default async function ProdutosEmporioPage({
           </TableBody>
         </Table>
       )}
+
+      {todos.length > 0 && <Paginacao page={fatia.pagina} perPage={porPagina} total={fatia.total} hrefDe={hrefDe} />}
     </div>
   );
 }

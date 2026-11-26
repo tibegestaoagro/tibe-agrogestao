@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/select";
 import { ORIGENS_DA_VENDA, ROTULO_DA_ORIGEM } from "@/lib/emporio/frete";
 import { PaginacaoSeletores } from "./paginacao-seletores";
+import { BarraDeFiltros } from "./barra-de-filtros";
 
 const TODAS = "__todas__";
 
@@ -52,7 +53,9 @@ export function VendasFiltro({
   }
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    <BarraDeFiltros
+      filtros={
+        <>
       <Select value={loja || TODAS} onValueChange={(v) => ir({ loja: v === TODAS ? "" : v })}>
         <SelectTrigger aria-label="Filtrar por loja">
           <SelectValue />
@@ -95,12 +98,16 @@ export function VendasFiltro({
         </SelectContent>
       </Select>
 
-      <PaginacaoSeletores
-        ordem={ordem}
-        porPagina={porPagina}
-        onOrdem={(v) => ir({ ordem: v })}
-        onPorPagina={(v) => ir({ porPagina: v })}
-      />
-    </div>
+        </>
+      }
+      ajustes={
+        <PaginacaoSeletores
+          ordem={ordem}
+          porPagina={porPagina}
+          onOrdem={(v) => ir({ ordem: v })}
+          onPorPagina={(v) => ir({ porPagina: v })}
+        />
+      }
+    />
   );
 }

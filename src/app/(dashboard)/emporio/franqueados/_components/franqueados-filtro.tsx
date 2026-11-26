@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { BarraDeFiltros } from "../../_components/barra-de-filtros";
 
 /** Filtro da lista de franqueados: busca e "mostrar arquivados" vivem na URL, e a página server relê. */
 export function FranqueadosFiltro({ q, arquivados }: { q: string; arquivados: boolean }) {
@@ -20,13 +21,15 @@ export function FranqueadosFiltro({ q, arquivados }: { q: string; arquivados: bo
 
   return (
     <form
-      className="flex flex-wrap items-center gap-3"
       onSubmit={(e) => {
         e.preventDefault();
         ir(texto, arquivados);
       }}
     >
-      <div className="min-w-0 flex-1 sm:max-w-sm">
+      <BarraDeFiltros
+        busca={
+          <div className="flex items-center gap-2">
+      <div className="min-w-0 flex-1">
         <Input
           aria-label="Buscar franqueado"
           placeholder="Nome, telefone ou CPF/CNPJ"
@@ -37,6 +40,9 @@ export function FranqueadosFiltro({ q, arquivados }: { q: string; arquivados: bo
       <Button type="submit" variant="outline" size="sm">
         Buscar
       </Button>
+          </div>
+        }
+        filtros={
       <label className="flex items-center gap-2 text-sm text-texto">
         <input
           type="checkbox"
@@ -46,6 +52,8 @@ export function FranqueadosFiltro({ q, arquivados }: { q: string; arquivados: bo
         />
         Mostrar arquivados
       </label>
+        }
+      />
     </form>
   );
 }

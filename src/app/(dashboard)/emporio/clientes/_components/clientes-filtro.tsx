@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { BarraDeFiltros } from "../../_components/barra-de-filtros";
 
 /** Filtro da lista de clientes: nome e "mostrar arquivados" vivem na URL, e a página server relê. */
 export function ClientesFiltro({ q, arquivados }: { q: string; arquivados: boolean }) {
@@ -20,13 +21,15 @@ export function ClientesFiltro({ q, arquivados }: { q: string; arquivados: boole
 
   return (
     <form
-      className="flex flex-wrap items-center gap-3"
       onSubmit={(e) => {
         e.preventDefault();
         ir(texto, arquivados);
       }}
     >
-      <div className="min-w-0 flex-1 sm:max-w-sm">
+      <BarraDeFiltros
+        busca={
+          <div className="flex items-center gap-2">
+      <div className="min-w-0 flex-1">
         <Input
           aria-label="Buscar cliente"
           placeholder="Nome, CPF/CNPJ ou telefone"
@@ -37,6 +40,9 @@ export function ClientesFiltro({ q, arquivados }: { q: string; arquivados: boole
       <Button type="submit" variant="outline" size="sm">
         Buscar
       </Button>
+          </div>
+        }
+        filtros={
       <label className="flex items-center gap-2 text-sm text-texto">
         <input
           type="checkbox"
@@ -46,6 +52,8 @@ export function ClientesFiltro({ q, arquivados }: { q: string; arquivados: boole
         />
         Mostrar arquivados
       </label>
+        }
+      />
     </form>
   );
 }

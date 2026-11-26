@@ -22,6 +22,12 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { CabecalhoDaTela } from "../_components/cabecalho-da-tela";
+import { AbasDaTela } from "../_components/abas-da-tela";
+import { BarraDeFiltros } from "../_components/barra-de-filtros";
+import { Paginacao } from "../_components/paginacao";
+import { PaginacaoDaUrl } from "../_components/paginacao-da-url";
+import { lerPaginacaoDaUrl } from "../_components/paginacao-opcoes";
+import { abaDoEstoque, fatiarPagina } from "@/lib/emporio/dinheiro-telas";
 import { EncaminharBotao } from "../_components/encaminhar-botao";
 import { UNIDADE_BASE_SUFIXO, numeroBr, textoLacrado, ORIGEM_DO_CUSTO_AVISO } from "../_components/formato";
 
@@ -35,10 +41,13 @@ const TODAS = "todas";
 export default async function EstoquePage({
   searchParams,
 }: {
-  searchParams: Promise<{ loja?: string }>;
+  searchParams: Promise<{ loja?: string; aba?: string; pagina?: string; por_pagina?: string }>;
 }) {
   const user = await requireFeaturePage("emporio");
-  const { loja: lojaParam } = await searchParams;
+  const params = await searchParams;
+  const { loja: lojaParam } = params;
+  const aba = abaDoEstoque(params.aba);
+  const { pagina, porPagina } = lerPaginacaoDaUrl(params);
 
   const db = await getTenantDb();
   // O Caixa não abre esta tela: só vende, recebe fiado e opera o caixa.
@@ -53,14 +62,38 @@ export default async function EstoquePage({
   const consolidado = lojaParam === TODAS;
   const lojaAtual = consolidado ? null : (lojas.find((l) => l.id === lojaParam) ?? lojas[0] ?? null);
 
+  // Cada aba carrega só o que mostra.
   const [saldoRes, consolidadoRes, reporRes] = await Promise.all([
-    lojaAtual ? saldoDaLojaAction(db, user, lojaAtual.id) : Promise.resolve(null),
-    consolidado ? estoqueConsolidadoAction(db, user) : Promise.resolve(null),
-    precisaReporAction(db, user, lojaAtual ? { establishment_id: lojaAtual.id } : {}),
+    aba === "tudo" && lojaAtual ? saldoDaLojaAction(db, user, lojaAtual.id) : Promise.resolve(null),
+    aba === "tudo" && consolidado ? estoqueConsolidadoAction(db, user) : Promise.resolve(null),
+    aba === "repor" ? precisaReporAction(db, user, lojaAtual ? { establishment_id: lojaAtual.id } : {}) : Promise.resolve(null),
   ]);
-  const linhas = saldoRes?.ok ? saldoRes.data : [];
-  const linhasConsolidadas = consolidadoRes?.ok ? consolidadoRes.data : [];
-  const repor = reporRes.ok ? reporRes.data : [];
+  const fatiaLinhas = fatiarPagina(saldoRes?.ok ? saldoRes.data : [], pagina, porPagina);
+  const fatiaConsolidadas = fatiarPagina(consolidadoRes?.ok ? consolidadoRes.data : [], pagina, porPagina);
+  const fatiaRepor = fatiarPagina(reporRes?.ok ? reporRes.data : [], pagina, porPagina);
+  const linhas = fatiaLinhas.linhas;
+  const linhasConsolidadas = fatiaConsolidadas.linhas;
+  const repor = fatiaRepor.linhas;
+  const lojaQuery = consolidado ? TODAS : (lojaAtual?.id ?? "");
+
+  function hrefDe(n: number): string {
+    const p = new URLSearchParams();
+    if (lojaQuery) p.set("loja", lojaQuery);
+    if (aba !== "repor") p.set("aba", aba);
+    if (porPagina !== 20) p.set("por_pagina", String(porPagina));
+    if (n > 1) p.set("pagina", String(n));
+    const texto = p.toString();
+    return texto ? `/emporio/estoque?${texto}` : "/emporio/estoque";
+  }
+  // Trocar de loja ou de aba larga a `pagina`; o tamanho da página fica.
+  function hrefAba(novaAba: string, loja: string): string {
+    const p = new URLSearchParams();
+    if (loja) p.set("loja", loja);
+    if (novaAba !== "repor") p.set("aba", novaAba);
+    if (porPagina !== 20) p.set("por_pagina", String(porPagina));
+    const texto = p.toString();
+    return texto ? `/emporio/estoque?${texto}` : "/emporio/estoque";
+  }
 
   return (
     <div className="space-y-8">
@@ -85,21 +118,35 @@ export default async function EstoquePage({
           <nav aria-label="Loja" className="flex flex-wrap gap-2">
             {lojas.map((l) => (
               <Button key={l.id} asChild size="sm" variant={lojaAtual?.id === l.id ? "default" : "outline"}>
-                <Link href={`/emporio/estoque?loja=${l.id}`} aria-current={lojaAtual?.id === l.id ? "page" : undefined}>
+                <Link href={hrefAba(aba, l.id)} aria-current={lojaAtual?.id === l.id ? "page" : undefined}>
                   {l.name}
                 </Link>
               </Button>
             ))}
             <Button asChild size="sm" variant={consolidado ? "default" : "outline"}>
-              <Link href={`/emporio/estoque?loja=${TODAS}`} aria-current={consolidado ? "page" : undefined}>
+              <Link href={hrefAba(aba, TODAS)} aria-current={consolidado ? "page" : undefined}>
                 Todas as lojas
               </Link>
             </Button>
           </nav>
 
+          <AbasDaTela
+            rotulo="Abas do Estoque"
+            atual={aba}
+            abas={[
+              { valor: "repor", rotulo: "Precisa repor", href: hrefAba("repor", lojaQuery) },
+              { valor: "tudo", rotulo: "Tudo", href: hrefAba("tudo", lojaQuery) },
+            ]}
+          />
+
+          <BarraDeFiltros
+            ajustes={<PaginacaoDaUrl porPagina={porPagina} chavePorPagina="por_pagina" chavePagina="pagina" />}
+          />
+
+          {aba === "repor" && (
           <section className="space-y-3">
             <h2 className="text-lg font-semibold text-texto">Precisa repor</h2>
-            {repor.length === 0 ? (
+            {fatiaRepor.total === 0 ? (
               <EmptyState titulo="Nada abaixo do mínimo">
                 Defina o mínimo de cada produto na tela dele (Estoque por loja) para ser avisado aqui.
               </EmptyState>
@@ -156,12 +203,14 @@ export default async function EstoquePage({
                 </TableBody>
               </Table>
             )}
+            <Paginacao page={fatiaRepor.pagina} perPage={porPagina} total={fatiaRepor.total} hrefDe={hrefDe} />
           </section>
+          )}
 
-          {consolidado ? (
+          {aba === "tudo" && (consolidado ? (
             <section className="space-y-3">
               <h2 className="text-lg font-semibold text-texto">Todas as lojas</h2>
-              {linhasConsolidadas.length === 0 ? (
+              {fatiaConsolidadas.total === 0 ? (
                 <EmptyState titulo="Sem estoque lançado">
                   Registre uma compra ou lance o estoque inicial na tela do produto.
                 </EmptyState>
@@ -201,12 +250,13 @@ export default async function EstoquePage({
                   </TableBody>
                 </Table>
               )}
+              <Paginacao page={fatiaConsolidadas.pagina} perPage={porPagina} total={fatiaConsolidadas.total} hrefDe={hrefDe} />
             </section>
           ) : (
             lojaAtual && (
               <section className="space-y-3">
                 <h2 className="text-lg font-semibold text-texto">{lojaAtual.name}</h2>
-                {linhas.length === 0 ? (
+                {fatiaLinhas.total === 0 ? (
                   <EmptyState titulo="Sem estoque lançado nesta loja">
                     Registre uma compra, ou lance o estoque inicial na tela do produto.
                   </EmptyState>
@@ -261,9 +311,10 @@ export default async function EstoquePage({
                     </TableBody>
                   </Table>
                 )}
+                <Paginacao page={fatiaLinhas.pagina} perPage={porPagina} total={fatiaLinhas.total} hrefDe={hrefDe} />
               </section>
             )
-          )}
+          ))}
         </>
       )}
     </div>
