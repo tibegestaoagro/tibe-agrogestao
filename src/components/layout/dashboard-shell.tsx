@@ -7,6 +7,8 @@ import Sidebar, { type NavItem } from "@/components/layout/sidebar";
 import BillingBanner from "@/components/billing/billing-banner";
 import PropertySelector, { type PropertyOption } from "@/components/layout/property-selector";
 import UserMenu from "@/components/layout/user-menu";
+import LojaDoTopoSeletor from "@/components/emporio/loja-do-topo-seletor";
+import { seletorDeLojaVale } from "@/lib/emporio/loja-do-topo";
 import type { BillingAccess } from "@/lib/billing-access";
 
 /**
@@ -29,6 +31,7 @@ export default function DashboardShell({
   archived,
   properties,
   activePropertyId,
+  lojaDoTopo,
   children,
 }: {
   navItems: NavItem[];
@@ -39,6 +42,8 @@ export default function DashboardShell({
   archived: boolean;
   properties: PropertyOption[];
   activePropertyId: string | null;
+  /** Só existe com o Empório liberado: as lojas ao alcance e a do cookie ("" = Todas). */
+  lojaDoTopo?: { lojas: { id: string; name: string }[]; lojaDoCookie: string };
   children: React.ReactNode;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -77,6 +82,10 @@ export default function DashboardShell({
           {/* No Empório a propriedade da fazenda não se aplica: o seletor sai. */}
           {!(pathname === "/emporio" || pathname.startsWith("/emporio/")) && (
             <PropertySelector properties={properties} activePropertyId={activePropertyId} />
+          )}
+          {/* No lugar dele, a loja: só nas telas que filtram por loja e só com mais de uma. */}
+          {lojaDoTopo && seletorDeLojaVale(pathname) && lojaDoTopo.lojas.length > 1 && (
+            <LojaDoTopoSeletor lojas={lojaDoTopo.lojas} lojaDoCookie={lojaDoTopo.lojaDoCookie} />
           )}
           <div className="min-w-0 flex-1" />
           <UserMenu userName={userName} roleLabel={roleLabel} />

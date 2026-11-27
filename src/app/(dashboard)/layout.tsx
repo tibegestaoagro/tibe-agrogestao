@@ -10,6 +10,7 @@ import { isFeatureVisibleForUser } from "@/lib/features";
 import { papelDoEmporio } from "@/lib/emporio/papel";
 import { menuDoEmporio } from "@/lib/emporio/menu";
 import { destinoDoSoDaLoja, paginaPermitidaAoSoDaLoja } from "@/lib/emporio/paginas-do-so-da-loja";
+import { lerLojaDoTopo } from "@/lib/emporio/loja-do-topo-servidor";
 import DashboardShell from "@/components/layout/dashboard-shell";
 import InstallInvite from "@/components/pwa/install-invite";
 import NotificationOptIn from "@/components/pwa/notification-opt-in";
@@ -82,6 +83,14 @@ export default async function DashboardLayout({
     activePropertyId = active;
   }
 
+  // O layout não roda de novo ao navegar entre páginas, então não decide pelo
+  // caminho: entrega as lojas e o shell (cliente) decide onde mostrar.
+  let lojaDoTopo: { lojas: { id: string; name: string }[]; lojaDoCookie: string } | undefined;
+  if (hasEmporio) {
+    const { lojas, loja } = await lerLojaDoTopo(await getTenantDb(), user);
+    lojaDoTopo = { lojas, lojaDoCookie: loja };
+  }
+
   const navItems = buildNavItems({ role: user.role, hasFazenda, hasPrestador, hasEmporio,
     soDaLoja,
     menuDoEmporio: hasEmporio ? menuDoEmporio(papelEmporio) : [],
@@ -102,6 +111,7 @@ export default async function DashboardLayout({
           archived={archived}
           properties={properties}
           activePropertyId={activePropertyId}
+          lojaDoTopo={lojaDoTopo}
         >
           {children}
         </DashboardShell>
