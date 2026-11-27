@@ -3,7 +3,7 @@ import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { veAPagina } from "@/lib/emporio/paginas";
-import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
+import { lerLojaDoTopo } from "@/lib/emporio/loja-do-topo-servidor";
 import { viewsDosCaixas } from "@/lib/actions/emporio-caixa";
 import { listarAntecipacoesAction } from "@/lib/actions/emporio-antecipacao";
 import { listarContasAReceberAction } from "@/lib/actions/emporio-financeiro";
@@ -25,7 +25,6 @@ import { CabecalhoDaTela } from "../../_components/cabecalho-da-tela";
 import { AbasDaTela } from "../../_components/abas-da-tela";
 import { FaixaFiltro, FinanceiroCobranca } from "../../_components/financeiro-cobranca";
 import { FinanceiroReceber, recortarReceber } from "../../_components/financeiro-receber";
-import { LojaFiltro } from "../../_components/loja-filtro";
 
 const CAMINHO = "/emporio/financeiro/receber";
 
@@ -67,9 +66,7 @@ export default async function FinanceiroReceberPage({
   const papel = await papelDoEmporio(db, user);
   if (!veAPagina(papel, "/emporio/financeiro")) redirect("/emporio");
 
-  const lojasRes = await listarEstabelecimentosAction(db, user);
-  const lojas = lojasRes.ok ? lojasRes.data.map((l) => ({ id: l.id, name: l.name })) : [];
-  const loja = lojas.some((l) => l.id === lojaDaUrl) ? lojaDaUrl : "";
+  const { lojas, loja } = await lerLojaDoTopo(db, user, lojaDaUrl);
 
   const [dadosRes, cobrancaRes, antecipacoesRes, contasDoBanco, padraoId] = await Promise.all([
     listarContasAReceberAction(db, user, { establishment_id: loja || undefined, de: periodo.de, ate: periodo.ate }),
@@ -92,7 +89,6 @@ export default async function FinanceiroReceberPage({
   // Os demais parâmetros da tela seguem como vieram; só a página das antecipações muda.
   function hrefDaAntecipacao(n: number): string {
     const p = new URLSearchParams({ aba: "cartoes" });
-    if (loja) p.set("loja", loja);
     if (ver) p.set("ver", ver);
     if (deDaUrl) p.set("de", deDaUrl);
     if (ateDaUrl) p.set("ate", ateDaUrl);
@@ -116,7 +112,6 @@ export default async function FinanceiroReceberPage({
   const hrefDaAba = (valor: string) => {
     const q = new URLSearchParams();
     if (valor !== "fiado") q.set("aba", valor);
-    if (loja) q.set("loja", loja);
     if (ver) q.set("ver", ver);
     if (deDaUrl) q.set("de", deDaUrl);
     if (ateDaUrl) q.set("ate", ateDaUrl);
@@ -147,25 +142,11 @@ export default async function FinanceiroReceberPage({
         ajuda="O que ainda vai entrar: fiado, cheques, boletos e parcelas de cartão."
       />
 
-      <LojaFiltro
-        lojas={lojas}
-        loja={loja}
-        caminho="/emporio/financeiro/receber"
-        preservar={{
-          aba: abaParam,
-          ver: ver ?? undefined,
-          cheques: soACompletar ? "a_completar" : undefined,
-          faixa: faixa || undefined,
-          de: deDaUrl,
-          ate: ateDaUrl,
-        }}
-      />
-
       {dadosRes.ok && (
         <ResumoFaixa
           ativo={ver}
           caminho={CAMINHO}
-          params={{ loja, aba: abaParam, faixa: faixa || undefined, de: periodo.de, ate: periodo.ate }}
+          params={{ aba: abaParam, faixa: faixa || undefined, de: periodo.de, ate: periodo.ate }}
           cartoes={[
             { chave: "vencido", rotulo: "Vencido", ...dadosRes.data.summary.overdue, alerta: true },
             { chave: "hoje", rotulo: "Vence hoje", ...dadosRes.data.summary.due_today },
@@ -183,7 +164,7 @@ export default async function FinanceiroReceberPage({
           ]}
         />
       )}
-      <PeriodoFiltro caminho={CAMINHO} de={periodo.de} ate={periodo.ate} extras={{ loja, aba: abaParam, ver: ver ?? undefined, faixa: faixa || undefined }} />
+      <PeriodoFiltro caminho={CAMINHO} de={periodo.de} ate={periodo.ate} extras={{ aba: abaParam, ver: ver ?? undefined, faixa: faixa || undefined }} />
 
       {!dadosRes.ok ? (
         <EmptyState titulo="Não foi possível ler o que receber">{dadosRes.message}</EmptyState>
@@ -198,7 +179,7 @@ export default async function FinanceiroReceberPage({
           {abas}
           {aba === "vencidos" ? (
             <div className="space-y-4">
-              <FaixaFiltro faixa={faixa} loja={loja} ver={ver ?? ""} de={deDaUrl ?? ""} ate={ateDaUrl ?? ""} />
+              <FaixaFiltro faixa={faixa} ver={ver ?? ""} de={deDaUrl ?? ""} ate={ateDaUrl ?? ""} />
               {cobrancaRes.ok ? (
                 <FinanceiroCobranca dados={cobrancaRes.data} loja={loja} />
               ) : (

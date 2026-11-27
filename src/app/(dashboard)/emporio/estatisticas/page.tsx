@@ -3,7 +3,8 @@ import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { veAPagina } from "@/lib/emporio/paginas";
-import { listarEstabelecimentosAction, lojasDoAtor } from "@/lib/actions/emporio-catalogo";
+import { lojasDoAtor } from "@/lib/actions/emporio-catalogo";
+import { lerLojaDoTopo } from "@/lib/emporio/loja-do-topo-servidor";
 import { hojeEmBrasilia } from "@/lib/emporio/cartao";
 import {
   abaDaEstatistica,
@@ -42,10 +43,8 @@ export default async function EstatisticasPage({ searchParams }: { searchParams:
   const periodo = periodoDasEstatisticas({ de: um(sp.de) || undefined, ate: um(sp.ate) || undefined }, hoje);
   const periodoNaUrl = !periodo.invalido && (um(sp.de) !== "" || um(sp.ate) !== "");
 
-  const lojasRes = await listarEstabelecimentosAction(db, user);
-  const lojas = lojasRes.ok ? lojasRes.data.map((l) => ({ id: l.id, name: l.name })) : [];
-  // A loja da URL só vale se estiver ao alcance de quem olha; sem ela, "Todas as minhas lojas".
-  const loja = lojas.some((l) => l.id === um(sp.loja)) ? um(sp.loja) : "";
+  // A loja do topo (a da URL, a do cookie ou "" = Todas as minhas lojas), sempre ao alcance de quem olha.
+  const { lojas, loja } = await lerLojaDoTopo(db, user, um(sp.loja));
 
   const dias = um(sp.dias) === "60" ? 60 : um(sp.dias) === "90" ? 90 : 30;
   const abc = um(sp.abc);
@@ -59,7 +58,6 @@ export default async function EstatisticasPage({ searchParams }: { searchParams:
       q.set("de", periodo.de);
       q.set("ate", periodo.ate);
     }
-    if (loja) q.set("loja", loja);
     // A medida da Curva ABC passa entre Vendas e Relatórios para imprimir, que imprime a mesma curva.
     if (medida && (valor === "vendas" || valor === "imprimir")) q.set("medida", medida);
     return `/emporio/estatisticas?${q.toString()}`;
@@ -138,14 +136,12 @@ export default async function EstatisticasPage({ searchParams }: { searchParams:
     <div className="space-y-6">
       <CabecalhoDaTela
         titulo="Estatísticas"
-        ajuda="Os números da loja num lugar só: vendas, dinheiro e resultado, no período e na loja que você escolher aqui em cima."
+        ajuda="Os números da loja num lugar só: vendas, dinheiro e resultado, no período que você escolher aqui e na loja do seletor lá em cima."
       />
       <EstatisticasFiltro
         aba={aba}
         de={periodo.de}
         ate={periodo.ate}
-        loja={loja}
-        lojas={lojas}
         atalhos={atalhosDasEstatisticas(hoje)}
         invalido={periodo.invalido}
         manter={manter}

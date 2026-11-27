@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
 import { lerInicioAction } from "@/lib/actions/emporio-inicio";
+import { lerLojaDoTopo } from "@/lib/emporio/loja-do-topo-servidor";
 import { primeirosPassosAction } from "@/lib/actions/emporio-primeiros-passos";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { veAPagina } from "@/lib/emporio/paginas";
@@ -61,13 +62,16 @@ function saudacao(hora: number): string {
  * `requireFeaturePage` devolve 404 quando o recurso não é visível para o
  * usuário, como se a rota não existisse. O Caixa não tem Início: entra em Vender.
  */
-export default async function EmporioPage() {
+export default async function EmporioPage({ searchParams }: { searchParams: Promise<{ loja?: string }> }) {
   const user = await requireFeaturePage("emporio");
+  const sp = await searchParams;
   const db = await getTenantDb();
   const papel = await papelDoEmporio(db, user);
   if (caixaEntraEmVender(papel)) redirect("/emporio/vender");
 
-  const inicio = await lerInicioAction(db, user);
+  // Com uma loja no topo, os avisos e os números são só dela.
+  const { loja } = await lerLojaDoTopo(db, user, sp.loja);
+  const inicio = await lerInicioAction(db, user, { establishment_id: loja || undefined });
   const { hora, mesAnterior } = agoraEmSaoPaulo();
   const primeiroNome = user.name?.trim().split(/\s+/)[0];
   const titulo = primeiroNome ? `${saudacao(hora)}, ${primeiroNome}` : saudacao(hora);

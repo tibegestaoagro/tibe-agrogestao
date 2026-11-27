@@ -30,11 +30,13 @@ const ORDEM = [
   "cash_register_id",
 ] as const;
 type Campo = (typeof ORDEM)[number];
-export function ContaAvulsaForm({ lojas, origens, caixas, usuarioId, hoje }: {
+export function ContaAvulsaForm({ lojas, origens, caixas, usuarioId, hoje, lojaInicial = "" }: {
   lojas: {
     id: string;
     name: string;
   }[];
+  /** A loja do seletor do topo: abre escolhida quando está em `lojas`. */
+  lojaInicial?: string;
   origens: OrigemDoDinheiro[];
   caixas: CaixaDaLoja[];
   usuarioId: string;
@@ -45,7 +47,9 @@ export function ContaAvulsaForm({ lojas, origens, caixas, usuarioId, hoje }: {
   const err = useErrosDeFormulario(ORDEM, "avulsa");
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
-  const [loja, setLoja] = useState(lojas.length === 1 ? lojas[0].id : "");
+  const [loja, setLoja] = useState(
+    lojas.length === 1 ? lojas[0].id : lojas.some((l) => l.id === lojaInicial) ? lojaInicial : "",
+  );
   const [descricao, setDescricao] = useState("");
   const [valor, setValor] = useState("");
   const [vencimento, setVencimento] = useState(hoje);

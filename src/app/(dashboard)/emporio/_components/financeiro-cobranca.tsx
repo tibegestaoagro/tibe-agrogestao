@@ -113,16 +113,14 @@ const FAIXAS = [
   { valor: "60+", rotulo: "Mais de 60 dias" },
 ];
 
-/** O filtro de faixa de atraso (`?faixa=`), que preserva `?loja=`. */
+/** O filtro de faixa de atraso (`?faixa=`). A loja vem do seletor do topo. */
 export function FaixaFiltro({
   faixa,
-  loja,
   ver = "",
   de = "",
   ate = "",
 }: {
   faixa: string;
-  loja: string;
   ver?: string;
   de?: string;
   ate?: string;
@@ -131,7 +129,6 @@ export function FaixaFiltro({
 
   function ir(nova: string) {
     const q = new URLSearchParams({ aba: "vencidos" });
-    if (loja) q.set("loja", loja);
     if (ver) q.set("ver", ver);
     if (de) q.set("de", de);
     if (ate) q.set("ate", ate);

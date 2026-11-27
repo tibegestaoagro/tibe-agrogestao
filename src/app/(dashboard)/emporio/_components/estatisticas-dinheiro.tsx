@@ -52,7 +52,6 @@ export async function EstatisticasDinheiro({
 
   const hrefJanela = (d: number) => {
     const q = new URLSearchParams({ aba: "dinheiro", dias: String(d) });
-    if (loja) q.set("loja", loja);
     if (periodoNaUrl) {
       q.set("de", de);
       q.set("ate", ate);

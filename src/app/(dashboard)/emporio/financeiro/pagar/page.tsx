@@ -3,7 +3,7 @@ import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { veAPagina } from "@/lib/emporio/paginas";
-import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
+import { lerLojaDoTopo } from "@/lib/emporio/loja-do-topo-servidor";
 import { lerCaixaAction } from "@/lib/actions/emporio-caixa";
 import {
   listarContasAPagarAction,
@@ -30,7 +30,6 @@ import { CabecalhoDaTela } from "../../_components/cabecalho-da-tela";
 import { AbasDaTela } from "../../_components/abas-da-tela";
 import { DespesasFixasSecao } from "../../_components/despesas-fixas-secao";
 import { VendeuPagouSecao } from "../../_components/vendeu-pagou-secao";
-import { LojaFiltro } from "../../_components/loja-filtro";
 import { opcoesDeMes } from "../../_components/meses";
 
 const CAMINHO = "/emporio/financeiro/pagar";
@@ -55,14 +54,11 @@ export default async function FinanceiroPagarPage({
   // Os critérios automáticos da despesa fixa são de quem vê todas as lojas (o servidor recusa os demais).
   const podeAutomatico = papel.lojas === null;
 
-  const lojasRes = await listarEstabelecimentosAction(db, user);
-  const lojas = lojasRes.ok ? lojasRes.data.map((l) => ({ id: l.id, name: l.name })) : [];
-  const loja = lojas.some((l) => l.id === lojaDaUrl) ? lojaDaUrl : "";
+  const { lojas, loja } = await lerLojaDoTopo(db, user, lojaDaUrl);
 
   const hrefDaAba = (valor: string) => {
     const q = new URLSearchParams();
     if (valor !== "contas") q.set("aba", valor);
-    if (loja) q.set("loja", loja);
     const qs = q.toString();
     return qs ? `${CAMINHO}?${qs}` : CAMINHO;
   };
@@ -180,18 +176,11 @@ export default async function FinanceiroPagarPage({
     <div className="space-y-6">
       {cabecalho}
       {abas}
-      <LojaFiltro
-        lojas={lojas}
-        loja={loja}
-        caminho={CAMINHO}
-        preservar={{ ver: ver ?? undefined, de: deDaUrl, ate: ateDaUrl }}
-      />
-
       {resumoRes.ok && (
         <ResumoFaixa
           ativo={ver}
           caminho={CAMINHO}
-          params={{ loja, de: periodo.de, ate: periodo.ate }}
+          params={{ de: periodo.de, ate: periodo.ate }}
           cartoes={[
             { chave: "vencida", rotulo: "Vencida", ...resumoRes.data.summary.overdue, alerta: true },
             { chave: "hoje", rotulo: "Vence hoje", ...resumoRes.data.summary.due_today },
@@ -218,11 +207,11 @@ export default async function FinanceiroPagarPage({
           ]}
         />
       )}
-      <PeriodoFiltro caminho={CAMINHO} de={periodo.de} ate={periodo.ate} extras={{ loja, ver: ver ?? undefined }} />
+      <PeriodoFiltro caminho={CAMINHO} de={periodo.de} ate={periodo.ate} extras={{ ver: ver ?? undefined }} />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold text-texto">Contas a pagar</h2>
-        <ContaAvulsaForm lojas={lojas} origens={origens} caixas={caixasDaLoja} usuarioId={user.id} hoje={hojeIso} />
+        <ContaAvulsaForm key={loja} lojaInicial={loja} lojas={lojas} origens={origens} caixas={caixasDaLoja} usuarioId={user.id} hoje={hojeIso} />
       </div>
 
       {ver === "pago" ? (

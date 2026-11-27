@@ -51,7 +51,6 @@ export async function EstatisticasVendas({
 
   const hrefAbc = (a: "produtos" | "clientes", m: "faturamento" | "lucro") => {
     const q = new URLSearchParams({ aba: "vendas", de, ate, abc: a, medida: m });
-    if (loja) q.set("loja", loja);
     return `/emporio/estatisticas?${q.toString()}`;
   };
 

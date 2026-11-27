@@ -4,7 +4,7 @@ import { papelDoEmporio } from "@/lib/emporio/papel";
 import { veAPagina } from "@/lib/emporio/paginas";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
-import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
+import { lerLojaDoTopo } from "@/lib/emporio/loja-do-topo-servidor";
 import { listarHistoricoAction, type HistoricoLinha } from "@/lib/actions/emporio-historico";
 import { ACOES_DO_HISTORICO } from "@/lib/emporio/historico";
 import { Button } from "@/components/ui/button";
@@ -85,9 +85,12 @@ export default async function HistoricoPage({ searchParams }: { searchParams: Pr
   const db = await getTenantDb();
   if (!veAPagina(await papelDoEmporio(db, user), "/emporio/historico")) redirect("/emporio");
 
+  // A loja vem do seletor do topo (a da URL, a do cookie ou "" = Todas).
+  const { loja } = await lerLojaDoTopo(db, user, p.establishment_id);
+
   const res = await listarHistoricoAction(db, user, {
     user_id: p.user_id,
-    establishment_id: p.establishment_id,
+    establishment_id: loja || undefined,
     de: p.de,
     ate: p.ate,
     action: p.action,
@@ -95,15 +98,11 @@ export default async function HistoricoPage({ searchParams }: { searchParams: Pr
   });
   if (!res.ok && res.status === 403) redirect("/emporio");
 
-  const [lojasRes, pessoas] = await Promise.all([
-    listarEstabelecimentosAction(db, user),
-    db.user.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
-  ]);
-  const lojas = lojasRes.ok ? lojasRes.data.map((l) => ({ id: l.id, name: l.name })) : [];
+  const pessoas = await db.user.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } });
   const grupos = gruposDeAcoes();
 
   const filtros = new URLSearchParams();
-  for (const k of ["user_id", "establishment_id", "de", "ate", "action"] as const) {
+  for (const k of ["user_id", "de", "ate", "action"] as const) {
     if (p[k]) filtros.set(k, p[k]);
   }
   const filtrando = filtros.size > 0;
@@ -124,7 +123,7 @@ export default async function HistoricoPage({ searchParams }: { searchParams: Pr
         caminho="/emporio/historico"
         de={p.de ?? ""}
         ate={p.ate ?? ""}
-        extras={{ user_id: p.user_id, establishment_id: p.establishment_id, action: p.action }}
+        extras={{ user_id: p.user_id, action: p.action }}
         rotuloVazio="Todo o período"
       />
 
@@ -136,17 +135,6 @@ export default async function HistoricoPage({ searchParams }: { searchParams: Pr
             {pessoas.map((u) => (
               <option key={u.id} value={u.id}>
                 {u.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="hist-loja">Loja</Label>
-          <select id="hist-loja" name="establishment_id" defaultValue={p.establishment_id ?? ""} className={CAMPO}>
-            <option value="">Todas</option>
-            {lojas.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.name}
               </option>
             ))}
           </select>

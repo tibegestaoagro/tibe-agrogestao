@@ -56,19 +56,17 @@ function Linha({ rotulo, valor, destaque = false }: { rotulo: string; valor: str
 /** A tela "Hoje" do Financeiro: quatro cartões, cada um levando à aba que resolve. */
 export function FinanceiroHoje({ resumo, loja }: { resumo: HojeView; loja: string }) {
   const { positions, total_balance, payables_due, receivables_due, overdue_fiado, pending_approvals, unreconciled, cards_to_confirm, cards_overdue, checks_to_complete } = resumo;
-  // O A receber filtrado, com a loja preservada.
+  // O A receber filtrado. A loja vem do seletor do topo, então o link não a leva.
   const enderecoDoReceber = (ver: "hoje" | "vencido") => {
     // Os dois cartões que usam isto são de parcelas de cartão: a aba que resolve é a dos Cartões.
-    const p = new URLSearchParams({ aba: "cartoes" });
-    if (loja) p.set("loja", loja);
-    p.set("ver", ver);
+    const p = new URLSearchParams({ aba: "cartoes", ver });
     return `/emporio/financeiro/receber?${p.toString()}`;
   };
   const conta = positions.find((p) => p.kind === "conta");
   const enderecoSemCarimbo = conta
     ? `${enderecoDaAba("/emporio/caixa", loja)}${loja ? "&" : "?"}lugar=conta:${conta.id}&carimbo=sem`
     : enderecoDaAba("/emporio/caixa", loja);
-  const enderecoDosCheques = `${enderecoDaAba("/emporio/financeiro/receber", loja)}${loja ? "&" : "?"}aba=cheques&cheques=a_completar`;
+  const enderecoDosCheques = "/emporio/financeiro/receber?aba=cheques&cheques=a_completar";
   const aReceberHoje = receivables_due.fiado.total + receivables_due.checks.total + receivables_due.boletos.total + receivables_due.cards.total;
 
   return (
@@ -155,7 +153,7 @@ export function FinanceiroHoje({ resumo, loja }: { resumo: HojeView; loja: strin
         </div>
       </Cartao>
 
-      <Cartao titulo="Vence hoje a pagar" href={enderecoDaAba("/emporio/financeiro/pagar", loja)} verTudo="Pagar contas">
+      <Cartao titulo="Vence hoje a pagar" href="/emporio/financeiro/pagar" verTudo="Pagar contas">
         {payables_due.count === 0 ? (
           <EmptyState compacto titulo="Nada vence hoje, e nada está atrasado." />
         ) : (
@@ -182,7 +180,7 @@ export function FinanceiroHoje({ resumo, loja }: { resumo: HojeView; loja: strin
         )}
       </Cartao>
 
-      <Cartao titulo="Vence hoje a receber" href={enderecoDaAba("/emporio/financeiro/receber", loja)} verTudo="Ver o que receber">
+      <Cartao titulo="Vence hoje a receber" href="/emporio/financeiro/receber" verTudo="Ver o que receber">
         {aReceberHoje === 0 ? (
           <EmptyState compacto titulo="Nada a receber hoje." />
         ) : (
@@ -206,7 +204,7 @@ export function FinanceiroHoje({ resumo, loja }: { resumo: HojeView; loja: strin
         />
       </Cartao>
 
-      <Cartao titulo="Fiado vencido" href={enderecoDaAba("/emporio/financeiro/receber", loja)} verTudo="Cobrar e receber">
+      <Cartao titulo="Fiado vencido" href="/emporio/financeiro/receber" verTudo="Cobrar e receber">
         {overdue_fiado.customers === 0 ? (
           <EmptyState compacto titulo="Nenhum fiado vencido">Quem comprou fiado está em dia.</EmptyState>
         ) : (
