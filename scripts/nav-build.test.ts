@@ -115,9 +115,9 @@ function main() {
   assert(
     JSON.stringify(descreve(gDono)) ===
       JSON.stringify([
-        "folha:Início", "folha:Vender", "sub:Vendas", "sub:Estoque", "sub:Dinheiro", "sub:Estatísticas", "sub:Ajustes",
+        "folha:Início", "folha:Vender", "sub:Vendas", "sub:Estoque", "sub:Dinheiro", "folha:Estatísticas", "sub:Ajustes",
       ]),
-    "dono: o grupo Meu Empório tem as folhas Início e Vender e os subgrupos Vendas, Estoque, Dinheiro, Estatísticas e Ajustes",
+    "dono: o grupo Meu Empório tem as folhas Início, Vender e Estatísticas e os subgrupos Vendas, Estoque, Dinheiro e Ajustes",
   );
   const financeiro: PapelContexto = { papel: "financeiro", lojas: null, chaves: new Set(), soDaLoja: true };
   const hrefsFin = paginasVisiveis(financeiro).map((p) => p.href);
@@ -131,8 +131,8 @@ function main() {
     "Financeiro não vê Vender nem Equipe",
   );
   assert(
-    ["/emporio/financeiro/pagar", "/emporio/resultado", "/emporio/clientes", "/emporio/historico"].every((h) => hrefsFin.includes(h)),
-    "Financeiro vê A pagar, Resultado, Clientes e Histórico",
+    ["/emporio/financeiro/pagar", "/emporio/estatisticas", "/emporio/clientes", "/emporio/historico"].every((h) => hrefsFin.includes(h)),
+    "Financeiro vê A pagar, Estatísticas, Clientes e Histórico",
   );
   assert(gDono?.show === true && gDono.icon === "emporio", "o grupo Meu Empório aparece com o ícone do Empório");
   const primeira = gDono?.children[0];
@@ -152,8 +152,8 @@ function main() {
   const hrefsVend = folhasDe(gVend).map((c) => c.href);
   assert(!!gVend, "com soDaLoja, o grupo Meu Empório continua lá");
   assert(
-    ["/emporio/financeiro/pagar", "/emporio/resultado", "/emporio/equipe", "/emporio/historico"].every((h) => !hrefsVend.includes(h)),
-    "vendedor não vê A pagar, Resultado, Equipe nem Histórico",
+    ["/emporio/financeiro/pagar", "/emporio/estatisticas", "/emporio/equipe", "/emporio/historico"].every((h) => !hrefsVend.includes(h)),
+    "vendedor não vê A pagar, Estatísticas, Equipe nem Histórico",
   );
   assert(hrefsVend.includes("/emporio/vender"), "vendedor vê Vender");
 
@@ -162,9 +162,19 @@ function main() {
   assert(hrefsGestor.includes("/emporio/configuracoes"), "gestor vê Configurações");
   assert(!hrefsVend.includes("/emporio/configuracoes"), "vendedor não vê Configurações");
   assert(!hrefsGestor.includes("/emporio/equipe"), "gestor não vê Equipe");
-  assert(veAPagina(gestor, "/emporio/resultado") && !veAPagina(vendedor, "/emporio/resultado"), "veAPagina segue o papel");
+  assert(veAPagina(gestor, "/emporio/estatisticas") && !veAPagina(vendedor, "/emporio/estatisticas"), "veAPagina segue o papel");
+  assert(
+    !veAPagina(gestor, "/emporio/resultado") && !veAPagina(gestor, "/emporio/relatorios"),
+    "/emporio/resultado e /emporio/relatorios saíram do paginas.ts (viraram redirect)",
+  );
+  assert(
+    folhasDe(gDono).some((f) => f.href === "/emporio/estatisticas" && f.label === "Estatísticas") &&
+      folhasDe(gDono).every((f) => !["Relatórios", "Resultado", "Projeção", "Relatórios do dinheiro"].includes(f.label)),
+    "dono: item Estatísticas, e nenhum dos quatro itens antigos sobra",
+  );
 
   const caixa: PapelContexto = { papel: "caixa", lojas: new Set([lojaA]), chaves: new Set(), soDaLoja: true };
+  assert(!veAPagina(caixa, "/emporio/estatisticas"), "o Caixa não abre Estatísticas");
   const doCaixa = buildNavItems({ ...base, hasEmporio: true, soDaLoja: true, menuDoEmporio: menuDoEmporio(caixa) });
   assert(
     JSON.stringify(folhasDe(grupo(doCaixa)).map((c) => c.href)) ===
@@ -197,7 +207,7 @@ function main() {
   // A folha acesa: só a de href mais específico (Hoje não acende em /financeiro/projecao).
   const folhasDono = folhasDe(gDono);
   const acesa = (p: string) => folhasDono.find((f) => f.href === hrefAtivo(p, folhasDono))?.label ?? null;
-  assert(acesa("/emporio/financeiro/projecao") === "Projeção", "rota /financeiro/projecao: só Projeção acende");
+  assert(acesa("/emporio/estatisticas") === "Estatísticas", "rota /estatisticas: só Estatísticas acende");
   assert(acesa("/emporio/financeiro") === "Hoje", "rota /financeiro: Hoje");
   assert(acesa("/emporio/financeiro/receber") === "A receber", "rota /financeiro/receber: A receber");
   assert(acesa("/emporio/vendas/abc") === "Vendas", "rota /vendas/abc: Vendas");

@@ -60,7 +60,11 @@ const inicio = dono[0];
 check("Início é item com exact", inicio?.tipo === "item" && inicio.exact === true, j(inicio));
 const vender = dono[1];
 check("Vender é item com destaque", vender?.tipo === "item" && vender.destaque === true, j(vender));
-check("Vendas e os outros quatro são grupos", j(dono.slice(2).map((e) => e.tipo)) === j(["grupo", "grupo", "grupo", "grupo", "grupo"]));
+check(
+  "Vendas, Estoque, Dinheiro e Ajustes são grupos, e Estatísticas é item (onda 5)",
+  j(dono.slice(2).map((e) => e.tipo)) === j(["grupo", "grupo", "grupo", "item", "grupo"]),
+  j(dono.slice(2).map((e) => e.tipo)),
+);
 check(
   "grupo Vendas",
   j(rotulosDe(grupo(dono, "Vendas"))) === j(["Vendas", "Orçamentos", "Clientes", "Fiado", "Franqueados"]),
@@ -77,9 +81,14 @@ check(
   j(rotulosDe(grupo(dono, "Dinheiro"))),
 );
 check(
-  "grupo Estatísticas",
-  j(rotulosDe(grupo(dono, "Estatísticas"))) === j(["Relatórios", "Resultado", "Projeção", "Relatórios do dinheiro"]),
-  j(rotulosDe(grupo(dono, "Estatísticas"))),
+  "Estatísticas é item solto, sem grupo",
+  grupo(dono, "Estatísticas") === undefined && itemSolto(dono, "Estatísticas")?.href === "/emporio/estatisticas",
+  j(itemSolto(dono, "Estatísticas")),
+);
+check(
+  "nenhum dos quatro itens antigos sobra",
+  ["Relatórios", "Resultado", "Projeção", "Relatórios do dinheiro"].every((r) => !todosOsItens(dono).some((i) => i.rotulo === r)),
+  j(todosOsItens(dono).map((i) => i.rotulo)),
 );
 check(
   "grupo Ajustes",
@@ -94,10 +103,7 @@ const hrefs: Record<string, string> = {
   "A receber": "/emporio/financeiro/receber",
   "A pagar": "/emporio/financeiro/pagar",
   Aprovações: "/emporio/financeiro/aprovacoes",
-  "Relatórios do dinheiro": "/emporio/financeiro/relatorios",
-  Relatórios: "/emporio/relatorios",
-  Resultado: "/emporio/resultado",
-  Projeção: "/emporio/financeiro/projecao",
+  Estatísticas: "/emporio/estatisticas",
   Lojas: "/emporio/estabelecimentos",
 };
 for (const [rotulo, href] of Object.entries(hrefs)) {
@@ -127,9 +133,12 @@ check(
   !hrefsGestor.includes("/emporio/despesas") && !hrefsGestor.includes("/emporio/financeiro") && !hrefsGestor.includes("/emporio/financeiro/receber"),
   j(hrefsGestor),
 );
-const estGestor = rotulosDe(grupo(gestor, "Estatísticas"));
-check("Estatísticas tem Relatórios e Resultado", !!estGestor && estGestor.includes("Relatórios") && estGestor.includes("Resultado"), j(estGestor));
-check("Estatísticas não tem Projeção", !!estGestor && !estGestor.includes("Projeção"), j(estGestor));
+check("gestor tem o item Estatísticas", itemSolto(gestor, "Estatísticas")?.href === "/emporio/estatisticas", j(gestor.map((e) => e.rotulo)));
+check(
+  "gestor não tem Relatórios, Resultado nem Projeção",
+  !todosOsItens(gestor).some((i) => ["Relatórios", "Resultado", "Projeção", "Relatórios do dinheiro"].includes(i.rotulo)),
+  j(todosOsItens(gestor).map((i) => i.rotulo)),
+);
 
 console.log("\n5. Financeiro");
 const fin = menuDoEmporio(CONTEXTOS.financeiro);
@@ -141,11 +150,7 @@ check(
   j(rotulosDe(grupo(fin, "Dinheiro"))) === j(["Hoje", "Caixa", "A receber", "A pagar", "Aprovações"]),
   j(rotulosDe(grupo(fin, "Dinheiro"))),
 );
-check(
-  "Estatísticas com Relatórios do dinheiro",
-  (rotulosDe(grupo(fin, "Estatísticas")) ?? []).includes("Relatórios do dinheiro"),
-  j(rotulosDe(grupo(fin, "Estatísticas"))),
-);
+check("Financeiro tem o item Estatísticas", itemSolto(fin, "Estatísticas")?.href === "/emporio/estatisticas", j(fin.map((e) => e.rotulo)));
 
 console.log("\n6. Grupo de um item só vira item solto (vendedor)");
 const vend = menuDoEmporio(CONTEXTOS.vendedor);
@@ -153,7 +158,8 @@ check("Caixa é item solto", itemSolto(vend, "Caixa") !== undefined, j(vend));
 check("Lojas é item solto", itemSolto(vend, "Lojas") !== undefined, j(vend));
 check("Caixa não está dentro de grupo", !grupos(vend).some((g) => g.itens.some((i) => i.rotulo === "Caixa")));
 check("Lojas não está dentro de grupo", !grupos(vend).some((g) => g.itens.some((i) => i.rotulo === "Lojas")));
-check("sem grupo Estatísticas", grupo(vend, "Estatísticas") === undefined);
+check("vendedor sem Estatísticas", itemSolto(vend, "Estatísticas") === undefined && grupo(vend, "Estatísticas") === undefined);
+check("caixa sem Estatísticas", itemSolto(caixa, "Estatísticas") === undefined);
 check("sem grupo Dinheiro nem Ajustes", grupo(vend, "Dinheiro") === undefined && grupo(vend, "Ajustes") === undefined);
 check("não é plano: tem Vendas e Estoque", grupo(vend, "Vendas") !== undefined && grupo(vend, "Estoque") !== undefined, j(vend.map((e) => e.rotulo)));
 

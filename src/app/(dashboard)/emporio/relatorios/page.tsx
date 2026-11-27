@@ -1,132 +1,15 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { requireFeaturePage } from "@/lib/features";
-import { getTenantDb } from "@/lib/tenant-context";
-import { papelDoEmporio, pode } from "@/lib/emporio/papel";
-import { veAPagina } from "@/lib/emporio/paginas";
-import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
-import { curvaAbcAction, podeVerLucroAction, relatorioDeVendasAction, type CurvaAbc } from "@/lib/actions/emporio-relatorios";
-import { hojeEmBrasilia } from "@/lib/emporio/cartao";
-import { EmptyState } from "@/components/ui/empty-state";
-import { CabecalhoDaTela } from "../_components/cabecalho-da-tela";
-import { RelatoriosFiltro } from "../_components/relatorios-filtro";
-import { RelatoriosBlocos } from "../_components/relatorios-blocos";
-import { CurvaAbcSecao } from "./_components/curva-abc";
+import { enderecoDaEstatistica } from "@/lib/emporio/estatisticas";
 
-/**
- * Relatórios do Empório (entrega 3): vendas por vendedor, por produto, produtos
- * parados e vendas por loja num período. Do Gestor da loja para cima.
- */
+/** O endereço antigo dos Relatórios: virou a aba Vendas das Estatísticas. O destino confere a permissão. */
 export default async function RelatoriosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ de?: string; ate?: string; loja?: string; abc?: string; medida?: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const user = await requireFeaturePage("emporio");
-  const {
-    de: deDaUrl = "",
-    ate: ateDaUrl = "",
-    loja: lojaDaUrl = "",
-    abc: abcDaUrl = "",
-    medida: medidaDaUrl = "",
-  } = await searchParams;
+  redirect(enderecoDaEstatistica("/emporio/relatorios", umPorChave(await searchParams)));
+}
 
-  const db = await getTenantDb();
-  const papel = await papelDoEmporio(db, user);
-  if (!veAPagina(papel, "/emporio/relatorios")) redirect("/emporio");
-  const lojasRes = await listarEstabelecimentosAction(db, user);
-  const lojas = lojasRes.ok ? lojasRes.data.map((l) => ({ id: l.id, name: l.name })) : [];
-
-  // Padrão: do dia 1 do mês corrente até hoje, no dia de Brasília.
-  const hoje = hojeEmBrasilia().toISOString().slice(0, 10);
-  const padraoDe = `${hoje.slice(0, 7)}-01`;
-  const informado = deDaUrl !== "" || ateDaUrl !== "";
-  const loja = lojas.length > 1 && lojas.some((l) => l.id === lojaDaUrl) ? lojaDaUrl : "";
-  const pedir = (from: string, to: string) =>
-    relatorioDeVendasAction(db, user, { from, to, ...(loja ? { establishment_id: loja } : {}) });
-
-  let de = deDaUrl || padraoDe;
-  let ate = ateDaUrl || hoje;
-  let aviso: string | null = null;
-  let res = lojas.length > 0 ? await pedir(de, ate) : null;
-  // Período inválido na URL: mostra o padrão com um aviso, nunca quebra.
-  if (res && !res.ok && res.status === 422 && informado) {
-    aviso = `${res.message} Mostrando o mês atual.`;
-    de = padraoDe;
-    ate = hoje;
-    res = await pedir(de, ate);
-  }
-
-  // Curva ABC: usa o período e a loja já resolvidos acima. A recusa do lucro (403)
-  // fica como reserva: não derruba a página, cai para o faturamento e avisa.
-  const kind = abcDaUrl === "clientes" ? "customers" : "products";
-  // Quem não vê o lucro nem recebe o seletor: decidido aqui, antes de renderizar.
-  const mostrarMedida = await podeVerLucroAction(db, user);
-  let measure: "revenue" | "profit" = mostrarMedida && medidaDaUrl === "lucro" ? "profit" : "revenue";
-  let erroAbc: string | null = null;
-  let curva: CurvaAbc | null = null;
-  if (res && res.ok) {
-    const pedirAbc = (m: "revenue" | "profit") =>
-      curvaAbcAction(db, user, { from: de, to: ate, kind, measure: m, ...(loja ? { establishment_id: loja } : {}) });
-    let abc = await pedirAbc(measure);
-    if (!abc.ok && measure === "profit" && abc.status === 403) {
-      measure = "revenue";
-      erroAbc = abc.message;
-      abc = await pedirAbc(measure);
-    }
-    if (abc.ok) curva = abc.data;
-    else erroAbc = abc.message;
-  }
-  const hrefAbc = (abc: "produtos" | "clientes", medida: "faturamento" | "lucro") => {
-    const q = new URLSearchParams({ de, ate, abc, medida });
-    if (loja) q.set("loja", loja);
-    return `/emporio/relatorios?${q.toString()}`;
-  };
-
-  return (
-    <div className="space-y-6">
-      <CabecalhoDaTela
-        titulo="Relatórios"
-        ajuda="Quem vendeu, o que vendeu e o que ficou parado, num período à sua escolha."
-      >
-        {pode(papel, "dinheiro") && (
-          <>
-            Os relatórios do dinheiro (a receber por idade, a pagar por vencimento, posição de caixa) estão no{" "}
-            <Link href="/emporio/financeiro/relatorios" className="font-medium text-texto underline">
-              Financeiro
-            </Link>
-            .
-          </>
-        )}
-      </CabecalhoDaTela>
-
-      {lojas.length === 0 ? (
-        <EmptyState titulo="Nenhuma loja disponível">Cadastre uma loja em Lojas para ver os relatórios.</EmptyState>
-      ) : (
-        <>
-          <RelatoriosFiltro de={de} ate={ate} loja={loja} lojas={lojas} manter={{ abc: abcDaUrl, medida: medidaDaUrl }} />
-          {aviso && (
-            <p role="status" className="text-sm text-texto-secundario">
-              {aviso}
-            </p>
-          )}
-          {res && res.ok ? (
-            <>
-              <CurvaAbcSecao
-                curva={curva}
-                erro={erroAbc}
-                kind={kind}
-                measure={measure}
-                mostrarMedida={mostrarMedida}
-                href={hrefAbc}
-              />
-              <RelatoriosBlocos r={res.data} />
-            </>
-          ) : (
-            <EmptyState titulo="Não foi possível montar o relatório">{res ? res.message : "Escolha uma loja."}</EmptyState>
-          )}
-        </>
-      )}
-    </div>
-  );
+function umPorChave(sp: Record<string, string | string[] | undefined>): Record<string, string | undefined> {
+  return Object.fromEntries(Object.entries(sp).map(([k, v]) => [k, Array.isArray(v) ? v[0] : v]));
 }

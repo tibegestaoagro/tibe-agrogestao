@@ -41,17 +41,7 @@ const ESTRUTURA: readonly EntradaDoMenu[] = [
       { href: "/emporio/financeiro/aprovacoes", rotulo: "Aprovações" },
     ],
   },
-  {
-    tipo: "grupo",
-    rotulo: "Estatísticas",
-    itens: [
-      { href: "/emporio/relatorios", rotulo: "Relatórios" },
-      { href: "/emporio/resultado", rotulo: "Resultado" },
-      { href: "/emporio/financeiro/projecao", rotulo: "Projeção" },
-      // Provisório: os relatórios do financeiro ficariam sem caminho até a onda 5, que o remove.
-      { href: "/emporio/financeiro/relatorios", rotulo: "Relatórios do dinheiro" },
-    ],
-  },
+  { tipo: "item", href: "/emporio/estatisticas", rotulo: "Estatísticas" },
   {
     tipo: "grupo",
     rotulo: "Ajustes",

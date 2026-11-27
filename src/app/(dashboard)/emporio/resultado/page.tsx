@@ -1,92 +1,15 @@
 import { redirect } from "next/navigation";
-import { requireFeaturePage } from "@/lib/features";
-import { getTenantDb } from "@/lib/tenant-context";
-import { papelDoEmporio } from "@/lib/emporio/papel";
-import { veAPagina } from "@/lib/emporio/paginas";
-import { listarEstabelecimentosAction, lojasDoAtor } from "@/lib/actions/emporio-catalogo";
-import {
-  resultadoDaLojaAction,
-  produtosDoMesAction,
-  vendasComMargemNegativaAction,
-  TODAS_AS_LOJAS,
-} from "@/lib/actions/emporio-resultado";
-import { lerMes, mesAtualEmBrasilia, textoDoMes } from "@/lib/emporio/mes";
-import { EmptyState } from "@/components/ui/empty-state";
-import { CabecalhoDaTela } from "../_components/cabecalho-da-tela";
-import { ResultadoFiltro } from "../_components/resultado-filtro";
-import { ResultadoMes } from "../_components/resultado-mes";
-import { ResultadoLojas } from "../_components/resultado-lojas";
-import { ResultadoProdutos } from "../_components/resultado-produtos";
-import { ResultadoMargemNegativa } from "../_components/resultado-margem-negativa";
-import { opcoesDeMes } from "../_components/meses";
+import { enderecoDaEstatistica } from "@/lib/emporio/estatisticas";
 
-/**
- * Resultado da Loja (F4a): vendas, custo, "Vendeu, Pagou", perdas e fixas num
- * mês, o ponto de equilíbrio e o acompanhamento do mês. Só OWNER e ADMIN.
- */
+/** O endereço antigo do Resultado: virou a aba Resultado das Estatísticas, com o mês em de/ate. */
 export default async function ResultadoPage({
   searchParams,
 }: {
-  searchParams: Promise<{ loja?: string; mes?: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const user = await requireFeaturePage("emporio");
-  const { loja: lojaDaUrl = "", mes: mesDaUrl = "" } = await searchParams;
+  redirect(enderecoDaEstatistica("/emporio/resultado", umPorChave(await searchParams)));
+}
 
-  const db = await getTenantDb();
-  // F6b: o resultado da loja é do Gestor da loja para cima; o Vendedor volta ao início.
-  if (!veAPagina(await papelDoEmporio(db, user), "/emporio/resultado")) redirect("/emporio");
-  const lojasRes = await listarEstabelecimentosAction(db, user);
-  const lojas = lojasRes.ok ? lojasRes.data.map((l) => ({ id: l.id, name: l.name })) : [];
-
-  const atual = mesAtualEmBrasilia();
-  const mes = lerMes(mesDaUrl) ?? atual;
-  const mesTexto = textoDoMes(mes);
-  const meses = opcoesDeMes(atual, 12, 0);
-  // Um mês fora da janela (link antigo) continua escolhível, no começo da lista.
-  if (!meses.some((m) => m.valor === mesTexto)) meses.unshift(...opcoesDeMes(mes, 0, 0));
-
-  // "Todas as lojas" é só de quem não está ligado a uma loja (Q103); a action recusa o resto.
-  const permiteTodas = lojas.length > 0 && (await lojasDoAtor(db, user)) === null;
-  const lojaValida = lojas.some((l) => l.id === lojaDaUrl) || (permiteTodas && lojaDaUrl === TODAS_AS_LOJAS);
-  const loja = lojaValida ? lojaDaUrl : (lojas[0]?.id ?? "");
-  const entrada = { establishment_id: loja, month: mesTexto };
-  const [resultado, produtos, negativas] = loja
-    ? await Promise.all([
-        resultadoDaLojaAction(db, user, entrada),
-        produtosDoMesAction(db, user, entrada),
-        vendasComMargemNegativaAction(db, user, entrada),
-      ])
-    : [null, null, null];
-  const somada = loja === TODAS_AS_LOJAS;
-
-  return (
-    <div className="space-y-6">
-      <CabecalhoDaTela
-        titulo="Resultado da loja"
-        ajuda="Quanto a loja ganhou no mês, depois de tirar o custo, o que sai de cada venda, as perdas e as despesas fixas."
-      />
-
-      {lojas.length === 0 ? (
-        <EmptyState titulo="Nenhuma loja disponível">Cadastre uma loja em Lojas para ver o resultado.</EmptyState>
-      ) : (
-        <>
-          <ResultadoFiltro lojas={lojas} loja={loja} lojaVeioDaUrl={lojaValida} mes={mesTexto} meses={meses} permiteTodas={permiteTodas} />
-          {resultado && resultado.ok ? (
-            <>
-              <ResultadoMes r={resultado.data} />
-              {somada && resultado.data.stores && <ResultadoLojas lojas={resultado.data.stores} />}
-            </>
-          ) : (
-            <EmptyState titulo="Não foi possível calcular o resultado">
-              {resultado ? resultado.message : "Escolha uma loja."}
-            </EmptyState>
-          )}
-          {produtos && produtos.ok && (
-            <ResultadoProdutos topSales={produtos.data.top_sales} topMargin={produtos.data.top_margin} />
-          )}
-          {negativas && negativas.ok && <ResultadoMargemNegativa vendas={negativas.data} mostrarLoja={somada} />}
-        </>
-      )}
-    </div>
-  );
+function umPorChave(sp: Record<string, string | string[] | undefined>): Record<string, string | undefined> {
+  return Object.fromEntries(Object.entries(sp).map(([k, v]) => [k, Array.isArray(v) ? v[0] : v]));
 }

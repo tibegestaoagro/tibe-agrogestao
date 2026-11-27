@@ -8,18 +8,10 @@ import { reaisBr } from "@/lib/numero-br";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { NomeDoCliente } from "./amarras";
-import { PeriodoFiltro } from "./periodo-filtro";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 
 const ddmm = (iso: string) => iso.slice(0, 10).split("-").reverse().slice(0, 2).join("/");
 const ROTULO_DO_LUGAR = { gaveta: "Gaveta", gerencia: "Com a gerência", conta: "Conta" } as const;
-
-/** O período dos relatórios: um formulário de GET. Vazio, cada bloco usa o seu padrão. */
-export function RelatoriosPeriodo({ loja, de, ate }: { loja: string; de: string; ate: string }) {
-  return (
-    <PeriodoFiltro caminho="/emporio/financeiro/relatorios" de={de} ate={ate} extras={{ loja }} rotuloVazio="Padrão" />
-  );
-}
 
 const FAIXAS = [
   { chave: "em_dia", rotulo: "Em dia" },

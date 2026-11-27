@@ -29,7 +29,7 @@ const MESES = [
 
 /** Ordem do Início: Estatísticas, Produtos, Estoque, Nova compra, A receber. */
 const ATALHOS = [
-  { href: "/emporio/relatorios", rotulo: "Estatísticas", pagina: "/emporio/relatorios" },
+  { href: "/emporio/estatisticas", rotulo: "Estatísticas", pagina: "/emporio/estatisticas" },
   { href: "/emporio/produtos", rotulo: "Produtos", pagina: "/emporio/produtos" },
   { href: "/emporio/estoque", rotulo: "Estoque", pagina: "/emporio/estoque" },
   { href: "/emporio/compras?nova=1", rotulo: "Nova compra", pagina: "/emporio/compras", chave: "chave:lancar_compra" },

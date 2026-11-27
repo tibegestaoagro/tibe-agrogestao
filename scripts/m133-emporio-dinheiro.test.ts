@@ -218,13 +218,17 @@ check(
   j(rotulosDe(grupo(fin, "Dinheiro"))) === j(["Hoje", "Caixa", "A receber", "A pagar", "Aprovações"]),
   j(rotulosDe(grupo(fin, "Dinheiro"))),
 );
-const estFin = rotulosDe(grupo(fin, "Estatísticas")) ?? [];
-check("Financeiro: Estatísticas tem Relatórios do dinheiro", estFin.includes("Relatórios do dinheiro"), j(estFin));
-check("Relatórios do dinheiro é o último de Estatísticas", estFin[estFin.length - 1] === "Relatórios do dinheiro", j(estFin));
 check(
-  "Relatórios do dinheiro aponta para /emporio/financeiro/relatorios",
-  itens(fin).find((i) => i.rotulo === "Relatórios do dinheiro")?.href === "/emporio/financeiro/relatorios",
+  "Financeiro tem o item Estatísticas",
+  itens(fin).find((i) => i.rotulo === "Estatísticas")?.href === "/emporio/estatisticas",
+  j(itens(fin).map((i) => i.rotulo)),
 );
+check(
+  "nenhum dos quatro itens antigos sobra (Financeiro e gestor)",
+  [...itens(fin), ...itens(mg)].every((i) => !["Relatórios", "Resultado", "Projeção", "Relatórios do dinheiro"].includes(i.rotulo)),
+  j(itens(fin).map((i) => i.rotulo)),
+);
+check("gestor tem o item Estatísticas", itens(mg).find((i) => i.rotulo === "Estatísticas")?.href === "/emporio/estatisticas", j(rotG));
 check("Financeiro abre /emporio/financeiro/pagar", veAPagina(ctx("financeiro", null), "/emporio/financeiro/pagar") === true);
 
 const menuCaixa = menuDoEmporio(ctx("caixa", ["L"]));

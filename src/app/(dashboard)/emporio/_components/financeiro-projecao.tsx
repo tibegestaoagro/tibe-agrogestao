@@ -12,30 +12,25 @@ const JANELAS = [30, 60, 90] as const;
 
 const ddmm = (iso: string) => iso.slice(0, 10).split("-").reverse().slice(0, 2).join("/");
 
-/** Os três botões-link de janela: preservam a loja e marcam a atual. */
-export function ProjecaoJanelas({ dias, loja }: { dias: number; loja: string }) {
+/** Os três botões-link de janela: quem chama monta o endereço de cada um (preservando loja e período), e a atual fica marcada. */
+export function ProjecaoJanelas({ dias, hrefDe }: { dias: number; hrefDe: (dias: number) => string }) {
   return (
     <nav aria-label="Janela da projeção" className="flex flex-wrap gap-2">
-      {JANELAS.map((d) => {
-        const p = new URLSearchParams();
-        if (loja) p.set("loja", loja);
-        p.set("dias", String(d));
-        return (
-          <Link
-            key={d}
-            href={`/emporio/financeiro/projecao?${p.toString()}`}
-            aria-current={d === dias ? "page" : undefined}
-            className={cn(
-              "inline-flex min-h-11 items-center rounded-md border px-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primaria sm:min-h-9",
-              d === dias
-                ? "border-primaria bg-primaria text-sobre-primaria"
-                : "border-borda bg-superficie text-texto hover:border-borda-forte",
-            )}
-          >
-            {d} dias
-          </Link>
-        );
-      })}
+      {JANELAS.map((d) => (
+        <Link
+          key={d}
+          href={hrefDe(d)}
+          aria-current={d === dias ? "page" : undefined}
+          className={cn(
+            "inline-flex min-h-11 items-center rounded-md border px-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primaria sm:min-h-9",
+            d === dias
+              ? "border-primaria bg-primaria text-sobre-primaria"
+              : "border-borda bg-superficie text-texto hover:border-borda-forte",
+          )}
+        >
+          {d} dias
+        </Link>
+      ))}
     </nav>
   );
 }
