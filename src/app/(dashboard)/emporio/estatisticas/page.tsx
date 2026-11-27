@@ -19,6 +19,7 @@ import { EstatisticasFiltro } from "../_components/estatisticas-filtro";
 import { EstatisticasVendas } from "../_components/estatisticas-vendas";
 import { EstatisticasDinheiro } from "../_components/estatisticas-dinheiro";
 import { EstatisticasResultado } from "../_components/estatisticas-resultado";
+import { EstatisticasVisaoGeral } from "../_components/estatisticas-visao-geral";
 
 type Parametros = Record<string, string | string[] | undefined>;
 const um = (v: string | string[] | undefined): string => (Array.isArray(v) ? (v[0] ?? "") : (v ?? ""));
@@ -99,8 +100,23 @@ export default async function EstatisticasPage({ searchParams }: { searchParams:
         maisDeUmMes={periodoPegaMaisDeUmMes(periodo.de, periodo.ate)}
       />
     );
+  } else if (aba === "geral") {
+    conteudo = (
+      <EstatisticasVisaoGeral
+        db={db}
+        user={user}
+        hoje={hoje.toISOString().slice(0, 10)}
+        de={periodo.de}
+        ate={periodo.ate}
+        loja={loja}
+        lojaDoResultado={lojaDoResultado}
+        alcanceTotal={(await lojasDoAtor(db, user)) === null}
+        podeDinheiro={pode(papel, "dinheiro")}
+        hrefDaAba={hrefDaAba}
+      />
+    );
   } else {
-    // Provisório: a Visão geral e os Relatórios para imprimir chegam nas próximas tarefas da onda.
+    // Provisório: os Relatórios para imprimir chegam na próxima tarefa da onda.
     conteudo = <EmptyState titulo="Em construção">Esta aba chega em breve.</EmptyState>;
   }
 
