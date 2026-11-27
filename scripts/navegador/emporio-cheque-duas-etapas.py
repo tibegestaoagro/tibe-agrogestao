@@ -230,7 +230,7 @@ lojas = api("GET", "/api/v1/emporio/establishments")["body"]["data"]
 l1 = next((l for l in lojas if l["name"] == LOJA), None)
 confere("acha a loja do cenario pela API", l1 is not None, len(lojas))
 LOJA_ID = l1["id"] if l1 else ""
-RECEBER = RECEBER_BASE + "?loja=" + LOJA_ID
+RECEBER = RECEBER_BASE + "?aba=cheques&loja=" + LOJA_ID
 HOJE_FIN = "/emporio/financeiro?loja=" + LOJA_ID
 hoje_iso = js("new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/Sao_Paulo' }).format(new Date())")
 inicial = cheques_do_receber(LOJA_ID)
@@ -344,14 +344,16 @@ confere("o link leva ao filtro", "cheques=a_completar" in caminho() and LOJA_ID 
 vs = valores_dos_cheques()
 confere("so os incompletos: 5 linhas, todas com o selo, e o cheque completo (R$ 50,00) fora", len(vs) == 5 and "R$ 50,00" not in vs and all(a_completar(v) for v in vs), vs)
 tx = texto_do_main()
-confere("fiado e cartao fora", "Fiado por cliente" not in tx and "Cartões a receber" not in tx and "Boletos" not in tx, tx[:300])
+# Onda 4: "Boletos", "Cartões" e "Fiado" agora são também o rótulo das abas; o que não pode aparecer são as seções delas.
+titulos = js("Array.from(document.querySelectorAll('main h2')).map(h => h.innerText.trim())") or []
+confere("fiado e cartao fora", "Fiado por cliente" not in tx and "Buscar cliente" not in tx and "Cartões a receber" not in titulos and "Boletos" not in titulos, [titulos, tx[:200]])
 confere("a frase do filtro", tem("Mostrando só os cheques a completar"), tx[:300])
 ir(RECEBER + "&ver=hoje&cheques=a_completar")
 vs = valores_dos_cheques()
 confere("com ?ver=hoje na URL o filtro dos cheques vence (os 5 incompletos) e a loja continua", len(vs) == 5 and "R$ 50,00" not in vs and tem("Mostrando só os cheques a completar"), vs)
 ir(RECEBER + "&cheques=a_completar")
 hrefs_tudo = js("Array.from(document.querySelectorAll('main a')).filter(a => a.innerText.includes('Ver tudo o que receber')).map(a => a.getAttribute('href'))") or []
-confere("'Ver tudo o que receber' mantem a loja e tira o filtro", len(hrefs_tudo) == 1 and LOJA_ID in hrefs_tudo[0] and "cheques=" not in hrefs_tudo[0], hrefs_tudo)
+confere("'Ver tudo o que receber' mantem a loja e a aba Cheques, e tira o filtro", len(hrefs_tudo) == 1 and LOJA_ID in hrefs_tudo[0] and "aba=cheques" in hrefs_tudo[0] and "cheques=" not in hrefs_tudo[0].replace("aba=cheques", ""), hrefs_tudo)
 fim_em = time.time() + 60
 while time.time() < fim_em and "cheques=" in caminho():
     js("(() => { const a = Array.from(document.querySelectorAll('main a')).find(x => x.innerText.includes('Ver tudo o que receber')); if (a) a.click(); })()")

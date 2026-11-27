@@ -98,8 +98,10 @@ export function FinanceiroReceber({
   const soPix = !pode(papel, "vendedor_da_loja");
   const nomeDaLoja = new Map(lojas.map((l) => [l.id, l.name]));
   const { fiado, cheques, cartoes } = recortarReceber(dados, ver, hoje, soACompletar);
-  // O endereço de volta: o mesmo, sem o filtro dos cheques e com a loja.
-  const enderecoDeTudo = loja ? `/emporio/financeiro/receber?loja=${encodeURIComponent(loja)}` : "/emporio/financeiro/receber";
+  // O endereço de volta: a mesma aba Cheques, sem o filtro dos cheques e com a loja.
+  const enderecoDeTudo = loja
+    ? `/emporio/financeiro/receber?aba=cheques&loja=${encodeURIComponent(loja)}`
+    : "/emporio/financeiro/receber?aba=cheques";
   const trazAnteriores = ver === "hoje" && cartoes.some((p) => p.status === "a_conferir" && p.effective_on.slice(0, 10) < hoje);
   // Antecipar é de quem gere a loja da parcela ou cuida do dinheiro (o servidor confere de novo).
   const lojasQueAntecipam = [...new Set(dados.cards.map((c) => c.establishment_id))].filter(

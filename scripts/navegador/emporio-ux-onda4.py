@@ -359,6 +359,14 @@ ir("/emporio/produtos")
 confere("390 px: Produtos sem rolagem lateral", sem_rolagem_lateral(), folga())
 ir("/emporio/fiado")
 confere("390 px: Fiado sem rolagem lateral", sem_rolagem_lateral(), folga())
+# A tabela do Fiado rola dentro dela mesma; as colunas "Venda mais antiga" e "Vendas" somem no celular
+# para o botão Receber caber na tela sem rolar a tabela.
+BOTAO_RECEBER = "(() => { const b = [...document.querySelectorAll('main table button')].find((x) => x.innerText.trim() === 'Receber'); if (!b) return null; const r = b.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.right), window.innerWidth, [...b.closest('table').querySelectorAll('th')].map((th) => th.innerText.trim() + ':' + Math.round(th.getBoundingClientRect().width))]; })()"
+for tela_fiado in ("/emporio/fiado", "/emporio/financeiro/receber"):
+    ir(tela_fiado)
+    caixa = esperar(lambda: js(BOTAO_RECEBER), 30)
+    confere("390 px: " + tela_fiado + ": o botão Receber cabe na tela sem rolar a tabela", bool(caixa) and caixa[0] >= 0 and caixa[1] <= caixa[2], caixa)
+    confere("390 px: " + tela_fiado + ": a coluna 'Venda mais antiga' fica escondida", not tem("Venda mais antiga"), texto_principal(300))
 
 # --- 5. Fotos (só com TIBE_FOTOS) ----------------------------------------------------------
 passo("5. Fotos (só com TIBE_FOTOS)")

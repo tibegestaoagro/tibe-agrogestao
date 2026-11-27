@@ -117,9 +117,12 @@ export function FiadoPorCliente({
               <TableRow>
                 <TableHead>Cliente</TableHead>
                 <TableHead>Deve</TableHead>
-                <TableHead>Venda mais antiga</TableHead>
-                <TableHead>Vencimento</TableHead>
-                <TableHead>Vendas</TableHead>
+                <TableHead className="hidden md:table-cell">Venda mais antiga</TableHead>
+                <TableHead>
+                  <span className="md:hidden">Vence</span>
+                  <span className="hidden md:inline">Vencimento</span>
+                </TableHead>
+                <TableHead className="hidden md:table-cell">Vendas</TableHead>
                 {podeReceber && <TableHead>Ações</TableHead>}
               </TableRow>
             </TableHeader>
@@ -133,26 +136,26 @@ export function FiadoPorCliente({
                       {c.phone && <span className="block text-xs font-normal text-texto-secundario">{c.phone}</span>}
                     </TableCell>
                     <TableCell>
-                      {reaisBr(c.owed)}
+                      <span className="block md:inline">{reaisBr(c.owed)}</span>
                       {c.overdue_amount > 0 && (
-                        <Badge variant="red" className="ml-2">
+                        <Badge variant="red" className="mt-1 md:ml-2 md:mt-0">
                           Vencido {reaisBr(c.overdue_amount)}
                         </Badge>
                       )}
                       {ver === "hoje" && (
-                        <Badge variant="amber" className="ml-2">
+                        <Badge variant="amber" className="mt-1 md:ml-2 md:mt-0">
                           Vence hoje {reaisBr(c.due_today_amount)}
                         </Badge>
                       )}
                       {ver === "a_vencer" && (
-                        <Badge variant="blue" className="ml-2">
+                        <Badge variant="blue" className="mt-1 md:ml-2 md:mt-0">
                           A vencer {reaisBr(c.upcoming_amount)}
                         </Badge>
                       )}
                     </TableCell>
-                    <TableCell>{c.oldest_sale_at ? DATA_BR.format(new Date(c.oldest_sale_at)) : "-"}</TableCell>
+                    <TableCell className="hidden md:table-cell">{c.oldest_sale_at ? DATA_BR.format(new Date(c.oldest_sale_at)) : "-"}</TableCell>
                     <TableCell>{d ? DATA_UTC.format(new Date(d.length === 10 ? `${d}T00:00:00Z` : d)) : "-"}</TableCell>
-                    <TableCell className="text-sm">
+                    <TableCell className="hidden text-sm md:table-cell">
                       <div className="flex flex-wrap gap-x-3">
                         {c.entries.map((e) =>
                           e.sale_id ? (
