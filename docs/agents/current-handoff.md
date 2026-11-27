@@ -25,190 +25,72 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-26 (tarde). **Frente em curso: UX e UI só do Empório**, na
-  branch `ux-emporio`. O desenho foi aprovado:
+- Atualizado em: 2026-11-26 (noite). **Frente em curso: UX e UI só do Empório**,
+  na branch `ux-emporio`. Desenho aprovado:
   [2026-11-24-emporio-ux-design.md](../superpowers/specs/2026-11-24-emporio-ux-design.md)
-  (Q387 a Q397, 6 ondas). O briefing tem a entrevista e os mockups:
-  [briefing](../superpowers/specs/2026-11-24-emporio-ux-briefing.md).
-  **Onda 1 (navegação) em produção desde 25/11, depois do merge autorizado
-  pelo usuário (avanço rápido de `ux-emporio` sobre `176a3dba`, sem
-  migração).** O plano é `2026-11-24-emporio-ux-onda1-navegacao`, e os commits
-  vão de `04a69d3e` a `9f3d795d`. Entregue:
-  - menu em subgrupos com memória (`src/lib/emporio/menu.ts`, suíte `m130`);
-  - Vender em destaque;
-  - `CabecalhoDaTela` e o (i) (`AjudaDaTela`, ícone Info suave, abre com
-    mouse, foco do teclado e toque) em todas as telas, garantido pela
-    conferência 20 do check;
-  - seletor de propriedades escondido no Empório;
-  - tela sem permissão volta a `/emporio`;
-  - "Lojas" no lugar de Estabelecimentos;
-  - "Conferir com o banco" no lugar de carimbo;
-  - manual (figuras, GIFs e caminhos) atualizado.
+  (Q387 a Q397). Ondas 1 (navegação), 2 (Início) e 3 (Vender) **em produção
+  desde 25 e 26/11**, sem migração; o detalhe de cada uma, a limpeza dos
+  roteiros e as escolhas para o olho do usuário estão em
+  `historico/2026-11.md` (arquivado em 26/11).
 
-  Resultados:
-  - `test:all` 133/133;
-  - juiz 8/10 depois das correções (7/10 antes);
-  - roteiro `emporio-ux-onda1` provado nos dois sentidos para o (i) e o menu.
-
-  Decisões do usuário em 25/11, depois do relatório:
-  - **rotina de fim de onda** (commit `28ecad0a`, também em produção):
-    `npm run textos-defasados` lista o texto apagado de `src/` que roteiro,
-    suíte ou manual ainda esperam. A skill `orquestrar-ondas` (seção 3) manda
-    rodá-lo, corrigir e rodar todos os roteiros da área antes de pedir merge;
-  - **o manual fica para a onda 7**, depois da 6 (desenho §6). Nas ondas 2 a 6,
-    o defasado do manual vai para a lista dela;
-  - **o Caixa volta ao Início em Fornecedores e Franqueados** (listas e
-    fichas, por `veAPagina`). Commit `f52e3723`, **em produção desde
-    26/11**, no mesmo merge da onda 2. Provado nos dois
-    sentidos no roteiro `emporio-ux-onda1` (passo 8): 0 falhas com a trava, 4
-    sem ela;
-  - a prova do menu no navegador, sem plantio: `emporio-ux-onda1` inteiro, 0
-    falhas.
-
-  Para roteiros, suba o `next dev` com `--disable-source-maps` e
-  `NODE_OPTIONS=--max-old-space-size=4096` (o comum passou de 5 GB e foi
-  derrubado). Se o navegador recarregar sem parar ("HMR hash mismatch" no
-  WebSocket), religue o `next dev`. Se continuar depois de religar, pare,
-  apague `.next/dev` (o cache do Turbopack chegou a 5,9 GB e corrompeu) e
-  religue.
-
-  **Limpeza dos roteiros antigos: feita** (commits `3fa2e12c` e
-  `c2c6d6c5`, só em `scripts/`). Numa passada única, 45 dos 49 roteiros
-  `emporio-*` passaram. Os 4 vermelhos (boleto, f3a, contas-pix e
-  financeiro-credito) passaram depois, cada um com o roteiro vizinho de
-  antes e o de depois. As causas foram textos e fluxos mudados de propósito
-  (Q215, Q222, Q327, Q336), paginação poluída por dados de outros cenários
-  e a despesa fixa de um cenário travando a limpeza dos outros
-  (`scripts/_cenario-despesa-fixa.ts`). O relato está em
-  `.superpowers/sdd/2026-11-24-emporio-ux-onda1-navegacao/limpeza-roteiros-report.md`
-  (git-ignorado).
-
-  **Onda 2 (Início, §5.5): em produção desde 26/11**, depois do merge
-  autorizado pelo usuário (avanço rápido de `ux-emporio` sobre `614cb4b2`,
-  sem migração). O mesmo merge levou a trava do Caixa (`f52e3723`) e a
-  limpeza. Foi aprovada pelo usuário em 25/11, com as 8 decisões. O plano é
-  `docs/superpowers/plans/2026-11-25-emporio-ux-onda2-inicio.md`, e os commits
-  vão de `6d8a73dd` a `4b010009`.
-
+  **Onda 4 (Dinheiro e listas, §5.8, §5.9, §5.11): pronta na branch, SEM
+  merge.** Plano `docs/superpowers/plans/2026-11-26-emporio-ux-onda4-dinheiro.md`,
+  aprovado em 26/11. Commits de `96150370` (plano) a `015c4bba`. Sem migração.
   Entregue:
-  - `lerInicioAction` e `GET /api/v1/emporio/inicio`;
-  - avisos por papel com o valor em R$ nos de dinheiro;
-  - números do dia (2 cartões para quem não cuida do dinheiro);
-  - atalhos por papel, com "Nova compra" só para quem lança compra;
-  - "Cadastre a primeira loja" na conta sem loja;
-  - o Caixa entra em Vender e não tem Início no menu.
+  - A pagar com abas na URL (`?aba=`): Contas, Despesas fixas, Vendeu, Pagou;
+    comissões iguais (mesmo nome, loja e vencimento, 2 ou mais) em grupo
+    recolhido; aberto a `gestor_da_loja` ou `dinheiro`;
+  - A receber com abas (Fiado, Cheques, Boletos, Cartões, Vencidos) e o total
+    no título; Fiado com busca (nome, CPF ou telefone, 3 dígitos ou mais),
+    documento e venda mais antiga;
+  - Caixa em `/emporio/caixa` com "Saldo de cada lugar" (só `dinheiro`);
+  - endereços antigos redirecionam (`/emporio/despesas`, `/financeiro/cobranca`,
+    `/financeiro/caixa`); a barra de abas do Financeiro saiu; Estatísticas
+    ganhou "Relatórios do dinheiro" (até a onda 5);
+  - Produtos e Estoque paginados (20, 40, 80, 100); Estoque abre em "Precisa
+    repor"; `BarraDeFiltros` em sete listas;
+  - regras puras em `src/lib/emporio/dinheiro-telas.ts`, suíte `m133`.
 
   Resultados:
-  - juiz 6/10, e os 8 achados foram tratados. Na suíte `m131`, os casos novos
-    reprovam com o defeito plantado: dia em UTC, venda cancelada, fronteira do
-    cheque e Sai hoje zerado;
-  - passada única dos 50 roteiros `emporio-*` verde, no código final;
-  - `test:all` 134/134. A `test:nav` foi corrigida (o Caixa sem Início). A
-    `m19` reprova na segunda rodada da mesma hora, pelo limite de cadastro no
-    Redis local, e passou com as chaves `signup-*` locais apagadas;
-  - roteiro `emporio-ux-onda2` provado nos dois sentidos (Caixa e alcance);
-  - roteiro `emporio-f0` provado nos dois sentidos (primeira loja).
+  - juiz 6/10, os 6 achados tratados (`c143eece`);
+  - roteiro `emporio-ux-onda4` (cenário prefixo "U4 "), provado nos dois
+    sentidos (17, 2 e 4 falhas com os defeitos plantados);
+  - passada dos 52 roteiros `emporio-*`: 17 ajustados para a tela nova
+    (`015c4bba`); 1 defeito de tela achado e corrigido (`fd112cd2`: "Ver tudo
+    o que receber" perdia a aba Cheques; 2 falhas sem a correção, 0 com ela);
+  - Fiado no celular: "Venda mais antiga" e "Vendas" somem abaixo do `md`, e
+    o botão Receber cabe a 390 px (conferência nova, falhou antes);
+  - `npm run textos-defasados` limpo; `test:all` 136/136.
 
-  Escolhas para o olho humano:
-  - as vendas são brutas, sem descontar devolução, como na tela de Vendas;
-  - "Sai hoje" inclui as contas vencidas, como a aba Hoje do Financeiro;
-  - o aviso de orçamento abre todos os abertos, e não só os perto de vencer.
+  Não corrigidos: nenhuma suíte confere o ramo de parcela de acordo em
+  `oldest_sale_at`; o caso novo do `m131` não foi visto falhar antes da
+  correção; o Caixa ainda aceita o `conta=` legado.
 
-  **Onda 3 (Vender, §5.7): em produção desde 26/11**, depois do merge
-  autorizado pelo usuário (avanço rápido de `ux-emporio` sobre `c2f9b61e`
-  até `e8c53116`, sem migração; Vercel verde). Plano
-  `docs/superpowers/plans/2026-11-26-emporio-ux-onda3-vender.md`, aprovado em
-  26/11. Commits de `a555f5b9` (plano) a `35e20af0`, mais `67562427` (cofre).
+  **Lista da onda 7 (manual).** O manual cita os endereços antigos
+  (`manual/_conteudo/figuras.ts` linhas 186, 363, 425 e 438; caem nos
+  redirecionamentos), a barra de abas, Despesas, Cobrança e Posição de caixa.
+  Das ondas 2 e 3: `manual-emporio.py` (linhas 148 e 149) e a figura
+  `inicio-primeiros-passos` com a grade antiga do Início; a legenda de atalhos
+  do Vender, "Escolher cliente" (virou "Trocar"), o vendedor em botões e
+  "Abrir o Caixa 1" (`partes-funcao.tsx:267`, `partes-consulta.tsx:130`,
+  `vendedor-imprimir/page.tsx:49` e `:77`).
 
-  Entregue:
-  - Vender em duas colunas, com "Mais opções" recolhida (desconto no total,
-    frete, entrega, franqueado, nº do orçamento). O título diz o que está
-    preenchido, e a seção abre sozinha na recusa e ao faturar orçamento com
-    algo dentro;
-  - tecla de atalho junto de cada campo, sem a legenda solta;
-  - Consumidor final já escolhido, com "Trocar";
-  - vendedor do Caixa em botões (dígito 1 a 9 e setas);
-  - faixa do caixa (fechado, aberto desde, data de ontem, N caixas);
-  - regras puras em `src/lib/emporio/balcao-tela.ts`, suíte `m132`.
-
-  Resultados:
-  - juiz 8/10. Corrigidos: faturar com frete, setas no vendedor, coluna larga
-    no celular e faixa vazia no pagamento;
-  - roteiro `emporio-ux-onda3` com 137 conferências, provado nos dois sentidos
-    (4, 6 e 9 falhas com os defeitos plantados; 1 no passo 5b);
-  - passada única dos 52 roteiros `emporio-*` verde, depois de 15 ajustados
-    para a tela nova (`35e20af0`);
-  - `npm run textos-defasados` limpo;
-  - `test:all` 135/135.
-
-  Não corrigidos, de propósito:
-  - sem loja escolhida, não aparece faixa (decisão 3 do plano);
-  - cheque e boleto com o Consumidor final mostram "Em nome de: Consumidor
-    final" e o aviso; o servidor recusa a venda;
-  - edição de venda antiga sem cliente cai no Consumidor final
-    (`venda-estado.ts:441`, dado legado);
-  - cadastrar cliente na hora ficou um clique a mais ("Trocar", depois
-    "Não achou? Cadastrar novo").
-
-  **Lista da onda 7 (manual).**
-  - O `manual-emporio.py` (linhas 148 e 149) e a figura
-    `inicio-primeiros-passos` ainda esperam a grade antiga do Início.
-  - Vender: a legenda de atalhos não existe mais; "Escolher cliente" virou
-    "Trocar"; o vendedor do Caixa é em botões; a ordem dos campos mudou;
-    "Abrir o Caixa 1" virou "Abrir o caixa" (`partes-funcao.tsx:267`,
-    `partes-consulta.tsx:130`, `vendedor-imprimir/page.tsx:49` e `:77`).
-
-  **Próximo:** plano da onda 4 (Dinheiro e listas), para aprovação do
-  usuário. As três escolhas da onda 2 esperam o olho dele em produção.
-
-  O roteiro descartável do tour de UX (só no desktop) não é versionado.
-- Em produção desde 24/11 (merge `176a3dba`, CI e Vercel verdes): lint de 30
-  avisos para 0, travado em `--max-warnings 0`; passo 2 do roteiro franqueado
-  estável (`_abrir_select`).
-- **Decisões pendentes do Empório: em produção desde 23/11** (merge
-  `576c0f13`; spec e plano `2026-11-23-emporio-decisoes-pendentes`, Q374 a
-  Q385, suíte `m129`; migração `20261123120000_...franqueado` no Neon).
-  Entregue: D1 a D7; agendado no Em aberto (Q375, Q385); antecipação esconde
-  o Desfazer (Q377); Caixa escolhe o franqueado (Q378); devolução com crédito
-  em proporção (Q379); loja arca a taxa do cartão (Q380); orçamento (Q382 a
-  Q384). `test:all` 132/132; juiz 8/10; roteiros provados nos dois sentidos.
-  Também em produção (merge `436e7af3`): Next
-  16.4.6, 5.32 fechada, ficha diz o crédito do franqueado só de venda quitada
-  (Q386); `effect` 3.22.5 por override no Prisma CLI (`npm audit` zerado).
-- Em produção: 20/11 sobras sem a Agromax (`m128`); 19/11 transação de 30 s e
-  gru1 (`m126`), taxas com aviso, sobras B, C, D e H (5.29). Falta a Central
-  do Milho editar as vendas 1, 2 e 4 e a taxa de crédito à vista da LOJA MOC.
-- 19/11, escritas em produção autorizadas, na Da Mata: apagado o saldo inicial
-  de R$ 15.020,83 da CAIXA DAMATTA; financeiro zerado com
-  `scripts/zerar-financeiro-conta.ts` (494 registros; md5 do que fica conferido).
-  Ficaram orçamentos (268), clientes, produtos e estoque. Próxima venda: nº 1.
-- **Data da baixa em produção desde 19/11** (merge `2123c197`, migração
-  `20261119120000_emporio_boleto_valor_pago`; spec e plano
-  `2026-11-19-emporio-data-da-baixa`, Q370 a Q373, suíte `m127`): baixa de hoje
-  menos 31 a mais 31 dias, saldo só até hoje e futuro em "Agendados",
-  "Corrigir a data" do PIX, boleto com valor pago (vídeo fora do git).
-- Plano do GestãoClick (Q341 a Q344):
-  [../superpowers/specs/2026-11-17-emporio-plano-gestaoclick.md](../superpowers/specs/2026-11-17-emporio-plano-gestaoclick.md).
-  Em produção: A, B, C, D (sem leitor nem impressora reais; 5.25), H e a
-  paginação (`58e077fc`; 5.28). G1 (2.18) e G2 (2.34) esperam a planilha do
-  GestãoClick e o XML de nota. **Próximo:** Laiza e Cláudia validam a data da
-  baixa contra o extrato do banco; G1 e G2 quando os arquivos chegarem.
-- Em produção desde 16/11: Q325 a Q340 (orçamento com total, cadastro leve,
-  CEP, preço do cadastro, PIN, brinde, frete no orçamento; os gestores precisam
-  cadastrar o PIN) e o manual (GIFs: roteiro `manual-gifs` e
-  `python scripts/manual-gifs-montar.py`). Antes disso, Q214 a Q324 (detalhe em
-  `historico/2026-11.md` e
-  [financeiro-emporio-relatorio.md](financeiro-emporio-relatorio.md); abertas
-  2.66 e 2.69). Neon em dia.
+  **Próximo:** autorização do usuário para o merge da onda 4 (avanço rápido
+  de `ux-emporio` sobre a `main`, sem migração). Depois, plano da onda 5.
+- Em produção até 24/11 (detalhe em `historico/2026-11.md`): lint zerado;
+  decisões pendentes D1 a D7 (Q374 a Q386, `m129`); data da baixa (Q370 a
+  Q373, `m127`); sobras sem a Agromax (`m128`); plano do GestãoClick A, B, C,
+  D, H e paginação. Falta a Central do Milho editar as vendas 1, 2 e 4 e a
+  taxa de crédito à vista da LOJA MOC; Laiza e Cláudia validam a data da baixa
+  contra o extrato; G1 e G2 esperam a planilha do GestãoClick e o XML de nota.
+  Da Mata: financeiro zerado em 19/11 (autorizado); próxima venda nº 1.
 
 ### Abertas das entregas de 09 a 13/11 (todas em produção)
 
-- Contas PIX (Q310 a Q318): na Da Mata só a `CAIXA DAMATTA - PIX - 1076-6`.
-- Franqueado (Q300 a Q309): as três decisões em produção desde 23/11 (Q378 a
-  Q380). ⚠️ Cancelar compra anterior a uma contagem faz a
-  contagem tirar a mais (candidato a dívida).
-- Cartão (Q250 a Q267): abertas 2.60, 2.62, 2.63; a entrega 4 depende do
-  extrato real da Stone.
+Contas PIX: na Da Mata só a `CAIXA DAMATTA - PIX - 1076-6`. Franqueado: ⚠️
+cancelar compra anterior a uma contagem faz a contagem tirar a mais (candidato
+a dívida). Cartão: abertas 2.60, 2.62, 2.63; a entrega 4 depende do extrato
+real da Stone.
 
 ### ⏭️ Próximo passo
 
@@ -281,23 +163,15 @@ Todo commit é leitura pública. Fechar exige a conta `tibegestaoagro` (o
 
 ### Agente do WhatsApp: Fases 1 a 6 em produção, Fase 7 em canário
 
-Spec
-[../superpowers/specs/2026-09-14-agente-whatsapp-55-intencoes-design.md](../superpowers/specs/2026-09-14-agente-whatsapp-55-intencoes-design.md),
-relatórios em [agente-whatsapp/](agente-whatsapp/), detalhe em
-[historico/2026-09.md](historico/2026-09.md).
-
-- O fluxo de produção do n8n (`UAAA96aJFiiFsQCL`) é híbrido desde 18/09: o nó
-  `Agente Novo?` manda quatro telefones (o usuário e Lucas, Max e Laíza
-  Agromax) para a rota de turno; o resto segue no `execute-action`. O canário
-  fica com esses quatro até o usuário reabrir o assunto (29/09).
-- Ler, guardar e mudar a lista: `scripts/n8n-workflow.ts` (escrita só com
-  `--confirmar`, cópia antes em `~/.tibe/n8n-copias/`; quem roda é o usuário).
-  ⚠️ O JSON do fluxo nunca entra no repositório: carrega a chave da Evolution.
-- Ler o canário: `npx tsx scripts/observar-canario.ts [dias]` (só leitura).
-- Faltam os passos 9 e 10 do [roteiro](agente-whatsapp/roteiro-do-chip.md) e
-  validar no celular três correções de 29/09 (compra a prazo pergunta se já
-  pagou; "próximos 100 dias" diz a data; "30 machos" vai à confirmação).
-- As intenções das missões 3 e 4 seguem congeladas no classificador.
+[Spec](../superpowers/specs/2026-09-14-agente-whatsapp-55-intencoes-design.md),
+[relatórios](agente-whatsapp/), detalhe em [historico/2026-09.md](historico/2026-09.md).
+O n8n (`UAAA96aJFiiFsQCL`) manda quatro telefones (o usuário, Lucas, Max e
+Laíza) para a rota de turno desde 18/09. Mudar a lista:
+`scripts/n8n-workflow.ts` (escrita só com `--confirmar`; quem roda é o
+usuário). ⚠️ O JSON do fluxo nunca entra no repositório (chave da Evolution).
+Canário: `npx tsx scripts/observar-canario.ts [dias]`. Faltam os passos 9 e 10
+do [roteiro](agente-whatsapp/roteiro-do-chip.md) e três correções de 29/09 no
+celular. Missões 3 e 4 congeladas no classificador.
 
 ### Outras pendências do usuário
 
@@ -317,17 +191,13 @@ relatórios em [agente-whatsapp/](agente-whatsapp/), detalhe em
 - Dois clones (`C:` e `D:`), sem worktrees desde 08/11. Prova viva: `npm run
   dev` no clone (`prisma generate` antes se houver migração), roteiro com
   `TIBE_BASE="http://localhost:<porta>"` (nunca `127.0.0.1`).
-- Roteiro preso em recarga (`fiber=false`, "escolhe a loja" falhando) é aba
-  sobrando no Chrome de testes ou o laço de logo depois de subir: fechar as
-  abas pela porta 9333, derrubar o `next dev`, apagar `.next`, aquecer
-  `/login` (cofre: `a-aba-oculta-e-a-leitura-cedo-imitam-defeito-no-navegador`).
-- Economia de cota: Sonnet implementa e revisa, Haiku explora, Opus só se o
-  usuário pedir juiz.
+- Roteiro preso em recarga: cofre `a-aba-oculta-e-a-leitura-cedo-imitam-defeito-no-navegador`.
 - No notebook: `node -v` 24.22.1 ou mais; sem o `.claude/settings.local.json`
   (não vai ao git), a migração em produção volta a ser recusada pelo classificador.
 
 ## Últimas rodadas
 
+- 26/11: ondas 2 e 3 da UX do Empório em produção (merges autorizados na conversa); onda 4 pronta na `ux-emporio`, sem merge.
 - 24/11 (2): UX do Empório: entrevista, diagnóstico, mockups e desenho; nada em produção.
 - 24/11: lint zerado e travado, passo 2 do roteiro franqueado estável; branch `lint-avisos-passo-2` sem merge.
 - 23/11: decisões pendentes do Empório em produção, Neon, merge e push autorizados na conversa (18/11 e 20/11 no histórico).
