@@ -1383,6 +1383,8 @@ const PREFIXOS_DE_LEITURA = [
   "curva",
   // 5.27: só responde se o ator pode ver o lucro.
   "podeVer",
+  // Onda 6 da UX: só confere se a loja do topo está ao alcance; a rota grava um cookie, nada vai ao banco.
+  "escolherLojaDoTopo",
 ];
 
 export function acoesDeEscritaSemHistorico(fonte: string): string[] {
