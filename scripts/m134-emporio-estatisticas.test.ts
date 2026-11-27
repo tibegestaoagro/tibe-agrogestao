@@ -15,6 +15,7 @@ exigirBancoLocal();
  * Seção 3: `compararVendasAction`.
  * Seção 4: `resultadoPorLojaAction` (dono, gestor de uma loja só, Caixa).
  * Seção 5: o tenant B não vê as vendas do A.
+ * Seção 6: as rotas e as planilhas (T2).
  */
 
 let falhas = 0;
@@ -170,7 +171,7 @@ type Mundo = {
   owner: Ator;
   gestor: Ator;
   caixa: Ator;
-  tok: { owner: string };
+  tok: { owner: string; gestor: string; caixa: string };
   categoriaId: string;
 };
 
@@ -215,7 +216,7 @@ async function montar(rotulo: string): Promise<Mundo> {
     gestor: { id: gestor.id, role: "OPERADOR" },
     caixa: { id: caixa.id, role: "OPERADOR" },
     categoriaId: cat.id as string,
-    tok: { owner: await token(owner) },
+    tok: { owner: await token(owner), gestor: await token(gestor), caixa: await token(caixa) },
   };
 }
 
@@ -463,6 +464,129 @@ async function secao5() {
 }
 
 // ---------------------------------------------------------------------------
+// Seção 6: as rotas e as planilhas (T2)
+// ---------------------------------------------------------------------------
+
+type RespCsv = { status: number; tipo: string; disp: string; texto: string; bytes: Uint8Array; corpo: Dado };
+async function chamarCsv(tok: string, rota: () => Promise<Dado>, url: string): Promise<RespCsv> {
+  const { withBearer } = await import("./_escopo-de-requisicao");
+  // Rota ainda inexistente vira status 0, nunca erro de sintaxe: assim cada caso falha sozinho.
+  const m = await rota().catch(() => null);
+  if (!m) return { status: 0, tipo: "", disp: "", texto: "", bytes: new Uint8Array(), corpo: {} };
+  const req = new Request(`http://localhost/api/v1/${url}`, { method: "GET", headers: { "content-type": "application/json" } });
+  const res = await withBearer(tok, (): Promise<Response> => m.GET(req));
+  const bytes = new Uint8Array(await res.clone().arrayBuffer());
+  const texto = await res.text();
+  let corpo: Dado = {};
+  try {
+    corpo = JSON.parse(texto);
+  } catch {
+    corpo = {};
+  }
+  return { status: res.status, tipo: res.headers.get("content-type") ?? "", disp: res.headers.get("content-disposition") ?? "", texto, bytes, corpo };
+}
+const RT = {
+  sales: () => import("@/app/api/v1/emporio/reports/sales/route"),
+  comparison: () => import("@/app/api/v1/emporio/reports/sales/comparison/route"),
+  abc: () => import("@/app/api/v1/emporio/reports/abc/route"),
+  stores: () => import("@/app/api/v1/emporio/result/stores/route"),
+};
+
+async function secao6() {
+  console.log("\n6. Rotas e planilhas");
+  const mes = HOJE.slice(0, 7);
+  // Uma venda de 1234,50 só na L1, para o formato brasileiro do valor.
+  const caro = await novoProd(A, "Adubo", 1234.5, [L1]);
+  await vender(A, L1, caro, 1);
+  // Um produto com preço na L1 e sem venda: o parado.
+  const parado = await novoProd(A, "Parado", 5, [L1]);
+  const q = `from=${PERIODO.from}&to=${PERIODO.to}`;
+  const tokG = A.tok.gestor;
+  const tokC = A.tok.caixa;
+  const semBom = (t: string) => t.charCodeAt(0) === 0xfeff ? t.slice(1) : t;
+
+  // Comparação (JSON)
+  const cmp = await chamarCsv(A.tok.owner, RT.comparison, `emporio/reports/sales/comparison?${q}`);
+  check("comparison: 200 com atual, anterior e variacao_pct", cmp.status === 200 && cmp.corpo?.data?.atual?.to === PERIODO.to && typeof cmp.corpo?.data?.anterior?.total === "number" && "variacao_pct" in (cmp.corpo?.data ?? {}), `${cmp.status} ${cmp.texto.slice(0, 200)}`);
+  check("comparison: anterior 80 e atual 1334,50", perto(cmp.corpo?.data?.anterior?.total, 80) && perto(cmp.corpo?.data?.atual?.total, 1334.5), j(cmp.corpo?.data));
+  check("comparison: sem sessão, 401", (await chamarCsv("", RT.comparison, `emporio/reports/sales/comparison?${q}`)).status === 401);
+  check("comparison: o Caixa, 403", (await chamarCsv(tokC, RT.comparison, `emporio/reports/sales/comparison?${q}`)).status === 403);
+  const cmpB = await chamarCsv(B.tok.owner, RT.comparison, `emporio/reports/sales/comparison?${q}`);
+  check("comparison: B vê 7 e 0", cmpB.status === 200 && perto(cmpB.corpo?.data?.atual?.total, 7) && perto(cmpB.corpo?.data?.anterior?.total, 0), cmpB.texto.slice(0, 200));
+
+  // Vendas sem format: JSON de hoje, com por_dia
+  const js = await chamarCsv(A.tok.owner, RT.sales, `emporio/reports/sales?${q}`);
+  check("sales sem format: JSON com por_dia", js.status === 200 && Array.isArray(js.corpo?.data?.por_dia), js.texto.slice(0, 120));
+
+  // Vendedores
+  const vend = await chamarCsv(A.tok.owner, RT.sales, `emporio/reports/sales?${q}&format=csv&relatorio=vendedores`);
+  check("vendedores: 200 text/csv", vend.status === 200 && /^text\/csv/i.test(vend.tipo), `${vend.status} ${vend.tipo}`);
+  check("vendedores: nome do arquivo", /filename="vendas-por-vendedor-\d{4}-\d{2}-\d{2}\.csv"/.test(vend.disp), vend.disp);
+  check("vendedores: começa com o BOM", vend.bytes[0] === 0xef && vend.bytes[1] === 0xbb && vend.bytes[2] === 0xbf);
+  const vl = semBom(vend.texto).split("\r\n");
+  check("vendedores: a primeira linha são os títulos", vl[0] === "Vendedor;Vendas;Total;Ticket médio", vl[0]);
+  check("vendedores: o total do dono sai com vírgula (1334,50)", vl.some((l) => l.includes(";1334,50;")), j(vl));
+  check("vendedores: sem relatório válido, 422 no campo relatorio", await (async () => {
+    const r = await chamarCsv(A.tok.owner, RT.sales, `emporio/reports/sales?${q}&format=csv`);
+    const r2 = await chamarCsv(A.tok.owner, RT.sales, `emporio/reports/sales?${q}&format=csv&relatorio=xyz`);
+    return r.status === 422 && r.corpo?.error?.field === "relatorio" && r2.status === 422 && r2.corpo?.error?.field === "relatorio";
+  })());
+  check("vendedores: formato inválido, 422 no campo format", (await chamarCsv(A.tok.owner, RT.sales, `emporio/reports/sales?${q}&format=xml`)).corpo?.error?.field === "format");
+  check("vendedores: sem sessão, 401", (await chamarCsv("", RT.sales, `emporio/reports/sales?${q}&format=csv&relatorio=vendedores`)).status === 401);
+  check("vendedores: o Caixa, 403", (await chamarCsv(tokC, RT.sales, `emporio/reports/sales?${q}&format=csv&relatorio=vendedores`)).status === 403);
+  const vendB = await chamarCsv(B.tok.owner, RT.sales, `emporio/reports/sales?${q}&format=csv&relatorio=vendedores`);
+  check("vendedores: B soma 7, sem o total do A", vendB.status === 200 && semBom(vendB.texto).includes(";7,00;") && !vendB.texto.includes("1334,50"), vendB.texto.slice(0, 200));
+
+  // Parados
+  const par = await chamarCsv(A.tok.owner, RT.sales, `emporio/reports/sales?${q}&format=csv&relatorio=parados`);
+  const pl = semBom(par.texto).split("\r\n");
+  check("parados: 200 text/csv e arquivo produtos-parados", par.status === 200 && /^text\/csv/i.test(par.tipo) && /filename="produtos-parados-/.test(par.disp), `${par.status} ${par.disp}`);
+  check("parados: títulos Produto;Loja", pl[0] === "Produto;Loja", pl[0]);
+  check("parados: traz o produto parado na L1", pl.some((l) => l.startsWith(`Parado ${stamp}`) && l.includes(`M134 A L1 ${stamp}`)), j(pl));
+  check("parados: o gestor da L1 recebe 200", (await chamarCsv(tokG, RT.sales, `emporio/reports/sales?${q}&format=csv&relatorio=parados`)).status === 200);
+  check("parados: o Caixa, 403", (await chamarCsv(tokC, RT.sales, `emporio/reports/sales?${q}&format=csv&relatorio=parados`)).status === 403);
+  const parB = await chamarCsv(B.tok.owner, RT.sales, `emporio/reports/sales?${q}&format=csv&relatorio=parados`);
+  check("parados: B sem o produto do A", parB.status === 200 && !parB.texto.includes(`Parado ${stamp}`) && !parB.texto.includes("M134 A"), parB.texto.slice(0, 200));
+  void parado;
+
+  // Curva ABC
+  const abcUrl = `emporio/reports/abc?${q}&kind=products&measure=revenue`;
+  const abc = await chamarCsv(A.tok.owner, RT.abc, `${abcUrl}&format=csv`);
+  const al = semBom(abc.texto).split("\r\n");
+  check("abc csv: 200 text/csv e arquivo curva-abc", abc.status === 200 && /^text\/csv/i.test(abc.tipo) && /filename="curva-abc-/.test(abc.disp), `${abc.status} ${abc.tipo} ${abc.disp}`);
+  check("abc csv: títulos Classe;Nome;Valor;%;% acumulado", al[0] === "Classe;Nome;Valor;%;% acumulado", al[0]);
+  check("abc csv: o Adubo é A, com 1234,50 em vírgula", al.some((l) => l.startsWith("A;Adubo") && l.includes(";1234,50;")), j(al));
+  check("abc sem format continua JSON", (await chamarCsv(A.tok.owner, RT.abc, abcUrl)).corpo?.data?.kind === "products");
+  check("abc csv: formato inválido, 422 em format", (await chamarCsv(A.tok.owner, RT.abc, `${abcUrl}&format=xml`)).corpo?.error?.field === "format");
+  check("abc csv: sem sessão, 401", (await chamarCsv("", RT.abc, `${abcUrl}&format=csv`)).status === 401);
+  check("abc csv: o Caixa, 403", (await chamarCsv(tokC, RT.abc, `${abcUrl}&format=csv`)).status === 403);
+  const abcB = await chamarCsv(B.tok.owner, RT.abc, `${abcUrl}&format=csv`);
+  check("abc csv: B sem o Adubo do A", abcB.status === 200 && !abcB.texto.includes("Adubo") && !abcB.texto.includes("Ração"), abcB.texto.slice(0, 200));
+  const abcLucro = await chamarCsv(tokG, RT.abc, `emporio/reports/abc?${q}&kind=products&measure=profit&format=csv`);
+  check("abc csv: lucro segue a regra da action (gestor sem permissão do lucro recebe recusa, nunca CSV)", abcLucro.status === 200 ? /^text\/csv/i.test(abcLucro.tipo) : abcLucro.status === 403, String(abcLucro.status));
+
+  // Resultado por loja
+  const sUrl = `emporio/result/stores?month=${mes}`;
+  const sj = await chamarCsv(A.tok.owner, RT.stores, sUrl);
+  check("stores: JSON com month, lojas e total", sj.status === 200 && sj.corpo?.data?.month === mes && sj.corpo?.data?.lojas?.length === 2 && typeof sj.corpo?.data?.total?.result === "number", sj.texto.slice(0, 200));
+  const sc = await chamarCsv(A.tok.owner, RT.stores, `${sUrl}&format=csv`);
+  const sl = semBom(sc.texto).split("\r\n").filter(Boolean);
+  check("stores csv: 200 text/csv e arquivo resultado-por-loja", sc.status === 200 && /^text\/csv/i.test(sc.tipo) && /filename="resultado-por-loja-/.test(sc.disp), `${sc.status} ${sc.disp}`);
+  check("stores csv: títulos", sl[0] === "Loja;Vendas;Margem;Despesas fixas;Perdas;Resultado", sl[0]);
+  check("stores csv: duas lojas mais a linha Total, a última", sl.length === 4 && sl[sl.length - 1].startsWith("Total;"), j(sl));
+  check("stores csv: a L1 sai com vírgula decimal", sl.some((l) => l.includes(`M134 A L1 ${stamp};`) && /;\d+,\d{2};/.test(l)), j(sl));
+  check("stores: formato inválido, 422 em format", (await chamarCsv(A.tok.owner, RT.stores, `${sUrl}&format=xml`)).corpo?.error?.field === "format");
+  check("stores: mês inválido, 422 em month", (await chamarCsv(A.tok.owner, RT.stores, "emporio/result/stores?month=2026-13")).corpo?.error?.field === "month");
+  check("stores: sem sessão, 401", (await chamarCsv("", RT.stores, sUrl)).status === 401);
+  check("stores: o Caixa, 403", (await chamarCsv(tokC, RT.stores, `${sUrl}&format=csv`)).status === 403);
+  const sg = await chamarCsv(tokG, RT.stores, `${sUrl}&format=csv`);
+  const sgl = semBom(sg.texto).split("\r\n").filter(Boolean);
+  check("stores csv: o gestor da L1 vê só a L1 mais o Total", sg.status === 200 && sgl.length === 3 && !sg.texto.includes(`M134 A L2`), j(sgl));
+  const sB = await chamarCsv(B.tok.owner, RT.stores, `${sUrl}&format=csv`);
+  check("stores csv: B sem lojas do A", sB.status === 200 && !sB.texto.includes("M134 A"), sB.texto.slice(0, 200));
+}
+
+// ---------------------------------------------------------------------------
 
 async function limpar(id: string) {
   const prisma = await prismaCru();
@@ -488,6 +612,8 @@ async function main() {
     await rodar("4", secao4);
     secaoAtual = "5";
     await rodar("5", secao5);
+    secaoAtual = "6";
+    await rodar("6", secao6);
   } finally {
     for (const id of tenantIds.reverse()) await limpar(id);
     await prisma.$disconnect();
