@@ -1369,6 +1369,8 @@ const PREFIXOS_DE_LEITURA = [
   "estoqueConsolidado",
   "precisaRepor",
   "resultadoDa",
+  "resultadoPorLoja",
+  "compararVendas",
   "produtosDo",
   "vendasCom",
   "primeirosPassos",

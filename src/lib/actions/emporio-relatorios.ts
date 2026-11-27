@@ -4,6 +4,10 @@ import { decToNum } from "@/lib/serialize";
 import { exigirUma } from "@/lib/emporio/papel";
 import { lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
 import { valorDevolvidoDoItemCent } from "@/lib/actions/emporio-resultado";
+import { diaDoInstante } from "@/lib/emporio/mes";
+import { somarDiasCalendario } from "@/lib/dia-calendario";
+import { periodoDoMesAnterior } from "@/lib/emporio/estatisticas";
+import { variacaoDoMes } from "@/lib/emporio/inicio";
 
 /**
  * Meu Empório, entrega 3: o relatório de vendas por vendedor, por produto, os
@@ -61,6 +65,8 @@ export type RelatorioDeVendas = {
   by_origin: VendasPorOrigem;
   /** O PIX recebido por conta nas vendas concluídas do período, bruto (não desconta devolução), do maior valor para o menor. */
   pix_by_account: PixPorConta;
+  /** Todo dia do período (calendário de Brasília), zero incluído: a venda no dia dela menos a devolução no dia dela. */
+  por_dia: { date: string; total: number }[];
 };
 
 export type PixPorConta = { bank_account_id: string; name: string; count: number; amount: number }[];
@@ -145,6 +151,7 @@ async function carregarVendasDoPeriodo(db: TenantPrismaClient, ator: Ator, input
     where: { establishment_id: { in: lojaIds }, status: "concluida", sold_at: janela },
     select: {
       establishment_id: true,
+      sold_at: true,
       seller_user_id: true,
       customer_id: true,
       origin: true,
@@ -169,6 +176,7 @@ async function carregarVendasDoPeriodo(db: TenantPrismaClient, ator: Ator, input
     where: { returned_at: janela, sale: { establishment_id: { in: lojaIds }, status: "concluida" } },
     select: {
       franchisee_credit: true,
+      returned_at: true,
       sale: { select: { establishment_id: true, seller_user_id: true, customer_id: true, origin: true } },
       items: {
         select: {
@@ -193,7 +201,17 @@ export async function relatorioDeVendasAction(
   if (!carga.ok) return carga;
   const { periodo, lojas, lojaIds, vendas, devolucoes } = carga.data;
   if (lojaIds.length === 0) {
-    return ok({ periodo, lojas, por_vendedor: [], por_produto: [], parados: [], por_loja: [], by_origin: viewDeOrigens(somaVazia()), pix_by_account: [] });
+    return ok({
+      periodo,
+      lojas,
+      por_vendedor: [],
+      por_produto: [],
+      parados: [],
+      por_loja: [],
+      by_origin: viewDeOrigens(somaVazia()),
+      pix_by_account: [],
+      por_dia: totalPorDia(periodo, vendas, devolucoes),
+    });
   }
 
   const porVendedor = new Map<string | null, Soma>();
@@ -368,6 +386,66 @@ export async function relatorioDeVendasAction(
     por_loja,
     by_origin: viewDeOrigens(origemTotal),
     pix_by_account: viewDoPix(pixTotal),
+    por_dia: totalPorDia(periodo, vendas, devolucoes),
+  });
+}
+
+type Carga = Extract<Awaited<ReturnType<typeof carregarVendasDoPeriodo>>, { ok: true }>["data"];
+
+/** O valor devolvido de uma devolução, em centavos: a soma dos itens, como o relatório desconta do total. */
+const devolvidoCent = (d: Carga["devolucoes"][number]) => d.items.reduce((s, i) => s + valorDevolvidoDoItemCent(i), 0);
+
+/** O total do período em centavos: o líquido das vendas concluídas menos o devolvido, a mesma conta do `por_loja`. */
+function totalDoPeriodoCent(vendas: Carga["vendas"], devolucoes: Carga["devolucoes"]): number {
+  return (
+    vendas.reduce((s, v) => s + centavos(decToNum(v.net_amount) ?? 0), 0) - devolucoes.reduce((s, d) => s + devolvidoCent(d), 0)
+  );
+}
+
+/** O total de cada dia do período, com zero nos dias sem venda; o dia é o de Brasília. */
+function totalPorDia(periodo: { from: string; to: string }, vendas: Carga["vendas"], devolucoes: Carga["devolucoes"]) {
+  const porDia = new Map<string, number>();
+  for (const v of vendas) {
+    const dia = diaDoInstante(v.sold_at);
+    porDia.set(dia, (porDia.get(dia) ?? 0) + centavos(decToNum(v.net_amount) ?? 0));
+  }
+  for (const d of devolucoes) {
+    const dia = diaDoInstante(d.returned_at);
+    porDia.set(dia, (porDia.get(dia) ?? 0) - devolvidoCent(d));
+  }
+  const dias: { date: string; total: number }[] = [];
+  for (let dia = periodo.from; dia <= periodo.to; dia = somarDiasCalendario(dia, 1)) {
+    dias.push({ date: dia, total: reais(porDia.get(dia) ?? 0) });
+  }
+  return dias;
+}
+
+export type ComparacaoDeVendas = {
+  atual: { from: string; to: string; total: number };
+  anterior: { from: string; to: string; total: number };
+  variacao_pct: number | null;
+};
+
+/**
+ * O total de vendas do período e o do mesmo trecho do mês anterior, pela mesma conta do relatório (o líquido
+ * das concluídas menos o devolvido), com a mesma permissão e o mesmo alcance de lojas.
+ */
+export async function compararVendasAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  input: RelatorioDeVendasInput,
+): Promise<ActionResult<ComparacaoDeVendas>> {
+  const atual = await carregarVendasDoPeriodo(db, ator, input);
+  if (!atual.ok) return atual;
+  const ant = periodoDoMesAnterior(atual.data.periodo.from, atual.data.periodo.to);
+  const anterior = await carregarVendasDoPeriodo(db, ator, { ...input, from: ant.de, to: ant.ate });
+  if (!anterior.ok) return anterior;
+  const atualCent = totalDoPeriodoCent(atual.data.vendas, atual.data.devolucoes);
+  const anteriorCent = totalDoPeriodoCent(anterior.data.vendas, anterior.data.devolucoes);
+  return ok({
+    atual: { from: atual.data.periodo.from, to: atual.data.periodo.to, total: reais(atualCent) },
+    anterior: { from: ant.de, to: ant.ate, total: reais(anteriorCent) },
+    variacao_pct: variacaoDoMes(atualCent, anteriorCent),
   });
 }
 

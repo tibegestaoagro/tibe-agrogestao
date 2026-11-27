@@ -19,6 +19,7 @@ import {
 import { lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
 import { garantirOcorrenciasDoMes } from "@/lib/actions/emporio-despesas";
 import { faturamentoLiquidoCent } from "@/lib/emporio/faturamento";
+import { somarResultados } from "@/lib/emporio/estatisticas";
 
 export { faturamentoLiquidoDoMes } from "@/lib/emporio/faturamento";
 
@@ -705,6 +706,86 @@ export async function resultadoDaLojaAction(
     });
   }
   return ok(view);
+}
+
+export type ResultadoPorLojaView = {
+  month: string;
+  lojas: LojaDoResultadoView[];
+  total: ReturnType<typeof somarResultados>;
+};
+
+/** O resultado de uma loja no formato de uma linha da visão somada. */
+function linhaDaLoja(v: ResultadoDaLojaView): LojaDoResultadoView {
+  return {
+    establishment_id: v.establishment_id,
+    name: v.establishment_name,
+    sales: v.sales,
+    margin: v.margin,
+    margin_pct: v.margin_pct,
+    losses: v.losses,
+    fixed_expenses: v.fixed_expenses,
+    freight: v.freight,
+    franchisee_credit: v.franchisee_credit,
+    anticipation_costs: v.anticipation_costs,
+    boleto_interest: v.boleto_interest,
+    boleto_discount: v.boleto_discount,
+    result: v.result,
+    card_cost: v.card_cost,
+  };
+}
+
+/**
+ * O resultado do mês loja por loja, dentro do alcance de quem pede (Onda 5, Estatísticas). Sem loja (ou com
+ * "all"), "todas" quer dizer todas as lojas do alcance: quem alcança todas recebe a visão somada de sempre, e quem
+ * alcança algumas recebe uma apuração por loja dele (a visão `all` é recusada para ele em `lerVisao`). Com
+ * `establishment_id`, só aquela loja, e fora do alcance é a mesma recusa de hoje. Mesma permissão do Resultado.
+ */
+export async function resultadoPorLojaAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  input: { month: string; establishment_id?: string },
+): Promise<ActionResult<ResultadoPorLojaView>> {
+  const neg = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "ver o resultado da loja");
+  if (neg) return neg;
+  const pedida = typeof input?.establishment_id === "string" ? input.establishment_id.trim() : "";
+  const todas = !pedida || pedida === TODAS_AS_LOJAS;
+
+  let lojas: LojaDoResultadoView[];
+  let month: string;
+  if (!todas) {
+    const r = await resultadoDaLojaAction(db, ator, { establishment_id: pedida, month: input?.month });
+    if (!r.ok) return r;
+    lojas = [linhaDaLoja(r.data)];
+    month = r.data.month;
+  } else {
+    const visiveis = await lojasDoAtor(db, ator);
+    if (!visiveis) {
+      const r = await resultadoDaLojaAction(db, ator, { establishment_id: TODAS_AS_LOJAS, month: input?.month });
+      if (!r.ok) return r;
+      lojas = r.data.stores ?? [];
+      month = r.data.month;
+    } else {
+      const alcance = await db.establishment.findMany({
+        where: { archived_at: null, id: { in: [...visiveis] } },
+        select: { id: true },
+        orderBy: { name: "asc" },
+      });
+      lojas = [];
+      month = "";
+      for (const l of alcance) {
+        const r = await resultadoDaLojaAction(db, ator, { establishment_id: l.id, month: input?.month });
+        if (!r.ok) return r;
+        lojas.push(linhaDaLoja(r.data));
+        month = r.data.month;
+      }
+      if (alcance.length === 0) {
+        const mes = lerMes(input?.month);
+        if (!mes) return fail("VALIDATION_ERROR", "Informe o mês no formato AAAA-MM.", 422, "month");
+        month = textoDoMes(mes);
+      }
+    }
+  }
+  return ok({ month, lojas, total: somarResultados(lojas) });
 }
 
 // ---------------------------------------------------------------------------
