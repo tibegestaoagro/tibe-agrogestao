@@ -31,7 +31,7 @@ CONTA = "Dd Banco"
 CAMPO_DATA = "Data em que caiu"
 CAMPO_VALOR = "Valor pago (R$)"
 RECEBER = "/emporio/financeiro/receber"
-EXTRATO = "/emporio/financeiro/caixa"
+EXTRATO = "/emporio/caixa"
 
 _confere_da_lib = confere
 
@@ -97,7 +97,10 @@ def abrir_extrato_da_conta():
 
 def linhas_do_extrato(agendados=False):
     """O texto de cada <tr> da tabela do extrato (4+ colunas: Data, O que, Loja, Valor) ou da de Agendados (3 colunas)."""
-    return js("(() => { const ts = Array.from(document.querySelectorAll('main table')).filter(t => { const h = t.querySelector('thead').innerText.toLowerCase(); return h.includes('data') && h.includes('valor') && !h.includes('loja') === " + ("true" if agendados else "false") + "; }); return ts.flatMap(t => Array.from(t.querySelectorAll('tbody tr')).map(tr => tr.innerText.replace(/\\u00a0/g, ' ').split('\\n').join(' | '))); })()") or []
+    # Onda 4: o Caixa tem outra tabela (os movimentos, com linhas 'Agendado' de outras contas). Os Agendados do extrato
+    # são só os da <section> cujo h3 é 'Agendados'.
+    tabelas = "Array.from(document.querySelectorAll('main section')).filter(s => { const h = s.querySelector('h3'); return h && h.innerText.trim() === 'Agendados'; }).flatMap(s => Array.from(s.querySelectorAll('table')))" if agendados else "Array.from(document.querySelectorAll('main table'))"
+    return js("(() => { const ts = " + tabelas + ".filter(t => { const h = t.querySelector('thead').innerText.toLowerCase(); return h.includes('data') && h.includes('valor') && !h.includes('loja') === " + ("true" if agendados else "false") + "; }); return ts.flatMap(t => Array.from(t.querySelectorAll('tbody tr')).map(tr => tr.innerText.replace(/\\u00a0/g, ' ').split('\\n').join(' | '))); })()") or []
 
 
 def linha_com(linhas, *trechos):
@@ -146,7 +149,7 @@ preencher(CAMPO_DATA, ontem)
 confere("o recebimento fecha o painel", enviar_e_esperar_fechar(), painel()[:200])
 
 passo("2. Financeiro compensa o cheque: hoje + 40 recusa, anteontem passa")
-ir(RECEBER)
+ir(RECEBER + "?aba=cheques")
 confere("o cheque depositado tem Compensou", abrir_pela_linha("R$ 80,00", "Compensou"), texto_principal(200))
 confere("o painel de compensar tem o campo da data", tem_campo(CAMPO_DATA), painel()[:200])
 preencher(CAMPO_DATA, soma_dias(hoje, 40))
@@ -162,13 +165,13 @@ confere("abre o extrato da conta", abrir_extrato_da_conta(), texto_principal(150
 linhas = linhas_do_extrato()
 confere("a linha de ontem e UMA so: data, fiado e R$ 50,00", linha_com(linhas, br(ontem), "Fiado recebido", "R$ 50,00") is not None, linhas)
 confere("a linha de anteontem e UMA so: data, cheque e R$ 80,00", linha_com(linhas, br(anteontem), "Cheque compensado", "R$ 80,00") is not None, linhas)
-confere("sem Agendados ainda", not linhas_do_extrato(True) and "Agendados" not in texto_do_main(), texto_do_main()[-200:])
+confere("sem Agendados ainda", not linhas_do_extrato(True) and "Agendados" not in texto_do_main(), [linhas_do_extrato(True)[:3], texto_do_main().count("Agendados"), (texto_do_main().split("Agendados")[-1][:200] if "Agendados" in texto_do_main() else "")])
 
 passo("4. Financeiro paga o boleto com data de amanha: Agendados, fora do saldo")
 confere("abre o extrato antes de pagar o boleto", abrir_extrato_da_conta(), texto_principal(150))
 antes = fechamento()
 confere("o saldo de fechamento de antes foi lido", antes is not None, antes)
-ir(RECEBER)
+ir(RECEBER + "?aba=boletos")
 confere("o boleto aberto tem Boleto pago", abrir_pela_linha("BOL-DD-1", "Boleto pago"), texto_principal(200))
 confere("o painel do boleto tem o campo da data", tem_campo(CAMPO_DATA), painel()[:200])
 escolher("Conta onde caiu", CONTA)
@@ -232,7 +235,7 @@ confere("e saiu de Agendados", linha_com(linhas_do_extrato(True), "R$ 30,00") is
 
 passo("7. Boleto de R$ 99,90 pago com R$ 100,10: juros de R$ 0,20 na lista e no Resultado")
 entrar("financeiro")
-ir(RECEBER)
+ir(RECEBER + "?aba=boletos")
 confere("o boleto BOL-DD-2 tem Boleto pago", abrir_pela_linha("BOL-DD-2", "Boleto pago"), texto_principal(200))
 confere("o campo Valor pago vem com R$ 99,90 do boleto", valor_do_campo(CAMPO_VALOR) == "99,90", valor_do_campo(CAMPO_VALOR))
 escolher("Conta onde caiu", CONTA)
@@ -260,7 +263,7 @@ confere("o Resultado tem a linha Juros recebidos com R$ 0,20", "R$ 0,20" in juro
 confere("e ainda nao tem Desconto concedido (nenhum pago com desconto ate aqui)", linha_do_resultado("Desconto concedido") is None, linha_do_resultado("Desconto concedido"))
 
 passo("7b. Boleto de R$ 50,00 pago com R$ 49,50: desconto de R$ 0,50 na lista e no Resultado")
-ir(RECEBER)
+ir(RECEBER + "?aba=boletos")
 confere("o boleto BOL-DD-3 tem Boleto pago", abrir_pela_linha("BOL-DD-3", "Boleto pago"), texto_principal(200))
 confere("o campo Valor pago vem com 50,00 do boleto", valor_do_campo(CAMPO_VALOR) == "50,00", valor_do_campo(CAMPO_VALOR))
 escolher("Conta onde caiu", CONTA)
@@ -329,7 +332,7 @@ recusa_rodape = esperar(lambda: "não pode ser antes do depósito" in painel(), 
 confere("a recusa de compensar antes do deposito aparece no painel do Gestor", bool(recusa_rodape), painel()[-300:])
 confere("o painel segue aberto", painel_aberto())
 entrar("financeiro")
-ir(RECEBER)
+ir(RECEBER + "?aba=boletos")
 confere("o Financeiro abre o mesmo boleto", abrir_pela_linha("BOL-DD-4", "Boleto pago"), texto_principal(200))
 maximo = js("(() => { const raiz = document.querySelector('[role=dialog]'); const l = Array.from(raiz.querySelectorAll('label')).find(x => x.innerText.replace('*','').trim() === " + repr(CAMPO_DATA) + "); const el = l && document.getElementById(l.htmlFor); return el ? el.getAttribute('max') : 'sem'; })()")
 confere("o campo do Financeiro NAO tem max", maximo is None, maximo)

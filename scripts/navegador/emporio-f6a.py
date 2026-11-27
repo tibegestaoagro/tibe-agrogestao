@@ -118,7 +118,7 @@ press_key("Escape")
 time.sleep(1)
 
 passo("6. Lista: busca pelo código e filtro de espécie")
-ir("/emporio/produtos")
+ir("/emporio/produtos?por_pagina=100")  # onda 4: a lista pagina de 20 em 20; o banco de teste acumula produtos de outros roteiros
 confere("sem filtro, os dois produtos", tem("F1 Ração gato") and tem("F1 Ração saca 30"))
 # O cabeçalho do kit é `uppercase` no CSS, e o innerText devolve em caixa alta.
 confere("as colunas Marca e Código", tem("MARCA") and tem("CÓDIGO") and tem("Marca F6") and tem("F6-001"))

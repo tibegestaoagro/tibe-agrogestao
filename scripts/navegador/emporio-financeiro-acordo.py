@@ -268,7 +268,9 @@ def linha_do_extrato_tem(valor):
     """Alguma linha do EXTRATO cita `valor`. A tabela de posicoes (as linhas 'Ver extrato') fica na mesma pagina e,
     como a conta do seed acumula o que os outros cenarios deixam (a gaveta 'U3 Loja B' de R$ 300,00, por exemplo),
     cita valores que o extrato nao tem: fica de fora."""
-    return bool(js("Array.from(document.querySelectorAll('main tbody tr')).some(x => { const t = x.innerText.replace(/\\u00a0/g, ' '); return t.includes(" + repr(valor) + ") && !t.includes('Ver extrato'); })"))
+    # Onda 4: o Caixa traz também a tabela dos movimentos (sem a coluna Conferência), que cita os mesmos valores e não
+    # obedece ao filtro do extrato: só vale a tabela do extrato, a que tem a coluna Conferência.
+    return bool(js("Array.from(document.querySelectorAll('main table')).filter(tb => { const h = (tb.querySelector('thead') || { innerText: '' }).innerText.toLowerCase(); return h.includes('conferência') && h.includes('valor'); }).flatMap(tb => Array.from(tb.querySelectorAll('tbody tr'))).some(x => { const t = x.innerText.replace(/\\u00a0/g, ' '); return t.includes(" + repr(valor) + ") && !t.includes('Ver extrato'); })"))
 
 
 def carimbar_linha(valor):
@@ -400,7 +402,7 @@ depois = extrato_da_api(conta)
 confere("o total a conferir caiu em uma linha", depois.get("unreconciled_count") == sem_antes - 1, [sem_antes, depois.get("unreconciled_count")])
 ir("/emporio/financeiro/caixa?lugar=conta:" + conta + "&carimbo=sem")
 confere("o filtro Só a conferir esta marcado", esperar(lambda: js("!!Array.from(document.querySelectorAll('main a')).find(a => a.innerText.trim() === 'Só a conferir' && a.getAttribute('aria-current') === 'true')"), 40), texto_principal(500))
-confere("com o filtro, a linha carimbada de R$ 300,00 some", esperar(lambda: tem("A conferir no período") and not linha_do_extrato_tem("300,00"), 40) and linha_do_extrato_tem("900,00"), texto_principal(1200))
+confere("com o filtro, a linha carimbada de R$ 300,00 some", esperar(lambda: tem("A conferir no período") and not linha_do_extrato_tem("300,00"), 40) and linha_do_extrato_tem("900,00"), [tem("A conferir no período"), linha_do_extrato_tem("300,00"), linha_do_extrato_tem("900,00"), caminho()])
 ir("/emporio/financeiro")
 confere("o Hoje mostra o cartao A conferir com o banco", esperar(lambda: tem("A conferir com o banco") and tem("da conta sem conferir com o banco"), 40), texto_principal(900))
 

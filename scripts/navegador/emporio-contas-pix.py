@@ -67,7 +67,7 @@ def enviar_botao(texto):
 
 
 def linha_da_tabela(trecho):
-    return js("(() => { const r = Array.from(document.querySelectorAll('main tbody tr')).find(x => x.innerText.includes(" + repr(trecho) + ")); return r ? Array.from(r.children).map(c => c.innerText.replace(/\\u00a0/g, ' ').replace(/\\n/g, ' ').trim()).join(' | ') : ''; })()") or ""
+    return js("(() => { const r = Array.from(document.querySelectorAll('main table')).filter(t => !((t.querySelector('thead') || {}).innerText || '').toLowerCase().includes('lugar')).flatMap(t => Array.from(t.querySelectorAll('tbody tr'))).find(x => x.innerText.includes(" + repr(trecho) + ")); return r ? Array.from(r.children).map(c => c.innerText.replace(/\\u00a0/g, ' ').replace(/\\n/g, ' ').trim()).join(' | ') : ''; })()") or ""
 
 
 def href_do_link(rotulo):
@@ -80,7 +80,7 @@ def texto_do_campo(rotulo):
 
 def clicar_na_linha(trecho, rotulo):
     """Clica no botao `rotulo` da linha da tabela que contem `trecho`."""
-    return bool(js("(() => { const r = Array.from(document.querySelectorAll('main tbody tr')).find(x => x.innerText.includes(" + repr(trecho) + ")); const b = r && Array.from(r.querySelectorAll('button')).find(x => x.innerText.trim() === " + repr(rotulo) + "); if (!b) return false; b.click(); return true; })()"))
+    return bool(js("(() => { const r = Array.from(document.querySelectorAll('main table')).filter(t => !((t.querySelector('thead') || {}).innerText || '').toLowerCase().includes('lugar')).flatMap(t => Array.from(t.querySelectorAll('tbody tr'))).find(x => x.innerText.includes(" + repr(trecho) + ")); const b = r && Array.from(r.querySelectorAll('button')).find(x => x.innerText.trim() === " + repr(rotulo) + "); if (!b) return false; b.click(); return true; })()"))
 
 
 def clicar_no_cartao(titulo, rotulo):

@@ -15,10 +15,10 @@
 TELAS = [
     "/emporio", "/emporio/vender", "/emporio/vendas", "/emporio/orcamentos", "/emporio/fiado",
     "/emporio/clientes", "/emporio/caixa", "/emporio/financeiro", "/emporio/financeiro/pagar",
-    "/emporio/financeiro/receber", "/emporio/financeiro/cobranca", "/emporio/financeiro/caixa",
+    "/emporio/financeiro/receber",  # onda 4: cobranca, financeiro/caixa e despesas viraram redirect (testados no emporio-ux-onda4)
     "/emporio/financeiro/aprovacoes", "/emporio/financeiro/projecao", "/emporio/financeiro/relatorios",
     "/emporio/produtos", "/emporio/estoque", "/emporio/compras", "/emporio/fornecedores",
-    "/emporio/franqueados", "/emporio/transferencias", "/emporio/despesas", "/emporio/resultado",
+    "/emporio/franqueados", "/emporio/transferencias", "/emporio/resultado",
     "/emporio/relatorios", "/emporio/equipe", "/emporio/estabelecimentos", "/emporio/historico",
     "/emporio/configuracoes",
 ]
@@ -233,7 +233,7 @@ for alvo in ("/emporio/fornecedores", "/emporio/franqueados", ficha_fornecedor, 
 
 passo("9. Gestor: tela do Dinheiro volta ao Início, sem 404")
 entrar("gestor")
-destino = ir("/emporio/financeiro/pagar")
+destino = ir("/emporio/financeiro/receber")  # onda 4: o gestor da loja abre A pagar (paginas.ts); o A receber segue só do Dinheiro
 confere("termina em /emporio", destino == "/emporio", destino)
 confere("sem 'could not be found'", not eh_404())
 destino = ir("/emporio/historico")

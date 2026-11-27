@@ -111,6 +111,13 @@ def rolagem_horizontal():
     return js("[document.documentElement.scrollWidth, window.innerWidth]")
 
 
+def da_aba(aba, ver, titulo):
+    """Onda 4: o A receber mostra uma aba por vez. Abre a aba `aba` (com o recorte `ver`, se houver) da loja do cenario
+    e devolve o texto da <section> `titulo` (vazio se nao aparece)."""
+    ir(RECEBER + "&aba=" + aba + ("&ver=" + ver if ver else ""))
+    return esperar(lambda: secao(titulo), 30) or ""
+
+
 def pagina_pronta_com(condicao, segundos=40):
     return bool(esperar(condicao, segundos))
 
@@ -139,46 +146,53 @@ confere("a faixa mostra Vence hoje R$ 240,00 em 2 itens", bool(re.search(r"Vence
 confere("a faixa mostra A vencer R$ 330,00 em 5 itens", bool(re.search(r"A vencer \| R\$ 330,00 \| 5 itens", faixa("A vencer"))), faixa("A vencer"))
 confere("a faixa mostra Recebido no periodo R$ 490,00 em 5 itens, com o % do previsto", bool(re.search(r"Recebido no período \| R\$ 490,00 \| 5 itens, \d+% do previsto", faixa("Recebido no período"))), faixa("Recebido no período"))
 confere("sem filtro nenhum cartao esta ativo e nao ha 'Ver tudo'", cartao_ativo() == "" and not clicar_link("Ver tudo"))
-fiado_todo = secao("Fiado por cliente") or ""
+# Onda 4: a aba Fiado (a padrao) nao tem mais o titulo "Fiado por cliente": o texto da tela traz a lista, o total e a contagem.
+fiado_todo = texto_do_main()
 confere("sem filtro o fiado lista os cinco clientes abertos da loja (o quitado fica de fora)", all(n in fiado_todo for n in ["Ia Cliente Vencido", "Ia Cliente Parcial", "Ia Cliente Hoje", "Ia Cliente Amanha", FICHA]) and "Ia Cliente Mes Passado" not in fiado_todo and "Ia Cliente Loja 2" not in fiado_todo, fiado_todo[:300])
 
 confere("clica em Vencido", clicar_cartao("Vencido"))
 confere("a URL ganha ?ver=vencido e preserva a loja", "ver=vencido" in caminho() and "loja=" + ID1 in caminho(), caminho())
-fiado = secao("Fiado por cliente") or ""
-cheques = secao("Cheques em carteira") or ""
-cartoes = secao("Cartões a receber") or ""
+fiado = texto_do_main()
+linha_parcial = linha("Ia Cliente Parcial")  # antes de sair da aba Fiado
+cheques = da_aba("cheques", "vencido", "Cheques em carteira")
+cartoes = da_aba("cartoes", "vencido", "Cartões a receber")
 confere("Vencido: o fiado so tem Vencido, Parcial e Ficha", all(n in fiado for n in ["Ia Cliente Vencido", "Ia Cliente Parcial", FICHA]) and "Ia Cliente Hoje" not in fiado and "Ia Cliente Amanha" not in fiado, fiado[:300])
 confere("Vencido: o total do recorte do fiado e R$ 250,00 em 3 clientes", "R$ 250,00" in fiado and "3 clientes" in fiado, fiado[:200])
-confere("Vencido: o cliente Parcial mostra o aberto de R$ 40,00 (nao os 100 vendidos)", "R$ 40,00" in linha("Ia Cliente Parcial"), linha("Ia Cliente Parcial"))
+confere("Vencido: o cliente Parcial mostra o aberto de R$ 40,00 (nao os 100 vendidos)", "R$ 40,00" in linha_parcial, linha_parcial)
 confere("Vencido: so o cheque IA-K1 (bom para ontem)", "IA-K1" in cheques and "IA-K2" not in cheques, cheques[:200])
+boletos = da_aba("boletos", "vencido", "Boletos")
 confere("Vencido: o boleto vencido IA-B1 aparece e o IA-B2 (a vencer) nao", bool(esperar(lambda: "IA-B1" in (secao("Boletos") or ""), 20)) and "IA-B2" not in (secao("Boletos") or ""), (secao("Boletos") or "")[:300])
 confere("Vencido: a secao de cartoes diz que nada passou do prazo sem conferir", FRASE_CARTAO in cartoes, cartoes[:300])
 confere("Vencido: o cartao ativo e o Vencido e aparece 'Ver tudo'", cartao_ativo() == "Vencido" and js("!!Array.from(document.querySelectorAll('main a')).find(x => x.innerText.trim() === 'Ver tudo')"))
 
+ir(RECEBER)
 confere("clica em Vence hoje", clicar_cartao("Vence hoje"))
-fiado = secao("Fiado por cliente") or ""
-cheques = secao("Cheques em carteira") or ""
-cartoes = secao("Cartões a receber") or ""
+fiado = texto_do_main()
+cheques = da_aba("cheques", "hoje", "Cheques em carteira")
+cartoes = da_aba("cartoes", "hoje", "Cartões a receber")
 confere("Hoje: o fiado so tem o Cliente Hoje", "Ia Cliente Hoje" in fiado and "Ia Cliente Vencido" not in fiado and "Ia Cliente Amanha" not in fiado, fiado[:250])
 confere("Hoje: nenhum cheque neste recorte", "Nenhum cheque neste recorte" in cheques, cheques[:200])
 confere("Hoje: a parcela de cartao e so a de R$ 200,00 (nao a de 100 nem a de 60)", "R$ 200,00" in cartoes and "R$ 100,00" not in cartoes and "R$ 60,00" not in cartoes, cartoes[:400])
 confere("Hoje: o fiado total do recorte e R$ 40,00", "R$ 40,00" in fiado and "1 cliente" in fiado, fiado[:200])
 
+ir(RECEBER)
 confere("clica em A vencer", clicar_cartao("A vencer"))
-fiado = secao("Fiado por cliente") or ""
-cheques = secao("Cheques em carteira") or ""
-cartoes = secao("Cartões a receber") or ""
+fiado = texto_do_main()
+cheques = da_aba("cheques", "a_vencer", "Cheques em carteira")
+cartoes = da_aba("cartoes", "a_vencer", "Cartões a receber")
 confere("A vencer: o fiado so tem o Cliente Amanha", "Ia Cliente Amanha" in fiado and "Ia Cliente Hoje" not in fiado and "Ia Cliente Vencido" not in fiado, fiado[:250])
 confere("A vencer: so o cheque IA-K2", "IA-K2" in cheques and "IA-K1" not in cheques, cheques[:200])
+boletos = da_aba("boletos", "a_vencer", "Boletos")
 confere("A vencer: o boleto IA-B2 aparece e o IA-B1 nao", bool(esperar(lambda: "IA-B2" in (secao("Boletos") or ""), 20)) and "IA-B1" not in (secao("Boletos") or ""), (secao("Boletos") or "")[:300])
 confere("A vencer: os cartoes de R$ 100,00 e R$ 60,00 (nao o de 200) e a soma R$ 160,00", "R$ 100,00" in cartoes and "R$ 60,00" in cartoes and "R$ 200,00" not in cartoes and "R$ 160,00" in cartoes, cartoes[:500])
 
+ir(RECEBER)
 confere("clica em Recebido no periodo", clicar_cartao("Recebido no período"))
-confere("Recebido: as secoes dao lugar a lista 'Recebido no periodo'", bool(esperar(lambda: secao("Recebido no período") is not None, 20)) and secao("Fiado por cliente") is None and secao("Cheques em carteira") is None, caminho())
+confere("Recebido: as secoes dao lugar a lista 'Recebido no periodo'", bool(esperar(lambda: secao("Recebido no período") is not None, 20)) and "Ia Cliente Vencido" not in texto_do_main() and secao("Cheques em carteira") is None, caminho())
 confere("a URL tem ?ver=recebido", "ver=recebido" in caminho(), caminho())
 
 confere("'Ver tudo' volta", clicar_link("Ver tudo"))
-confere("depois do Ver tudo: URL sem ?ver, secoes de volta e nenhum cartao ativo", bool(esperar(lambda: secao("Fiado por cliente") is not None, 30)) and "ver=" not in caminho() and cartao_ativo() == "", caminho())
+confere("depois do Ver tudo: URL sem ?ver, a lista do fiado de volta e nenhum cartao ativo", bool(esperar(lambda: "Ia Cliente Vencido" in texto_do_main(), 30)) and "ver=" not in caminho() and cartao_ativo() == "", caminho())
 
 # --- 2 -----------------------------------------------------------------------------------------
 passo("2. O periodo muda o Recebido")
@@ -244,7 +258,7 @@ confere("a conta vencida da lista de pendentes traz o fornecedor como link", any
 
 # --- 4 -----------------------------------------------------------------------------------------
 passo("4. Amarras: cartao a receber, venda, cliente, ficha, venda")
-ir(RECEBER)
+ir(RECEBER + "&aba=cartoes")
 rotulos_cartao = links_da_linha("R$ 200,00")
 confere("a linha do cartao de R$ 200,00 tem 'Venda no ... (1/1)' e o cliente como links", any(re.match(r"^Venda nº \d{6} \(1/1\)$", t) for t, _ in rotulos_cartao) and any(t == "Ia Cliente Cartao" and h.startswith("/emporio/clientes/") for t, h in rotulos_cartao), rotulos_cartao)
 venda_href = next((h for t, h in rotulos_cartao if t.startswith("Venda nº")), "")
@@ -270,14 +284,17 @@ confere("chega a pagina da venda (volta da ficha)", bool(esperar(lambda: js("loc
 time.sleep(2)
 confere("a venda e do cliente da ficha, com o link de volta", FICHA in texto_do_main() and bool(js("!!Array.from(document.querySelectorAll('main a')).find(x => x.innerText.trim() === " + repr(FICHA) + ")")), texto_do_main()[:200])
 
-ir(RECEBER)
+ir(RECEBER + "&aba=cartoes")
 cons = links_da_linha("R$ 60,00")
 linha_cons = linha("Consumidor final")
 confere("a linha do cartao de R$ 60,00 mostra o Consumidor final", "Consumidor final" in linha_cons and "R$ 60,00" in linha_cons, linha_cons)
 confere("o Consumidor final nao tem link (nenhum link para /emporio/clientes/ na linha)", not any(h and h.startswith("/emporio/clientes/") for _, h in links_da_linha("Consumidor final")), links_da_linha("Consumidor final"))
 confere("a venda do Consumidor final tem o link da venda", any(t.startswith("Venda nº") for t, _ in links_da_linha("Consumidor final")), links_da_linha("Consumidor final"))
+ir(RECEBER)
 confere("os clientes do fiado sao links (Ia Cliente Vencido)", any(t == "Ia Cliente Vencido" and h.startswith("/emporio/clientes/") for t, h in links_da_linha("Ia Cliente Vencido")), links_da_linha("Ia Cliente Vencido"))
+ir(RECEBER + "&aba=cheques")
 confere("o cheque tem 'Venda no' como link e o cliente como link", any(t.startswith("Venda nº") for t, _ in links_da_linha("IA-K1")) and any(t == "Ia Cliente Cheque" for t, _ in links_da_linha("IA-K1")), links_da_linha("IA-K1"))
+ir(RECEBER + "&aba=boletos")
 confere("o boleto tem o cliente como link", bool(esperar(lambda: any(t == "Ia Cliente Boleto" for t, _ in links_da_linha("IA-B1")), 20)), links_da_linha("IA-B1"))
 
 # --- 5 -----------------------------------------------------------------------------------------
@@ -304,10 +321,10 @@ confere("sem 'Ver mais' (so 5 recebimentos)", "Ver mais" not in rec)
 confere("a soma dos cartoes nao confunde: os R$ 190,00 do Recebido nao contam o cheque em carteira nem o devolvido (100 + 60 + 30)", cartao_da_ficha("Recebido") == "R$ 190,00")
 
 # --- 6 -----------------------------------------------------------------------------------------
-passo("6. Gestor da Loja 1 so: nao ve a outra loja")
+passo("6. Gestor da Loja 1 so: abre o A pagar e nao ve a outra loja")
 entrar("gestor")
 chegou = ir("/emporio/financeiro/pagar")
-confere("o A pagar do Gestor volta ao Início, sem 404: quem abre o Financeiro e o Dono, o Gerente geral e o Financeiro", chegou == "/emporio" and not eh_404(), [chegou, texto_principal(200)])
+confere("onda 4: o Gestor da loja abre o A pagar (paginas.ts: gestor_da_loja ou dinheiro), sem 404", chegou == "/emporio/financeiro/pagar" and not eh_404(), [chegou, texto_principal(200)])
 confere("a recusa nao vaza a Loja 2 nem as contas", LOJA2 not in texto_do_main() and "Ia Conta da Loja 2" not in texto_do_main())
 resumo_g = api("GET", "/api/v1/emporio/payables/summary")
 sg = ((resumo_g["body"] or {}).get("data") or {}).get("summary") or {}

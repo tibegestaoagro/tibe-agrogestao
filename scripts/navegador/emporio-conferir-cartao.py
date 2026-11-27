@@ -184,7 +184,7 @@ def reais_de(texto):
 
 def saldo_da_conta():
     """O saldo da Posicao de caixa da conta do cenario."""
-    ir("/emporio/financeiro/caixa?loja=" + ID1)
+    ir("/emporio/caixa?loja=" + ID1)
     achar = lambda: js("(() => { const t = Array.from(document.querySelectorAll('main tr')).find(x => x.innerText.includes(" + repr(CONTA) + ") && x.innerText.includes('Ver extrato') || x.innerText.includes(" + repr(CONTA) + ") && x.innerText.includes('Aberto abaixo')); return t ? t.innerText.replace(/\\u00a0/g, ' ').split('\\n').join(' | ') : ''; })()") or ""
     lin = esperar(achar, 30) or ""
     return reais_de(lin), lin
@@ -226,7 +226,7 @@ lojas = api("GET", "/api/v1/emporio/establishments")["body"]["data"]
 l1 = next((l for l in lojas if l["name"] == LOJA1), None)
 confere("acha a loja do cenario pela API", l1 is not None, len(lojas))
 ID1 = l1["id"] if l1 else ""
-RECEBER = "/emporio/financeiro/receber?loja=" + ID1
+RECEBER = "/emporio/financeiro/receber?aba=cartoes&loja=" + ID1
 HOJE_FIN = "/emporio/financeiro?loja=" + ID1
 hoje_iso = js("new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/Sao_Paulo' }).format(new Date())")
 r = api("GET", "/api/v1/emporio/finance/receivables?establishment_id=" + ID1)
@@ -517,7 +517,7 @@ cdp("Emulation.clearDeviceMetricsOverride")
 # --- 11 a 13: a Loja 2, cada passo numa conta propria ---------------------------------------------
 def posicao_da_conta(nome):
     """O saldo e o endereco do extrato da conta `nome`, na Posicao de caixa de todas as lojas."""
-    ir("/emporio/financeiro/caixa")
+    ir("/emporio/caixa")
     achar = "(() => { const t = Array.from(document.querySelectorAll('main tr')).find(x => x.innerText.includes(" + repr(nome) + ") && (x.innerText.includes('Ver extrato') || x.innerText.includes('Aberto abaixo'))); return t || null; })()"
     lin = esperar(lambda: js("(() => { const t = " + achar + "; return t ? t.innerText.replace(/\\u00a0/g, ' ').split('\\n').join(' | ') : ''; })()"), 30) or ""
     href = js("(() => { const t = " + achar + "; const a = t && Array.from(t.querySelectorAll('a')).find(x => (x.getAttribute('href') || '').includes('lugar=conta')); return a ? a.getAttribute('href') : ''; })()") or ""
@@ -541,7 +541,7 @@ lojas = api("GET", "/api/v1/emporio/establishments")["body"]["data"]
 l2 = next((l for l in lojas if l["name"] == "Cc Loja 2"), None)
 confere("acha a Loja 2 do cenario pela API", l2 is not None, len(lojas))
 ID2 = l2["id"] if l2 else ""
-RECEBER2 = "/emporio/financeiro/receber?loja=" + ID2
+RECEBER2 = "/emporio/financeiro/receber?aba=cartoes&loja=" + ID2
 
 
 def cartao_da_api(liquido):

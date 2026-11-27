@@ -163,7 +163,7 @@ if venda_visa and venda_elo:
     ir("/emporio/imprimir/venda/" + venda_elo)
     p = texto_da_pagina()
     confere("recibo: a linha do cartão traz Elo e Stone Crt", "Elo" in p and "Stone Crt" in p, p[:600])
-    ir("/emporio/financeiro/receber?loja=" + loja["id"])
+    ir("/emporio/financeiro/receber?aba=cartoes&loja=" + loja["id"])
     # O innerText devolve o cabeçalho já com o uppercase (atrito 7 do cofre): compara sem caixa.
     cabecalhos = [x.lower() for x in (js("Array.from(document.querySelectorAll('main th')).map(th => th.innerText.trim())") or [])]
     confere("Cartões a receber: colunas Bandeira e Adquirente", "bandeira" in cabecalhos and "adquirente" in cabecalhos, cabecalhos)

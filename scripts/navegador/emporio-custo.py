@@ -109,7 +109,7 @@ confere("com o aviso sem estoque: última compra", "sem estoque: última compra"
 confere("sem Custo médio ao lado", "Custo médio" not in l, l)
 
 passo("4. Estoque da loja: um custo so")
-ir("/emporio/estoque?loja=" + LOJA)
+ir("/emporio/estoque?aba=tudo&por_pagina=100&loja=" + LOJA)
 pagina = js("(document.querySelector('main') || document.body).innerText.replace(/\\u00a0/g, ' ')") or ""
 confere("o estoque mostra R$ 2,35 por kg", "R$ 2,35 por kg" in pagina, pagina[:800])
 confere("o estoque não mostra Última compra", "Última compra" not in pagina, pagina[:800])

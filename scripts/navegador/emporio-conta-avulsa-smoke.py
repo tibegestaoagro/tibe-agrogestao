@@ -1,10 +1,10 @@
 # Conferência local do formulário de conta avulsa.
 # sessao: owner owner@example.com
 
-passo("Conta avulsa em Despesas")
+passo("Conta avulsa em A pagar (aba Contas; onda 4: Despesas virou redirect)")
 entrar("owner")
-caminho = ir("/emporio/despesas")
-confere("Despesas abriu", caminho == "/emporio/despesas", caminho)
+caminho = ir("/emporio/financeiro/pagar")
+confere("A pagar abriu na aba Contas", caminho == "/emporio/financeiro/pagar", caminho)
 confere("Adicionar conta está visível", clicar("Adicionar conta"))
 confere("Painel de cadastro abriu", painel_aberto())
 

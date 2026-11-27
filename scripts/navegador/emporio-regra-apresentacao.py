@@ -7,7 +7,7 @@
 
 passo("1. Nova regra: o campo Apresentacao ja aparece")
 entrar("owner")
-ir("/emporio/despesas")
+ir("/emporio/financeiro/pagar?aba=vendeu_pagou")
 confere("botao da nova regra", clicar("Nova regra"))
 confere("painel abriu", painel_aberto())
 rotulos = js("Array.from(document.querySelectorAll('[role=dialog] label')).map(l => l.innerText.replace('*','').trim())") or []

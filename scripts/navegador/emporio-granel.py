@@ -163,7 +163,7 @@ def vender_no_balcao(produto, busca, apresentacao, qtd, total):
 
 
 def linha_do_estoque(loja_id, produto):
-    ir("/emporio/estoque?loja=" + loja_id)
+    ir("/emporio/estoque?aba=tudo&por_pagina=100&loja=" + loja_id)
     return esperar(lambda: linha_da_tabela(produto), 20) or ""
 
 

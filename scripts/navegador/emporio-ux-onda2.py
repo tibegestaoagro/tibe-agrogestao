@@ -184,7 +184,7 @@ for nome, lista, caminho_esperado, busca_esperada, titulo_esperado in DESTINOS:
 a_conf = acha("sem conferir com o banco")
 if a_conf:
     d, b, t, nf = chegar(a_conf[0])
-    confere("o link de conferir abre a posição de caixa com o filtro sem conferir", d == "/emporio/financeiro/caixa" and "carimbo=sem" in b and not nf, [d, b])
+    confere("o link de conferir abre o Caixa (onda 4: /emporio/caixa) com o filtro sem conferir", d == "/emporio/caixa" and "carimbo=sem" in b and not nf, [d, b])
 # Cada destino de loja leva a loja certa: a reposição de A mostra a Ração Ux e a de B tambem.
 d, b, t, nf = chegar(a_estoque_a[0])
 confere("a reposição da Loja A abre o Estoque com a Ração Ux", tem_com_ajuda("Ux Ração"), texto_principal(160))

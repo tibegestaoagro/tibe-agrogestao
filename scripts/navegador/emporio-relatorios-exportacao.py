@@ -176,7 +176,7 @@ passo("4. Projeção: o gráfico do saldo, a planilha e a lista 'Sem vencimento'
 ir("/emporio/financeiro/projecao?loja=" + LOJA)
 confere("o gráfico monta (legenda do saldo e linha do Recharts)", bool(esperar(lambda: js("!!document.querySelector('main .recharts-wrapper .recharts-line-curve')") and tem("Saldo ao fim da semana"), 30)), texto_do_main(1200))
 confere("o gráfico traz ponto de saldo negativo destacado (r=5) e o aviso", bool(js("document.querySelectorAll('main .recharts-wrapper circle[r=\"5\"]').length > 0")) and re.search(r"\d+ semanas? (fica|ficam) negativas?|1 semana fica negativa", texto_do_main(2500)) is not None, texto_do_main(1500))
-confere("a tabela segue como leitura (cabeçalho Semana, A receber, A pagar, Saldo ao fim)", all(t in texto_do_main() for t in ["A receber", "A pagar", "Saldo ao fim"]))
+confere("a tabela segue como leitura (cabeçalho Semana, A receber, A pagar, Saldo ao fim)", all(t.lower() in texto_do_main().lower() for t in ["A receber", "A pagar", "Saldo ao fim"]))  # o innerText devolve o cabeçalho com o uppercase do CSS: compara sem caixa
 confere("o bloco 'Sem vencimento': 1 conta, R$ 80,00 no total", tem("Sem vencimento") and tem("1 conta, R$ 80,00 no total"), texto_do_main(6000))
 csv_proj = href_da_acao("Baixar planilha", 0)
 proj = baixar(csv_proj)

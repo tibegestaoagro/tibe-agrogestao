@@ -65,7 +65,7 @@ ir("/emporio")
 loja = [l for l in api("GET", "/api/v1/emporio/establishments")["body"]["data"] if l["name"] == "F4a Loja"][0]
 mes = time.strftime("%Y-%m")
 abrir_subgrupos()
-confere("menu com Resultado e Despesas (onda 2: o Início não tem mais esses cartões)", "/emporio/resultado" in menu() and "/emporio/despesas" in menu(), menu())
+confere("menu com Resultado e A pagar (onda 4: a Despesas virou aba do A pagar; onda 2: o Início não tem mais esses cartões)", "/emporio/resultado" in menu() and "/emporio/financeiro/pagar" in menu(), menu())
 
 passo("1. O Resultado da Loja na tela (o mês do cenário)")
 ir("/emporio/resultado?loja=" + loja["id"] + "&mes=" + mes)
@@ -80,7 +80,10 @@ confere("o gráfico do mês aparece", bool(js("!!document.querySelector('main sv
 
 passo("2. Pagar as três comissões de uma vez, pela gaveta")
 antes = gaveta(loja["id"])
-ir("/emporio/despesas")
+ir("/emporio/financeiro/pagar")
+# Onda 4: as comissões com mesma regra, loja e vencimento vêm numa linha de grupo recolhida; abre-se o grupo antes de marcar.
+js("Array.from(document.querySelectorAll('main button[aria-expanded=false]')).filter(b => b.innerText.includes('F4a Comissão')).forEach(b => b.click())")
+time.sleep(0.5)
 confere("três comissões a pagar de R$ 10,00", len([c for c in contas("F4a Comissão") if c.get("status") == "pending"]) == 3, contas("F4a Comissão"))
 confere("marca as três", marcar_todas("Marcar F4a Comissão") == 3)
 time.sleep(0.5)
@@ -93,7 +96,7 @@ confere("a gaveta cai R$ 30,00", esperar(lambda: gaveta(loja["id"]) == antes - 3
 confere("nenhuma comissão pendente", not [c for c in contas("F4a Comissão") if c.get("status") == "pending"])
 
 passo("3. Pagar o aluguel do mês: o resultado deixa de ser estimado")
-ir("/emporio/despesas")
+ir("/emporio/financeiro/pagar")
 confere("marca o primeiro aluguel (o do mês)", marcar_primeira("Marcar F4a Aluguel"))
 time.sleep(0.5)
 confere("abre Pagar selecionadas (1)", clicar("Pagar selecionadas (1)"))
@@ -106,7 +109,7 @@ confere("o resultado continua -750 e não é mais estimado", r["result"] == -750
 confere("a gaveta pagou R$ 1.000,00", gaveta(loja["id"]) == antes - 1030, gaveta(loja["id"]))
 
 passo("4. Nova despesa fixa pela tela: doze contas")
-ir("/emporio/despesas")
+ir("/emporio/financeiro/pagar?aba=fixas")
 confere("abre Nova despesa fixa", clicar("Nova despesa fixa"))
 time.sleep(1.5)
 preencher("Nome", "F4a Internet")
@@ -121,7 +124,7 @@ confere("doze contas de R$ 100,00 da internet", esperar(lambda: len(contas("F4a 
 
 passo("5. As telas no celular (390 px)")
 cdp("Emulation.setDeviceMetricsOverride", width=390, height=844, deviceScaleFactor=3, mobile=True)
-for caminho in ["/emporio/resultado?loja=" + loja["id"] + "&mes=" + mes, "/emporio/despesas"]:
+for caminho in ["/emporio/resultado?loja=" + loja["id"] + "&mes=" + mes, "/emporio/financeiro/pagar", "/emporio/financeiro/pagar?aba=fixas"]:
     ir(caminho)
     largura = js("document.documentElement.scrollWidth")
     confere("sem rolagem horizontal em " + caminho.split("?")[0], largura is not None and largura <= 390, largura)

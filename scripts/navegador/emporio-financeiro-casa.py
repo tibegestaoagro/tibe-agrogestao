@@ -81,6 +81,11 @@ def extrato(conta_id):
     return (r["body"] or {}).get("data") or {}
 
 
+def aba_sem_href():
+    """A barra de abas do Financeiro (saiu na onda 4): existe algum nav com esse rótulo?"""
+    return bool(js("!!document.querySelector('nav[aria-label=\"Telas do Financeiro\"]')"))
+
+
 def aba(href):
     return bool(js("Array.from(document.querySelectorAll('nav[aria-label=\"Telas do Financeiro\"] a')).some(a => a.getAttribute('href').split('?')[0] === " + repr(href) + ")"))
 
@@ -125,7 +130,7 @@ ir("/emporio/financeiro")
 confere("a casa abre", caminho() == "/emporio/financeiro" and tem_com_ajuda("O dinheiro das lojas hoje"), caminho())
 for bloco in ["Posição de caixa", "Vence hoje a pagar", "Vence hoje a receber", "Fiado vencido"]:
     confere("o bloco " + bloco + " aparece", tem(bloco), texto_principal(300))
-confere("as quatro abas existem", all(aba(h) for h in ["/emporio/financeiro", "/emporio/financeiro/pagar", "/emporio/financeiro/receber", "/emporio/financeiro/caixa"]))
+confere("onda 4: a barra de abas do Financeiro saiu, e as telas do dinheiro estão no menu", not aba_sem_href() and all(h in menu() for h in ["/emporio/financeiro", "/emporio/financeiro/pagar", "/emporio/financeiro/receber", "/emporio/caixa"]), menu())
 hoje_api = api("GET", "/api/v1/emporio/finance/today")
 posicoes = ((hoje_api["body"] or {}).get("data") or {}).get("positions") or []
 confere("a rota today devolve posicoes (a conta entre elas)", hoje_api["status"] == 200 and any(p.get("kind") == "conta" for p in posicoes), [hoje_api["status"], len(posicoes)])
@@ -180,7 +185,7 @@ depois = esperar(lambda: (extrato(conta_id).get("closing_balance") or 0) < (ante
 confere("o saldo da conta caiu R$ 100,00", isinstance(depois, (int, float)) and abs((antes - depois) - 100) < 0.005, [antes, depois])
 linhas = extrato(conta_id).get("lines") or []
 confere("o extrato tem a saida 'Conta paga' de 100", any(l.get("description") == "Conta paga" and l.get("direction") == "saida" and abs(l.get("amount", 0) - 100) < 0.005 for l in linhas), [l.get("description") for l in linhas])
-ir("/emporio/financeiro/caixa?conta=" + conta_id)
+ir("/emporio/caixa?lugar=conta:" + conta_id)
 confere("a tela mostra o extrato da Fin Conta", esperar(lambda: tem("Extrato: Fin Conta"), 30), texto_principal(300))
 confere("a tela mostra a linha Conta paga", tem("Conta paga"), texto_principal(1500))
 
@@ -209,10 +214,12 @@ r2 = api("POST", "/api/v1/emporio/receivables/receive", {
 confere("em dinheiro o Financeiro e recusado (422 no campo kind)", r2["status"] == 422 and ((r2["body"] or {}).get("error") or {}).get("field") == "kind", r2)
 linhas = extrato(conta_id).get("lines") or []
 confere("o extrato tem a entrada 'Fiado recebido' de 30", any(l.get("description") == "Fiado recebido" and l.get("direction") == "entrada" and abs(l.get("amount", 0) - 30) < 0.005 for l in linhas), [l.get("description") for l in linhas])
-ir("/emporio/financeiro/caixa?conta=" + conta_id)
+ir("/emporio/caixa?lugar=conta:" + conta_id)
 confere("a tela do extrato mostra Fiado recebido", esperar(lambda: tem("Fiado recebido"), 30), texto_principal(1500))
 ir("/emporio/financeiro/receber")
 confere("A receber abre com o fiado, os cheques e os cartoes", tem("Fin Cliente") or tem("Nenhum fiado") or tem("fiado"), texto_principal(800))
+# Onda 4: o A receber mostra uma aba por vez; os cheques estão na aba Cheques.
+ir("/emporio/financeiro/receber?aba=cheques")
 confere("o cheque bom para hoje esta listado (R$ 50,00)", tem("9001") or tem("R$ 50,00"), texto_principal(1500))
 
 # --- 6 ---------------------------------------------------------------------------------
@@ -331,7 +338,7 @@ ir("/emporio/financeiro/pagar")
 sem_rolagem("A pagar")
 ir("/emporio/financeiro/receber")
 sem_rolagem("A receber")
-ir("/emporio/financeiro/caixa?conta=" + conta_id)
+ir("/emporio/caixa?lugar=conta:" + conta_id)
 sem_rolagem("Posição de caixa com o extrato")
 cdp("Emulation.clearDeviceMetricsOverride")
 
@@ -360,7 +367,7 @@ def saldo_da_linha(nome, tipo):
 
 
 entrar("gestor")
-ir("/emporio/despesas")
+ir("/emporio/financeiro/pagar")
 confere("o Gestor ve a lista de contas a pagar (Fin Fornecedor)", esperar(lambda: tem(FORNECEDOR), 30), texto_principal(400))
 confere("o Gestor NAO tem o botao Adiar", botoes_com_texto("Adiar") == 0, botoes_com_texto("Adiar"))
 confere("o Gestor NAO tem o botao Cancelar", botoes_com_texto("Cancelar") == 0, botoes_com_texto("Cancelar"))
@@ -375,7 +382,7 @@ confere("o Financeiro tem o botao Cancelar", botoes_com_texto("Cancelar") > 0, b
 ir("/emporio/caixa")
 confere("o Financeiro tem o botao de nova conta bancaria em Caixa", esperar(lambda: botoes_com_texto("Nova conta") > 0, 30), caminho() + " " + texto_principal(300))
 
-ir("/emporio/financeiro/caixa")
+ir("/emporio/caixa")
 confere("a Posicao de caixa lista a gaveta da Fin Loja 1", esperar(lambda: saldo_da_linha(LOJA1, "Gaveta") is not None, 30), texto_principal(600))
 saldo_gaveta = saldo_da_linha(LOJA1, "Gaveta")
 confere("clica Ver extrato na gaveta", clicar_ver_extrato_de(LOJA1, "Gaveta") is True)
