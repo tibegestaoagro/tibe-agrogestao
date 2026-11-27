@@ -48,10 +48,13 @@ export function TransferenciaForm({
   origens,
   destinos,
   produtos,
+  lojaInicial = "",
 }: {
   origens: { id: string; name: string }[];
   destinos: { id: string; name: string }[];
   produtos: ProdutoParaTransferencia[];
+  /** A loja do topo: abre como origem se estiver entre as que podem enviar. */
+  lojaInicial?: string;
 }) {
   const router = useRouter();
   const err = useErrosDeFormulario(ORDEM, "transf");
@@ -65,7 +68,9 @@ export function TransferenciaForm({
   };
 
   const novoItem = (): ItemLinha => ({ key: proximo(), produto: "", modo: "lacrado", apresentacao: "", qtd: "" });
-  const [origem, setOrigem] = useState(origens.length === 1 ? origens[0].id : "");
+  const origemDeAbertura = () =>
+    lojaInicial && origens.some((l) => l.id === lojaInicial) ? lojaInicial : origens.length === 1 ? origens[0].id : "";
+  const [origem, setOrigem] = useState(origemDeAbertura);
   const [destino, setDestino] = useState("");
   const [itens, setItens] = useState<ItemLinha[]>(() => [
     { key: 1, produto: "", modo: "lacrado", apresentacao: "", qtd: "" },
@@ -73,7 +78,7 @@ export function TransferenciaForm({
   const [obs, setObs] = useState("");
 
   function reiniciar() {
-    setOrigem(origens.length === 1 ? origens[0].id : "");
+    setOrigem(origemDeAbertura());
     setDestino("");
     setItens([novoItem()]);
     setObs("");

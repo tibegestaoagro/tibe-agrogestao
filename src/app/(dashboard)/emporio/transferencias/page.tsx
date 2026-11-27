@@ -2,7 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
-import { lacradoEfetivo, listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
+import { lacradoEfetivo } from "@/lib/actions/emporio-catalogo";
+import { lerLojaDoTopo } from "@/lib/emporio/loja-do-topo-servidor";
 import { listarTransferenciasAction } from "@/lib/actions/emporio-transferencias";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -51,9 +52,10 @@ export default async function TransferenciasPage({
 }) {
   const user = await requireFeaturePage("emporio");
   const params = await searchParams;
-  const { loja = "", situacao = "" } = params;
+  const { situacao = "" } = params;
   const { pagina, porPagina, ordem } = lerPaginacaoDaUrl(params);
   const db = await getTenantDb();
+  const { lojas, loja } = await lerLojaDoTopo(db, user, params.loja);
   // O Caixa não abre esta tela: só vende, recebe fiado e opera o caixa.
   if ((await papelDoEmporio(db, user)).papel === "caixa") redirect("/emporio");
   const papel = await papelDoEmporio(db, user);
@@ -63,8 +65,7 @@ export default async function TransferenciasPage({
   const filtroSituacao =
     situacao === "em_transito" || situacao === "aguardando_gestor" || situacao === "recebida" || situacao === "cancelada" ? situacao : undefined;
 
-  const [lojasRes, transfRes, todasLojas, produtos] = await Promise.all([
-    listarEstabelecimentosAction(db, user),
+  const [transfRes, todasLojas, produtos] = await Promise.all([
     listarTransferenciasAction(db, user, { establishment_id: loja || undefined, status: filtroSituacao, page: pagina, per_page: porPagina, order: ordem }),
     // O destino é qualquer loja da conta, mesmo as que o usuário não enxerga.
     podeEnviar
@@ -91,14 +92,12 @@ export default async function TransferenciasPage({
         })
       : Promise.resolve([]),
   ]);
-  const lojas = lojasRes.ok ? lojasRes.data.map((l) => ({ id: l.id, name: l.name })) : [];
   const idsVisiveis = new Set(lojas.map((l) => l.id));
   const origensDoEnvio = podeEnviar ? lojas.filter((l) => pode(papel, "gestor_da_loja", l.id)) : [];
   const transferencias = transfRes.ok ? transfRes.data.linhas : [];
 
   function hrefDe(n: number): string {
     const p = new URLSearchParams();
-    if (loja) p.set("loja", loja);
     if (filtroSituacao) p.set("situacao", filtroSituacao);
     if (porPagina !== 20) p.set("por_pagina", String(porPagina));
     if (ordem !== "desc") p.set("ordem", ordem);
@@ -140,12 +139,12 @@ export default async function TransferenciasPage({
         acoes={
           origensDoEnvio.length > 0 &&
           todasLojas.length > 1 && (
-            <TransferenciaForm origens={origensDoEnvio} destinos={todasLojas} produtos={produtosForm} />
+            <TransferenciaForm origens={origensDoEnvio} destinos={todasLojas} produtos={produtosForm} lojaInicial={loja} />
           )
         }
       />
 
-      <TransferenciasFiltro lojas={lojas} loja={loja} situacao={filtroSituacao ?? ""} porPagina={porPagina} ordem={ordem} />
+      <TransferenciasFiltro situacao={filtroSituacao ?? ""} porPagina={porPagina} ordem={ordem} />
 
       {lojas.length === 0 ? (
         <EmptyState

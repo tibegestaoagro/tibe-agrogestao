@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
-import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
+import { lerLojaDoTopo } from "@/lib/emporio/loja-do-topo-servidor";
 import { listarComprasAction, lerSaldosParaCompraAction } from "@/lib/actions/emporio-compras";
 import { reaisBr } from "@/lib/numero-br";
 import { Badge } from "@/components/ui/badge";
@@ -45,9 +45,10 @@ export default async function ComprasPage({
 }) {
   const user = await requireFeaturePage("emporio");
   const params = await searchParams;
-  const { loja = "", situacao = "" } = params;
+  const { situacao = "" } = params;
   const { pagina, porPagina, ordem } = lerPaginacaoDaUrl(params);
   const db = await getTenantDb();
+  const { lojas, loja } = await lerLojaDoTopo(db, user, params.loja);
   // O Caixa não abre esta tela: só vende, recebe fiado e opera o caixa.
   if ((await papelDoEmporio(db, user)).papel === "caixa") redirect("/emporio");
   // F6b: lançar é por chave, receber é do Vendedor da loja, cancelar é do Gestor da loja.
@@ -57,8 +58,7 @@ export default async function ComprasPage({
   const filtroSituacao =
     situacao === "pendente" || situacao === "recebida" || situacao === "cancelada" ? situacao : undefined;
 
-  const [lojasRes, comprasRes, produtos] = await Promise.all([
-    listarEstabelecimentosAction(db, user),
+  const [comprasRes, produtos] = await Promise.all([
     listarComprasAction(db, user, { establishment_id: loja || undefined, status: filtroSituacao, page: pagina, per_page: porPagina, order: ordem }),
     podeLancar
       ? db.emporioProduct.findMany({
@@ -76,13 +76,11 @@ export default async function ComprasPage({
         })
       : Promise.resolve([]),
   ]);
-  const lojas = lojasRes.ok ? lojasRes.data.map((l) => ({ id: l.id, name: l.name })) : [];
   const lojasDoLancamento = lojas.filter((l) => pode(papel, "chave:lancar_compra", l.id));
   const compras = comprasRes.ok ? comprasRes.data.linhas : [];
 
   function hrefDe(n: number): string {
     const p = new URLSearchParams();
-    if (loja) p.set("loja", loja);
     if (filtroSituacao) p.set("situacao", filtroSituacao);
     if (porPagina !== 20) p.set("por_pagina", String(porPagina));
     if (ordem !== "desc") p.set("ordem", ordem);
@@ -117,12 +115,12 @@ export default async function ComprasPage({
         ajuda="O que as lojas compraram dos fornecedores. A conta a pagar nasce junto."
         acoes={
           lojasDoLancamento.length > 0 && (
-            <CompraForm lojas={lojasDoLancamento} produtos={produtosForm} abrirAoEntrar={params.nova === "1"} />
+            <CompraForm lojas={lojasDoLancamento} produtos={produtosForm} lojaInicial={loja} abrirAoEntrar={params.nova === "1"} />
           )
         }
       />
 
-      <ComprasFiltro lojas={lojas} loja={loja} situacao={filtroSituacao ?? ""} porPagina={porPagina} ordem={ordem} />
+      <ComprasFiltro situacao={filtroSituacao ?? ""} porPagina={porPagina} ordem={ordem} />
 
       {lojas.length === 0 ? (
         <EmptyState

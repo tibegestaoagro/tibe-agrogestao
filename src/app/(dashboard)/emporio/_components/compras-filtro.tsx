@@ -19,29 +19,24 @@ const SITUACOES: { valor: string; rotulo: string }[] = [
   { valor: "cancelada", rotulo: "Cancelada" },
 ];
 
-type Estado = { loja: string; situacao: string; porPagina: number; ordem: string };
+type Estado = { situacao: string; porPagina: number; ordem: string };
 
-/** Filtro da lista de compras: vive na URL, e a página server relê. Mudar qualquer coisa volta à página 1. */
+/** Filtro da lista de compras: vive na URL, e a página server relê. A loja é a do topo (cookie), não daqui. */
 export function ComprasFiltro({
-  lojas,
-  loja,
   situacao,
   porPagina,
   ordem,
 }: {
-  lojas: { id: string; name: string }[];
-  loja: string;
   situacao: string;
   porPagina: number;
   ordem: string;
 }) {
   const router = useRouter();
-  const atual: Estado = { loja, situacao, porPagina, ordem };
+  const atual: Estado = { situacao, porPagina, ordem };
 
   function ir(mudanca: Partial<Estado>) {
     const e = { ...atual, ...mudanca };
     const q = new URLSearchParams();
-    if (e.loja) q.set("loja", e.loja);
     if (e.situacao) q.set("situacao", e.situacao);
     if (e.porPagina !== 20) q.set("por_pagina", String(e.porPagina));
     if (e.ordem !== "desc") q.set("ordem", e.ordem);
@@ -53,20 +48,6 @@ export function ComprasFiltro({
     <BarraDeFiltros
       filtros={
         <>
-      <Select value={loja || TODAS} onValueChange={(v) => ir({ loja: v === TODAS ? "" : v })}>
-        <SelectTrigger aria-label="Filtrar por loja">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value={TODAS}>Todas as lojas</SelectItem>
-          {lojas.map((l) => (
-            <SelectItem key={l.id} value={l.id}>
-              {l.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
       <Select value={situacao || TODAS} onValueChange={(v) => ir({ situacao: v === TODAS ? "" : v })}>
         <SelectTrigger aria-label="Filtrar por situação">
           <SelectValue />

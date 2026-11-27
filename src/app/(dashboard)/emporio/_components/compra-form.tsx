@@ -95,9 +95,12 @@ export function CompraForm({
   lojas,
   produtos,
   abrirAoEntrar = false,
+  lojaInicial = "",
 }: {
   lojas: { id: string; name: string }[];
   produtos: ProdutoParaCompra[];
+  /** A loja do topo: abre marcada se estiver entre as que podem lançar. */
+  lojaInicial?: string;
   /** O atalho "Nova compra" do Início chega por `?nova=1` com o painel já aberto. */
   abrirAoEntrar?: boolean;
 }) {
@@ -113,7 +116,9 @@ export function CompraForm({
   };
 
   const novoItem = (): ItemLinha => ({ key: proximo(), produto: "", apresentacao: BASE, qtd: "", total: "" });
-  const [loja, setLoja] = useState(lojas.length === 1 ? lojas[0].id : "");
+  const lojaDeAbertura = () =>
+    lojaInicial && lojas.some((l) => l.id === lojaInicial) ? lojaInicial : lojas.length === 1 ? lojas[0].id : "";
+  const [loja, setLoja] = useState(lojaDeAbertura);
   const [fornecedor, setFornecedor] = useState<FornecedorEscolhido | null>(null);
   const [data, setData] = useState(hoje);
   const [recebida, setRecebida] = useState(true);
@@ -152,7 +157,7 @@ export function CompraForm({
   function reiniciar() {
     setLugar("");
     setCaixa("");
-    setLoja(lojas.length === 1 ? lojas[0].id : "");
+    setLoja(lojaDeAbertura());
     setFornecedor(null);
     setData(hoje());
     setRecebida(true);

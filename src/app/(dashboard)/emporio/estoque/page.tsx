@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
-import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
+import { lerLojaDoTopo } from "@/lib/emporio/loja-do-topo-servidor";
 import {
   saldoDaLojaAction,
   estoqueConsolidadoAction,
@@ -11,7 +11,6 @@ import {
 } from "@/lib/actions/emporio-estoque";
 import { reaisBr } from "@/lib/numero-br";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   Table,
@@ -31,11 +30,9 @@ import { abaDoEstoque, fatiarPagina } from "@/lib/emporio/dinheiro-telas";
 import { EncaminharBotao } from "../_components/encaminhar-botao";
 import { UNIDADE_BASE_SUFIXO, numeroBr, textoLacrado, ORIGEM_DO_CUSTO_AVISO } from "../_components/formato";
 
-const TODAS = "todas";
-
 /**
- * Estoque do Meu Empório (F2a, Q60 a Q71). A loja escolhida vive na URL
- * (`?loja=`), então a página continua sendo server e o link é compartilhável.
+ * Estoque do Meu Empório (F2a, Q60 a Q71). A loja vem do seletor do topo
+ * (`lerLojaDoTopo`: URL, depois cookie), então a página continua sendo server.
  * O saldo nunca é lido de um campo: as actions somam as movimentações.
  */
 export default async function EstoquePage({
@@ -56,11 +53,13 @@ export default async function EstoquePage({
   // não tem a Lista de Compra, então não encaminha para ela.
   const papel = await papelDoEmporio(db, user);
   const podeEncaminhar = pode(papel, "gestor_da_loja") && !papel.soDaLoja;
-  const lojasRes = await listarEstabelecimentosAction(db, user);
-  const lojas = lojasRes.ok ? lojasRes.data : [];
+  // `?loja=__todas__` (e `todas`) vêm de link antigo e valem como "Todas": o helper cai no cookie sem eles.
+  const daUrl = lojaParam === "__todas__" || lojaParam === "todas" ? undefined : lojaParam;
+  const { lojas, loja } = await lerLojaDoTopo(db, user, daUrl);
 
-  const consolidado = lojaParam === TODAS;
-  const lojaAtual = consolidado ? null : (lojas.find((l) => l.id === lojaParam) ?? lojas[0] ?? null);
+  // Sem loja no topo, uma loja só ao alcance é a loja (tela como sempre foi); várias, a visão somada.
+  const lojaAtual = loja ? (lojas.find((l) => l.id === loja) ?? null) : lojas.length === 1 ? lojas[0] : null;
+  const consolidado = lojas.length > 0 && !lojaAtual;
 
   // Cada aba carrega só o que mostra.
   const [saldoRes, consolidadoRes, reporRes] = await Promise.all([
@@ -74,21 +73,18 @@ export default async function EstoquePage({
   const linhas = fatiaLinhas.linhas;
   const linhasConsolidadas = fatiaConsolidadas.linhas;
   const repor = fatiaRepor.linhas;
-  const lojaQuery = consolidado ? TODAS : (lojaAtual?.id ?? "");
 
   function hrefDe(n: number): string {
     const p = new URLSearchParams();
-    if (lojaQuery) p.set("loja", lojaQuery);
     if (aba !== "repor") p.set("aba", aba);
     if (porPagina !== 20) p.set("por_pagina", String(porPagina));
     if (n > 1) p.set("pagina", String(n));
     const texto = p.toString();
     return texto ? `/emporio/estoque?${texto}` : "/emporio/estoque";
   }
-  // Trocar de loja ou de aba larga a `pagina`; o tamanho da página fica.
-  function hrefAba(novaAba: string, loja: string): string {
+  // Trocar de aba larga a `pagina`; o tamanho da página fica. A loja é a do topo (cookie).
+  function hrefAba(novaAba: string): string {
     const p = new URLSearchParams();
-    if (loja) p.set("loja", loja);
     if (novaAba !== "repor") p.set("aba", novaAba);
     if (porPagina !== 20) p.set("por_pagina", String(porPagina));
     const texto = p.toString();
@@ -115,27 +111,12 @@ export default async function EstoquePage({
         </EmptyState>
       ) : (
         <>
-          <nav aria-label="Loja" className="flex flex-wrap gap-2">
-            {lojas.map((l) => (
-              <Button key={l.id} asChild size="sm" variant={lojaAtual?.id === l.id ? "default" : "outline"}>
-                <Link href={hrefAba(aba, l.id)} aria-current={lojaAtual?.id === l.id ? "page" : undefined}>
-                  {l.name}
-                </Link>
-              </Button>
-            ))}
-            <Button asChild size="sm" variant={consolidado ? "default" : "outline"}>
-              <Link href={hrefAba(aba, TODAS)} aria-current={consolidado ? "page" : undefined}>
-                Todas as lojas
-              </Link>
-            </Button>
-          </nav>
-
           <AbasDaTela
             rotulo="Abas do Estoque"
             atual={aba}
             abas={[
-              { valor: "repor", rotulo: "Precisa repor", href: hrefAba("repor", lojaQuery) },
-              { valor: "tudo", rotulo: "Tudo", href: hrefAba("tudo", lojaQuery) },
+              { valor: "repor", rotulo: "Precisa repor", href: hrefAba("repor") },
+              { valor: "tudo", rotulo: "Tudo", href: hrefAba("tudo") },
             ]}
           />
 
