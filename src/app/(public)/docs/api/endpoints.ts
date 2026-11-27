@@ -1362,9 +1362,18 @@ export const GROUPS: Group[] = [
         method: "GET",
         path: "/api/v1/emporio/inicio",
         auth: "Sessão · emporio:read · todo papel do Empório, menos o Caixa (403 `FORBIDDEN`)",
-        description: "O Início do Meu Empório, só leitura e nada gravado. `avisos`: o que precisa de ação, na ordem `estoque_baixo` (um por loja), `orcamento_vencendo` (em aberto com validade de hoje até hoje mais 3 dias), `caixa_de_ontem` (um por turno aberto antes de hoje, em São Paulo), `fiado_vencido`, `pagar_hoje`, `aprovacao_pendente`, `boleto_cheque_vencido` e `conferir_banco`. Cada aviso traz `chave`, `coluna` (`gestor` ou `dinheiro`), `quantidade`, `valor` (nulo quando não se aplica), `texto`, `href` e `acao` (o rótulo do link). Aviso com quantidade zero não entra. A coluna `gestor` vale para o Dono, o Gerente geral e o Gestor (só das lojas dele); a `dinheiro`, para o Financeiro, o Gerente geral e o Dono; o Vendedor não recebe aviso. `numeros`: `vendas_hoje` (`total`, `quantidade`), `vendas_mes` (`total` e `variacao_pct`, o mês até hoje contra o mesmo trecho do mês anterior; nulo com o anterior em zero), e, só para quem tem a coluna `dinheiro`, `entra_hoje` (`total`, `detalhe`) e `sai_hoje` (`total`, `quantidade`), no sentido da aba Hoje do Financeiro; sem ela, os dois vêm nulos. Tudo conta só as lojas que a pessoa alcança.",
+        description: "O Início do Meu Empório, só leitura e nada gravado. `avisos`: o que precisa de ação, na ordem `estoque_baixo` (um por loja), `orcamento_vencendo` (em aberto com validade de hoje até hoje mais 3 dias), `caixa_de_ontem` (um por turno aberto antes de hoje, em São Paulo), `fiado_vencido`, `pagar_hoje`, `aprovacao_pendente`, `boleto_cheque_vencido` e `conferir_banco`. Cada aviso traz `chave`, `coluna` (`gestor` ou `dinheiro`), `quantidade`, `valor` (nulo quando não se aplica), `texto`, `href` e `acao` (o rótulo do link). Aviso com quantidade zero não entra. A coluna `gestor` vale para o Dono, o Gerente geral e o Gestor (só das lojas dele); a `dinheiro`, para o Financeiro, o Gerente geral e o Dono; o Vendedor não recebe aviso. `numeros`: `vendas_hoje` (`total`, `quantidade`), `vendas_mes` (`total` e `variacao_pct`, o mês até hoje contra o mesmo trecho do mês anterior; nulo com o anterior em zero), e, só para quem tem a coluna `dinheiro`, `entra_hoje` (`total`, `detalhe`) e `sai_hoje` (`total`, `quantidade`), no sentido da aba Hoje do Financeiro; sem ela, os dois vêm nulos. Tudo conta só as lojas que a pessoa alcança. Aditivo (onda 6): `?establishment_id=<id>` restringe avisos e números a essa loja; fora do alcance ou de outra conta: 404 `NOT_FOUND` em `establishment_id`.",
         response: `200
 { "data": { "avisos": [{ "chave": "estoque_baixo", "coluna": "gestor", "quantidade": 3, "valor": null, "texto": "3 produtos para repor em Loja Centro", "href": "/emporio/estoque?loja=cl...", "acao": "Ver" }], "numeros": { "vendas_hoje": { "total": 1250.5, "quantidade": 8 }, "vendas_mes": { "total": 18400, "variacao_pct": 12 }, "entra_hoje": { "total": 320, "detalhe": "fiado R$ 320,00" }, "sai_hoje": { "total": 220, "quantidade": 1 } } }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/loja-do-topo",
+        auth: "Sessão · emporio:read · todo papel do Empório, o Caixa inclusive",
+        description: "Troca a loja do seletor \"Loja\" do topo do Meu Empório. É preferência de sessão, não escrita de negócio: grava o cookie `tibe_emporio_loja` (um ano) na resposta, e `null` (\"Todas\") apaga o cookie. Loja fora do alcance de quem pede, arquivada ou de outra conta: 404 `NOT_FOUND` em `establishment_id`, sem cookie. Corpo inválido: 422.",
+        request: `{ "establishment_id": "cl..." }`,
+        response: `200
+{ "data": { "establishment_id": "cl..." }, "meta": {} }`,
       },
       {
         method: "GET",

@@ -1,5 +1,5 @@
 import type { TenantPrismaClient } from "@/lib/prisma";
-import { ok, type ActionResult } from "@/lib/actions/types";
+import { fail, ok, type ActionResult } from "@/lib/actions/types";
 import { decToNum } from "@/lib/serialize";
 import { exigirUma, papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { hojeEmBrasilia, somarDias } from "@/lib/emporio/cartao";
@@ -48,7 +48,7 @@ async function somaDeVendas(db: TenantPrismaClient, lojas: Lojas, de: Date, ate:
 export async function lerInicioAction(
   db: TenantPrismaClient,
   ator: Ator,
-  opts: { agora?: Date } = {},
+  opts: { agora?: Date; establishment_id?: string } = {},
 ): Promise<ActionResult<{ avisos: AvisoDoInicio[]; numeros: NumerosDoDia }>> {
   const neg = await exigirUma(db, ator, ["fora_do_caixa"], "ver o início");
   if (neg) return neg;
@@ -56,7 +56,17 @@ export async function lerInicioAction(
   const agora = opts?.agora instanceof Date && !Number.isNaN(opts.agora.getTime()) ? opts.agora : new Date();
   const papel = await papelDoEmporio(db, ator);
   const colunas = colunasDoInicio(papel);
-  const visiveis = await lojasDoAtor(db, ator);
+  let visiveis = await lojasDoAtor(db, ator);
+
+  // Com uma loja pedida, avisos e números são só dela. Fora do alcance (ou de outra conta): não achada.
+  const lojaPedida = typeof opts?.establishment_id === "string" && opts.establishment_id ? opts.establishment_id : undefined;
+  const filtroDaLoja = lojaPedida ? { establishment_id: lojaPedida } : {};
+  if (lojaPedida) {
+    const existe = (!visiveis || visiveis.has(lojaPedida)) &&
+      (await db.establishment.findFirst({ where: { id: lojaPedida, archived_at: null }, select: { id: true } }));
+    if (!existe) return fail("NOT_FOUND", "Estabelecimento não encontrado.", 404, "establishment_id");
+    visiveis = new Set([lojaPedida]);
+  }
 
   const hoje = hojeEmBrasilia(agora); // meia-noite UTC do dia de São Paulo (data de calendário)
   const inicioHoje = new Date(hoje.getTime() + TRES_HORAS); // o mesmo dia como instante
@@ -130,7 +140,7 @@ export async function lerInicioAction(
         });
       }
 
-      const turnos = await listarTurnosAction(db, ator, { status: "open" });
+      const turnos = await listarTurnosAction(db, ator, { status: "open", ...filtroDaLoja });
       if (!turnos.ok) return turnos;
       for (const t of turnos.data) {
         if (!idsMinhas.has(t.establishment_id)) continue;
@@ -149,7 +159,7 @@ export async function lerInicioAction(
   }
 
   if (colunas.dinheiro) {
-    const hojeFin = await lerResumoHojeAction(db, ator);
+    const hojeFin = await lerResumoHojeAction(db, ator, filtroDaLoja);
     if (!hojeFin.ok) return hojeFin;
     const h = hojeFin.data;
 
@@ -165,7 +175,7 @@ export async function lerInicioAction(
       });
     }
 
-    const apagar = await resumoDoAPagarAction(db, ator);
+    const apagar = await resumoDoAPagarAction(db, ator, filtroDaLoja);
     if (!apagar.ok) return apagar;
     const { overdue, due_today: devidoHoje } = apagar.data.summary;
     const qtdPagar = overdue.count + devidoHoje.count;
@@ -193,7 +203,7 @@ export async function lerInicioAction(
       });
     }
 
-    const boletos = await listarBoletosAction(db, ator, { status: "vencido" });
+    const boletos = await listarBoletosAction(db, ator, { status: "vencido", ...filtroDaLoja });
     if (!boletos.ok) return boletos;
     const cheques = await db.emporioCheck.findMany({
       where: { status: { in: ["recebido", "depositado"] }, good_for: { lt: hoje }, ...filtroDeLojas(visiveis) },
