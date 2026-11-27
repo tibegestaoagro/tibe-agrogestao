@@ -12,7 +12,7 @@ import { reaisBr } from "@/lib/numero-br";
  * (o painel inverte as cores no modo escuro e a folha não pode acompanhar).
  */
 
-const ESTILO = `
+export const ESTILO = `
 @page { size: A4; margin: 12mm }
 .a4 { background: #fff; color: #000; font: 12px/1.45 Arial, Helvetica, sans-serif; max-width: 190mm; margin: 0 auto; padding: 8mm 0 }
 .a4 .topo { display: flex; justify-content: space-between; gap: 12px; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 12px }
