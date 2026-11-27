@@ -19,6 +19,7 @@ import { EstatisticasFiltro } from "../_components/estatisticas-filtro";
 import { EstatisticasVendas } from "../_components/estatisticas-vendas";
 import { EstatisticasDinheiro } from "../_components/estatisticas-dinheiro";
 import { EstatisticasResultado } from "../_components/estatisticas-resultado";
+import { EstatisticasImprimir } from "../_components/estatisticas-imprimir";
 import { EstatisticasVisaoGeral } from "../_components/estatisticas-visao-geral";
 
 type Parametros = Record<string, string | string[] | undefined>;
@@ -49,7 +50,8 @@ export default async function EstatisticasPage({ searchParams }: { searchParams:
   const dias = um(sp.dias) === "60" ? 60 : um(sp.dias) === "90" ? 90 : 30;
   const abc = um(sp.abc);
   const medida = um(sp.medida);
-  const manter = aba === "dinheiro" ? { dias: um(sp.dias) } : aba === "vendas" ? { abc, medida } : {};
+  const manter =
+    aba === "dinheiro" ? { dias: um(sp.dias) } : aba === "vendas" ? { abc, medida } : aba === "imprimir" ? { medida } : {};
 
   const hrefDaAba = (valor: string) => {
     const q = new URLSearchParams({ aba: valor });
@@ -58,6 +60,8 @@ export default async function EstatisticasPage({ searchParams }: { searchParams:
       q.set("ate", periodo.ate);
     }
     if (loja) q.set("loja", loja);
+    // A medida da Curva ABC passa entre Vendas e Relatórios para imprimir, que imprime a mesma curva.
+    if (medida && (valor === "vendas" || valor === "imprimir")) q.set("medida", medida);
     return `/emporio/estatisticas?${q.toString()}`;
   };
   const abas = [
@@ -116,8 +120,18 @@ export default async function EstatisticasPage({ searchParams }: { searchParams:
       />
     );
   } else {
-    // Provisório: os Relatórios para imprimir chegam na próxima tarefa da onda.
-    conteudo = <EmptyState titulo="Em construção">Esta aba chega em breve.</EmptyState>;
+    conteudo = (
+      <EstatisticasImprimir
+        db={db}
+        user={user}
+        hoje={hoje.toISOString().slice(0, 10)}
+        de={periodo.de}
+        ate={periodo.ate}
+        loja={loja}
+        medida={medida}
+        podeDinheiro={pode(papel, "dinheiro")}
+      />
+    );
   }
 
   return (
