@@ -32,7 +32,9 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   `3ccb2bb9`), sem migração; o detalhe de cada uma está em
   `historico/2026-11.md` (a onda 4 arquivada em 27/11).
 
-  **Onda 5 (Estatísticas, §5.10 e §5.11): pronta na branch, SEM merge.**
+  **Onda 5 (Estatísticas, §5.10 e §5.11): em produção desde 27/11**, depois
+  do merge autorizado pelo usuário (avanço rápido de `ux-emporio` de
+  `3ccb2bb9` a `99eafbba`; CI e Vercel verdes).
   Plano `docs/superpowers/plans/2026-11-27-emporio-ux-onda5-estatisticas.md`,
   aprovado em 27/11 (decisões 1 a 10 e as três trocas). Commits de
   `9c8948a4` (plano) a `550e5fa2`. Sem migração. Entregue:
@@ -64,8 +66,13 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   `vendedor-imprimir/page.tsx:49` e `:77`). Também cita os endereços antigos:
   `scripts/cenario-demonstracao-emporio.ts`.
 
-  **Próximo:** autorização do usuário para o merge da onda 5 (avanço rápido
-  de `ux-emporio` sobre a `main`, sem migração). Depois, plano da onda 6.
+  **Próximo:** plano da onda 6 (ver a ordem das ondas no desenho, §8), para
+  aprovação do usuário. Pausa em 27/11 à noite: o usuário vai dobrar a RAM
+  do desktop. Nada ficou rodando (sem `next dev`, sem roteiro) e tudo está
+  enviado. Ao religar: `docker start tibe-pg tibe-redis` (ou subir o Docker
+  Desktop) e conferir com `docker ps`; com mais memória, o `next dev` dos
+  roteiros pode continuar com `--max-old-space-size=4096`, e a passada
+  longa deve parar de ser derrubada por falta de memória.
 - Em produção até 24/11 (detalhe em `historico/2026-11.md`): lint zerado;
   decisões pendentes D1 a D7 (Q374 a Q386, `m129`); data da baixa (Q370 a
   Q373, `m127`); sobras sem a Agromax (`m128`); plano do GestãoClick A, B, C,
@@ -188,7 +195,7 @@ celular. Missões 3 e 4 congeladas no classificador.
 
 ## Últimas rodadas
 
-- 27/11: onda 5 da UX do Empório (Estatísticas) pronta na branch `ux-emporio`, sem merge.
+- 27/11: onda 5 da UX do Empório (Estatísticas) em produção (merge e push autorizados na conversa).
 - 26/11: ondas 2 e 3 da UX do Empório em produção (merges autorizados na conversa); onda 4 em produção em 27/11 (merge autorizado na conversa).
 - 24/11 (2): UX do Empório: entrevista, diagnóstico, mockups e desenho; nada em produção.
 - 24/11: lint zerado e travado, passo 2 do roteiro franqueado estável; branch `lint-avisos-passo-2` sem merge.
