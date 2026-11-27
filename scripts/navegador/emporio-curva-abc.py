@@ -63,7 +63,7 @@ def tabela_por_produto():
 
 
 def ir_relatorio(abc, medida, loja="", de=DIA, ate=DIA):
-    q = "/emporio/relatorios?de=" + de + "&ate=" + ate + "&abc=" + abc + "&medida=" + medida
+    q = "/emporio/estatisticas?aba=vendas&de=" + de + "&ate=" + ate + "&abc=" + abc + "&medida=" + medida
     if loja:
         q += "&loja=" + loja
     ir(q)
@@ -200,14 +200,14 @@ milho = next((l for l in (s or {"linhas": []})["linhas"] if l[1] == "Abc Milho")
 confere("sem filtro de loja: o Milho soma as duas lojas (5000 + 1250 = 6250)", milho is not None and br(milho[3]) == 6250, milho)
 
 ir_relatorio("clientes", "lucro", LOJA1)
-confere("de partida: aba Clientes, medida Lucro, De = 2026-03-10", "abc=clientes" in caminho() and js("document.getElementById('rel-de').value") == DIA, [caminho(), js("document.getElementById('rel-de').value")])
-js("(() => { const el = document.getElementById('rel-de'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, '2026-03-09'); el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); })()")
-confere("clica em 'Ver relatorio'", clicar("Ver relatório"))
+confere("de partida: aba Clientes, medida Lucro, De = 2026-03-10", "abc=clientes" in caminho() and js("document.getElementById('estatisticas-de').value") == DIA, [caminho(), js("document.getElementById('estatisticas-de').value")])
+js("(() => { const el = document.getElementById('estatisticas-de'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, '2026-03-09'); el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); })()")
+confere("clica em 'Aplicar' (o filtro de datas das Estatísticas)", clicar("Aplicar"))
 esperar(lambda: "de=2026-03-09" in caminho(), 60)
 esperar(lambda: secao_abc() is not None, 60)
 time.sleep(2)
 s = secao_abc()
-confere("depois de 'Ver relatorio' a URL tem o periodo novo E mantem abc=clientes e medida=lucro", "de=2026-03-09" in caminho() and "abc=clientes" in caminho() and "medida=lucro" in caminho() and "loja=" + LOJA1 in caminho(), caminho())
+confere("depois de 'Aplicar' a URL tem o periodo novo E mantem abc=clientes e medida=lucro", "de=2026-03-09" in caminho() and "abc=clientes" in caminho() and "medida=lucro" in caminho() and "loja=" + LOJA1 in caminho(), caminho())
 confere("e a tela segue na aba Clientes com a medida Lucro ativa", s is not None and ["Clientes", True] in s["abas"] and ["Lucro (venda menos custo)", True] in s["abas"], s and s["abas"])
 
 # Achado do juiz (18/11): no dia so com a Soja vendida e devolvida inteira (Loja 2, 2026-03-12), a lista sai sem

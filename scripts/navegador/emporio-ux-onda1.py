@@ -16,13 +16,13 @@ TELAS = [
     "/emporio", "/emporio/vender", "/emporio/vendas", "/emporio/orcamentos", "/emporio/fiado",
     "/emporio/clientes", "/emporio/caixa", "/emporio/financeiro", "/emporio/financeiro/pagar",
     "/emporio/financeiro/receber",  # onda 4: cobranca, financeiro/caixa e despesas viraram redirect (testados no emporio-ux-onda4)
-    "/emporio/financeiro/aprovacoes", "/emporio/financeiro/projecao", "/emporio/financeiro/relatorios",
+    "/emporio/financeiro/aprovacoes",  # onda 5: projecao, financeiro/relatorios, resultado e relatorios viraram as abas das Estatisticas (emporio-ux-onda5)
     "/emporio/produtos", "/emporio/estoque", "/emporio/compras", "/emporio/fornecedores",
-    "/emporio/franqueados", "/emporio/transferencias", "/emporio/resultado",
-    "/emporio/relatorios", "/emporio/equipe", "/emporio/estabelecimentos", "/emporio/historico",
+    "/emporio/franqueados", "/emporio/transferencias", "/emporio/estatisticas",
+    "/emporio/equipe", "/emporio/estabelecimentos", "/emporio/historico",
     "/emporio/configuracoes",
 ]
-SUBGRUPOS = ["Vendas", "Estoque", "Dinheiro", "Estatísticas", "Ajustes"]
+SUBGRUPOS = ["Vendas", "Estoque", "Dinheiro", "Ajustes"]  # onda 5: Estatisticas virou um item so, sem subgrupo
 
 
 def caminho():
@@ -83,10 +83,11 @@ entrar("dono")
 ir("/emporio")
 js("localStorage.removeItem('tibe:menu:subgrupos')")
 
-passo("1. Dono: os cinco subgrupos e o que fica aberto")
+passo("1. Dono: os quatro subgrupos, o item Estatísticas e o que fica aberto")
 ir("/emporio")
 botoes = botoes_do_menu()
-confere("o menu tem os subgrupos Vendas, Estoque, Dinheiro, Estatísticas e Ajustes", all(s in botoes for s in SUBGRUPOS), botoes)
+confere("o menu tem os subgrupos Vendas, Estoque, Dinheiro e Ajustes", all(s in botoes for s in SUBGRUPOS), botoes)
+confere("Estatísticas é um item só do menu, não um subgrupo", "Estatísticas" in rotulos_dos_links() and "Estatísticas" not in botoes, [rotulos_dos_links(), botoes])
 confere("o menu tem Início e Vender soltos", "Início" in rotulos_dos_links() and "Vender" in rotulos_dos_links(), rotulos_dos_links())
 ir("/emporio/vendas")
 confere("em /emporio/vendas o subgrupo Vendas está aberto", expandido("Vendas") is True, expandido("Vendas"))

@@ -65,7 +65,7 @@ ir("/emporio")
 loja = [l for l in api("GET", "/api/v1/emporio/establishments")["body"]["data"] if l["name"] == "F4a Loja"][0]
 mes = time.strftime("%Y-%m")
 abrir_subgrupos()
-confere("menu com Resultado e A pagar (onda 4: a Despesas virou aba do A pagar; onda 2: o Início não tem mais esses cartões)", "/emporio/resultado" in menu() and "/emporio/financeiro/pagar" in menu(), menu())
+confere("menu com Estatísticas e A pagar (onda 5: o Resultado virou aba das Estatísticas; onda 4: a Despesas virou aba do A pagar)", "/emporio/estatisticas" in menu() and "/emporio/financeiro/pagar" in menu(), menu())
 
 passo("1. O Resultado da Loja na tela (o mês do cenário)")
 ir("/emporio/resultado?loja=" + loja["id"] + "&mes=" + mes)

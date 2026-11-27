@@ -33,10 +33,7 @@ ITENS_DO_DONO = [
     "/emporio/financeiro/receber",
     "/emporio/financeiro/pagar",
     "/emporio/financeiro/aprovacoes",
-    "/emporio/relatorios",
-    "/emporio/resultado",
-    "/emporio/financeiro/projecao",
-    "/emporio/financeiro/relatorios",
+    "/emporio/estatisticas",
     "/emporio/estabelecimentos",
     "/emporio/equipe",
     "/emporio/historico",
@@ -245,7 +242,7 @@ ir("/emporio")
 abrir_subgrupos()
 vend = [h for h in menu() if h.startswith("/emporio")]
 confere("o Vendedor vê Início, Vender e Vendas", all(h in vend for h in ("/emporio", "/emporio/vender", "/emporio/vendas")), vend)
-confere("o Vendedor não vê Despesas, Resultado, Equipe nem Histórico", not any(h in vend for h in ("/emporio/despesas", "/emporio/resultado", "/emporio/equipe", "/emporio/historico", "/emporio/configuracoes")), vend)
+confere("o Vendedor não vê Despesas, Estatísticas, Equipe nem Histórico", not any(h in vend for h in ("/emporio/despesas", "/emporio/estatisticas", "/emporio/equipe", "/emporio/historico", "/emporio/configuracoes")), vend)
 
 fim()
 

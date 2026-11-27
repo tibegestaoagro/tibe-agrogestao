@@ -191,7 +191,10 @@ def saldo_da_conta():
 
 
 def linhas_do_extrato():
-    return js("Array.from(document.querySelectorAll('main tbody tr')).map(t => t.innerText.replace(/\\u00a0/g, ' ').split('\\n').join(' | '))") or []
+    # Só as linhas do extrato ("dd/mm/aaaa" e tabulação). A página do Caixa tem outras tabelas: o saldo de cada
+    # lugar e as últimas movimentações ("dd/mm/aaaa, hh:mm"), que também listam o ajuste do cartão e o contavam duas vezes.
+    linhas = js("Array.from(document.querySelectorAll('main tbody tr')).map(t => t.innerText.replace(/\\u00a0/g, ' ').split('\\n').join(' | '))") or []
+    return [t for t in linhas if re.match(r"\d\d/\d\d/\d{4}\t", t)]
 
 
 def rolagem_horizontal():

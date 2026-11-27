@@ -87,8 +87,12 @@ LOJA = loja["id"]
 vendas = api_estavel("GET", "/api/v1/emporio/sales?establishment_id=" + LOJA)["body"]["data"]
 confere("a Rel Loja tem 4 vendas", len(vendas) == 4, len(vendas))
 # A primeira visita a uma rota compila no next dev e pode recarregar a pagina no meio do passo.
-for rota in ["/emporio/relatorios", "/emporio/financeiro/relatorios", "/emporio/financeiro/projecao", "/emporio/resultado", "/emporio/imprimir/relatorio/a-pagar"]:
-    js("fetch(" + repr(rota) + ").then(r => r.status)")
+for rota in ["/emporio/estatisticas?aba=vendas", "/emporio/estatisticas?aba=dinheiro", "/emporio/estatisticas?aba=resultado", "/emporio/imprimir/relatorio/a-pagar"]:
+    # A compilação da tela das Estatísticas pode passar do tempo do harness: aqui só se aquece, sem conferir.
+    try:
+        js("fetch(" + repr(rota) + ").then(r => r.status)")
+    except Exception as e:
+        print("   aquecimento de " + rota + " passou do tempo (" + type(e).__name__ + "), seguindo")
 for rota in [
     "/api/v1/emporio/reports/sales?from=" + HOJE.strftime("%Y-%m-01") + "&to=" + HOJE.isoformat(),
     "/api/v1/emporio/finance/reports/payables-by-due",
@@ -101,7 +105,7 @@ for rota in [
 time.sleep(2)
 
 passo("1. Relatório de vendas: o bloco 'Por origem' (a tela e a API)")
-ir("/emporio/relatorios?loja=" + LOJA)
+ir("/emporio/estatisticas?aba=vendas&loja=" + LOJA)
 confere("o bloco 'Por origem' existe", tem("Por origem"), texto_do_main(1500))
 tabela = linhas_da_tabela_por_origem() or []
 confere("a tabela tem as duas linhas, Balcão e E-commerce", len(tabela) == 2 and tabela[0][0] == "Balcão" and tabela[1][0] == "E-commerce", tabela)
@@ -111,12 +115,12 @@ if len(tabela) == 2:
 sales = api_estavel("GET", "/api/v1/emporio/reports/sales?establishment_id=" + LOJA + "&from=" + HOJE.strftime("%Y-%m-01") + "&to=" + HOJE.isoformat())
 origem = {o["origin"]: o for o in (sales["body"]["data"].get("by_origin") or [])}
 confere("a API: e-commerce net 300 (frete 30 fora), balcão net 500", origem.get("ecommerce", {}).get("net") == 300 and origem.get("ecommerce", {}).get("freight") == 30 and origem.get("balcao", {}).get("net") == 500, origem)
-ir("/emporio/relatorios")
+ir("/emporio/estatisticas?aba=vendas")
 confere("todas as lojas: o bloco traz 'Em cada loja' com a Rel Loja", tem("Em cada loja") and tem("Rel Loja"), texto_do_main(2500))
 
-passo("2. Financeiro, relatórios: as três planilhas e as três folhas para imprimir")
-ir("/emporio/financeiro/relatorios?loja=" + LOJA)
-confere("três botões 'Baixar planilha' e três 'Imprimir ou salvar em PDF'", js("Array.from(document.querySelectorAll('main a')).filter(x => x.innerText.trim() === 'Baixar planilha').length") == 3 and js("Array.from(document.querySelectorAll('main a')).filter(x => x.innerText.trim() === 'Imprimir ou salvar em PDF').length") == 3)
+passo("2. Estatísticas, aba Dinheiro: as quatro planilhas e as quatro folhas para imprimir (a, b, c e a projeção)")
+ir("/emporio/estatisticas?aba=dinheiro&loja=" + LOJA)
+confere("quatro botões 'Baixar planilha' e quatro 'Imprimir ou salvar em PDF' (a receber, a pagar, posição e projeção)", js("Array.from(document.querySelectorAll('main a')).filter(x => x.innerText.trim() === 'Baixar planilha').length") == 4 and js("Array.from(document.querySelectorAll('main a')).filter(x => x.innerText.trim() === 'Imprimir ou salvar em PDF').length") == 4)
 confere("o botão de imprimir abre em outra aba", js("Array.from(document.querySelectorAll('main a')).filter(x => x.innerText.trim() === 'Imprimir ou salvar em PDF').every(a => a.target === '_blank')") is True)
 csv_receber = href_da_acao("Baixar planilha", 0)
 csv_pagar = href_da_acao("Baixar planilha", 1)
@@ -173,23 +177,23 @@ ir("/emporio/imprimir/relatorio/inexistente")
 confere("tipo desconhecido é 404", eh_404(), texto_principal(200))
 
 passo("4. Projeção: o gráfico do saldo, a planilha e a lista 'Sem vencimento'")
-ir("/emporio/financeiro/projecao?loja=" + LOJA)
+ir("/emporio/estatisticas?aba=dinheiro&loja=" + LOJA)
 confere("o gráfico monta (legenda do saldo e linha do Recharts)", bool(esperar(lambda: js("!!document.querySelector('main .recharts-wrapper .recharts-line-curve')") and tem("Saldo ao fim da semana"), 30)), texto_do_main(1200))
 confere("o gráfico traz ponto de saldo negativo destacado (r=5) e o aviso", bool(js("document.querySelectorAll('main .recharts-wrapper circle[r=\"5\"]').length > 0")) and re.search(r"\d+ semanas? (fica|ficam) negativas?|1 semana fica negativa", texto_do_main(2500)) is not None, texto_do_main(1500))
 confere("a tabela segue como leitura (cabeçalho Semana, A receber, A pagar, Saldo ao fim)", all(t.lower() in texto_do_main().lower() for t in ["A receber", "A pagar", "Saldo ao fim"]))  # o innerText devolve o cabeçalho com o uppercase do CSS: compara sem caixa
 confere("o bloco 'Sem vencimento': 1 conta, R$ 80,00 no total", tem("Sem vencimento") and tem("1 conta, R$ 80,00 no total"), texto_do_main(6000))
-csv_proj = href_da_acao("Baixar planilha", 0)
+csv_proj = href_da_acao("Baixar planilha", 3)
 proj = baixar(csv_proj)
 confere("projeção: text/csv, BOM e nome projecao-de-caixa-AAAA-MM-DD.csv", eh_csv_brasileiro(proj) and nome_do_arquivo(proj, "projecao-de-caixa"), [proj["status"], proj["ct"], proj["cd"], proj["bom"]])
 lj = linhas_do_csv(proj)
 confere("projeção: cabeçalho 'Semana;Entradas;Sa...;Saldo projetado' e as linhas das semanas", len(lj) >= 5 and lj[0].startswith("Semana;Entradas;Sa") and lj[0].endswith(";Saldo projetado"), lj[:2])
 confere("projeção: o saldo da semana negativa sai com sinal e vírgula decimal", any(re.search(r";-\d+,\d{2}$", l) for l in lj[1:]), lj)
-print_proj = href_da_acao("Imprimir ou salvar em PDF", 0)
+print_proj = href_da_acao("Imprimir ou salvar em PDF", 3)
 ir(print_proj)
 confere("a folha da projeção: título, 'Próximos 30 dias' e a Rel Loja", tem("Fluxo de caixa projetado") and tem("Próximos 30 dias") and tem("Rel Loja"), texto_do_main(600))
 
 passo("5. Resultado: o 'Custo do cartão'")
-ir("/emporio/resultado?loja=" + LOJA)
+ir("/emporio/estatisticas?aba=resultado&loja=" + LOJA)
 r = texto_do_main(6000)
 confere("'Custo do cartão: 6,5% das vendas no cartão'", "Custo do cartão: 6,5% das vendas no cartão" in r, r[-1500:])
 confere("vendas no cartão R$ 300,00, taxa R$ 10,50 e antecipação R$ 9,00", all(t in r for t in ["Vendas no cartão", "R$ 300,00", "Taxa do cartão", "R$ 10,50", "Antecipação", "R$ 9,00"]), r[-1200:])
@@ -198,7 +202,7 @@ confere("a API: card_cost 300 / 10,50 / 9 / 6,5", res["card_sales"] == 300 and r
 
 passo("6. A 390 px: a projeção com o gráfico e os relatórios sem rolagem horizontal")
 cdp("Emulation.setDeviceMetricsOverride", width=390, height=844, deviceScaleFactor=3, mobile=True)
-for rota, nome in [("/emporio/financeiro/projecao?loja=" + LOJA, "A projeção"), ("/emporio/financeiro/relatorios?loja=" + LOJA, "Os relatórios"), ("/emporio/relatorios?loja=" + LOJA, "O relatório de vendas")]:
+for rota, nome in [("/emporio/estatisticas?aba=dinheiro&loja=" + LOJA, "A aba Dinheiro (relatórios e projeção)"), ("/emporio/estatisticas?aba=vendas&loja=" + LOJA, "A aba Vendas")]:
     ir(rota)
     largura = js("document.documentElement.scrollWidth")
     confere(nome + " sem rolagem horizontal", largura is not None and largura <= 390, largura)

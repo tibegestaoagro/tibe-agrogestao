@@ -358,8 +358,8 @@ confere("o saldo da " + CONTA_A + " segue 20 (só a venda antiga)", CONTAS_DEPOI
 
 # --- 6. Relatorios ------------------------------------------------------------------------------------------------------------
 passo("6. Relatórios: PIX por conta")
-ir("/emporio/relatorios")
-confere("o relatório abre", caminho() == "/emporio/relatorios" and tem("PIX por conta"), texto_principal(200))
+ir("/emporio/estatisticas?aba=vendas")
+confere("o relatório abre", caminho() == "/emporio/estatisticas" and tem("PIX por conta"), texto_principal(200))
 pagina = texto_do_main()
 trecho = pagina.split("PIX por conta")[1] if "PIX por conta" in pagina else ""
 trecho = trecho.split("Vendas por vendedor")[0]
@@ -370,7 +370,7 @@ confere("PIX SITE: 1 pagamento de R$ 20,00 (a venda do balcão)", linha_site.sta
 confere("PIX LOJA A: 1 pagamento de R$ 20,00 (a venda antiga)", linha_antiga.startswith(CONTA_A + " | 1 | R$ 20,00"), linha_antiga)
 confere("o bloco aponta a regra (não desconta devoluções)", "Não desconta o que foi devolvido" in trecho, trecho[:200])
 confere("o bloco tem 'Em cada loja'", "Em cada loja" in trecho and LOJA_A in trecho, trecho[:400])
-ir("/emporio/relatorios?loja=" + LOJAS[LOJA_B])
+ir("/emporio/estatisticas?aba=vendas&loja=" + LOJAS[LOJA_B])
 pagina = texto_do_main()
 trecho = (pagina.split("PIX por conta")[1] if "PIX por conta" in pagina else "").split("Vendas por vendedor")[0]
 confere("filtrando a loja B: nenhum PIX no período, sem PIX SITE", "Nenhum PIX no período" in trecho and CONTA_SITE not in trecho, trecho[:300])
