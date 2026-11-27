@@ -87,7 +87,7 @@ As de 1 a 4 são do usuário (27/11, nesta sessão). As outras são minhas, como
 - [ ] **Passo 1: casos na `m135`, falhando.** Conta com duas lojas e uma venda hoje em cada uma (R$ 100,00 e R$ 30,00): sem filtro, vendas hoje = 130; com a loja 2, = 30; produto abaixo do mínimo só na loja 1 gera aviso sem filtro e não gera com a loja 2; Gestor só da loja 1 pedindo a loja 2 recebe `NAO_ACHADO`.
 - [ ] **Passo 2:** rodar e ver falhar nos casos com filtro.
 - [ ] **Passo 3:** implementar. Estreitar o `visiveis` de `lojasDoAtor` à loja pedida, e as leituras reaproveitadas (financeiro, A pagar, boletos) recebem a mesma loja.
-- [ ] **Passo 4:** `test:m135` verde; a suíte do Início da onda 2 continua verde (procure-a com `grep -l lerInicioAction scripts/test-m*.ts`).
+- [ ] **Passo 4:** `test:m135` verde; a suíte do Início da onda 2 continua verde (procure-a com `grep -l lerInicioAction scripts/m*.test.ts`).
 - [ ] **Passo 5:** commit `Onda 6 T2: o Início aceita a loja`.
 
 ### Task 3: o seletor no topo
