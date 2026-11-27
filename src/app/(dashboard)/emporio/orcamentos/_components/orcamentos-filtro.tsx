@@ -16,21 +16,15 @@ import {
 import { SITUACOES_DO_ORCAMENTO } from "./situacoes";
 import { ORDENS_DO_ORCAMENTO, TAMANHOS_DE_PAGINA } from "../../_components/paginacao-opcoes";
 
-const TODAS = "__todas__";
-
-type Estado = { loja: string; situacao: string; q: string; porPagina: number; ordem: string };
+type Estado = { situacao: string; q: string; porPagina: number; ordem: string };
 
 /** Filtro da lista de orçamentos: vive na URL, e a página server relê. Mudar qualquer coisa volta à página 1. */
 export function OrcamentosFiltro({
-  lojas,
-  loja,
   situacao,
   q,
   porPagina,
   ordem,
 }: {
-  lojas: { id: string; name: string }[];
-  loja: string;
   situacao: string;
   q: string;
   porPagina: number;
@@ -38,12 +32,11 @@ export function OrcamentosFiltro({
 }) {
   const router = useRouter();
   const [busca, setBusca] = useState(q);
-  const atual: Estado = { loja, situacao, q: busca, porPagina, ordem };
+  const atual: Estado = { situacao, q: busca, porPagina, ordem };
 
   function ir(mudanca: Partial<Estado>) {
     const e = { ...atual, ...mudanca };
     const p = new URLSearchParams();
-    if (e.loja) p.set("loja", e.loja);
     if (e.situacao !== "acompanhamento") p.set("situacao", e.situacao);
     if (e.q.trim()) p.set("q", e.q.trim());
     if (e.porPagina !== 20) p.set("por_pagina", String(e.porPagina));
@@ -75,20 +68,6 @@ export function OrcamentosFiltro({
       }
       filtros={
         <>
-      <Select value={loja || TODAS} onValueChange={(v) => ir({ loja: v === TODAS ? "" : v })}>
-        <SelectTrigger aria-label="Filtrar por loja">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value={TODAS}>Todas as lojas</SelectItem>
-          {lojas.map((l) => (
-            <SelectItem key={l.id} value={l.id}>
-              {l.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
       <Select value={situacao} onValueChange={(v) => ir({ situacao: v })}>
         <SelectTrigger aria-label="Filtrar por situação">
           <SelectValue />

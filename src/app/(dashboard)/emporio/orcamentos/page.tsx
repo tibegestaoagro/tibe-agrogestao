@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
-import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
+import { lerLojaDoTopo } from "@/lib/emporio/loja-do-topo-servidor";
 import { listarOrcamentosAction } from "@/lib/actions/emporio-orcamentos";
 import { reaisBr } from "@/lib/numero-br";
 import { Badge } from "@/components/ui/badge";
@@ -48,7 +48,7 @@ export default async function OrcamentosPage({
   }>;
 }) {
   const user = await requireFeaturePage("emporio");
-  const { loja = "", situacao = "", q = "", pagina = "", por_pagina = "", ordem: ordemUrl = "" } = await searchParams;
+  const { loja: lojaDaUrl, situacao = "", q = "", pagina = "", por_pagina = "", ordem: ordemUrl = "" } = await searchParams;
   const porPagina = TAMANHOS_DE_PAGINA.find((n) => String(n) === por_pagina) ?? 20;
   const ordem: "asc" | "desc" = ordemUrl === "asc" ? "asc" : "desc";
   const paginaPedida = /^\d+$/.test(pagina) && Number(pagina) >= 1 ? Math.min(Number(pagina), 1_000_000) : 1;
@@ -62,24 +62,20 @@ export default async function OrcamentosPage({
   const podeVender = pode(papel, "vendedor_da_loja");
   const padraoId = await idDoClientePadrao(db);
 
-  const [lojasRes, res] = await Promise.all([
-    listarEstabelecimentosAction(db, user),
-    listarOrcamentosAction(db, user, {
-      establishment_id: loja || undefined,
-      q: q.trim() || undefined,
-      situacao: filtro,
-      page: paginaPedida,
-      per_page: porPagina,
-      order: ordem,
-    }),
-  ]);
-  const lojas = lojasRes.ok ? lojasRes.data.map((l) => ({ id: l.id, name: l.name })) : [];
+  const { loja } = await lerLojaDoTopo(db, user, lojaDaUrl);
+  const res = await listarOrcamentosAction(db, user, {
+    establishment_id: loja || undefined,
+    q: q.trim() || undefined,
+    situacao: filtro,
+    page: paginaPedida,
+    per_page: porPagina,
+    order: ordem,
+  });
   const orcamentos = res.ok ? res.data.linhas : [];
   const filtrado = filtro !== "acompanhamento" || !!loja || !!q.trim();
 
   function hrefDe(n: number): string {
     const p = new URLSearchParams();
-    if (loja) p.set("loja", loja);
     if (filtro !== "acompanhamento") p.set("situacao", filtro);
     if (q.trim()) p.set("q", q.trim());
     if (porPagina !== 20) p.set("por_pagina", String(porPagina));
@@ -103,7 +99,7 @@ export default async function OrcamentosPage({
         }
       />
 
-      <OrcamentosFiltro lojas={lojas} loja={loja} situacao={filtro} q={q} porPagina={porPagina} ordem={ordem} />
+      <OrcamentosFiltro situacao={filtro} q={q} porPagina={porPagina} ordem={ordem} />
 
       {!res.ok ? (
         <p className="rounded-lg bg-superficie-afundada px-4 py-3 text-sm text-texto-secundario">{res.message}</p>

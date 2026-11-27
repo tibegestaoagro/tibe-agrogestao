@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
-import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
+import { lerLojaDoTopo } from "@/lib/emporio/loja-do-topo-servidor";
 import { listarVendasAction } from "@/lib/actions/emporio-vendas";
 import { ORIGENS_DA_VENDA, ROTULO_DA_ORIGEM, type OrigemDaVenda } from "@/lib/emporio/frete";
 import { formatarNumero } from "@/lib/emporio/numeracao";
@@ -45,7 +45,7 @@ export default async function VendasPage({
 }) {
   const user = await requireFeaturePage("emporio");
   const params = await searchParams;
-  const { loja = "", situacao = "", origin = "" } = params;
+  const { situacao = "", origin = "" } = params;
   const { pagina, porPagina, ordem } = lerPaginacaoDaUrl(params);
   const filtroOrigem = (ORIGENS_DA_VENDA as readonly string[]).includes(origin) ? (origin as OrigemDaVenda) : undefined;
   const filtroSituacao = situacao === "concluida" || situacao === "cancelada" ? situacao : undefined;
@@ -53,16 +53,12 @@ export default async function VendasPage({
   const db = await getTenantDb();
   const podeVender = pode(await papelDoEmporio(db, user), "vendedor_da_loja");
   const padraoId = await idDoClientePadrao(db);
-  const [lojasRes, vendasRes] = await Promise.all([
-    listarEstabelecimentosAction(db, user),
-    listarVendasAction(db, user, { establishment_id: loja || undefined, status: filtroSituacao, origin: filtroOrigem, page: pagina, per_page: porPagina, order: ordem }),
-  ]);
-  const lojas = lojasRes.ok ? lojasRes.data.map((l) => ({ id: l.id, name: l.name })) : [];
+  const { loja } = await lerLojaDoTopo(db, user, params.loja);
+  const vendasRes = await listarVendasAction(db, user, { establishment_id: loja || undefined, status: filtroSituacao, origin: filtroOrigem, page: pagina, per_page: porPagina, order: ordem });
   const vendas = vendasRes.ok ? vendasRes.data.linhas : [];
 
   function hrefDe(n: number): string {
     const p = new URLSearchParams();
-    if (loja) p.set("loja", loja);
     if (filtroSituacao) p.set("situacao", filtroSituacao);
     if (filtroOrigem) p.set("origin", filtroOrigem);
     if (porPagina !== 20) p.set("por_pagina", String(porPagina));
@@ -86,7 +82,7 @@ export default async function VendasPage({
         }
       />
 
-      <VendasFiltro lojas={lojas} loja={loja} situacao={filtroSituacao ?? ""} origem={filtroOrigem ?? ""} porPagina={porPagina} ordem={ordem} />
+      <VendasFiltro situacao={filtroSituacao ?? ""} origem={filtroOrigem ?? ""} porPagina={porPagina} ordem={ordem} />
 
       {!vendasRes.ok ? (
         <p className="rounded-lg bg-superficie-afundada px-4 py-3 text-sm text-texto-secundario">{vendasRes.message}</p>
