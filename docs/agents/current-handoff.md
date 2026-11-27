@@ -67,12 +67,9 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   `scripts/cenario-demonstracao-emporio.ts`.
 
   **Próximo:** plano da onda 6 (ver a ordem das ondas no desenho, §8), para
-  aprovação do usuário. Pausa em 27/11 à noite: o usuário vai dobrar a RAM
-  do desktop. Nada ficou rodando (sem `next dev`, sem roteiro) e tudo está
-  enviado. Ao religar: `docker start tibe-pg tibe-redis` (ou subir o Docker
-  Desktop) e conferir com `docker ps`; com mais memória, o `next dev` dos
-  roteiros pode continuar com `--max-old-space-size=4096`, e a passada
-  longa deve parar de ser derrubada por falta de memória.
+  aprovação do usuário. Pausa em 27/11 (noite) para dobrar a RAM do desktop:
+  nada ficou rodando e tudo está enviado. Ao religar, suba o Docker Desktop
+  e confira `tibe-pg` e `tibe-redis` com `docker ps`.
 - Em produção até 24/11 (detalhe em `historico/2026-11.md`): lint zerado;
   decisões pendentes D1 a D7 (Q374 a Q386, `m129`); data da baixa (Q370 a
   Q373, `m127`); sobras sem a Agromax (`m128`); plano do GestãoClick A, B, C,
