@@ -181,9 +181,9 @@ celular. Missões 3 e 4 congeladas no classificador.
 - `npx prisma migrate deploy` contra o Neon pode ser recusado pelo
   classificador mesmo com autorização. Tente uma vez; se bloquear, dê ao
   usuário o comando e confira com `migrate status` antes do push.
-- Dois clones (`C:` e `D:`), sem worktrees desde 08/11. Prova viva: `npm run
-  dev` no clone (`prisma generate` antes se houver migração), roteiro com
-  `TIBE_BASE="http://localhost:<porta>"` (nunca `127.0.0.1`).
+- Desktop: um clone só (`C:`) desde 27/11, sem worktrees; o disco do Docker
+  está em `D:\Docker` (SSD) e a RAM em 32 GB. Porta 3000 ocupada por outro
+  processo: roteiro com `TIBE_BASE="http://localhost:<porta>"` (nunca `127.0.0.1`).
 - Roteiro preso em recarga: cofre `a-aba-oculta-e-a-leitura-cedo-imitam-defeito-no-navegador`.
   Se o log do `next dev` mostra "Compiled in 1ms" a cada GET, o cache corrompeu
   (acontece quando o servidor morre à força): pare, apague `.next/dev` e religue.
