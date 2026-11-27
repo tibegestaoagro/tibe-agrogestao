@@ -25,58 +25,47 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-27. **Frente em curso: UX e UI só do Empório**,
+- Atualizado em: 2026-11-27 (noite). **Frente em curso: UX e UI só do Empório**,
   na branch `ux-emporio`. Desenho aprovado:
   [2026-11-24-emporio-ux-design.md](../superpowers/specs/2026-11-24-emporio-ux-design.md)
-  (Q387 a Q397). Ondas 1 (navegação), 2 (Início) e 3 (Vender) **em produção
-  desde 25 e 26/11**, sem migração; o detalhe de cada uma, a limpeza dos
-  roteiros e as escolhas para o olho do usuário estão em
-  `historico/2026-11.md` (arquivado em 26/11).
+  (Q387 a Q397). Ondas 1 a 4 **em produção** (a 4 desde 27/11, merge até
+  `3ccb2bb9`), sem migração; o detalhe de cada uma está em
+  `historico/2026-11.md` (a onda 4 arquivada em 27/11).
 
-  **Onda 4 (Dinheiro e listas, §5.8, §5.9, §5.11): em produção desde 27/11**,
-  depois do merge autorizado pelo usuário (avanço rápido de `ux-emporio`
-  sobre `e8c53116` até `3ccb2bb9`; CI e Vercel verdes). Plano `docs/superpowers/plans/2026-11-26-emporio-ux-onda4-dinheiro.md`,
-  aprovado em 26/11. Commits de `96150370` (plano) a `015c4bba`. Sem migração.
-  Entregue:
-  - A pagar com abas na URL (`?aba=`): Contas, Despesas fixas, Vendeu, Pagou;
-    comissões iguais (mesmo nome, loja e vencimento, 2 ou mais) em grupo
-    recolhido; aberto a `gestor_da_loja` ou `dinheiro`;
-  - A receber com abas (Fiado, Cheques, Boletos, Cartões, Vencidos) e o total
-    no título; Fiado com busca (nome, CPF ou telefone, 3 dígitos ou mais),
-    documento e venda mais antiga;
-  - Caixa em `/emporio/caixa` com "Saldo de cada lugar" (só `dinheiro`);
-  - endereços antigos redirecionam (`/emporio/despesas`, `/financeiro/cobranca`,
-    `/financeiro/caixa`); a barra de abas do Financeiro saiu; Estatísticas
-    ganhou "Relatórios do dinheiro" (até a onda 5);
-  - Produtos e Estoque paginados (20, 40, 80, 100); Estoque abre em "Precisa
-    repor"; `BarraDeFiltros` em sete listas;
-  - regras puras em `src/lib/emporio/dinheiro-telas.ts`, suíte `m133`.
+  **Onda 5 (Estatísticas, §5.10 e §5.11): pronta na branch, SEM merge.**
+  Plano `docs/superpowers/plans/2026-11-27-emporio-ux-onda5-estatisticas.md`,
+  aprovado em 27/11 (decisões 1 a 10 e as três trocas). Commits de
+  `9c8948a4` (plano) a `550e5fa2`. Sem migração. Entregue:
+  - `/emporio/estatisticas?aba=geral|vendas|dinheiro|resultado|imprimir`, um
+    filtro só (atalhos e loja), item único do menu; Visão geral com três
+    cartões; a comparação mede do dia 1 a hoje contra o mesmo trecho do mês
+    anterior; Resultado pelo mês da data final, e "Todas" de quem alcança
+    algumas lojas é a soma e "Loja por loja"; 8 relatórios para imprimir;
+  - os 4 endereços antigos redirecionam; regras em
+    `src/lib/emporio/estatisticas.ts`, suíte `m134`.
 
-  Resultados:
-  - juiz 6/10, os 6 achados tratados (`c143eece`);
-  - roteiro `emporio-ux-onda4` (cenário prefixo "U4 "), provado nos dois
-    sentidos (17, 2 e 4 falhas com os defeitos plantados);
-  - passada dos 52 roteiros `emporio-*`: 17 ajustados para a tela nova
-    (`015c4bba`); 1 defeito de tela achado e corrigido (`fd112cd2`: "Ver tudo
-    o que receber" perdia a aba Cheques; 2 falhas sem a correção, 0 com ela);
-  - Fiado no celular: "Venda mais antiga" e "Vendas" somem abaixo do `md`, e
-    o botão Receber cabe a 390 px (conferência nova, falhou antes);
-  - `npm run textos-defasados` limpo; `test:all` 136/136.
-
-  Não corrigidos: nenhuma suíte confere o ramo de parcela de acordo em
-  `oldest_sale_at`; o caso novo do `m131` não foi visto falhar antes da
-  correção; o Caixa ainda aceita o `conta=` legado.
+  Resultados: juiz 6/10, os 6 achados tratados (`0bb7d487`); roteiro
+  `emporio-ux-onda5` (cenário "U5 ") com 141 conferências, provado nos dois
+  sentidos (2, 3 e 2 falhas); passada dos 52 `emporio-*` com 10 ajustados
+  (`550e5fa2`) e nenhum defeito de tela; `textos-defasados` limpo;
+  `test:all` 137/137.
+  Não provado nos dois sentidos: a loja de fora do alcance pela URL (segura
+  por construção) e a margem negativa do cartão do gestor de várias lojas.
 
   **Lista da onda 7 (manual).** O manual cita os endereços antigos
-  (`manual/_conteudo/figuras.ts` linhas 186, 363, 425 e 438; caem nos
-  redirecionamentos), a barra de abas, Despesas, Cobrança e Posição de caixa.
-  Das ondas 2 e 3: `manual-emporio.py` (linhas 148 e 149) e a figura
-  `inicio-primeiros-passos` com a grade antiga do Início; a legenda de atalhos
-  do Vender, "Escolher cliente" (virou "Trocar"), o vendedor em botões e
-  "Abrir o Caixa 1" (`partes-funcao.tsx:267`, `partes-consulta.tsx:130`,
-  `vendedor-imprimir/page.tsx:49` e `:77`).
+  (`manual/_conteudo/figuras.ts` linhas 186, 199, 212, 363, 425, 438, 450, 463
+  e 725; `partes-tarefa-3.tsx` linhas 869 e 892; caem nos
+  redirecionamentos), a barra de abas, Despesas, Cobrança, Posição de caixa e
+  o menu antigo das Estatísticas. Das ondas 2 e 3: `manual-emporio.py`
+  (linhas 148 e 149) e a figura `inicio-primeiros-passos` com a grade antiga
+  do Início; a legenda de atalhos do Vender, "Escolher cliente" (virou
+  "Trocar"), o vendedor em botões e "Abrir o Caixa 1"
+  (`partes-funcao.tsx:267`, `partes-consulta.tsx:130`,
+  `vendedor-imprimir/page.tsx:49` e `:77`). Também cita os endereços antigos:
+  `scripts/cenario-demonstracao-emporio.ts`.
 
-  **Próximo:** plano da onda 5, para aprovação do usuário.
+  **Próximo:** autorização do usuário para o merge da onda 5 (avanço rápido
+  de `ux-emporio` sobre a `main`, sem migração). Depois, plano da onda 6.
 - Em produção até 24/11 (detalhe em `historico/2026-11.md`): lint zerado;
   decisões pendentes D1 a D7 (Q374 a Q386, `m129`); data da baixa (Q370 a
   Q373, `m127`); sobras sem a Agromax (`m128`); plano do GestãoClick A, B, C,
@@ -192,11 +181,14 @@ celular. Missões 3 e 4 congeladas no classificador.
   dev` no clone (`prisma generate` antes se houver migração), roteiro com
   `TIBE_BASE="http://localhost:<porta>"` (nunca `127.0.0.1`).
 - Roteiro preso em recarga: cofre `a-aba-oculta-e-a-leitura-cedo-imitam-defeito-no-navegador`.
+  Se o log do `next dev` mostra "Compiled in 1ms" a cada GET, o cache corrompeu
+  (acontece quando o servidor morre à força): pare, apague `.next/dev` e religue.
 - No notebook: `node -v` 24.22.1 ou mais; sem o `.claude/settings.local.json`
   (não vai ao git), a migração em produção volta a ser recusada pelo classificador.
 
 ## Últimas rodadas
 
+- 27/11: onda 5 da UX do Empório (Estatísticas) pronta na branch `ux-emporio`, sem merge.
 - 26/11: ondas 2 e 3 da UX do Empório em produção (merges autorizados na conversa); onda 4 em produção em 27/11 (merge autorizado na conversa).
 - 24/11 (2): UX do Empório: entrevista, diagnóstico, mockups e desenho; nada em produção.
 - 24/11: lint zerado e travado, passo 2 do roteiro franqueado estável; branch `lint-avisos-passo-2` sem merge.
