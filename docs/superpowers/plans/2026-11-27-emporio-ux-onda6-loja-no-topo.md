@@ -140,14 +140,14 @@ As de 1 a 4 são do usuário (27/11, nesta sessão). As outras são minhas, como
 - `src/app/(dashboard)/emporio/estatisticas/page.tsx`, `_components/estatisticas-filtro.tsx`
 - `src/app/(dashboard)/emporio/historico/page.tsx`
 - `src/app/(dashboard)/emporio/page.tsx` (Início)
-- Apagar: `_components/loja-filtro.tsx`, quando não restar quem o use
+- Não apagar `_components/loja-filtro.tsx`: o Caixa (`caixa-posicoes.tsx`) segue com ele, porque o Caixa não obedece ao topo
 
 - [ ] **Passo 1:** Hoje, A receber e A pagar: `lerLojaDoTopo` e sai o `LojaFiltro`. O `preservar` e os `extras` do `PeriodoFiltro` deixam de levar `loja`. Os links de imprimir e de planilha **continuam** com `loja` (decisão 7).
 - [ ] **Passo 2:** `ContaAvulsaForm` ganha `lojaInicial?: string` (como a T5).
 - [ ] **Passo 3:** Estatísticas: a loja sai do `EstatisticasFiltro` (fica o período); `lojaDoResultado` e os links de "Relatórios para imprimir" seguem com a loja efetiva.
 - [ ] **Passo 4:** Histórico: o campo Loja sai do formulário; a loja vem de `lerLojaDoTopo(db, user, sp.establishment_id)` (decisão 12).
 - [ ] **Passo 5:** Início: `lerInicioAction(db, user, { establishment_id: loja || undefined })`.
-- [ ] **Passo 6:** `grep -rn "loja-filtro" src` vazio, então apagar o arquivo. `tsc`, `lint` e `check` limpos.
+- [ ] **Passo 6:** `grep -rn "loja-filtro" src` só aponta o `caixa-posicoes.tsx`. `tsc`, `lint` e `check` limpos.
 - [ ] **Passo 7:** commit `Onda 6 T6: Dinheiro, Estatísticas, Histórico e Início seguem a loja do topo`.
 
 ### Task 7: prova viva
