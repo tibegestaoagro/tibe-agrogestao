@@ -233,6 +233,13 @@ async function CartaoDeResultado({
     const res = await resultadoPorLojaAction(db, user, { month: mes });
     if (!res.ok) return falha;
     const t = res.data.total;
+    // A margem negativa é por loja (a visão `all` é recusada): soma-se a de cada loja ao alcance.
+    const negativasPorLoja = await Promise.all(
+      res.data.lojas.map((l) => vendasComMargemNegativaAction(db, user, { establishment_id: l.establishment_id, month: mes })),
+    );
+    const negativas = negativasPorLoja.every((n) => n.ok)
+      ? negativasPorLoja.reduce((s, n) => s + (n.ok ? n.data.length : 0), 0)
+      : null;
     return (
       <Cartao titulo="Resultado" href={href} aviso="Ver resultado ›">
         <Grande
@@ -240,8 +247,10 @@ async function CartaoDeResultado({
           classe={corDoResultado(t.result)}
           rotulo={`de resultado em ${nomeDoMes}${t.margin_pct !== null ? `, margem de ${pctBr(t.margin_pct)}` : ""}`}
         />
+        <p className="text-sm text-texto-secundario">Escolha uma loja para ver o ponto de equilíbrio.</p>
         {res.data.lojas.length > 1 &&
           res.data.lojas.map((l) => <Linha key={l.establishment_id} rotulo={l.name} valor={reaisBr(l.result)} classe={corDoResultado(l.result)} />)}
+        {negativas !== null ? <Linha rotulo="Vendas com margem negativa" valor={String(negativas)} /> : <NaoFoiPossivel />}
       </Cartao>
     );
   }

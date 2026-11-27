@@ -26,8 +26,20 @@ export const TITULO_DA_ESTATISTICA = {
 function Corpo({ d }: { d: DadosDaEstatistica }) {
   if (d.tipo === "curva-abc") {
     const { r } = d;
-    if (r.itens.length === 0) return <p className="vazio">Nenhuma venda no período.</p>;
+    const lucro = r.measure === "profit";
+    const medida = <p>{lucro ? "Medida: lucro bruto (venda menos custo)." : "Medida: faturamento."}</p>;
+    if (r.itens.length === 0)
+      return (
+        <>
+          {medida}
+          <p className="vazio">Nenhuma venda no período.</p>
+        </>
+      );
+    const temEstimado = lucro && r.itens.some((i) => i.cost_estimated);
     return (
+      <>
+      {medida}
+      {temEstimado && <p>* custo estimado ou provisório em alguma venda do período.</p>}
       <table>
         <thead>
           <tr>
@@ -42,7 +54,10 @@ function Corpo({ d }: { d: DadosDaEstatistica }) {
           {r.itens.map((i) => (
             <tr key={i.id}>
               <td>{i.classe}</td>
-              <td>{i.name}</td>
+              <td>
+                {i.name}
+                {lucro && i.cost_estimated ? " *" : ""}
+              </td>
               <td className="num">{reaisBr(i.amount)}</td>
               <td className="num">{pct(i.share_pct)}</td>
               <td className="num">{pct(i.cumulative_pct)}</td>
@@ -50,6 +65,7 @@ function Corpo({ d }: { d: DadosDaEstatistica }) {
           ))}
         </tbody>
       </table>
+      </>
     );
   }
   if (d.tipo === "vendedores") {

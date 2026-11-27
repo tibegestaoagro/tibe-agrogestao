@@ -87,7 +87,7 @@ export async function EstatisticasImprimir({
     },
     {
       titulo: "Produtos parados",
-      frase: "O que não vendeu no período, com o estoque de cada loja",
+      frase: "O que não vendeu no período, loja por loja",
       csvHref: `/api/v1/emporio/reports/sales${consulta({ from: de, to: ate, establishment_id: estab, relatorio: "parados", format: "csv" })}`,
       imprimirHref: `${IMPRIMIR}/parados${consulta({ de, ate, loja: estab })}`,
     },
@@ -123,7 +123,7 @@ export async function EstatisticasImprimir({
   const resultado: Relatorio[] = [
     {
       titulo: "Resultado do mês por loja",
-      frase: "Vendas, custo, despesas e lucro",
+      frase: "Vendas, margem, despesas fixas, perdas e resultado",
       csvHref: `/api/v1/emporio/result/stores${consulta({ month: mes, establishment_id: estab, format: "csv" })}`,
       imprimirHref: `${IMPRIMIR}/resultado${consulta({ mes, loja: estab })}`,
     },

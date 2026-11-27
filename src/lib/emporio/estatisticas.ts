@@ -76,6 +76,26 @@ export function periodoDoMesAnterior(de: string, ate: string): { de: string; ate
   return { de: umMesAntes(de), ate: umMesAntes(ate) };
 }
 
+/**
+ * Os dois trechos que a comparação de vendas mede. O atual termina hoje quando o período passa de hoje
+ * ("Este mês" vai até o dia 30, mas só há venda até hoje), senão o anterior pegaria dias que o atual
+ * ainda não teve. O anterior fica preso a 366 dias, o limite do relatório (31/03/2027 a 30/03/2028 viraria
+ * 28/02/2027 a 29/02/2028, com 367).
+ */
+export function trechosDaComparacao(
+  de: string,
+  ate: string,
+  hoje: string,
+): { atual: { de: string; ate: string }; anterior: { de: string; ate: string } } {
+  const fim = ate > hoje ? (hoje < de ? de : hoje) : ate;
+  const anterior = periodoDoMesAnterior(de, fim);
+  const primeiroPermitido = somarDiasCalendario(anterior.ate, -(MAX_DIAS - 1));
+  return {
+    atual: { de, ate: fim },
+    anterior: { de: anterior.de < primeiroPermitido ? primeiroPermitido : anterior.de, ate: anterior.ate },
+  };
+}
+
 const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
 
 /**

@@ -285,6 +285,10 @@ confere("a aba Resultado lista a venda de margem negativa (Adubo, R$ 30,00)", te
 st, cmp = json_de("/api/v1/emporio/reports/sales/comparison?from=" + PRIMEIRO.isoformat() + "&to=" + ULTIMO.isoformat() + "&establishment_id=" + (loja_a or ""))
 print("   API de comparação:", st, cmp)
 confere("a comparação pela API: atual 330, anterior 300, variação 10", st == 200 and cmp and cmp["atual"]["total"] == 330 and cmp["anterior"]["total"] == 300 and cmp["variacao_pct"] == 10, cmp)
+# "Este mês" vai até o último dia, mas só há venda até hoje: a comparação corta em hoje, e o anterior é o
+# mesmo trecho (do dia 1 ao dia de hoje no mês passado), não o mês passado quase inteiro.
+MESMO_DIA_PASSADO = PASSADO_ULTIMO.replace(day=min(HOJE.day, PASSADO_ULTIMO.day))
+confere("Este mês: a comparação vai do dia 1 a hoje, contra o dia 1 a " + MESMO_DIA_PASSADO.strftime("%d/%m"), bool(cmp) and cmp["atual"]["to"] == HOJE.isoformat() and cmp["anterior"]["to"] == MESMO_DIA_PASSADO.isoformat(), cmp)
 st, rel = json_de("/api/v1/emporio/reports/sales?from=" + PRIMEIRO.isoformat() + "&to=" + ULTIMO.isoformat() + "&establishment_id=" + (loja_a or ""))
 dias = (rel or {}).get("por_dia") or []
 print("   por_dia: ", len(dias), "dias, soma", round(sum(d["total"] for d in dias), 2))
@@ -377,6 +381,14 @@ ir(url_da_aba("resultado"))
 confere("a aba Resultado do Gestor mostra o mês detalhado da loja dele, sem a " + LOJA_B, not tem(LOJA_B) and not eh_404(), texto_principal(300))
 st = buscar("/api/v1/emporio/result/stores?month=" + HOJE.strftime("%Y-%m") + "&format=csv")
 confere("a planilha do Resultado do Gestor só tem a " + LOJA_A, st["status"] == 200 and LOJA_A in st["texto"] and LOJA_B not in st["texto"], [st["status"], st["texto"][:200]])
+# A loja de fora do alcance, pedida pela URL: a tela e a folha a descartam, a rota recusa.
+ir(url_da_aba("vendas", "&loja=" + (loja_b or "")))
+soma_f, nomes_f = total_das_lojas_na_aba_vendas()
+confere("o Gestor com ?loja=<" + LOJA_B + "> na URL continua vendo só a " + LOJA_A, nomes_f == [LOJA_A] and not tem(LOJA_B), [soma_f, nomes_f])
+folha_fora = buscar("/emporio/imprimir/relatorio/vendedores?de=" + PRIMEIRO.isoformat() + "&ate=" + ULTIMO.isoformat() + "&loja=" + (loja_b or ""))
+confere("a folha 'Vendas por vendedor' com a " + LOJA_B + " na URL não mostra a " + LOJA_B, folha_fora["status"] == 200 and LOJA_B not in folha_fora["texto"], [folha_fora["status"], len(folha_fora["texto"])])
+csv_fora = buscar("/api/v1/emporio/reports/sales?from=" + PRIMEIRO.isoformat() + "&to=" + ULTIMO.isoformat() + "&establishment_id=" + (loja_b or "") + "&format=csv&relatorio=vendedores")
+confere("a planilha com establishment_id da " + LOJA_B + " é recusada ao Gestor (404)", csv_fora["status"] == 404, [csv_fora["status"], csv_fora["texto"][:120]])
 
 # --- 4b. O Gestor das duas lojas: Resultado com "Todas" (decisao 5) ------------------------------
 passo("4b. Gestor das duas lojas U5, sem Dinheiro: Resultado com Todas mostra a soma e 'Loja por loja'")
@@ -395,6 +407,7 @@ confere("'Vendas com margem negativa' NÃO aparece", "Vendas com margem negativa
 confere("aparece 'Escolha uma loja para ver o mês detalhado'", tem("Escolha uma loja para ver o mês detalhado"), texto_principal(400))
 ir("/emporio/estatisticas")
 esperar_cartoes()
+confere("o cartão Resultado do Gestor Duas, em Todas: 1 venda com margem negativa (a da " + LOJA_A + ") e o aviso do ponto de equilíbrio", linha_do_cartao("Resultado", "Vendas com margem negativa") == "1" and "Escolha uma loja para ver o ponto de equilíbrio." in texto_do_cartao("Resultado"), texto_do_cartao("Resultado")[:300])
 confere("a Visão geral do Gestor Duas, em Todas: cartão Resultado com as duas lojas e sem o Dinheiro", cartao_existe("Resultado") and not cartao_existe("Dinheiro") and LOJA_A in texto_do_cartao("Resultado") and LOJA_B in texto_do_cartao("Resultado"), texto_do_cartao("Resultado")[:300])
 confere("e com seletor de loja (tem mais de uma)", bool(js("!!document.querySelector('main button[aria-label=\"Loja\"]')")))
 

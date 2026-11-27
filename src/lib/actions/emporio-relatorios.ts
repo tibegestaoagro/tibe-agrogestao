@@ -5,8 +5,8 @@ import { exigirUma } from "@/lib/emporio/papel";
 import { lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
 import { valorDevolvidoDoItemCent } from "@/lib/actions/emporio-resultado";
 import { diaDoInstante } from "@/lib/emporio/mes";
-import { somarDiasCalendario } from "@/lib/dia-calendario";
-import { periodoDoMesAnterior } from "@/lib/emporio/estatisticas";
+import { diaIsoEmBrasilia, somarDiasCalendario } from "@/lib/dia-calendario";
+import { trechosDaComparacao } from "@/lib/emporio/estatisticas";
 import { variacaoDoMes } from "@/lib/emporio/inicio";
 
 /**
@@ -437,13 +437,15 @@ export async function compararVendasAction(
 ): Promise<ActionResult<ComparacaoDeVendas>> {
   const atual = await carregarVendasDoPeriodo(db, ator, input);
   if (!atual.ok) return atual;
-  const ant = periodoDoMesAnterior(atual.data.periodo.from, atual.data.periodo.to);
+  // O atual termina hoje (não há venda futura, então o total não muda) e o anterior é o mesmo trecho.
+  const trechos = trechosDaComparacao(atual.data.periodo.from, atual.data.periodo.to, diaIsoEmBrasilia(new Date()));
+  const ant = trechos.anterior;
   const anterior = await carregarVendasDoPeriodo(db, ator, { ...input, from: ant.de, to: ant.ate });
   if (!anterior.ok) return anterior;
   const atualCent = totalDoPeriodoCent(atual.data.vendas, atual.data.devolucoes);
   const anteriorCent = totalDoPeriodoCent(anterior.data.vendas, anterior.data.devolucoes);
   return ok({
-    atual: { from: atual.data.periodo.from, to: atual.data.periodo.to, total: reais(atualCent) },
+    atual: { from: trechos.atual.de, to: trechos.atual.ate, total: reais(atualCent) },
     anterior: { from: ant.de, to: ant.ate, total: reais(anteriorCent) },
     variacao_pct: variacaoDoMes(atualCent, anteriorCent),
   });

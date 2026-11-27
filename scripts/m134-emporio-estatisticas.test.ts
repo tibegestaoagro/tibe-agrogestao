@@ -77,6 +77,11 @@ async function secao1() {
   check("31/03 vira 28/02", j(f("periodoDoMesAnterior")("2026-03-31", "2026-03-31")) === j({ de: "2026-02-28", ate: "2026-02-28" }));
   check("29 a 31/03/2028 viram 29/02/2028", j(f("periodoDoMesAnterior")("2028-03-29", "2028-03-31")) === j({ de: "2028-02-29", ate: "2028-02-29" }));
   check("janeiro volta para dezembro do ano anterior", j(f("periodoDoMesAnterior")("2026-01-01", "2026-01-31")) === j({ de: "2025-12-01", ate: "2025-12-31" }));
+  const tc = f("trechosDaComparacao");
+  check("Este mês em 27/11: o atual para hoje e o anterior é 01/10 a 27/10", j(tc("2026-11-01", "2026-11-30", "2026-11-27")) === j({ atual: { de: "2026-11-01", ate: "2026-11-27" }, anterior: { de: "2026-10-01", ate: "2026-10-27" } }), j(tc("2026-11-01", "2026-11-30", "2026-11-27")));
+  check("período todo no passado não muda", j(tc("2026-10-01", "2026-10-31", "2026-11-27")) === j({ atual: { de: "2026-10-01", ate: "2026-10-31" }, anterior: { de: "2026-09-01", ate: "2026-09-30" } }), j(tc("2026-10-01", "2026-10-31", "2026-11-27")));
+  check("período todo no futuro: o atual vira o primeiro dia", j(tc("2026-12-01", "2026-12-31", "2026-11-27")?.atual) === j({ de: "2026-12-01", ate: "2026-12-01" }), j(tc("2026-12-01", "2026-12-31", "2026-11-27")));
+  check("366 dias com fevereiro bissexto: o anterior fica em 366 dias (01/03/2027 a 29/02/2028)", j(tc("2027-03-31", "2028-03-30", "2028-04-10")?.anterior) === j({ de: "2027-03-01", ate: "2028-02-29" }), j(tc("2027-03-31", "2028-03-30", "2028-04-10")));
 
   console.log("\n2. Texto da comparação");
   check("8% acima", f("textoDaComparacao")(108_00, 100_00, "2026-10-01", "2026-10-27") === "8% acima de outubro, no mesmo período", String(f("textoDaComparacao")(108_00, 100_00, "2026-10-01", "2026-10-27")));
@@ -397,6 +402,14 @@ async function secao3() {
   check("sem venda no período anterior: variacao_pct nulo", semAnterior.ok && semAnterior.data.variacao_pct === null, j(semAnterior));
   const caixa = await Rel.compararVendasAction(A.db, A.caixa, PERIODO);
   check("o Caixa recebe 403", caixa.ok === false && caixa.status === 403, j(caixa));
+  const futuro = { from: somaDias(HOJE, -9), to: somaDias(HOJE, 5) };
+  const cortado = await Rel.compararVendasAction(A.db, A.owner, futuro);
+  const antCortado = periodoDoMesAnterior(futuro.from, HOJE);
+  check(
+    "período que passa de hoje: o atual termina hoje e o anterior é o mesmo trecho",
+    cortado.ok && cortado.data.atual.to === HOJE && cortado.data.anterior.from === antCortado.de && cortado.data.anterior.to === antCortado.ate,
+    j(cortado),
+  );
   const ruim = await Rel.compararVendasAction(A.db, A.owner, { from: "2026-02-31", to: HOJE });
   check("data inválida: 422 no campo from", ruim.ok === false && ruim.status === 422 && ruim.field === "from", j(ruim));
 }
@@ -563,7 +576,7 @@ async function secao6() {
   const abcB = await chamarCsv(B.tok.owner, RT.abc, `${abcUrl}&format=csv`);
   check("abc csv: B sem o Adubo do A", abcB.status === 200 && !abcB.texto.includes("Adubo") && !abcB.texto.includes("Ração"), abcB.texto.slice(0, 200));
   const abcLucro = await chamarCsv(tokG, RT.abc, `emporio/reports/abc?${q}&kind=products&measure=profit&format=csv`);
-  check("abc csv: lucro segue a regra da action (gestor sem permissão do lucro recebe recusa, nunca CSV)", abcLucro.status === 200 ? /^text\/csv/i.test(abcLucro.tipo) : abcLucro.status === 403, String(abcLucro.status));
+  check("abc csv: o gestor tem a permissão do lucro e recebe a curva por lucro em CSV", abcLucro.status === 200 && /^text\/csv/i.test(abcLucro.tipo), String(abcLucro.status));
 
   // Resultado por loja
   const sUrl = `emporio/result/stores?month=${mes}`;
