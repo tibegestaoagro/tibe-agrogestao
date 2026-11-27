@@ -25,7 +25,7 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-26 (noite). **Frente em curso: UX e UI só do Empório**,
+- Atualizado em: 2026-11-27. **Frente em curso: UX e UI só do Empório**,
   na branch `ux-emporio`. Desenho aprovado:
   [2026-11-24-emporio-ux-design.md](../superpowers/specs/2026-11-24-emporio-ux-design.md)
   (Q387 a Q397). Ondas 1 (navegação), 2 (Início) e 3 (Vender) **em produção
@@ -33,8 +33,9 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   roteiros e as escolhas para o olho do usuário estão em
   `historico/2026-11.md` (arquivado em 26/11).
 
-  **Onda 4 (Dinheiro e listas, §5.8, §5.9, §5.11): pronta na branch, SEM
-  merge.** Plano `docs/superpowers/plans/2026-11-26-emporio-ux-onda4-dinheiro.md`,
+  **Onda 4 (Dinheiro e listas, §5.8, §5.9, §5.11): em produção desde 27/11**,
+  depois do merge autorizado pelo usuário (avanço rápido de `ux-emporio`
+  sobre `e8c53116` até `3ccb2bb9`; CI e Vercel verdes). Plano `docs/superpowers/plans/2026-11-26-emporio-ux-onda4-dinheiro.md`,
   aprovado em 26/11. Commits de `96150370` (plano) a `015c4bba`. Sem migração.
   Entregue:
   - A pagar com abas na URL (`?aba=`): Contas, Despesas fixas, Vendeu, Pagou;
@@ -75,8 +76,7 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   "Abrir o Caixa 1" (`partes-funcao.tsx:267`, `partes-consulta.tsx:130`,
   `vendedor-imprimir/page.tsx:49` e `:77`).
 
-  **Próximo:** autorização do usuário para o merge da onda 4 (avanço rápido
-  de `ux-emporio` sobre a `main`, sem migração). Depois, plano da onda 5.
+  **Próximo:** plano da onda 5, para aprovação do usuário.
 - Em produção até 24/11 (detalhe em `historico/2026-11.md`): lint zerado;
   decisões pendentes D1 a D7 (Q374 a Q386, `m129`); data da baixa (Q370 a
   Q373, `m127`); sobras sem a Agromax (`m128`); plano do GestãoClick A, B, C,
@@ -197,7 +197,7 @@ celular. Missões 3 e 4 congeladas no classificador.
 
 ## Últimas rodadas
 
-- 26/11: ondas 2 e 3 da UX do Empório em produção (merges autorizados na conversa); onda 4 pronta na `ux-emporio`, sem merge.
+- 26/11: ondas 2 e 3 da UX do Empório em produção (merges autorizados na conversa); onda 4 em produção em 27/11 (merge autorizado na conversa).
 - 24/11 (2): UX do Empório: entrevista, diagnóstico, mockups e desenho; nada em produção.
 - 24/11: lint zerado e travado, passo 2 do roteiro franqueado estável; branch `lint-avisos-passo-2` sem merge.
 - 23/11: decisões pendentes do Empório em produção, Neon, merge e push autorizados na conversa (18/11 e 20/11 no histórico).
