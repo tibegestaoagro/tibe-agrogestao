@@ -25,51 +25,46 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
 
 ## Estado atual
 
-- Atualizado em: 2026-11-27 (noite). **Frente em curso: UX e UI só do Empório**,
+- Atualizado em: 2026-11-28. **Frente em curso: UX e UI só do Empório**,
   na branch `ux-emporio`. Desenho aprovado:
   [2026-11-24-emporio-ux-design.md](../superpowers/specs/2026-11-24-emporio-ux-design.md)
   (Q387 a Q397). Ondas 1 a 4 **em produção** (a 4 desde 27/11, merge até
   `3ccb2bb9`), sem migração; o detalhe de cada uma está em
   `historico/2026-11.md` (a onda 4 arquivada em 27/11).
 
-  **Onda 5 (Estatísticas, §5.10 e §5.11): em produção desde 27/11**, depois
-  do merge autorizado pelo usuário (avanço rápido de `ux-emporio` de
-  `3ccb2bb9` a `99eafbba`; CI e Vercel verdes).
-  Plano `docs/superpowers/plans/2026-11-27-emporio-ux-onda5-estatisticas.md`,
-  aprovado em 27/11 (decisões 1 a 10 e as três trocas). Commits de
-  `9c8948a4` (plano) a `550e5fa2`. Sem migração. Entregue:
-  - `/emporio/estatisticas?aba=geral|vendas|dinheiro|resultado|imprimir`, um
-    filtro só (atalhos e loja), item único do menu; Visão geral com três
-    cartões; a comparação mede do dia 1 a hoje contra o mesmo trecho do mês
-    anterior; Resultado pelo mês da data final, e "Todas" de quem alcança
-    algumas lojas é a soma e "Loja por loja"; 8 relatórios para imprimir;
-  - os 4 endereços antigos redirecionam; regras em
-    `src/lib/emporio/estatisticas.ts`, suíte `m134`.
+  **Onda 5 (Estatísticas): em produção desde 27/11** (merge até `99eafbba`;
+  detalhe em `historico/2026-11.md`, arquivado em 28/11).
 
-  Resultados: juiz 6/10, os 6 achados tratados (`0bb7d487`); roteiro
-  `emporio-ux-onda5` (cenário "U5 ") com 141 conferências, provado nos dois
-  sentidos (2, 3 e 2 falhas); passada dos 52 `emporio-*` com 10 ajustados
-  (`550e5fa2`) e nenhum defeito de tela; `textos-defasados` limpo;
-  `test:all` 137/137.
-  Não provado nos dois sentidos: a loja de fora do alcance pela URL (segura
-  por construção) e a margem negativa do cartão do gestor de várias lojas.
+  **Onda 6 (loja no topo, §5.3, Q389): pronta na branch, SEM merge.** O merge
+  na `main` espera autorização do usuário na conversa. Plano
+  `docs/superpowers/plans/2026-11-27-emporio-ux-onda6-loja-no-topo.md`
+  (decisões do usuário: o seletor some em Vender, Caixa, Produtos, Clientes e
+  fichas; Estoque e Fiado seguem o topo; formulário de criação abre com a
+  loja do topo). Commits de `82dea601` (plano) a `2ff7c008`, enviados. Sem
+  migração. Entregue:
+  - "Loja: Todas ▾" no topo (`loja-do-topo-seletor.tsx`), cookie
+    `tibe_emporio_loja` gravado pela rota `POST /api/v1/emporio/loja-do-topo`
+    e lido no servidor por `lerLojaDoTopo`; os filtros de loja de cada tela
+    saíram; suíte `m135`;
+  - link com `?loja=` (Histórico: `establishment_id`) vira a loja do topo e
+    sai da URL, para o primeiro clique de paginação não voltar a "Todas";
+  - despesas fixas filtram por loja (`GET /fixed-expenses?establishment_id=`).
 
-  **Lista da onda 7 (manual).** O manual cita os endereços antigos
-  (`manual/_conteudo/figuras.ts` linhas 186, 199, 212, 363, 425, 438, 450, 463
-  e 725; `partes-tarefa-3.tsx` linhas 869 e 892; caem nos
-  redirecionamentos), a barra de abas, Despesas, Cobrança, Posição de caixa e
-  o menu antigo das Estatísticas. Das ondas 2 e 3: `manual-emporio.py`
-  (linhas 148 e 149) e a figura `inicio-primeiros-passos` com a grade antiga
-  do Início; a legenda de atalhos do Vender, "Escolher cliente" (virou
-  "Trocar"), o vendedor em botões e "Abrir o Caixa 1"
-  (`partes-funcao.tsx:267`, `partes-consulta.tsx:130`,
-  `vendedor-imprimir/page.tsx:49` e `:77`). Também cita os endereços antigos:
-  `scripts/cenario-demonstracao-emporio.ts`.
+  Resultados: juiz 6/10, os 8 achados tratados (`79cde48a`); roteiro
+  `emporio-ux-onda6`; passada dos `emporio-*` com os roteiros ajustados à
+  adoção (`aa3f1bb2`, `2ff7c008`) e nenhum defeito de tela; `tsc`, `lint`,
+  `check`, `test:docs-api` e `textos-defasados` limpos; `test:all` 138/138.
+  Vermelhos de antes da onda (falham também em `99eafbba`): `emporio-f2a` (o
+  "Depósito Central" dos cenários de UX vem antes da loja do cenário) e
+  `emporio-f6b` (a navegação do Vendedor não chega ao servidor).
+  Para o usuário decidir: os "Primeiros passos" do Início não seguem a loja;
+  tocar num aviso do Início que leva `?loja=` troca a loja do topo inteiro.
 
-  **Próximo:** plano da onda 6 (ver a ordem das ondas no desenho, §8), para
-  aprovação do usuário. Pausa em 27/11 (noite) para dobrar a RAM do desktop:
-  nada ficou rodando e tudo está enviado. Ao religar, suba o Docker Desktop
-  e confira `tibe-pg` e `tibe-redis` com `docker ps`.
+  **Lista da onda 7 (manual):** em
+  [emporio-ux-onda7-manual.md](emporio-ux-onda7-manual.md), das ondas 2 a 6.
+
+  **Próximo:** o usuário valida a onda 6 e decide o merge; depois, o plano da
+  onda seguinte (ordem no desenho, §8).
 - Em produção até 24/11 (detalhe em `historico/2026-11.md`): lint zerado;
   decisões pendentes D1 a D7 (Q374 a Q386, `m129`); data da baixa (Q370 a
   Q373, `m127`); sobras sem a Agromax (`m128`); plano do GestãoClick A, B, C,
@@ -192,8 +187,8 @@ celular. Missões 3 e 4 congeladas no classificador.
 
 ## Últimas rodadas
 
+- 28/11: onda 6 da UX do Empório (loja no topo) pronta em `ux-emporio`, sem merge.
 - 27/11: onda 5 da UX do Empório (Estatísticas) em produção (merge e push autorizados na conversa).
 - 26/11: ondas 2 e 3 da UX do Empório em produção (merges autorizados na conversa); onda 4 em produção em 27/11 (merge autorizado na conversa).
 - 24/11 (2): UX do Empório: entrevista, diagnóstico, mockups e desenho; nada em produção.
 - 24/11: lint zerado e travado, passo 2 do roteiro franqueado estável; branch `lint-avisos-passo-2` sem merge.
-- 23/11: decisões pendentes do Empório em produção, Neon, merge e push autorizados na conversa (18/11 e 20/11 no histórico).
