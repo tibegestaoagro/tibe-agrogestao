@@ -376,8 +376,9 @@ def clicar_resultado(nome):
     return bool(js("(() => { const b = Array.from(document.querySelectorAll('main button')).find(x => x.innerText.includes(" + repr(nome) + ") && x.innerText.includes('Adicionar')); if (!b) return false; b.click(); return true; })()"))
 
 
-def linha_da_tabela(trecho):
-    return js("(() => { const r = Array.from(document.querySelectorAll('main tbody tr')).find(x => x.innerText.includes(" + repr(trecho) + ")); return r ? Array.from(r.children).map(c => c.innerText.replace(/\\u00a0/g, ' ').replace(/\\n/g, ' ').trim()).join(' | ') : ''; })()") or ""
+def linha_da_tabela(trecho, tambem=""):
+    # `tambem`: a pagina Caixa tem mais de uma tabela com o nome da conta (saldos e Contas bancarias).
+    return js("(() => { const r = Array.from(document.querySelectorAll('main tbody tr')).find(x => x.innerText.includes(" + repr(trecho) + ") && x.innerText.includes(" + repr(tambem) + ")); return r ? Array.from(r.children).map(c => c.innerText.replace(/\\u00a0/g, ' ').replace(/\\n/g, ' ').trim()).join(' | ') : ''; })()") or ""
 
 
 def id_do_produto(nome):
@@ -477,11 +478,11 @@ def conta_pix_cadastrar():
     # passo 5: depois de Cadastrar conta, a linha na tabela
     enviar_painel()
     confere(aid + ": o painel fechou", esperar(lambda: not painel_aberto(), 60))
-    ln = esperar(lambda: linha_da_tabela(CONTA_NOVA), 30)
+    ln = esperar(lambda: linha_da_tabela(CONTA_NOVA, CNPJ_NOVO), 30)
     confere(aid + ": a conta nova aparece com CNPJ, favorecido e " + RODOVIA, bool(ln) and CNPJ_NOVO in ln and FAVORECIDO_NOVO in ln and RODOVIA in ln, ln)
     inicializar_pagina(CFG_CONTAS)
     rolar_topo("M.H('Contas bancárias')")
-    quadro(aid, 5, "M.TR('" + CONTA_NOVA + "')", "a linha da conta nova", CFG_CONTAS, rolar=False)
+    quadro(aid, 5, "M.TR('" + CNPJ_NOVO + "')", "a linha da conta nova", CFG_CONTAS, rolar=False)
 
 
 CFG_BALCAO_PIX = {"opcoes": ["^(" + CONTA_CENTRO + "|" + CONTA_SITE + ")"]}

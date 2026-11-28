@@ -1014,8 +1014,8 @@ figura("venda-impressa", "vendedor_centro", lambda: "/emporio/imprimir/venda/" +
 figura("fiado-lista", "vendedor_centro", "/emporio/fiado", [
     (1, "M.LIN('Chácara Três Irmãos')", "a linha de um cliente"),
     # A marca Vencido depende do dia: a coluna Vencimento esta sempre la.
-    # Abaixo do breakpoint md a coluna se chama "Vence": o prefixo serve nos dois tamanhos.
-    (2, "M.TH('Vence')", "a coluna Vencimento (Vence, no celular)"),
+    # Abaixo do breakpoint md a coluna se chama "Vence" ('vencimento' nao comeca por 'vence').
+    (2, "(M.TH('Vencimento') || M.TH('Vence'))", "a coluna Vencimento (Vence, no celular)"),
     (3, "M.B('Receber')", "o botao Receber"),
 ], hd=600, hc=800)
 
