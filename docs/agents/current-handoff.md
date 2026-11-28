@@ -68,8 +68,7 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   `emporio-*` e do `manual-animacoes`: todos verdes menos `emporio-f6b`
   (resolvido depois, ver abaixo). `emporio-financeiro-casa` (cartão no fim de semana) e
   `emporio-ux-onda6` (valor exato em Todas) foram corrigidos nos roteiros.
-  Banco local: produtos e fornecedores de fixture arquivados e o
-  `fiado_default_limit` do seed zerado; sem isso, fixtures voltam às fotos.
+  Banco local: fixtures arquivados e `fiado_default_limit` do seed zerado; sem isso, voltam às fotos.
 
   **Em produção desde 28/11** (merge autorizado, até `1c77089f`): o Histórico diz "Criou uma loja" (pedido do usuário).
   **Na branch, sem merge** (`c0a90169` a `441836d1`): as recusas do Empório dizem "Loja não encontrada", "Escolha a loja." e afins (`test:all` 139/139, `textos-defasados` limpo); e o `emporio-f6b` verde: o NextAuth monta a origem dos redirecionamentos pelo `NEXTAUTH_URL` (3000 no `.env.local`), e com o next dev na 3005 a trava mandava o Vendedor para a 3000. Next dev em outra porta: `NEXTAUTH_URL` e `AUTH_URL` da mesma porta inline; o `npm run navegador` agora recusa a porta errada. **Próximo:** merge quando o usuário autorizar.
