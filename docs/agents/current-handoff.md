@@ -40,7 +40,7 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   decidir: os "Primeiros passos" do Início não seguem a loja; tocar num aviso
   do Início que leva `?loja=` troca a loja do topo inteiro.
 
-  **Onda 7 (manual, desenho §6): pronta na branch, SEM merge.** Plano
+  **Onda 7 (manual, desenho §6): em produção desde 28/11** (merge autorizado, até `5e0d8f04`; CI e Vercel verdes). Plano
   `docs/superpowers/plans/2026-11-28-emporio-ux-onda7-manual.md` e anexo
   `...-onda7-levantamento.md`. Decisões do usuário: fundir as partes onde a
   tela fundiu; figuras novas (seletor "Loja: Todas", Estatísticas, Vender com
@@ -70,7 +70,7 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   Banco local: produtos e fornecedores de fixture arquivados e o
   `fiado_default_limit` do seed zerado; sem isso, fixtures voltam às fotos.
 
-  **Próximo:** relatório ao usuário e autorização NOVA para o merge da onda 7.
+  **Na branch, sem merge:** `6fce6fdd`, o Histórico diz "Criou uma loja" (pedido do usuário). **Próximo:** o usuário responde as duas da onda 6 (recomendado: deixar as duas como estão).
 - Em produção até 24/11 (detalhe em `historico/2026-11.md`): lint zerado;
   decisões pendentes D1 a D7 (Q374 a Q386, `m129`); data da baixa (Q370 a
   Q373, `m127`); sobras sem a Agromax (`m128`); plano do GestãoClick A, B, C,
@@ -193,7 +193,7 @@ celular. Missões 3 e 4 congeladas no classificador.
 
 ## Últimas rodadas
 
-- 28/11 (2): onda 7 da UX do Empório (manual) pronta na branch `ux-emporio`, sem merge.
+- 28/11 (2): onda 7 da UX do Empório (manual) em produção (merge e push autorizados na conversa).
 - 28/11: onda 6 da UX do Empório (loja no topo) em produção (merge e push autorizados na conversa).
 - 27/11: onda 5 da UX do Empório (Estatísticas) em produção (merge e push autorizados na conversa).
 - 26/11: ondas 2 e 3 da UX do Empório em produção (merges autorizados na conversa); onda 4 em produção em 27/11 (merge autorizado na conversa).
