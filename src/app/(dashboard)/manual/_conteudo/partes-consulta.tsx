@@ -35,8 +35,10 @@ const TERMOS: { termo: string; significa: React.ReactNode }[] = [
   { termo: "Orçamento", significa: <>Uma promessa de preço para o cliente levar no papel. Não tira do estoque, não reserva mercadoria e não recebe dinheiro. Fica aberto, vencido ou faturado. Fatura uma vez só. Veja <Link className="underline" href={`${BASE_DO_EMPORIO}/orcamento`}>Orçamento</Link>.</> },
   { termo: "Validade", significa: <>Até quando vale o preço do orçamento: até o fim do dia que aparece em Válido até. A conta começa com 7 dias, e o Dono muda em <Link className="underline" href={`${BASE_DO_EMPORIO}/configuracoes`}>Configurações</Link>. Vencido, o orçamento ainda fatura, pelo preço de hoje.</> },
   { termo: "Consumidor final", significa: "O cliente de quem não quer se identificar. Serve para venda à vista e para orçamento. Não compra fiado e não paga em cheque. É fixo: não se edita nem se arquiva." },
-  { termo: "Vendedor da venda", significa: "Quem atendeu o cliente. Pode ser outra pessoa, diferente de quem registrou a venda. A tela da venda mostra os dois: Vendedor e, quando é outra pessoa, Registrada por. No orçamento faturado, o vendedor é o do orçamento. É ele que conta em Relatórios." },
+  { termo: "Vendedor da venda", significa: "Quem atendeu o cliente. Pode ser outra pessoa, diferente de quem registrou a venda. A tela da venda mostra os dois: Vendedor e, quando é outra pessoa, Registrada por. No orçamento faturado, o vendedor é o do orçamento. É ele que conta nos relatórios de Estatísticas." },
   { termo: "Chave", significa: "Uma permissão extra do Vendedor, que vem desligada. O Dono liga na Equipe." },
+  { termo: "Loja do topo", significa: <>O seletor de loja no alto do Meu Empório. Escolhida uma loja, as telas em que ele vale mostram só ela; em Todas, mostram as lojas que você alcança, somadas. Vale em Início, Vendas, Orçamentos, Fiado, Estoque, Compras, Transferências, Hoje, A receber, A pagar, Estatísticas e Histórico. Só aparece para quem tem mais de uma loja. Veja <Link className="underline" href={`${BASE_DO_EMPORIO}/primeiros-passos`}>Primeiros passos</Link>.</> },
+  { termo: "Conferir com o banco", significa: <>O botão do extrato de uma conta bancária, em Dinheiro &gt; Caixa, na seção Saldo de cada lugar. Compare a linha com o extrato do banco e clique: ela fica marcada como conferida, e <strong>Desfazer a conferência</strong> tira a marca. Só quem cuida do dinheiro vê o botão. Veja <Link className="underline" href={`${BASE_DO_EMPORIO}/dinheiro#conferir-com-o-banco`}>Dinheiro</Link>.</> },
 ];
 
 export function ParteDeGlossario() {
@@ -55,7 +57,7 @@ export function ParteDeGlossario() {
 const PERGUNTAS: { pergunta: string; resposta: React.ReactNode }[] = [
   {
     pergunta: "Uma venda, compra ou orçamento antigo sumiu da lista",
-    resposta: "Não sumiu: as listas vêm em páginas. Embaixo, “Mostrando 1 a 20 de 230” diz quantos há, e os números levam às outras páginas. Em Vendas, Compras, Transferências e Orçamentos dá para escolher 20, 40, 80 ou 100 por página e trocar a ordem para Mais antigos primeiro. A busca e os filtros também acham o antigo. No Caixa, na ficha do produto e no A receber, cada lista tem as próprias páginas.",
+    resposta: "Não sumiu: as listas vêm em páginas. Embaixo, “Mostrando 1 a 20 de 230” diz quantos há, e os números levam às outras páginas. Em Vendas, Compras, Transferências, Orçamentos, Produtos e Estoque (aba Tudo) dá para escolher 20, 40, 80 ou 100 por página e, em algumas, trocar a ordem para Mais antigos primeiro. A busca e os filtros também acham o antigo. No Caixa, na ficha do produto e no A receber, cada lista tem as próprias páginas.",
   },
   {
     pergunta: "Por que a venda de saca fechada foi recusada?",
@@ -82,8 +84,8 @@ const PERGUNTAS: { pergunta: string; resposta: React.ReactNode }[] = [
     resposta: "A venda que gerou o crédito foi cancelada ou editada depois de o crédito ser pago. O pagamento não volta sozinho, então o saldo mostra o que o franqueado recebeu a mais.",
   },
   {
-    pergunta: "Por que o Vendedor não vê o Financeiro?",
-    resposta: "Quem é só da loja vê apenas o Meu Empório e o necessário. Dinheiro da conta, despesas e resultado são de quem responde pela loja: o Gestor, o Gerente geral e o Dono.",
+    pergunta: "Por que o Vendedor não vê Hoje, A receber, A pagar nem Estatísticas?",
+    resposta: "Quem é só da loja vê apenas o Meu Empório e o necessário. Do grupo Dinheiro, o Vendedor e o Caixa abrem só o Caixa. Hoje, A receber e Aprovações são do Dono, do Gerente geral e de quem cuida do dinheiro. A pagar, Estatísticas (com o resultado) e Histórico abrem também para o Gestor da loja.",
   },
   {
     pergunta: "O que acontece quando a transferência chega a menos?",
@@ -111,15 +113,15 @@ const PERGUNTAS: { pergunta: string; resposta: React.ReactNode }[] = [
   },
   {
     pergunta: "Por que não consigo vender fiado?",
-    resposta: "Fiado precisa de cliente cadastrado, porque sem nome ninguém sabe quem deve. Escolha o cliente ou use o cadastro rápido na própria venda.",
+    resposta: "Fiado precisa de cliente cadastrado, porque sem nome ninguém sabe quem deve. O balcão começa no Consumidor final: clique em Trocar, escolha o cliente ou cadastre na janela, em Não achou? Cadastrar novo.",
   },
   {
     pergunta: "Por que o fiado ou o cheque foi recusado com o Consumidor final?",
-    resposta: <>A frase é “Fiado precisa do cliente de verdade, não do Consumidor final.” ou “Cheque precisa do cliente de verdade, não do Consumidor final.” O Consumidor final não tem nome nem documento, e ninguém saberia de quem cobrar. Clique em <strong>Escolher cliente</strong> no campo <strong>Cliente</strong> ou em <strong>Cadastrar novo cliente</strong>.</>,
+    resposta: <>A frase é “Fiado precisa do cliente de verdade, não do Consumidor final.” ou “Cheque precisa do cliente de verdade, não do Consumidor final.” O Consumidor final não tem nome nem documento, e ninguém saberia de quem cobrar. Clique em <strong>Trocar</strong>, no campo <strong>Cliente</strong>, e escolha o cliente de verdade. Se ele ainda não existe, clique em <strong>Não achou? Cadastrar novo</strong>, na janela.</>,
   },
   {
     pergunta: "O sistema pede para escolher o cliente. E se ele não quiser se identificar?",
-    resposta: <>Toda venda tem cliente, e a frase é “Escolha o cliente da venda.” Quem não quer se identificar entra como <strong>Consumidor final</strong>, que fica sempre no alto da janela de escolha. Para cadastrar alguém na hora, clique em <strong>Cadastrar novo cliente</strong>. Na pessoa física, bastam o nome e o telefone. Na pessoa jurídica, também o CNPJ e o endereço principal.</>,
+    resposta: <>Toda venda tem cliente, e a frase é “Escolha o cliente da venda.” O balcão já começa com o <strong>Consumidor final</strong>, para quem não quer se identificar, e ele fica sempre no alto da janela de escolha. Para outro cliente, clique em <strong>Trocar</strong> (F4). Para cadastrar alguém na hora, clique em <strong>Não achou? Cadastrar novo</strong>, na janela. Na pessoa física, bastam o nome e o telefone. Na pessoa jurídica, também o CNPJ e o endereço principal.</>,
   },
   {
     pergunta: "O que é o aviso “Cadastro incompleto” embaixo do cliente?",
@@ -127,19 +129,19 @@ const PERGUNTAS: { pergunta: string; resposta: React.ReactNode }[] = [
   },
   {
     pergunta: "Por que a venda parou dizendo que o caixa está fechado?",
-    resposta: <>Toda venda cai num caixa aberto, em qualquer forma de pagamento. A frase é “Nenhum caixa aberto nesta loja. Abra o caixa com o troco inicial para vender.” Clique em <strong>Abrir o Caixa 1</strong> (ou no caixa que aparecer), conte o troco e clique em <strong>Abrir o caixa</strong>. A venda continua com os mesmos itens. Se a loja tem mais de um caixa aberto, a frase é “Há mais de um caixa aberto. Escolha o caixa.”: escolha em qual caixa a venda cai.</>,
+    resposta: <>Toda venda cai num caixa aberto, em qualquer forma de pagamento. A frase é “Nenhum caixa aberto nesta loja. Abra o caixa com o troco inicial para vender.” Na faixa do caixa, no alto do balcão, clique em <strong>Abrir o caixa</strong> (se houver mais de um caixa fechado, escolha antes qual abrir), conte o troco e confirme. A venda continua com os mesmos itens. Se a loja tem mais de um caixa aberto, a frase é “Há mais de um caixa aberto. Escolha o caixa.”: escolha em qual caixa a venda cai.</>,
   },
   {
     pergunta: "Por que aparece “Escolha o vendedor que atendeu.”?",
-    resposta: <>Quem tem a função Caixa registra a venda, mas não é o vendedor. Ele escolhe, a cada venda, quem atendeu o cliente, no campo <strong>Vendedor</strong>. A escolha volta vazia na venda seguinte, de propósito: o nome de um atendimento não passa para o outro. Se a frase for “Escolha um vendedor desta loja.”, a pessoa escolhida não está mais ligada a esta loja ou foi desativada. Escolha outra.</>,
+    resposta: <>Quem tem a função Caixa registra a venda, mas não é o vendedor. Ele escolhe, a cada venda, quem atendeu o cliente, na fileira de botões do <strong>Vendedor</strong> (clique no nome, ou F8 e o número). Se a loja tem um vendedor só, ele já vem escolhido. Com mais de um, a escolha volta vazia na venda seguinte, de propósito: o nome de um atendimento não passa para o outro. Se a frase for “Escolha um vendedor desta loja.”, a pessoa escolhida não está mais ligada a esta loja ou foi desativada. Escolha outra.</>,
   },
   {
     pergunta: "Por que o orçamento não salva?",
-    resposta: <>Faltou o cliente: “Escolha o cliente do orçamento. Quem não quer se identificar entra como Consumidor final.” Escolha o cliente, ou o <strong>Consumidor final</strong>, que vale para o orçamento. Se o cliente aparece com Cadastro incompleto, complete o cadastro antes: veja a pergunta do aviso “Cadastro incompleto”.</>,
+    resposta: <>Faltou o cliente: “Escolha o cliente do orçamento. Quem não quer se identificar entra como Consumidor final.” O balcão já traz o <strong>Consumidor final</strong>, que vale para o orçamento; para outro cliente, clique em <strong>Trocar</strong>. Se o cliente aparece com Cadastro incompleto, complete o cadastro antes: veja a pergunta do aviso “Cadastro incompleto”.</>,
   },
   {
     pergunta: "O cliente não quer dar o CPF, mas quer entrega. O que eu faço?",
-    resposta: <>Para entrega, a pessoa física precisa do CPF no cadastro: a frase é “Para entrega, informe o CPF do cliente.” Sem o CPF, o pedido não sai marcado para entrega. Peça o CPF e clique em <strong>Completar cadastro</strong>, embaixo do cliente. Se o cliente não quer dar o CPF, o pedido é retirada no balcão: desmarque <strong>Pedido para entrega</strong>. O Consumidor final também não vale para entrega.</>,
+    resposta: <>Para entrega, a pessoa física precisa do CPF no cadastro: a frase é “Para entrega, informe o CPF do cliente.” Sem o CPF, o pedido não sai marcado para entrega. Peça o CPF e clique em <strong>Completar cadastro</strong>, embaixo do cliente. Se o cliente não quer dar o CPF, o pedido é retirada no balcão: desmarque <strong>Pedido para entrega</strong>, em <strong>Mais opções</strong>. O Consumidor final também não vale para entrega.</>,
   },
   {
     pergunta: "Posso mudar o endereço depois de fechar a venda?",

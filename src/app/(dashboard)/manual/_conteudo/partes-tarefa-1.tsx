@@ -7,12 +7,23 @@ import { BASE_DO_EMPORIO } from "./indice";
 
 const B = BASE_DO_EMPORIO;
 
+function Lista({ itens }: { itens: React.ReactNode[] }) {
+  return (
+    <ul className="list-disc space-y-1 pl-5 text-texto marker:text-texto-discreto">
+      {itens.map((i, n) => (
+        <li key={n}>{i}</li>
+      ))}
+    </ul>
+  );
+}
+
 export function ParteDePrimeirosPassos() {
   return (
+    <div className="space-y-2">
     <Tarefa
       paraQueServe="Deixar a loja pronta para vender, na ordem certa, para os números do resultado não saírem errados."
       passos={[
-        <>Abra <strong>Meu Empório</strong> no menu. O cartão <strong>Primeiros passos</strong> aparece no alto.</>,
+        <>Abra <strong>Início</strong>, no menu do Meu Empório. O cartão <strong>Primeiros passos</strong> fica por último, depois de <strong>Precisa de você</strong>, dos números do dia e dos <strong>Atalhos</strong>. Só o Gestor, o Gerente geral e o Dono o veem.</>,
         "Faça primeiro os itens essenciais: sem eles o resultado da loja fica marcado como estimado.",
         "Clique em cada item. Ele abre o formulário certo: cadastre a loja, os produtos, o preço e o estoque inicial.",
         "Depois faça os recomendados: contas bancárias, taxas de cartão (em Configurações, Cartões), despesas fixas e Equipe.",
@@ -33,6 +44,53 @@ export function ParteDePrimeirosPassos() {
       <Figura id="inicio-primeiros-passos" />
       <Figura id="estabelecimentos-lista" />
     </Tarefa>
+
+    <Subtitulo>Como o Empório se organiza</Subtitulo>
+    <p className="text-texto">
+      O menu do Meu Empório vem em grupos, na ordem em que você trabalha. Cada pessoa vê só o que a sua função abre, e
+      um grupo com um item só vira item solto.
+    </p>
+    <Lista
+      itens={[
+        <><strong>Início</strong> e <strong>Vender</strong>, no alto.</>,
+        <><strong>Vendas</strong>: Vendas, Orçamentos, Clientes, Fiado e Franqueados.</>,
+        <><strong>Estoque</strong>: Produtos, Estoque, Compras, Transferências e Fornecedores.</>,
+        <><strong>Dinheiro</strong>: Hoje, Caixa, A receber, A pagar e Aprovações.</>,
+        <><strong>Estatísticas</strong>, solta no menu.</>,
+        <><strong>Ajustes</strong>: Lojas, Equipe, Histórico e Configurações.</>,
+      ]}
+    />
+    <p className="text-texto">
+      O <strong>Início</strong> reúne o que precisa de você hoje. Quem é só Caixa não tem Início: entra direto em Vender.
+    </p>
+    <Lista
+      itens={[
+        <><strong>Precisa de você</strong>: os avisos do dia. Sem aviso, o bloco some.</>,
+        <>Os números do dia: <strong>Vendas hoje</strong>, <strong>Vendas no mês</strong>, <strong>Entra hoje</strong> e <strong>Sai hoje</strong>. Quem não vê o dinheiro vê só os dois primeiros.</>,
+        <><strong>Atalhos</strong>: os botões mais usados pela sua função.</>,
+        <><strong>Primeiros passos</strong>, por último, só para o Gestor, o Gerente geral e o Dono, e só enquanto há pendência.</>,
+      ]}
+    />
+    <Figura id="inicio" />
+    <p className="text-texto">
+      <strong>A loja do topo.</strong> Quem tem mais de uma loja vê, no alto, um seletor de loja. Escolha uma loja e as
+      telas mostram só ela. Em <strong>Todas</strong>, mostram as lojas que você alcança, somadas. Quem tem uma loja só
+      não vê o seletor.
+    </p>
+    <Lista
+      itens={[
+        "Ele vale em Início, Vendas, Orçamentos, Fiado, Estoque, Compras, Transferências, Hoje, A receber, A pagar, Estatísticas e Histórico.",
+        "Ele some em Vender, Caixa, Produtos, Clientes, Aprovações e nas fichas (a de um produto, de um cliente, de uma venda). Ali o seletor do topo não manda.",
+        "Um link que já leva a loja muda a loja do topo: a tela abre nessa loja, e as outras telas em que o seletor vale passam a mostrar a mesma.",
+      ]}
+    />
+    <Figura id="loja-do-topo" />
+    <p className="text-texto">
+      <strong>O (i) ao lado do título.</strong> Em cada tela há um (i) junto do título. Passe o mouse ou toque nele: abre
+      uma explicação curta. Nas telas que têm parte própria aqui, o balão traz o link <strong>Ver no manual</strong>, que
+      leva direto à parte (e à seção) certa.
+    </p>
+    </div>
   );
 }
 
@@ -92,7 +150,7 @@ export function ParteDeEquipe() {
           <>Em <strong>Cadastrar pessoa</strong>, escolha a Função <strong>Caixa</strong> e marque as lojas dele.</>,
           "O Caixa vende, fatura orçamento pelo número, recebe fiado, vê as vendas de hoje e abre, faz sangria e encerra o caixa.",
           "Em cada venda, ele escolhe o vendedor que atendeu o cliente. O Caixa nunca aparece como vendedor.",
-          "Ele não abre Produtos, Estoque, Compras, Transferências, Lojas, a lista de Orçamentos, despesas, resultado nem Relatórios. Não devolve, não troca e não cancela venda.",
+          "Ele não abre Produtos, Estoque, Compras, Transferências, Lojas, a lista de Orçamentos, A pagar nem Estatísticas, e não tem Início: o Meu Empório dele abre em Vender. Não devolve, não troca e não cancela venda.",
         ]}
       >
         <Figura id="equipe-caixa" />
@@ -350,7 +408,7 @@ export function ParteDeCompras() {
         "Adicione cada item: produto, quantidade e o valor total do item (não o valor de uma unidade).",
         "Informe o frete, se houver. Ele é dividido entre os itens pelo valor de cada um.",
         "Diga como pagou: à vista, a prazo ou parcelado (com entrada, se tiver). Na compra de uma propriedade do dono, a forma de pagamento some: entra só o custo, sem conta a pagar.",
-        <>Se pagou alguma parte na hora (à vista ou a entrada), diga <strong>De onde saiu o dinheiro</strong>: a <strong>Gaveta da loja</strong> (precisa de um caixa com turno aberto na loja; se houver mais de um aberto, escolha qual) ou uma <strong>conta bancária</strong>. O dinheiro sai de lá na hora, e o saldo cai. A parte a prazo vira conta a pagar, que o Financeiro paga depois em <Link className="underline" href={`${B}/financeiro-das-lojas`}>Financeiro das lojas</Link>.</>,
+        <>Se pagou alguma parte na hora (à vista ou a entrada), diga <strong>De onde saiu o dinheiro</strong>: a <strong>Gaveta da loja</strong> (precisa de um caixa com turno aberto na loja; se houver mais de um aberto, escolha qual) ou uma <strong>conta bancária</strong>. O dinheiro sai de lá na hora, e o saldo cai. A parte a prazo vira conta a pagar, que o Financeiro paga depois, em Dinheiro &gt; <Link className="underline" href={`${B}/a-pagar#contas`}>A pagar</Link>.</>,
         "Marque se a mercadoria já chegou. Se não chegou, a conta a pagar nasce hoje e o estoque só entra quando você receber.",
         <>Quando a mercadoria chegar, abra a compra e clique em <strong>Receber</strong>.</>,
       ]}
@@ -399,8 +457,8 @@ export function ParteDeEstoque() {
       <Tarefa
         paraQueServe="Saber o que tem na loja, corrigir quando a prateleira não bate e ser avisado do que precisa repor."
         passos={[
-          <>Abra <strong>Meu Empório</strong>, o grupo <strong>Estoque</strong> e a tela <strong>Estoque</strong>. Escolha a loja.</>,
-          "Veja cada produto com o saldo lacrado (embalagens fechadas) e o avulso (solto). Embalagens fechadas do mesmo tamanho aparecem numa linha só, por exemplo “10 sacas de 40 kg (Saca 40 kg / ATACADO)”.",
+          <>Abra <strong>Meu Empório</strong>, o grupo <strong>Estoque</strong> e a tela <strong>Estoque</strong>. A loja é a do topo: com mais de uma loja, escolha uma ou deixe em <strong>Todas</strong> (quem tem uma loja só não vê o seletor).</>,
+          <>Abra a aba <strong>Tudo</strong>. Veja cada produto com o saldo lacrado (embalagens fechadas) e o avulso (solto). Embalagens fechadas do mesmo tamanho aparecem numa linha só, por exemplo “10 sacas de 40 kg (Saca 40 kg / ATACADO)”. A lista vem em páginas: embaixo, os números levam às outras, e dá para escolher 20, 40, 80 ou 100 por página.</>,
           <>Para corrigir um saldo, abra o produto e, no cartão da loja, clique em <strong>Contar estoque</strong>. Digite o que você contou nas duas colunas. Para o lacrado, há um campo por tamanho de embalagem, e não um por nome.</>,
           <>Para registrar o que estragou, venceu ou sumiu, clique em <strong>Registrar perda</strong> no mesmo cartão e escolha o motivo.</>,
           <>Defina o mínimo e o máximo de cada produto naquela loja, no botão <strong>Limites</strong> do mesmo cartão.</>,
@@ -429,7 +487,7 @@ export function ParteDeEstoque() {
         paraQueServe="Ser avisado do que está acabando e saber quanto comprar."
         passos={[
           "Defina o mínimo (o menor saldo aceitável) e o máximo (até onde vale encher a prateleira) de cada produto.",
-          <>Abra <strong>Precisa repor</strong>. Os produtos abaixo do mínimo aparecem com a quantidade sugerida.</>,
+          <>Abra a aba <strong>Precisa repor</strong>, a que a tela mostra primeiro. Os produtos abaixo do mínimo aparecem com a quantidade sugerida.</>,
           "A quantidade sugerida é o máximo menos o saldo e menos o que já foi comprado e ainda não chegou.",
           <>O Dono vê o botão <strong>Encaminhar à Lista</strong>: ele manda o item para a Lista de Compra. A Lista é da fazenda, e a equipe do Empório, o Gerente geral inclusive, não a vê.</>,
         ]}

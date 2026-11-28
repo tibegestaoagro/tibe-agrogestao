@@ -42,8 +42,8 @@ export function ParteDono() {
       <Titulo>O que você faz no dia a dia</Titulo>
       <Lista
         itens={[
-          <>Olhar o <Link className="underline" href={`${B}/resultado`}>resultado das lojas</Link> e ver se a conta fecha.</>,
-          <>Abrir <Link className="underline" href={`${B}/relatorios`}>Relatórios</Link> para ver as vendas por vendedor, por produto e por loja, e os produtos parados. O relatório mostra quanto cada um vendeu, para acertar a comissão. O percentual da comissão o sistema não calcula.</>,
+          <>Olhar o <Link className="underline" href={`${B}/estatisticas#resultado`}>resultado das lojas</Link> (Estatísticas, aba <strong>Resultado</strong>) e ver se a conta fecha.</>,
+          <>Abrir <Link className="underline" href={`${B}/estatisticas#vendas`}>Estatísticas, aba Vendas</Link>, para ver as vendas por vendedor, por produto e por loja, e os produtos parados. O relatório mostra quanto cada um vendeu, para acertar a comissão. O percentual da comissão o sistema não calcula.</>,
           <>Acompanhar os <Link className="underline" href={`${B}/orcamento`}>Orçamentos</Link> que ainda não viraram venda e ligar para quem não voltou.</>,
           <>Montar e ajustar a <Link className="underline" href={`${B}/equipe`}>Equipe</Link>: quem é Gerente geral, Gestor, Vendedor ou Caixa.</>,
           <>Decidir o preço da loja, o limite de desconto e as despesas fixas, ou deixar isso com o Gestor de cada loja. O vendedor não digita preço: ele vende pelo preço do cadastro. Você também tem o seu PIN de autorização (Configurações &gt; Minha senha) e apaga o PIN de alguém na Equipe, em <strong>Apagar PIN</strong>.</>,
@@ -57,7 +57,7 @@ export function ParteDono() {
         itens={[
           "Criar e arquivar loja, e cadastrar as contas bancárias, com o CNPJ, o favorecido e as lojas onde cada uma recebe PIX.",
           "Definir a composição e os percentuais do produto.",
-          "Ver Todas as lojas somadas no Resultado.",
+          "Ver o Resultado de Todas as lojas, com o detalhe do mês, em Estatísticas (a loja do topo em Todas). Quem alcança só algumas lojas vê a soma e a lista Loja por loja, sem esse detalhe.",
           "Cadastrar a Equipe e ligar as permissões extras do Vendedor.",
           "Liberar o estoque negativo de uma loja, quando for preciso vender antes de lançar a compra.",
           <>Mudar, em <Link className="underline" href={`${B}/configuracoes`}>Configurações</Link>, o que vale para a conta toda: a validade do orçamento, a largura da bobina, o rodapé do orçamento, o rodapé da venda e o logo.</>,
@@ -93,6 +93,11 @@ export function ParteDono() {
         </p>
       </Chamada>
 
+      <p>
+        No <strong>Início</strong>, o cartão <strong>Primeiros passos</strong> fica por último, depois de{" "}
+        <strong>Precisa de você</strong>, dos números do dia e dos <strong>Atalhos</strong>. Ele só aparece enquanto há
+        pendência.
+      </p>
       <Figura id="inicio-primeiros-passos" />
 
       <Titulo>Por onde começar</Titulo>
@@ -131,9 +136,9 @@ export function ParteGestor() {
           <>Lança <Link className="underline" href={`${B}/compras`}>compras</Link> e envia <Link className="underline" href={`${B}/transferencias`}>transferências</Link> para outras lojas.</>,
           <>Resolve a transferência que chegou a menos (ela fica aguardando você).</>,
           <>Cancela venda e acompanha o <Link className="underline" href={`${B}/caixa`}>caixa</Link>.</>,
-          <>Autoriza desconto acima do limite da loja: o vendedor clica em <strong>Pedir autorização do gestor</strong>, escolhe você, e você digita o seu PIN. Cadastre o PIN em Configurações &gt; Minha senha (de 4 a 6 números, com a senha de entrada). A autorização vale 15 minutos, naquela loja, até aquele percentual; cinco PINs errados travam as suas tentativas por 15 minutos.</>,,
-          <>Cuida das <Link className="underline" href={`${B}/despesas`}>despesas</Link> e olha o <Link className="underline" href={`${B}/resultado`}>resultado</Link> da loja.</>,
-          <>Abre <Link className="underline" href={`${B}/relatorios`}>Relatórios</Link> para ver quem vendeu o quê no período e os produtos parados. O filtro começa em <strong>Todas as minhas lojas</strong> e no mês atual.</>,
+          <>Autoriza desconto acima do limite da loja: o vendedor clica em <strong>Pedir autorização do gestor</strong>, escolhe você, e você digita o seu PIN. Cadastre o PIN em Configurações &gt; Minha senha (de 4 a 6 números, com a senha de entrada). A autorização vale 15 minutos, naquela loja, até aquele percentual; cinco PINs errados travam as suas tentativas por 15 minutos.</>,
+          <>Cuida das contas e das <Link className="underline" href={`${B}/a-pagar#despesas-fixas`}>despesas</Link> (Dinheiro &gt; A pagar) e olha o <Link className="underline" href={`${B}/estatisticas#resultado`}>resultado</Link> da loja (Estatísticas, aba Resultado).</>,
+          <>Abre <Link className="underline" href={`${B}/estatisticas#vendas`}>Estatísticas, aba Vendas</Link>, para ver quem vendeu o quê no período e os produtos parados. A loja é a do topo (com mais de uma loja, ela começa em <strong>Todas</strong>, as suas) e o período se escolhe em <strong>Hoje</strong>, <strong>7 dias</strong>, <strong>Este mês</strong>, <strong>Mês passado</strong> ou <strong>Escolher datas</strong>.</>,
           <>Acompanha os <Link className="underline" href={`${B}/orcamento`}>Orçamentos</Link> abertos e vencidos da loja.</>,
           <>Libera o fiado de um cliente bloqueado, para uma venda, na ficha dele (<strong>Liberar fiado hoje</strong>). O Caixa e o Vendedor não liberam. Acordo de fiado em parcelas não é do Gestor: é do Dono e do Financeiro.</>,
         ]}
@@ -174,7 +179,7 @@ export function ParteGestor() {
         itens={[
           "Criar ou arquivar loja, nem mexer nas contas bancárias.",
           "Mudar a composição e os percentuais do produto.",
-          "Ver as vendas, o caixa, o resultado e os relatórios das outras lojas. O estoque delas você pode olhar, só olhar.",
+          "Ver as vendas, o caixa, as Estatísticas e o resultado das outras lojas. O estoque delas você pode olhar, só olhar.",
           "Liberar estoque negativo.",
           "Mudar, em Configurações, a impressão, a validade do orçamento, os rodapés e o logo. Isso é do Dono e do Gerente geral. O cabeçalho da sua loja e o Novo caixa você muda.",
           "Usar a Equipe. Se um Vendedor precisa de mais permissão, peça ao Dono.",
@@ -220,11 +225,11 @@ export function ParteVendedor() {
       <Titulo>Na venda: o cliente e o vendedor</Titulo>
       <Lista
         itens={[
-          <>Toda venda tem cliente. Clique em <strong>Escolher cliente</strong> no campo <strong>Cliente</strong>. Quem não quer se identificar entra como <strong>Consumidor final</strong>.</>,
-          <>O Consumidor final não compra fiado nem paga em cheque. Para isso, escolha o cliente de verdade ou clique em <strong>Cadastrar novo cliente</strong>.</>,
+          <>Toda venda tem cliente. O balcão já começa com o <strong>Consumidor final</strong>, para quem não quer se identificar. Para outro cliente, clique em <strong>Trocar</strong> (ou aperte F4), no campo <strong>Cliente</strong>, e busque pelo nome, pelo CPF ou CNPJ ou pelo telefone.</>,
+          <>O Consumidor final não compra fiado nem paga em cheque: ao escolher essas formas de pagamento, a janela de clientes abre sozinha. Escolha o cliente de verdade ou, na janela, clique em <strong>Não achou? Cadastrar novo</strong>.</>,
           <>Se aparecer <strong>Cadastro incompleto</strong>, clique em <strong>Completar cadastro</strong>. A venda passa assim mesmo, mas o orçamento não.</>,
           <>O campo <strong>Vendedor</strong> já vem com o seu nome. Se outro colega atendeu o cliente, escolha o nome dele.</>,
-          <>Se a mercadoria vai sair da loja, marque <strong>Pedido para entrega</strong> e escolha o endereço. Veja <Link className="underline" href={`${B}/entrega`}>Pedido para entrega e romaneio</Link>.</>,
+          <>Se a mercadoria vai sair da loja, abra <strong>Mais opções</strong>, marque <strong>Pedido para entrega</strong> e escolha o endereço. Veja <Link className="underline" href={`${B}/entrega`}>Pedido para entrega e romaneio</Link>.</>,
           <>No fim, clique em <strong>Fechar a venda</strong>.</>,
         ]}
       />
@@ -247,15 +252,15 @@ export function ParteVendedor() {
       <Passos
         itens={[
           <>Em <strong>Vender</strong>, toque em <strong>Orçamento</strong>, no alto da tela.</>,
-          "Monte os itens como numa venda: produto e quantidade. O preço vem do cadastro e você não o digita. O desconto vai em Desconto (%) na linha ou em Desconto no total (R$), no mesmo limite da loja; acima dele, use Pedir autorização do gestor.",
-          "Clique em Escolher cliente e busque pelo nome, pelo CPF ou CNPJ ou pelo pedaço do telefone, ou escolha o Consumidor final para quem não quer se identificar. Para o orçamento bastam o nome e o telefone do cliente; o que falta para a venda aparece num aviso depois de salvar.",
+          "Monte os itens como numa venda: produto e quantidade. O preço vem do cadastro e você não o digita. O desconto vai em Desconto (%) na linha ou em Desconto no total (R$), que fica em Mais opções, no mesmo limite da loja; acima dele, use Pedir autorização do gestor.",
+          "O cliente já começa como Consumidor final, para quem não quer se identificar. Para outro, clique em Trocar e busque pelo nome, pelo CPF ou CNPJ ou pelo pedaço do telefone. Para o orçamento bastam o nome e o telefone do cliente; o que falta para a venda aparece num aviso depois de salvar.",
           <>Clique em <strong>Salvar orçamento</strong>. Ele ganha um número e a data <strong>Válido até</strong>.</>,
           <>Imprima com <strong>Imprimir A4</strong> ou <strong>Imprimir cupom</strong> e entregue ao cliente.</>,
         ]}
       />
       <p>
         O orçamento não tira do estoque nem reserva mercadoria. Quando o cliente voltar, fique em <strong>Venda</strong>,
-        digite o número em <strong>Orçamento nº</strong> e clique em <strong>Carregar</strong>. Os itens entram na venda.
+        abra <strong>Mais opções</strong>, digite o número em <strong>Orçamento nº</strong> e clique em <strong>Carregar</strong>. Os itens entram na venda.
         Dentro da validade, a venda mantém o preço e o desconto orçados. Depois da validade, vale o preço de hoje do
         cadastro. Na lista <Link className="underline" href={`${B}/orcamento`}>Orçamentos</Link> você busca pelo telefone,
         CPF, CNPJ, nome ou número.
@@ -264,7 +269,7 @@ export function ParteVendedor() {
       <Titulo>O seu turno no caixa</Titulo>
       <Lista
         itens={[
-          <>Toda venda cai num caixa aberto. Com o caixa fechado, o balcão mostra <strong>Abrir o Caixa 1</strong> (ou pede para escolher o caixa). Conte o troco e abra ali mesmo. Se foi o Fechar a venda que parou no caixa fechado, a venda fecha sozinha assim que o caixa abre.</>,
+          <>Toda venda cai num caixa aberto. Com o caixa fechado, a faixa do caixa, no alto do balcão, mostra o botão <strong>Abrir o caixa</strong> (ou pede para escolher o caixa). Conte o troco e abra ali mesmo. Se foi o Fechar a venda que parou no caixa fechado, a venda fecha sozinha assim que o caixa abre.</>,
           <>Muito dinheiro no caixa? Em <strong>Caixa</strong>, clique em <strong>Sangria</strong>. Leve as notas ao gerente: ele confirma o que recebeu.</>,
           <>No fim do turno, clique em <strong>Encerrar</strong>: conte, separe o malote e deixe o troco. Imprima o relatório e leve junto com o malote.</>,
           <>Se a loja tem alguém com a função Caixa, a sangria e o encerramento são de quem abriu o caixa ou do Gestor.</>,
@@ -277,7 +282,7 @@ export function ParteVendedor() {
           "Cancelar venda ou mudar o preço (o preço é o do cadastro, e só o Gestor ou o Dono o mudam).",
           "Dar desconto acima do limite sozinho. Clique em Pedir autorização do gestor: o gestor da loja digita o PIN dele e libera.",
           "Confirmar a sangria e o malote que chegam ao gerente.",
-          "Ver Financeiro, despesas, resultado, Relatórios, Configurações e Histórico.",
+          "Ver Hoje, A receber, A pagar, Aprovações, Estatísticas, Configurações e Histórico. Do grupo Dinheiro, você abre só o Caixa.",
           "Enviar transferência ou resolver uma que chegou a menos.",
           "Ver o estoque das outras lojas.",
         ]}
@@ -310,8 +315,9 @@ export function ParteCaixa() {
     <div className="space-y-4">
       <p>
         Você é Caixa. Recebe o pagamento do cliente, recebe o fiado e cuida do dinheiro do seu turno: abre o caixa,
-        faz sangria e encerra. Seu menu no Meu Empório mostra só <strong>Início</strong>, <strong>Vender</strong>,{" "}
-        <strong>Vendas</strong>, <strong>Fiado</strong> e <strong>Caixa</strong>.
+        faz sangria e encerra. Seu menu no Meu Empório mostra só <strong>Vender</strong>, <strong>Vendas</strong>,{" "}
+        <strong>Clientes</strong>, <strong>Fiado</strong> e <strong>Caixa</strong>. Você não tem Início: ao abrir o
+        Meu Empório, já cai em Vender.
       </p>
 
       <Titulo>Abrir o caixa</Titulo>
@@ -325,8 +331,9 @@ export function ParteCaixa() {
         ]}
       />
       <p>
-        Com o caixa fechado, o balcão mostra <strong>Abrir o Caixa 1</strong> (ou pede para escolher o caixa em{" "}
-        <strong>Escolha o caixa a abrir</strong>). Abra ali mesmo. A venda continua com os mesmos itens.
+        Com o caixa fechado, a faixa do caixa, no alto do balcão, mostra o botão <strong>Abrir o caixa</strong> (ou pede
+        para escolher o caixa em <strong>Escolha o caixa a abrir</strong>). Abra ali mesmo. A venda continua com os
+        mesmos itens.
       </p>
 
       <Titulo>Receber uma venda</Titulo>
@@ -335,9 +342,9 @@ export function ParteCaixa() {
           <>Abra <strong>Vender</strong> e confira a loja.</>,
           "Busque o produto pelo nome, pela marca ou pelo código e toque nele. Confira a quantidade e o preço, que vem do cadastro da loja. Se o produto não tem preço na loja, ele não vende: chame o Gestor.",
           <>Se o cliente tiver desconto, preencha <strong>Desconto (%)</strong> na linha ou <strong>Desconto no total (R$)</strong>. Passou do limite da loja? Clique em <strong>Pedir autorização do gestor</strong>, e o gestor digita o PIN dele. Um item de preço R$ 0,00 sai como <strong>Brinde</strong>.</>,
-          <>Escolha o <strong>Cliente</strong>. Quem não quer se identificar entra como Consumidor final, que não compra fiado nem paga em cheque.</>,
+          <>Confira o <strong>Cliente</strong>. O balcão já começa com o Consumidor final, que não compra fiado nem paga em cheque. Para outro cliente, clique em <strong>Trocar</strong> (F4).</>,
           <>Escolha como o cliente paga, em <strong>Pagamento</strong>.</>,
-          <>Escolha o <strong>Vendedor</strong> que atendeu o cliente. Para você, o campo é obrigatório e volta vazio a cada venda.</>,
+          <>Escolha o <strong>Vendedor</strong> que atendeu o cliente. É uma fileira de botões com o nome de cada um: clique no nome, ou aperte F8 e o número dele. Se a loja tem um vendedor só, ele já vem escolhido. Com mais de um, o campo é obrigatório e volta vazio a cada venda.</>,
           <>Clique em <strong>Fechar a venda</strong>. Depois, se o cliente quiser o papel, clique em <strong>Imprimir A4</strong> ou <strong>Imprimir cupom</strong>.</>,
         ]}
       />
@@ -346,7 +353,7 @@ export function ParteCaixa() {
       <Titulo>Faturar um orçamento</Titulo>
       <Passos
         itens={[
-          <>Em <strong>Vender</strong>, digite o número que está no papel do cliente em <strong>Orçamento nº</strong> e clique em <strong>Carregar</strong>.</>,
+          <>Em <strong>Vender</strong>, abra <strong>Mais opções</strong>, digite o número que está no papel do cliente em <strong>Orçamento nº</strong> e clique em <strong>Carregar</strong>.</>,
           "Os itens e o cliente entram na venda. O vendedor é o do orçamento: você não precisa escolher.",
           "Leia os avisos na faixa do orçamento: preço que mudou, orçamento vencido ou estoque que falta.",
           <>Escolha o pagamento e clique em <strong>Fechar a venda</strong>.</>,
@@ -416,7 +423,7 @@ export function ParteCaixa() {
           "Ver a lista de Orçamentos.",
           "Ver as vendas de dias anteriores. Em Vendas aparecem só as de hoje.",
           "Dar desconto acima do limite da loja sozinho: o gestor autoriza com o PIN dele, em Pedir autorização do gestor.",
-          "Ver despesas, resultado, Relatórios, Equipe, Configurações e Histórico.",
+          "Ver A pagar, Estatísticas, Equipe, Configurações e Histórico.",
         ]}
       />
 
