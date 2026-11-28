@@ -140,7 +140,10 @@ loja_fin = next((l for l in lojas_fin if l.get("name") == LOJA1), None)
 ir("/emporio/financeiro?loja=" + (loja_fin or {}).get("id", ""))
 confere("filtrada pela Loja 1, a casa mostra a conta a pagar vencida (Fin Fornecedor, R$ 100,00)", esperar(lambda: tem("Fin Fornecedor") and tem("R$ 100,00"), 30), texto_principal(1500))
 confere("e o fiado vencido de R$ 30,00, de 1 cliente atrasado", tem("1 cliente atrasado") and tem("R$ 30,00"), texto_principal(1500))
-confere("e o cheque de R$ 50,00 e o cartão de R$ 98,00 (2% de R$ 100,00) a receber hoje", tem("Cheques (1 cheque)") and tem("R$ 50,00") and tem("R$ 98,00"), texto_principal(1500))
+# No sabado e no domingo a parcela do cartao (venda de ontem, D+1) cai no
+# proximo dia util, e nao hoje: so o cheque e cobrado (28/11/2026, um sabado).
+fim_de_semana = datetime.date.today().weekday() >= 5
+confere("e o cheque de R$ 50,00 e o cartão de R$ 98,00 (2% de R$ 100,00) a receber hoje", tem("Cheques (1 cheque)") and tem("R$ 50,00") and (fim_de_semana or tem("R$ 98,00")), texto_principal(1500))
 
 # --- 2 ---------------------------------------------------------------------------------
 passo("2. Sem Vender nem Equipe no menu; /dashboard volta para a casa")
