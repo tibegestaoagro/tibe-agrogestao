@@ -176,7 +176,7 @@ for nome, lista, caminho_esperado, busca_esperada, titulo_esperado in DESTINOS:
         continue
     d, b, t, nf = chegar(lista[0])
     print("   destino de", nome, ":", d, b, "| h1:", t)
-    confere("o link de " + nome + " abre " + caminho_esperado + (("?" + busca_esperada) if busca_esperada else ""), d == caminho_esperado and busca_esperada in b and not nf, [d, b])
+    confere("o link de " + nome + " abre " + caminho_esperado + (("?" + busca_esperada) if busca_esperada else ""), d == caminho_esperado and (busca_esperada in b or (busca_esperada == "loja=" and "loja=" in lista[0]["href"])) and not nf, [d, b, lista[0]["href"]])
     confere("a tela de " + nome + " tem título", bool(t), t)
     if titulo_esperado:
         confere("o título de " + nome + " é '" + titulo_esperado + "'", t == titulo_esperado, t)
@@ -192,6 +192,8 @@ d, b, t, nf = chegar(a_orc[0])
 confere("o link de orçamento mostra um orçamento da Loja A", tem_com_ajuda("Ux Loja A"), texto_principal(160))
 
 passo("2. Dono: os números batem com as telas de origem")
+# Onda 6: o link de reposição com ?loja= virou a loja do topo; os números do dono são os de todas as lojas.
+api("POST", "/api/v1/emporio/loja-do-topo", {"establishment_id": None})
 soma_vendas, qtd_vendas, completa = vendas_de_hoje()
 print("   Vendas de hoje na tela de Vendas:", soma_vendas, "em", qtd_vendas, "vendas")
 confere("as vendas de hoje cabem na primeira página da tela de Vendas (soma confiável)", completa and qtd_vendas > 0, [qtd_vendas, completa])

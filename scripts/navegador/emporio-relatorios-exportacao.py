@@ -115,6 +115,8 @@ if len(tabela) == 2:
 sales = api_estavel("GET", "/api/v1/emporio/reports/sales?establishment_id=" + LOJA + "&from=" + HOJE.strftime("%Y-%m-01") + "&to=" + HOJE.isoformat())
 origem = {o["origin"]: o for o in (sales["body"]["data"].get("by_origin") or [])}
 confere("a API: e-commerce net 300 (frete 30 fora), balcão net 500", origem.get("ecommerce", {}).get("net") == 300 and origem.get("ecommerce", {}).get("freight") == 30 and origem.get("balcao", {}).get("net") == 500, origem)
+# Onda 6: o link com ?loja= acima virou a loja do topo; volta a "Todas" antes de conferir.
+api("POST", "/api/v1/emporio/loja-do-topo", {"establishment_id": None})
 ir("/emporio/estatisticas?aba=vendas")
 confere("todas as lojas: o bloco traz 'Em cada loja' com a Rel Loja", tem("Em cada loja") and tem("Rel Loja"), texto_do_main(2500))
 

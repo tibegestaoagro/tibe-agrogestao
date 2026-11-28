@@ -24,7 +24,8 @@ click_at_xy(xy[0], xy[1])
 time.sleep(1)
 opcoes = js("Array.from(document.querySelectorAll('[role=option]')).map(o => o.innerText.trim())") or []
 confere("ha produto para escolher", len(opcoes) > 1, opcoes)
-xy = _centro("Array.from(document.querySelectorAll('[role=option]'))[1]")
+# O produto do cenario com apresentacao. O primeiro da lista dependia dos outros cenarios (o "U4 Produto" da onda 4 nao tem).
+xy = _centro("Array.from(document.querySelectorAll('[role=option]')).find(o => o.innerText.trim() === 'Rel Ração')")
 click_at_xy(xy[0], xy[1])
 time.sleep(1)
 habilitado = js("(() => { const l = Array.from(document.querySelectorAll('[role=dialog] label')).find(x => x.innerText.trim().startsWith('Apresenta')); const el = l && document.getElementById(l.htmlFor); return el ? !(el.disabled || el.getAttribute('data-disabled') !== null) : null; })()")
