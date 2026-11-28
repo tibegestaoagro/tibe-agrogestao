@@ -66,12 +66,13 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   `m136` passou a ser ignorada); `tsc`, `lint`, `check` e `test:docs-api`
   limpos; `test:all` 139/139; passada dos 54
   `emporio-*` e do `manual-animacoes`: todos verdes menos `emporio-f6b`
-  (anterior à onda 6). `emporio-financeiro-casa` (cartão no fim de semana) e
+  (resolvido depois, ver abaixo). `emporio-financeiro-casa` (cartão no fim de semana) e
   `emporio-ux-onda6` (valor exato em Todas) foram corrigidos nos roteiros.
   Banco local: produtos e fornecedores de fixture arquivados e o
   `fiado_default_limit` do seed zerado; sem isso, fixtures voltam às fotos.
 
-  **Em produção desde 28/11** (merge autorizado, até `1c77089f`): o Histórico diz "Criou uma loja" (pedido do usuário). Nada da frente ficou sem merge.
+  **Em produção desde 28/11** (merge autorizado, até `1c77089f`): o Histórico diz "Criou uma loja" (pedido do usuário).
+  **Na branch, sem merge** (`c0a90169` a `441836d1`): as recusas do Empório dizem "Loja não encontrada", "Escolha a loja." e afins (`test:all` 139/139, `textos-defasados` limpo); e o `emporio-f6b` verde: o NextAuth monta a origem dos redirecionamentos pelo `NEXTAUTH_URL` (3000 no `.env.local`), e com o next dev na 3005 a trava mandava o Vendedor para a 3000. Next dev em outra porta: `NEXTAUTH_URL` e `AUTH_URL` da mesma porta inline; o `npm run navegador` agora recusa a porta errada. **Próximo:** merge quando o usuário autorizar.
 - Em produção até 24/11 (detalhe em `historico/2026-11.md`): lint zerado;
   decisões pendentes D1 a D7 (Q374 a Q386, `m129`); data da baixa (Q370 a
   Q373, `m127`); sobras sem a Agromax (`m128`); plano do GestãoClick A, B, C,
