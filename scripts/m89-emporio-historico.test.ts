@@ -204,9 +204,9 @@ async function comBanco() {
 
       const edit = await nova(() => chamar(C, "editarEstabelecimentoAction", db, gg, L1, { allow_negative_stock: true }));
       check("estabelecimento editado", edit.r.ok, j(edit.r));
-      umaLinha(edit.rows, "editar estabelecimento", /^estabelecimento/, gg, L1);
+      umaLinha(edit.rows, "editar loja", /^estabelecimento/, gg, L1);
       const chgE: Dado[] = edit.rows[0]?.changes ?? [];
-      check("editar estabelecimento: changes de false para true", Array.isArray(chgE) && chgE.some((c) => /^(false|n[aã]o)$/i.test(String(c.antes)) && /^(true|sim)$/i.test(String(c.depois))), j(chgE));
+      check("editar loja: changes de false para true", Array.isArray(chgE) && chgE.some((c) => /^(false|n[aã]o)$/i.test(String(c.antes)) && /^(true|sim)$/i.test(String(c.depois))), j(chgE));
 
       const compra = await nova(() =>
         chamar(CP, "criarCompraAction", db, vend1, {

@@ -111,7 +111,7 @@ confere("com o caixa fechado, o balcão oferece abrir o caixa", esperar(lambda: 
 enviar_venda()
 time.sleep(2)
 confere("finalizar não registra a venda: o caixa está fechado", not tem("Venda registrada"), texto_principal(200))
-abrir_painel(lambda: clicar("Abrir o caixa"), "abrir o Caixa 1")
+abrir_painel(lambda: clicar("Abrir o caixa"), "abrir o turno do Caixa 1")
 confere("o painel espera o troco esperado de R$ 100,00", "100,00" in (js("(document.querySelector('[role=dialog]') || { innerText: '' }).innerText.replace(/\\u00a0/g, ' ')") or ""))
 confere("preenche o troco contado", preenchido("Troco contado (R$)", "100"))
 enviar_painel()

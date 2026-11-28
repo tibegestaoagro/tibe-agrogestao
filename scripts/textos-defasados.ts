@@ -146,8 +146,9 @@ function principal() {
 
   // Fora da busca: a própria ferramenta, comentário de roteiro (`#`) e linha que
   // AFIRMA a ausência do texto antigo (`not in`, `not any`, `not tem(`) ou que só
-  // titula o passo (`passo(`): essas citam o texto velho de propósito.
-  const afirmaAusencia = /^\s*#|\bnot\s+(in|any|tem)\b|\bpasso\(|\bnao_tem\(/;
+  // titula o passo (`passo(`), e a lista de frases proibidas da suíte do manual
+  // (`{ frase: ...`, m136): essas citam o texto velho de propósito.
+  const afirmaAusencia = /^\s*#|\bnot\s+(in|any|tem)\b|\bpasso\(|\bnao_tem\(|^\s*\{\s*frase:/;
   const scripts = lerArvore(["scripts/"]).filter(
     (l) => l.arquivo !== "scripts/textos-defasados.ts" && !afirmaAusencia.test(l.texto),
   );

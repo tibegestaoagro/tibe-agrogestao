@@ -467,7 +467,7 @@ async function secao3() {
   const dif0 = await difs();
   const kA1 = k("abrir");
   const a1 = await Tu.abrirTurnoAction(db, v1, { operation_key: kA1, cash_register_id: r1, counted: 50 });
-  check("abrir o Caixa 1 com contado = esperado (50): aberto", a1.ok, j(a1));
+  check("abrir o turno do Caixa 1 com contado = esperado (50): aberto", a1.ok, j(a1));
   const T1: string = a1.data?.id;
   const cnt1 = await db.cashCount.findFirst({ where: { cash_session_id: T1 ?? "x", kind: "abertura" } });
   check("a abertura grava CashCount kind abertura, esperado 50 e diferença zero", !!cnt1 && n(cnt1.expected) === 50 && n(cnt1.difference) === 0 && cnt1.cash_register_id === r1, j(cnt1));
