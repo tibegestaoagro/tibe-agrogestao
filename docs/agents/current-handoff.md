@@ -35,8 +35,9 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   **Onda 5 (Estatísticas): em produção desde 27/11** (merge até `99eafbba`;
   detalhe em `historico/2026-11.md`, arquivado em 28/11).
 
-  **Onda 6 (loja no topo, §5.3, Q389): pronta na branch, SEM merge.** O merge
-  na `main` espera autorização do usuário na conversa. Plano
+  **Onda 6 (loja no topo, §5.3, Q389): em produção desde 28/11**, depois do
+  merge autorizado pelo usuário (avanço rápido de `99eafbba` a `f6d5e9fa`; CI
+  e Vercel verdes). Plano
   `docs/superpowers/plans/2026-11-27-emporio-ux-onda6-loja-no-topo.md`
   (decisões do usuário: o seletor some em Vender, Caixa, Produtos, Clientes e
   fichas; Estoque e Fiado seguem o topo; formulário de criação abre com a
@@ -63,8 +64,8 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   **Lista da onda 7 (manual):** em
   [emporio-ux-onda7-manual.md](emporio-ux-onda7-manual.md), das ondas 2 a 6.
 
-  **Próximo:** o usuário valida a onda 6 e decide o merge; depois, o plano da
-  onda seguinte (ordem no desenho, §8).
+  **Próximo:** plano da onda 7 (manual, desenho §6), para aprovação do
+  usuário.
 - Em produção até 24/11 (detalhe em `historico/2026-11.md`): lint zerado;
   decisões pendentes D1 a D7 (Q374 a Q386, `m129`); data da baixa (Q370 a
   Q373, `m127`); sobras sem a Agromax (`m128`); plano do GestãoClick A, B, C,
@@ -187,7 +188,7 @@ celular. Missões 3 e 4 congeladas no classificador.
 
 ## Últimas rodadas
 
-- 28/11: onda 6 da UX do Empório (loja no topo) pronta em `ux-emporio`, sem merge.
+- 28/11: onda 6 da UX do Empório (loja no topo) em produção (merge e push autorizados na conversa).
 - 27/11: onda 5 da UX do Empório (Estatísticas) em produção (merge e push autorizados na conversa).
 - 26/11: ondas 2 e 3 da UX do Empório em produção (merges autorizados na conversa); onda 4 em produção em 27/11 (merge autorizado na conversa).
 - 24/11 (2): UX do Empório: entrevista, diagnóstico, mockups e desenho; nada em produção.
