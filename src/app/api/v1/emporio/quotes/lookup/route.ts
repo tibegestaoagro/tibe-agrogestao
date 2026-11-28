@@ -7,7 +7,7 @@ import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
 /** GET /api/v1/emporio/quotes/lookup  ?establishment_id= &number=  o orçamento pelo número impresso (aceita 000012 ou 12). */
 
 const schema = z.object({
-  establishment_id: z.string({ error: "Escolha o estabelecimento." }).min(1, "Escolha o estabelecimento."),
+  establishment_id: z.string({ error: "Escolha a loja." }).min(1, "Escolha a loja."),
   number: z
     .string({ error: "Informe o número do orçamento." })
     .regex(/^\d{1,9}$/, "Informe o número do orçamento, só com dígitos.")

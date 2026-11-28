@@ -20,7 +20,7 @@ const schema = corpoDaVendaSchema.extend({
     .min(0, { error: "O crédito do franqueado não pode ser negativo." })
     .nullish(),
   operation_key: chaveDeOperacao,
-  establishment_id: z.string({ error: "Escolha o estabelecimento." }).min(1, "Escolha o estabelecimento."),
+  establishment_id: z.string({ error: "Escolha a loja." }).min(1, "Escolha a loja."),
 });
 
 async function GETHandler(request: Request) {

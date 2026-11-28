@@ -212,7 +212,7 @@ export async function listarTransferenciasAction(
   if (!pg.ok) return pg;
   const visiveis = await lojasDoAtor(db, ator);
   if (opts.establishment_id && visiveis && !visiveis.has(opts.establishment_id)) {
-    return NAO_ACHADO("Estabelecimento", "establishment_id");
+    return fail("NOT_FOUND", "Loja não encontrada.", 404, "establishment_id");
   }
   const e: Record<string, unknown>[] = [];
   if (opts.establishment_id) {
@@ -324,7 +324,7 @@ export async function enviarTransferenciaAction(
   const origemId = input.origin_establishment_id;
   const destinoId = input.destination_establishment_id;
   if (typeof origemId !== "string" || !origemId || (visiveis && !visiveis.has(origemId))) {
-    return NAO_ACHADO("Estabelecimento", "origin_establishment_id");
+    return fail("NOT_FOUND", "Loja não encontrada.", 404, "origin_establishment_id");
   }
   if (typeof destinoId !== "string" || !destinoId) {
     return fail("VALIDATION_ERROR", "Escolha a loja de destino.", 422, "destination_establishment_id");
@@ -336,7 +336,7 @@ export async function enviarTransferenciaAction(
     where: { id: origemId },
     select: { id: true, name: true, allow_negative_stock: true, archived_at: true },
   });
-  if (!origem) return NAO_ACHADO("Estabelecimento", "origin_establishment_id");
+  if (!origem) return fail("NOT_FOUND", "Loja não encontrada.", 404, "origin_establishment_id");
   if (origem.archived_at) {
     return fail("VALIDATION_ERROR", "A loja de origem está arquivada.", 422, "origin_establishment_id");
   }
@@ -345,7 +345,7 @@ export async function enviarTransferenciaAction(
     where: { id: destinoId },
     select: { id: true, name: true, archived_at: true },
   });
-  if (!destino) return NAO_ACHADO("Estabelecimento", "destination_establishment_id");
+  if (!destino) return fail("NOT_FOUND", "Loja não encontrada.", 404, "destination_establishment_id");
   if (destino.archived_at) {
     return fail("VALIDATION_ERROR", "A loja de destino está arquivada.", 422, "destination_establishment_id");
   }

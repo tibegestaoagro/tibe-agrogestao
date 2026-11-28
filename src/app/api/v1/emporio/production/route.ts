@@ -12,7 +12,7 @@ import { guardEmporio, paginaDaQuery, respostaPaginada } from "@/lib/emporio/rot
 
 const schema = z.object({
   operation_key: z.string({ error: "Falta a chave da operação." }).trim().min(1, "Falta a chave da operação."),
-  establishment_id: z.string({ error: "Escolha o estabelecimento." }).min(1, "Escolha o estabelecimento."),
+  establishment_id: z.string({ error: "Escolha a loja." }).min(1, "Escolha a loja."),
   emporio_product_id: z.string({ error: "Escolha o produto." }).min(1, "Escolha o produto."),
   produced_qty: z.number({ error: "Informe a quantidade produzida." }),
   sealed: z

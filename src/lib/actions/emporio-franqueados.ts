@@ -407,8 +407,8 @@ export async function pagarFranqueadoAction(
   const caixaPedido = typeof pf?.cash_register_id === "string" && pf.cash_register_id.trim() ? pf.cash_register_id.trim() : undefined;
   if (gavetaId) {
     const loja = await db.establishment.findFirst({ where: { id: gavetaId }, select: { archived_at: true } });
-    if (!loja) return fail("NOT_FOUND", "Estabelecimento não encontrado.", 404, "paid_from");
-    if (loja.archived_at) return fail("VALIDATION_ERROR", "Esse estabelecimento está arquivado.", 422, "paid_from");
+    if (!loja) return fail("NOT_FOUND", "Loja não encontrada.", 404, "paid_from");
+    if (loja.archived_at) return fail("VALIDATION_ERROR", "Essa loja está arquivada.", 422, "paid_from");
   }
   if (contaId) {
     const conta = await db.bankAccount.findFirst({ where: { id: contaId }, select: { archived_at: true } });

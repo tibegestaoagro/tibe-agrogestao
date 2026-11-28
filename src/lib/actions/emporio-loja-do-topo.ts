@@ -14,7 +14,7 @@ export async function escolherLojaDoTopoAction(
   establishmentId: string | null,
 ): Promise<ActionResult<{ establishment_id: string | null }>> {
   if (establishmentId === null) return ok({ establishment_id: null });
-  const naoAchou = () => fail("NOT_FOUND", "Estabelecimento não encontrado.", 404, "establishment_id");
+  const naoAchou = () => fail("NOT_FOUND", "Loja não encontrada.", 404, "establishment_id");
   if (typeof establishmentId !== "string" || !establishmentId.trim()) return naoAchou();
   const visiveis = await lojasDoAtor(db, ator);
   if (visiveis && !visiveis.has(establishmentId)) return naoAchou();

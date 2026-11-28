@@ -494,7 +494,7 @@ export async function liberarFiadoAction(
   const cliente = await carregarEstado(db, customerId);
   if (!cliente.ok) return cliente;
   const loja = await db.establishment.findFirst({ where: { id: lojaId }, select: { id: true } });
-  if (!loja) return fail("NOT_FOUND", "Estabelecimento não encontrado.", 404, "establishment_id");
+  if (!loja) return fail("NOT_FOUND", "Loja não encontrada.", 404, "establishment_id");
 
   const agora = new Date();
   // A conferência e a criação ficam na MESMA transação serializável: dois toques simultâneos
@@ -582,7 +582,7 @@ export async function listarCobrancaAction(
   }
   const visiveis = await lojasDoAtor(db, ator);
   if (opts.establishment_id && visiveis && !visiveis.has(opts.establishment_id)) {
-    return fail("NOT_FOUND", "Estabelecimento não encontrado.", 404, "establishment_id");
+    return fail("NOT_FOUND", "Loja não encontrada.", 404, "establishment_id");
   }
 
   const settings = await lerConfiguracoesDoFiado(db);
@@ -684,7 +684,7 @@ export async function registrarCobrancaAction(
   const lojaId = typeof input?.establishment_id === "string" && input.establishment_id.trim() ? input.establishment_id.trim() : null;
   if (lojaId) {
     const loja = await db.establishment.findFirst({ where: { id: lojaId }, select: { id: true } });
-    if (!loja) return fail("NOT_FOUND", "Estabelecimento não encontrado.", 404, "establishment_id");
+    if (!loja) return fail("NOT_FOUND", "Loja não encontrada.", 404, "establishment_id");
   }
 
   const hoje = hojeEmBrasilia();

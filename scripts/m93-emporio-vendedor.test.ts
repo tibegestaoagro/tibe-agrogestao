@@ -536,9 +536,9 @@ async function secao3() {
   );
   check("e os parados só da Loja 1", doGestor.ok && j(doGestor.data.parados.map((x) => `${x.emporio_product_id}@${x.establishment_id}`)) === j([`${P3.id}@${L1}`]), j(doGestor.ok ? doGestor.data.parados : doGestor));
   const gestorL2 = await Rel.relatorioDeVendasAction(db, gestor, { ...P, establishment_id: L2 });
-  check("o Gestor da Loja 1 pedindo a Loja 2: 404 no establishment_id", rec(gestorL2, "NOT_FOUND", 404, "establishment_id", "Estabelecimento não encontrado."), j(gestorL2));
+  check("o Gestor da Loja 1 pedindo a Loja 2: 404 no establishment_id", rec(gestorL2, "NOT_FOUND", 404, "establishment_id", "Loja não encontrada."), j(gestorL2));
   const inexistente = await Rel.relatorioDeVendasAction(db, owner, { ...P, establishment_id: "nao-existe" });
-  check("loja que não existe: 404 no establishment_id", rec(inexistente, "NOT_FOUND", 404, "establishment_id", "Estabelecimento não encontrado."), j(inexistente));
+  check("loja que não existe: 404 no establishment_id", rec(inexistente, "NOT_FOUND", 404, "establishment_id", "Loja não encontrada."), j(inexistente));
   const MSG_403 = "Só o gestor da loja pode ver os relatórios.";
   const doVendedor = await Rel.relatorioDeVendasAction(db, vendA, P);
   check("o Vendedor: 403", rec(doVendedor, "FORBIDDEN", 403, undefined, MSG_403), j(doVendedor));

@@ -290,10 +290,10 @@ export async function listarCaixasAction(
   establishmentId: string,
 ): Promise<ActionResult<CaixaRegistradoView[]>> {
   const lojaId = texto(establishmentId);
-  if (!lojaId) return fail("VALIDATION_ERROR", "Escolha o estabelecimento.", 422, "establishment_id");
-  if (!(await lojaVisivel(db, ator, lojaId))) return NAO_ACHADO("Estabelecimento", "establishment_id");
+  if (!lojaId) return fail("VALIDATION_ERROR", "Escolha a loja.", 422, "establishment_id");
+  if (!(await lojaVisivel(db, ator, lojaId))) return fail("NOT_FOUND", "Loja não encontrada.", 404, "establishment_id");
   if (!(await db.establishment.findFirst({ where: { id: lojaId }, select: { id: true } }))) {
-    return NAO_ACHADO("Estabelecimento", "establishment_id");
+    return fail("NOT_FOUND", "Loja não encontrada.", 404, "establishment_id");
   }
   return ok(await viewsDosCaixas(db, [lojaId]));
 }
@@ -816,7 +816,7 @@ export async function listarEntregasAction(
   if (!pg.ok) return pg;
   const visiveis = await lojasDoAtor(db, ator);
   if (opts.establishment_id && visiveis && !visiveis.has(opts.establishment_id)) {
-    return NAO_ACHADO("Estabelecimento", "establishment_id");
+    return fail("NOT_FOUND", "Loja não encontrada.", 404, "establishment_id");
   }
   // Só as lojas em que o ator é gestor (vê a loja não basta): o filtro vai na consulta, para o
   // total e as páginas contarem só o que a tela mostra (antes a tela filtrava depois de paginar).
@@ -848,7 +848,7 @@ export async function listarTurnosAction(
   }
   const visiveis = await lojasDoAtor(db, ator);
   if (opts.establishment_id && visiveis && !visiveis.has(opts.establishment_id)) {
-    return NAO_ACHADO("Estabelecimento", "establishment_id");
+    return fail("NOT_FOUND", "Loja não encontrada.", 404, "establishment_id");
   }
   const hoje = await soTurnosDeHoje(db, ator);
   return ok(

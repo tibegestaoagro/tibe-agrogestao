@@ -8,7 +8,7 @@ import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
 /** POST /api/v1/emporio/stock/loss: perda ou avaria, com motivo de lista fixa. */
 
 const schema = z.object({
-  establishment_id: z.string({ error: "Escolha o estabelecimento." }).min(1, "Escolha o estabelecimento."),
+  establishment_id: z.string({ error: "Escolha a loja." }).min(1, "Escolha a loja."),
   emporio_product_id: z.string({ error: "Escolha o produto." }).min(1, "Escolha o produto."),
   package_state: z.enum(["lacrado", "avulso"], { error: "O estado deve ser lacrado ou avulso." }).nullish(),
   presentation_id: z.string().nullish(),

@@ -457,7 +457,7 @@ async function lerVisao(db: TenantPrismaClient, ator: Ator, input: ResultadoInpu
   const neg = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "ver o resultado da loja");
   if (neg) return neg;
   const lojaId = typeof input?.establishment_id === "string" ? input.establishment_id.trim() : "";
-  if (!lojaId) return fail("VALIDATION_ERROR", "Escolha o estabelecimento.", 422, "establishment_id");
+  if (!lojaId) return fail("VALIDATION_ERROR", "Escolha a loja.", 422, "establishment_id");
   const mes = lerMes(input?.month);
   if (!mes) return fail("VALIDATION_ERROR", "Informe o mês no formato AAAA-MM.", 422, "month");
 
@@ -484,7 +484,7 @@ async function lerVisao(db: TenantPrismaClient, ator: Ator, input: ResultadoInpu
 
   const loja = await db.establishment.findFirst({ where: { id: lojaId }, select: { id: true, name: true } });
   if (!loja || (visiveis && !visiveis.has(lojaId))) {
-    return fail("NOT_FOUND", "Estabelecimento não encontrado.", 404, "establishment_id");
+    return fail("NOT_FOUND", "Loja não encontrada.", 404, "establishment_id");
   }
   return ok({ lojas: [loja], todas: false, mes, janela });
 }

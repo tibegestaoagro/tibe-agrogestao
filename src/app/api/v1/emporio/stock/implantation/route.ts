@@ -8,7 +8,7 @@ import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
 /** POST /api/v1/emporio/stock/implantation: estoque inicial, uma vez por produto e loja. */
 
 const schema = z.object({
-  establishment_id: z.string({ error: "Escolha o estabelecimento." }).min(1, "Escolha o estabelecimento."),
+  establishment_id: z.string({ error: "Escolha a loja." }).min(1, "Escolha a loja."),
   emporio_product_id: z.string({ error: "Escolha o produto." }).min(1, "Escolha o produto."),
   sealed: z
     .array(

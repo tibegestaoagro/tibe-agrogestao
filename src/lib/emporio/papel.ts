@@ -185,7 +185,7 @@ export async function recusarCaixa(db: TenantPrismaClient, ator: AtorPapel, oQue
 
 /**
  * Checa a permissão e devolve a recusa pronta (ou nulo quando pode):
- * `const neg = await exigir(db, ator, "conta", "criar um estabelecimento"); if (neg) return neg;`
+ * `const neg = await exigir(db, ator, "conta", "criar uma loja"); if (neg) return neg;`
  */
 export async function exigir(
   db: TenantPrismaClient,

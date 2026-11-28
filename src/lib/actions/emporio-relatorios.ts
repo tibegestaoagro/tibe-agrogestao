@@ -135,7 +135,7 @@ async function carregarVendasDoPeriodo(db: TenantPrismaClient, ator: Ator, input
   if (lojaId) {
     const loja = await db.establishment.findFirst({ where: { id: lojaId }, select: { id: true, name: true } });
     if (!loja || (visiveis && !visiveis.has(lojaId))) {
-      return fail("NOT_FOUND", "Estabelecimento não encontrado.", 404, "establishment_id");
+      return fail("NOT_FOUND", "Loja não encontrada.", 404, "establishment_id");
     }
     lojas = [loja];
   } else {

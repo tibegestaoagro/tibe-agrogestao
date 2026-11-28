@@ -11,7 +11,7 @@ async function GETHandler(request: Request) {
 
   const id = new URL(request.url).searchParams.get("establishment_id");
   if (!id) {
-    return respostaDaAction(fail("VALIDATION_ERROR", "Escolha o estabelecimento.", 422, "establishment_id"));
+    return respostaDaAction(fail("VALIDATION_ERROR", "Escolha a loja.", 422, "establishment_id"));
   }
   return respostaDaAction(await saldoDaLojaAction(g.db, g.user, id));
 }

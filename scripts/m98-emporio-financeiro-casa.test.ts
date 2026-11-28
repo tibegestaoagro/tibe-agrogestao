@@ -446,8 +446,8 @@ async function secao3() {
   const compra2 = c2.corpo?.data?.id as string;
   const e2 = await entradaDaCompra(A, compra2);
   const pgOutra = await pagar(A.tok.gestor2, { entry_ids: [e2.id], from: { bank_account_id: A.conta } });
-  check("Gestor da L2 pagando a conta da compra da L1 pela conta: 404 Estabelecimento",
-    pgOutra.status === 404 && /Estabelecimento/i.test(String(pgOutra.corpo?.error?.message)), `${pgOutra.status} ${j(pgOutra.corpo)}`);
+  check("Gestor da L2 pagando a conta da compra da L1 pela conta: 404 Loja não encontrada",
+    pgOutra.status === 404 && /Loja não encontrada/i.test(String(pgOutra.corpo?.error?.message)), `${pgOutra.status} ${j(pgOutra.corpo)}`);
   check("a conta da L1 seguiu pendente", (await A.db.financialEntry.findFirst({ where: { id: e2.id } })).status === "pending");
   const pgGest = await pagar(A.tok.gestor, { entry_ids: [e2.id], from: { bank_account_id: A.conta } });
   check("o Gestor da L1 paga a mesma conta pela conta: 201 (o que ele fazia, ele continua fazendo)", pgGest.status === 201, `${pgGest.status} ${j(pgGest.corpo)}`);

@@ -217,7 +217,7 @@ export async function listarComprasAction(
   if (!pg.ok) return pg;
   const visiveis = await lojasDoAtor(db, ator);
   if (opts.establishment_id && visiveis && !visiveis.has(opts.establishment_id)) {
-    return NAO_ACHADO("Estabelecimento", "establishment_id");
+    return fail("NOT_FOUND", "Loja não encontrada.", 404, "establishment_id");
   }
   const where: Record<string, unknown> = {
     ...(opts.establishment_id
@@ -374,12 +374,12 @@ export async function criarCompraAction(
   }
 
   if (!input.establishment_id || (visiveis && !visiveis.has(input.establishment_id))) {
-    return NAO_ACHADO("Estabelecimento", "establishment_id");
+    return fail("NOT_FOUND", "Loja não encontrada.", 404, "establishment_id");
   }
   const loja = await db.establishment.findFirst({ where: { id: input.establishment_id } });
-  if (!loja) return NAO_ACHADO("Estabelecimento", "establishment_id");
+  if (!loja) return fail("NOT_FOUND", "Loja não encontrada.", 404, "establishment_id");
   if (loja.archived_at) {
-    return fail("VALIDATION_ERROR", "Esse estabelecimento está arquivado.", 422, "establishment_id");
+    return fail("VALIDATION_ERROR", "Essa loja está arquivada.", 422, "establishment_id");
   }
 
   let fornecedor: { id: string; kind: "propriedade" | "externo" } | null = null;

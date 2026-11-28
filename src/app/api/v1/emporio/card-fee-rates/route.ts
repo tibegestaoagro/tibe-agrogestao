@@ -14,7 +14,7 @@ const BRANDS_COM_CORINGA = [...BANDEIRAS, "qualquer"] as const;
 
 
 const schema = z.object({
-  establishment_id: z.string({ error: "Escolha o estabelecimento." }).min(1, "Escolha o estabelecimento."),
+  establishment_id: z.string({ error: "Escolha a loja." }).min(1, "Escolha a loja."),
   acquirer_id: z.string({ error: "Escolha a adquirente." }).min(1, "Escolha a adquirente."),
   brand: z.enum(BRANDS_COM_CORINGA, { error: "Escolha a bandeira." }),
   kind: z.string({ error: "Escolha a modalidade do cartão." }).min(1, "Escolha a modalidade do cartão."),

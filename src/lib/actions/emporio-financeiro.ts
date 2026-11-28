@@ -265,7 +265,7 @@ export async function lerResumoHojeAction(
   if (neg) return neg;
   const lojaId = typeof opts?.establishment_id === "string" && opts.establishment_id ? opts.establishment_id : undefined;
   if (lojaId && !(await db.establishment.findFirst({ where: { id: lojaId }, select: { id: true } }))) {
-    return fail("NOT_FOUND", "Estabelecimento não encontrado.", 404, "establishment_id");
+    return fail("NOT_FOUND", "Loja não encontrada.", 404, "establishment_id");
   }
 
   const hoje = hojeEmBrasilia();
@@ -388,7 +388,7 @@ export async function listarContasAReceberAction(
   if (neg) return neg;
   const lojaId = typeof opts?.establishment_id === "string" && opts.establishment_id ? opts.establishment_id : undefined;
   if (lojaId && !(await db.establishment.findFirst({ where: { id: lojaId }, select: { id: true } }))) {
-    return fail("NOT_FOUND", "Estabelecimento não encontrado.", 404, "establishment_id");
+    return fail("NOT_FOUND", "Loja não encontrada.", 404, "establishment_id");
   }
   const hoje = hojeEmBrasilia();
   const periodo = conferirPeriodo(opts?.de, opts?.ate, hoje);
@@ -690,9 +690,9 @@ export async function lerExtratoAction(
     ondeMovimentos = { bank_account_id: conta.id };
   } else {
     const loja = await db.establishment.findFirst({ where: { id: lugarId }, select: { id: true, name: true } });
-    if (!loja) return fail("NOT_FOUND", "Estabelecimento não encontrado.", 404, "id");
+    if (!loja) return fail("NOT_FOUND", "Loja não encontrada.", 404, "id");
     const negLoja = await exigirUma(db, ator, acoesDaLoja, oQue, loja.id);
-    if (negLoja) return fail("NOT_FOUND", "Estabelecimento não encontrado.", 404, "id");
+    if (negLoja) return fail("NOT_FOUND", "Loja não encontrada.", 404, "id");
     lugar = { kind, id: loja.id, name: loja.name };
     // O mesmo filtro de `saldoDaGaveta` e `saldoDaGerencia`, que alimentam o bloco 1 do Hoje.
     ondeMovimentos = kind === "gaveta" ? { establishment_id: loja.id } : { manager_establishment_id: loja.id };

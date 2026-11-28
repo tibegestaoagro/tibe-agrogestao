@@ -187,9 +187,9 @@ export async function lerEstabelecimentoAction(
   id: string,
 ): Promise<ActionResult<EstablishmentView>> {
   const visiveis = await lojasDoAtor(db, ator);
-  if (visiveis && !visiveis.has(id)) return NAO_ACHADO("Estabelecimento");
+  if (visiveis && !visiveis.has(id)) return fail("NOT_FOUND", "Loja não encontrada.", 404);
   const e = await db.establishment.findFirst({ where: { id }, include: INCLUDE_LOJA });
-  if (!e) return NAO_ACHADO("Estabelecimento");
+  if (!e) return fail("NOT_FOUND", "Loja não encontrada.", 404);
   return ok(viewEstabelecimento(e));
 }
 
@@ -226,7 +226,7 @@ async function validarLoja(
       where: { name: { equals: nome, mode: "insensitive" }, ...(selfId ? { NOT: { id: selfId } } : {}) },
     });
     if (igual) {
-      return fail("DUPLICATE_NAME", `Já existe um estabelecimento chamado "${igual.name}".`, 409, "name");
+      return fail("DUPLICATE_NAME", `Já existe uma loja chamada "${igual.name}".`, 409, "name");
     }
   }
   const descMax = input.max_discount_pct;
@@ -344,7 +344,7 @@ export async function criarEstabelecimentoAction(
   ator: Ator,
   input: EstablishmentInput,
 ): Promise<ActionResult<EstablishmentView>> {
-  const neg = await exigir(db, ator, "conta", "criar um estabelecimento");
+  const neg = await exigir(db, ator, "conta", "criar uma loja");
   if (neg) return neg;
   if (input.name === undefined) return fail("VALIDATION_ERROR", "Informe o nome da loja.", 422, "name");
   const v = await validarLoja(db, input, null);
@@ -386,7 +386,7 @@ export async function criarEstabelecimentoAction(
     });
     return ok(viewEstabelecimento(e));
   } catch (err) {
-    if (ehErroUnico(err)) return fail("DUPLICATE_NAME", "Já existe um estabelecimento com esse nome.", 409, "name");
+    if (ehErroUnico(err)) return fail("DUPLICATE_NAME", "Já existe uma loja com esse nome.", 409, "name");
     throw err;
   }
 }
@@ -410,9 +410,9 @@ export async function editarEstabelecimentoAction(
     if (negConta) return negConta;
   }
   const visiveis = await lojasDoAtor(db, ator);
-  if (visiveis && !visiveis.has(id)) return NAO_ACHADO("Estabelecimento");
+  if (visiveis && !visiveis.has(id)) return fail("NOT_FOUND", "Loja não encontrada.", 404);
   const atual = await db.establishment.findFirst({ where: { id } });
-  if (!atual) return NAO_ACHADO("Estabelecimento");
+  if (!atual) return fail("NOT_FOUND", "Loja não encontrada.", 404);
 
   const v = await validarLoja(db, input, id);
   if (!v.ok) return v;
@@ -460,7 +460,7 @@ export async function editarEstabelecimentoAction(
     });
     return ok(viewEstabelecimento(e));
   } catch (err) {
-    if (ehErroUnico(err)) return fail("DUPLICATE_NAME", "Já existe um estabelecimento com esse nome.", 409, "name");
+    if (ehErroUnico(err)) return fail("DUPLICATE_NAME", "Já existe uma loja com esse nome.", 409, "name");
     throw err;
   }
 }
@@ -471,15 +471,15 @@ export async function arquivarEstabelecimentoAction(
   id: string,
   archived: boolean,
 ): Promise<ActionResult<EstablishmentView>> {
-  const neg = await exigir(db, ator, "conta", "arquivar um estabelecimento");
+  const neg = await exigir(db, ator, "conta", "arquivar uma loja");
   if (neg) return neg;
   if (typeof archived !== "boolean") {
     return fail("VALIDATION_ERROR", "Informe se é para arquivar ou desarquivar.", 422, "archived");
   }
   const visiveis = await lojasDoAtor(db, ator);
-  if (visiveis && !visiveis.has(id)) return NAO_ACHADO("Estabelecimento");
+  if (visiveis && !visiveis.has(id)) return fail("NOT_FOUND", "Loja não encontrada.", 404);
   const atual = await db.establishment.findFirst({ where: { id } });
-  if (!atual) return NAO_ACHADO("Estabelecimento");
+  if (!atual) return fail("NOT_FOUND", "Loja não encontrada.", 404);
   const e = await db.$transaction(async (tx) => {
     const atualizada = await tx.establishment.update({
       where: { id },
@@ -510,9 +510,9 @@ export async function definirVinculosAction(
     return fail("VALIDATION_ERROR", "Informe a lista de usuários.", 422, "user_ids");
   }
   const visiveis = await lojasDoAtor(db, ator);
-  if (visiveis && !visiveis.has(establishment_id)) return NAO_ACHADO("Estabelecimento");
+  if (visiveis && !visiveis.has(establishment_id)) return fail("NOT_FOUND", "Loja não encontrada.", 404);
   const loja = await db.establishment.findFirst({ where: { id: establishment_id } });
-  if (!loja) return NAO_ACHADO("Estabelecimento");
+  if (!loja) return fail("NOT_FOUND", "Loja não encontrada.", 404);
 
   const unicos = [...new Set(user_ids)];
   if (unicos.length > 0) {
@@ -555,7 +555,7 @@ export async function definirVinculosAction(
   });
 
   const e = await db.establishment.findFirst({ where: { id: establishment_id }, include: INCLUDE_LOJA });
-  if (!e) return NAO_ACHADO("Estabelecimento");
+  if (!e) return fail("NOT_FOUND", "Loja não encontrada.", 404);
   return ok(viewEstabelecimento(e));
 }
 
@@ -1671,9 +1671,9 @@ export async function definirPrecoAction(
   if (rl) return fail("VALIDATION_ERROR", rl, 422, "profit_pct");
 
   const visiveis = await lojasDoAtor(db, ator);
-  if (visiveis && !visiveis.has(input.establishment_id)) return NAO_ACHADO("Estabelecimento");
+  if (visiveis && !visiveis.has(input.establishment_id)) return fail("NOT_FOUND", "Loja não encontrada.", 404);
   const loja = await db.establishment.findFirst({ where: { id: input.establishment_id } });
-  if (!loja) return NAO_ACHADO("Estabelecimento");
+  if (!loja) return fail("NOT_FOUND", "Loja não encontrada.", 404);
   const ap = await db.productPresentation.findFirst({ where: { id: input.presentation_id } });
   if (!ap) return NAO_ACHADO("Apresentação");
 

@@ -64,7 +64,7 @@ export async function lerInicioAction(
   if (lojaPedida) {
     const existe = (!visiveis || visiveis.has(lojaPedida)) &&
       (await db.establishment.findFirst({ where: { id: lojaPedida, archived_at: null }, select: { id: true } }));
-    if (!existe) return fail("NOT_FOUND", "Estabelecimento não encontrado.", 404, "establishment_id");
+    if (!existe) return fail("NOT_FOUND", "Loja não encontrada.", 404, "establishment_id");
     visiveis = new Set([lojaPedida]);
   }
 

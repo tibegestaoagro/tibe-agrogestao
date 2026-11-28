@@ -246,7 +246,7 @@ export async function listarRegrasVariaveisAction(
   if (neg) return neg;
   const visiveis = await lojasDoAtor(db, ator);
   if (opts.establishment_id && visiveis && !visiveis.has(opts.establishment_id)) {
-    return NAO_ACHADO("Estabelecimento", "establishment_id");
+    return fail("NOT_FOUND", "Loja não encontrada.", 404, "establishment_id");
   }
   const rows = await db.variableExpenseRule.findMany({
     where: {
@@ -637,7 +637,7 @@ export async function listarDespesasFixasAction(
   await garantirOcorrenciasDoMes(db, ator);
   const visiveis = await lojasDoAtor(db, ator);
   if (opts.establishment_id && visiveis && !visiveis.has(opts.establishment_id)) {
-    return NAO_ACHADO("Estabelecimento", "establishment_id");
+    return fail("NOT_FOUND", "Loja não encontrada.", 404, "establishment_id");
   }
   // O modelo automático divide entre todas as lojas: quem não vê todas não o enxerga.
   const vePartes = visiveis ? veTodas(visiveis, await lojasDoRateio(db)) : true;
@@ -1733,7 +1733,7 @@ async function filtroDeContasAPagar(
   if (neg) return neg;
   const visiveis = await lojasDoAtor(db, ator);
   if (opts.establishment_id && visiveis && !visiveis.has(opts.establishment_id)) {
-    return NAO_ACHADO("Estabelecimento", "establishment_id");
+    return fail("NOT_FOUND", "Loja não encontrada.", 404, "establishment_id");
   }
   const status = opts.status ?? "pending";
   if (status !== "all" && status !== "pending" && status !== "paid" && status !== "cancelled") {
@@ -1831,7 +1831,7 @@ export async function resumoDoAPagarAction(
   const escopo = await filtroDeContasAPagar(db, ator, { establishment_id: lojaId, status: "all" });
   if (!escopo.ok) return escopo;
   if (lojaId && !(await db.establishment.findFirst({ where: { id: lojaId }, select: { id: true } }))) {
-    return NAO_ACHADO("Estabelecimento", "establishment_id");
+    return fail("NOT_FOUND", "Loja não encontrada.", 404, "establishment_id");
   }
   if (!periodo.ok) return periodo;
   const { de, ate } = periodo.data;
@@ -2039,7 +2039,7 @@ async function carregarContasDoPagamento(leitor: TenantPrismaClient, ator: Ator,
     if (!c) {
       // A conta existe mas é de loja fora do vínculo do ator: não é dele.
       if (await acharContaDoEmporio(leitor, ator, id, true)) {
-        throw new RecusaDespesa(NAO_ACHADO("Estabelecimento", "entry_ids"));
+        throw new RecusaDespesa(fail("NOT_FOUND", "Loja não encontrada.", 404, "entry_ids"));
       }
       throw new RecusaDespesa(fail("VALIDATION_ERROR", "Uma das contas não é uma conta do Empório.", 422, "entry_ids"));
     }
@@ -2187,7 +2187,7 @@ async function pagarDespesas(
       return fail("VALIDATION_ERROR", "O Financeiro paga pela conta bancária; o dinheiro da gaveta é com a loja.", 422, "from");
     }
     const loja = await db.establishment.findFirst({ where: { id: lojaId }, select: { id: true } });
-    if (!loja || !(await lojaVisivel(db, ator, lojaId))) return NAO_ACHADO("Estabelecimento", "from");
+    if (!loja || !(await lojaVisivel(db, ator, lojaId))) return fail("NOT_FOUND", "Loja não encontrada.", 404, "from");
   } else {
     const conta = await db.bankAccount.findFirst({ where: { id: contaId as string }, select: { id: true } });
     if (!conta) return NAO_ACHADO("Conta", "from");
@@ -2304,7 +2304,7 @@ export async function criarContaAvulsaAction(
   if (!idOuNulo(input?.establishment_id)) return fail("VALIDATION_ERROR", "Escolha a loja.", 422, "establishment_id");
   const loja = await acharLojaParaEscrita(db, ator, input.establishment_id);
   if (!loja.ok) return { ...loja, field: "establishment_id" };
-  if (!(await lojaVisivel(db, ator, loja.data.id))) return NAO_ACHADO("Estabelecimento", "establishment_id");
+  if (!(await lojaVisivel(db, ator, loja.data.id))) return fail("NOT_FOUND", "Loja não encontrada.", 404, "establishment_id");
   const description = texto(input.description);
   if (!description || description.length > 200) return fail("VALIDATION_ERROR", "Informe uma descrição com até 200 caracteres.", 422, "description");
   if (!numero(input.amount) || arred2(input.amount) <= 0 || input.amount > 9999999999.99) {

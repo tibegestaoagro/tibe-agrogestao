@@ -589,7 +589,7 @@ export async function listarVendasAction(
   if (!pg.ok) return pg;
   const visiveis = await lojasDoAtor(db, ator);
   if (opts.establishment_id && visiveis && !visiveis.has(opts.establishment_id)) {
-    return NAO_ACHADO("Estabelecimento", "establishment_id");
+    return fail("NOT_FOUND", "Loja não encontrada.", 404, "establishment_id");
   }
   if (opts.origin != null && !(ORIGENS_DA_VENDA as readonly unknown[]).includes(opts.origin)) {
     return fail("VALIDATION_ERROR", "Escolha a origem: balcão ou e-commerce.", 422, "origin");
@@ -632,9 +632,9 @@ export async function listarVendedoresDaLojaAction(
   const neg = await exigir(db, ator, "vendedor_da_loja", "ver os vendedores");
   if (neg) return neg;
   const id = typeof establishmentId === "string" ? establishmentId.trim() : "";
-  if (!id || !(await lojaVisivel(db, ator, id))) return NAO_ACHADO("Estabelecimento", "establishment_id");
+  if (!id || !(await lojaVisivel(db, ator, id))) return fail("NOT_FOUND", "Loja não encontrada.", 404, "establishment_id");
   const existe = await db.establishment.findFirst({ where: { id }, select: { id: true } });
-  if (!existe) return NAO_ACHADO("Estabelecimento", "establishment_id");
+  if (!existe) return fail("NOT_FOUND", "Loja não encontrada.", 404, "establishment_id");
   return ok(await vendedoresDaLoja(db, id));
 }
 

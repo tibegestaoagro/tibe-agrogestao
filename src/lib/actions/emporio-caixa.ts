@@ -218,7 +218,7 @@ export async function listarFiadoAction(
 ): Promise<ActionResult<FiadoClienteView[]>> {
   const visiveis = await lojasDoAtor(db, ator);
   if (opts.establishment_id && visiveis && !visiveis.has(opts.establishment_id)) {
-    return NAO_ACHADO("Estabelecimento", "establishment_id");
+    return fail("NOT_FOUND", "Loja não encontrada.", 404, "establishment_id");
   }
   const abertas = await entradasAbertas(db, {
     ...(opts.establishment_id ? { establishment_id: opts.establishment_id } : filtroDeLojas(visiveis)),
@@ -1475,7 +1475,7 @@ export async function lerCaixaAction(
   if (!pg.ok) return pg;
   const visiveis = await lojasDoAtor(db, ator);
   if (opts.establishment_id && visiveis && !visiveis.has(opts.establishment_id)) {
-    return NAO_ACHADO("Estabelecimento", "establishment_id");
+    return fail("NOT_FOUND", "Loja não encontrada.", 404, "establishment_id");
   }
   const papel = await papelDoEmporio(db, ator);
   const veContas = pode(papel, "gestor_da_loja") || pode(papel, "dinheiro");
@@ -1966,7 +1966,7 @@ export async function listarChequesAction(
 ): Promise<ActionResult<ChequeView[]>> {
   const visiveis = await lojasDoAtor(db, ator);
   if (opts.establishment_id && visiveis && !visiveis.has(opts.establishment_id)) {
-    return NAO_ACHADO("Estabelecimento", "establishment_id");
+    return fail("NOT_FOUND", "Loja não encontrada.", 404, "establishment_id");
   }
   if (opts.status && !(STATUS_DE_CHEQUE as readonly string[]).includes(opts.status)) {
     return fail("VALIDATION_ERROR", "Escolha uma situação de cheque válida.", 422, "status");
@@ -2398,7 +2398,7 @@ export async function listarBoletosAction(
 ): Promise<ActionResult<BoletoView[]>> {
   const visiveis = await lojasDoAtor(db, ator);
   if (opts.establishment_id && visiveis && !visiveis.has(opts.establishment_id)) {
-    return NAO_ACHADO("Estabelecimento", "establishment_id");
+    return fail("NOT_FOUND", "Loja não encontrada.", 404, "establishment_id");
   }
   if (opts.status && !(STATUS_DE_BOLETO as readonly string[]).includes(opts.status)) {
     return fail("VALIDATION_ERROR", "Escolha uma situação de boleto válida: aberto, vencido, pago ou no fiado.", 422, "status");
@@ -2992,7 +2992,7 @@ export async function listarConferenciasAction(
   if (!pg.ok) return pg;
   const visiveis = await lojasDoAtor(db, ator);
   if (opts.establishment_id && visiveis && !visiveis.has(opts.establishment_id)) {
-    return NAO_ACHADO("Estabelecimento", "establishment_id");
+    return fail("NOT_FOUND", "Loja não encontrada.", 404, "establishment_id");
   }
   const where = opts.establishment_id ? { establishment_id: opts.establishment_id } : filtroDeLojas(visiveis);
   const total = await db.cashCount.count({ where });

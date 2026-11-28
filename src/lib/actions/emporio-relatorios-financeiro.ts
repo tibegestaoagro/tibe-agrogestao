@@ -36,7 +36,7 @@ async function alcance(
   const lojaId = typeof establishmentId === "string" && establishmentId ? establishmentId : undefined;
   const visiveis = await lojasDoAtor(db, ator);
   if (lojaId && ((visiveis && !visiveis.has(lojaId)) || !(await db.establishment.findFirst({ where: { id: lojaId }, select: { id: true } })))) {
-    return fail("NOT_FOUND", "Estabelecimento não encontrado.", 404, "establishment_id");
+    return fail("NOT_FOUND", "Loja não encontrada.", 404, "establishment_id");
   }
   return { lojaId, visiveis };
 }

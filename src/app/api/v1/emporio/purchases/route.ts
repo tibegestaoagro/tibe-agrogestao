@@ -24,7 +24,7 @@ const itemSchema = z.object({
 
 const criarSchema = z.object({
   operation_key: z.string({ error: "Falta a chave da operação." }).trim().min(1, "Falta a chave da operação."),
-  establishment_id: z.string({ error: "Escolha o estabelecimento." }).min(1, "Escolha o estabelecimento."),
+  establishment_id: z.string({ error: "Escolha a loja." }).min(1, "Escolha a loja."),
   supplier_id: z.string().nullish(),
   purchased_at: data,
   received: z.boolean({ error: "Informe se a mercadoria já chegou." }),

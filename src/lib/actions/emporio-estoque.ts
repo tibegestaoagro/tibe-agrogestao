@@ -463,15 +463,15 @@ async function acharLoja(
   paraEstoque = false,
 ): Promise<ActionResult<Loja>> {
   if (typeof id !== "string" || !id) {
-    return fail("VALIDATION_ERROR", "Escolha o estabelecimento.", 422, "establishment_id");
+    return fail("VALIDATION_ERROR", "Escolha a loja.", 422, "establishment_id");
   }
   const visiveis = paraEstoque ? await lojasDeEstoque(db, ator) : await lojasDoAtor(db, ator);
-  if (visiveis && !visiveis.has(id)) return NAO_ACHADO("Estabelecimento");
+  if (visiveis && !visiveis.has(id)) return fail("NOT_FOUND", "Loja não encontrada.", 404);
   const loja = await db.establishment.findFirst({
     where: { id },
     select: { id: true, name: true, allow_negative_stock: true, archived_at: true },
   });
-  if (!loja) return NAO_ACHADO("Estabelecimento");
+  if (!loja) return fail("NOT_FOUND", "Loja não encontrada.", 404);
   return ok(loja);
 }
 
@@ -484,7 +484,7 @@ export async function acharLojaParaEscrita(
   const r = await acharLoja(db, ator, id);
   if (!r.ok) return r;
   if (r.data.archived_at) {
-    return fail("VALIDATION_ERROR", "Esse estabelecimento está arquivado.", 422, "establishment_id");
+    return fail("VALIDATION_ERROR", "Essa loja está arquivada.", 422, "establishment_id");
   }
   return r;
 }

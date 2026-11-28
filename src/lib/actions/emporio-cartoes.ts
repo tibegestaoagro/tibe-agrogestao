@@ -560,7 +560,7 @@ export async function listarTaxasAction(
 ): Promise<ActionResult<TaxaView[]>> {
   const visiveis = await lojasDoAtor(db, ator);
   if (opts?.establishment_id && visiveis && !visiveis.has(opts.establishment_id)) {
-    return NAO_ACHADO("Estabelecimento", "establishment_id");
+    return fail("NOT_FOUND", "Loja não encontrada.", 404, "establishment_id");
   }
   const hoje = hojeEmBrasilia();
   const dia = opts?.vigentes_em && dataValida(opts.vigentes_em) ? soODia(opts.vigentes_em) : null;

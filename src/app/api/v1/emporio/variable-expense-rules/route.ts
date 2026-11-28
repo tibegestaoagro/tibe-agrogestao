@@ -11,7 +11,7 @@ import { guardEmporio, incluirArquivados, respostaDaAction } from "@/lib/emporio
  */
 
 const schema = z.object({
-  establishment_id: z.string({ error: "Escolha o estabelecimento." }).min(1, "Escolha o estabelecimento."),
+  establishment_id: z.string({ error: "Escolha a loja." }).min(1, "Escolha a loja."),
   name: z.string({ error: "Dê um nome à regra." }),
   kind: z.string({ error: "Escolha o cálculo da regra." }),
   value: z.number({ error: "Informe o valor da regra." }),

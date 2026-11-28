@@ -10,7 +10,7 @@ import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
 const pct = z.number().min(0, "Use um valor entre 0 e 1000.").max(1000, "Use um valor entre 0 e 1000.");
 
 const schema = z.object({
-  establishment_id: z.string({ error: "Informe o estabelecimento." }).min(1, "Informe o estabelecimento."),
+  establishment_id: z.string({ error: "Informe a loja." }).min(1, "Informe a loja."),
   presentation_id: z.string({ error: "Informe a apresentação." }).min(1, "Informe a apresentação."),
   price: z.number().min(0, "O preço não pode ser negativo.").nullish(),
   expense_pct: pct.nullish(),

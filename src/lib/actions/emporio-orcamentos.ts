@@ -344,7 +344,7 @@ export async function buscarOrcamentoPorNumeroAction(
   if (neg) return neg;
   const lojaId = typeof establishmentId === "string" ? establishmentId.trim() : "";
   if (!lojaId || !(await lojaVisivel(db, ator, lojaId))) {
-    return fail("NOT_FOUND", "Estabelecimento não encontrado.", 404, "establishment_id");
+    return fail("NOT_FOUND", "Loja não encontrada.", 404, "establishment_id");
   }
   if (typeof numero !== "number" || !Number.isInteger(numero) || numero <= 0 || numero > 2_147_483_647) {
     return fail("VALIDATION_ERROR", "Informe o número do orçamento.", 422, "number");
@@ -421,7 +421,7 @@ export async function listarOrcamentosAction(
   const visiveis = await lojasDoAtor(db, ator);
   const lojaPedida = typeof f.establishment_id === "string" ? f.establishment_id.trim() : "";
   if (lojaPedida && visiveis && !visiveis.has(lojaPedida)) {
-    return fail("NOT_FOUND", "Estabelecimento não encontrado.", 404, "establishment_id");
+    return fail("NOT_FOUND", "Loja não encontrada.", 404, "establishment_id");
   }
 
   const vazia = () => ({ linhas: [] as OrcamentoLinha[], total: 0, page: 1, per_page: porPagina });

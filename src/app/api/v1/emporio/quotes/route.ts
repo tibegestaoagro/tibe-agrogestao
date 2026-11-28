@@ -21,7 +21,7 @@ const schema = corpoDoOrcamentoSchema.extend({
   /** Q326: o frete cobrado do cliente; ausente, a edição mantém o do orçamento e "a partir deste" copia o da origem. */
   freight_amount: z.number({ error: "O frete deve ser um número." }).min(0, { error: "O frete não pode ser negativo." }).nullish(),
   operation_key: chaveDeOperacao,
-  establishment_id: z.string({ error: "Escolha o estabelecimento." }).min(1, "Escolha o estabelecimento."),
+  establishment_id: z.string({ error: "Escolha a loja." }).min(1, "Escolha a loja."),
   based_on_quote_id: z.string().nullish(),
 });
 

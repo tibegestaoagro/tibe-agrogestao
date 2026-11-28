@@ -73,7 +73,7 @@ export async function lerFluxoProjetadoAction(
   const lojaId = typeof input.establishment_id === "string" && input.establishment_id ? input.establishment_id : undefined;
   const visiveis = await lojasDoAtor(db, ator);
   if (lojaId && ((visiveis && !visiveis.has(lojaId)) || !(await db.establishment.findFirst({ where: { id: lojaId }, select: { id: true } })))) {
-    return fail("NOT_FOUND", "Estabelecimento não encontrado.", 404, "establishment_id");
+    return fail("NOT_FOUND", "Loja não encontrada.", 404, "establishment_id");
   }
   await garantirOcorrenciasDoMes(db, ator);
 

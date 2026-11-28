@@ -158,7 +158,7 @@ async function conferirLoja(
     visiveis && !visiveis.has(establishment_id)
       ? null
       : await db.establishment.findFirst({ where: { id: establishment_id, archived_at: null }, select: { id: true } });
-  if (!loja) return fail("NOT_FOUND", "Estabelecimento não encontrado", 404, "establishment_id");
+  if (!loja) return fail("NOT_FOUND", "Loja não encontrada.", 404, "establishment_id");
   return null;
 }
 
