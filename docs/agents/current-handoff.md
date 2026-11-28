@@ -36,9 +36,10 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   detalhe em `historico/2026-11.md`, arquivado em 28/11).
 
   **Onda 6 (loja no topo): em produção desde 28/11** (merge até `f6d5e9fa`;
-  detalhe em `historico/2026-11.md`, arquivado em 28/11). Para o usuário
-  decidir: os "Primeiros passos" do Início não seguem a loja; tocar num aviso
-  do Início que leva `?loja=` troca a loja do topo inteiro.
+  detalhe em `historico/2026-11.md`, arquivado em 28/11). Decidido pelo
+  usuário em 28/11, ficam como estão: os "Primeiros passos" do Início mostram
+  a conta inteira (não seguem a loja); tocar num aviso do Início que leva
+  `?loja=` troca a loja do topo inteiro.
 
   **Onda 7 (manual, desenho §6): em produção desde 28/11** (merge autorizado, até `5e0d8f04`; CI e Vercel verdes). Plano
   `docs/superpowers/plans/2026-11-28-emporio-ux-onda7-manual.md` e anexo
@@ -70,7 +71,7 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   Banco local: produtos e fornecedores de fixture arquivados e o
   `fiado_default_limit` do seed zerado; sem isso, fixtures voltam às fotos.
 
-  **Na branch, sem merge:** `6fce6fdd`, o Histórico diz "Criou uma loja" (pedido do usuário). **Próximo:** o usuário responde as duas da onda 6 (recomendado: deixar as duas como estão).
+  **Na branch, sem merge:** `6fce6fdd`, o Histórico diz "Criou uma loja" (pedido do usuário). **Próximo:** levar `6fce6fdd` à main quando o usuário autorizar.
 - Em produção até 24/11 (detalhe em `historico/2026-11.md`): lint zerado;
   decisões pendentes D1 a D7 (Q374 a Q386, `m129`); data da baixa (Q370 a
   Q373, `m127`); sobras sem a Agromax (`m128`); plano do GestãoClick A, B, C,
