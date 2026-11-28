@@ -66,6 +66,11 @@ def ir_relatorio(abc, medida, loja="", de=DIA, ate=DIA):
     q = "/emporio/estatisticas?aba=vendas&de=" + de + "&ate=" + ate + "&abc=" + abc + "&medida=" + medida
     if loja:
         q += "&loja=" + loja
+    # Onda 6 da UX: a loja vai pelo seletor do topo (cookie), e chips, abas e o filtro de datas deixaram
+    # de levar `?loja=`. Sem o cookie, o primeiro clique voltava a "Todas as lojas". Sem `loja`: Todas.
+    if js("location.protocol") == "about:":
+        ir("/robots.txt")
+    api("POST", "/api/v1/emporio/loja-do-topo", {"establishment_id": loja or None})
     ir(q)
     esperar(lambda: secao_abc() is not None, 60)
     time.sleep(1)
@@ -207,7 +212,7 @@ esperar(lambda: "de=2026-03-09" in caminho(), 60)
 esperar(lambda: secao_abc() is not None, 60)
 time.sleep(2)
 s = secao_abc()
-confere("depois de 'Aplicar' a URL tem o periodo novo E mantem abc=clientes e medida=lucro", "de=2026-03-09" in caminho() and "abc=clientes" in caminho() and "medida=lucro" in caminho() and "loja=" + LOJA1 in caminho(), caminho())
+confere("depois de 'Aplicar' a URL tem o periodo novo E mantem abc=clientes e medida=lucro", "de=2026-03-09" in caminho() and "abc=clientes" in caminho() and "medida=lucro" in caminho(), caminho())
 confere("e a tela segue na aba Clientes com a medida Lucro ativa", s is not None and ["Clientes", True] in s["abas"] and ["Lucro (venda menos custo)", True] in s["abas"], s and s["abas"])
 
 # Achado do juiz (18/11): no dia so com a Soja vendida e devolvida inteira (Loja 2, 2026-03-12), a lista sai sem
@@ -246,6 +251,8 @@ def nav():
 
 
 def ir_orc(extra=""):
+    # Onda 6 da UX: a loja vai pelo topo (cookie); a paginacao e os filtros nao levam mais `?loja=`.
+    api("POST", "/api/v1/emporio/loja-do-topo", {"establishment_id": LOJA_ORC or None})
     ir("/emporio/orcamentos?loja=" + LOJA_ORC + extra)
     esperar(lambda: len(linhas_orc()) > 0 or "Nenhum orçamento" in texto_do_main(), 60)
     time.sleep(1)

@@ -169,17 +169,27 @@ def clicar_link(texto):
     return bool(js("(() => { const a = Array.from(document.querySelectorAll('main a')).find(x => x.innerText.trim() === " + repr(texto) + "); if (!a) return false; a.click(); return true; })()"))
 
 
+def botao_do_topo():
+    """O botao 'Loja: ...' do topo (onda 6 da UX: o filtro de loja saiu da tela), ou None."""
+    return js("(Array.from(document.querySelectorAll('button')).map(b => b.innerText.replace(/\\u00a0/g, ' ').trim()).find(t => t.startsWith('Loja:'))) || null")
+
+
 def escolher_loja(nome):
-    gatilho = "document.querySelector('main button[aria-label=\"Loja\"]')"
-    r = _abrir_select(gatilho)
-    if r != "ABERTO":
-        return r
-    xy = _centro("Array.from(document.querySelectorAll('[role=option]')).find(o => o.innerText.trim() === " + repr(nome) + ")")
-    if not xy:
+    """Escolhe a loja no seletor do topo: abre o botao e toca no item `nome`."""
+    if not js("(() => { const b = Array.from(document.querySelectorAll('button')).find(x => x.innerText.trim().startsWith('Loja:')); if (!b) return false; b.click(); return true; })()"):
+        return "SEM CAMPO"
+    time.sleep(0.8)
+    if not js("(() => { const i = Array.from(document.querySelectorAll('button[type=button]')).find(x => x.innerText.trim() === " + repr(nome) + " && x.closest('.absolute')); if (!i) return false; i.click(); return true; })()"):
         return "SEM OPCAO"
-    click_at_xy(xy[0], xy[1])
-    time.sleep(2.5)
+    time.sleep(3)
     return True
+
+
+def ir_com_loja(caminho, loja_id):
+    """Abre `caminho` com a loja escolhida no topo (cookie), sem `?loja=`: os links da tela (chips, abas)
+    nao levam mais a loja, e com `?loja=` na URL o primeiro clique voltava a 'Todas as lojas'."""
+    api("POST", "/api/v1/emporio/loja-do-topo", {"establishment_id": loja_id or None})
+    ir(caminho)
 
 
 def lista_de(chave):
@@ -306,7 +316,7 @@ confere("Dinheiro: 'dos quais vencido' R$ 100,00 (o fiado vencido)", linha_do_ca
 confere("Dinheiro: A pagar nos próximos 30 dias R$ 250,00", linha_do_cartao("Dinheiro", "A pagar nos próximos 30 dias") == "R$ 250,00", linha_do_cartao("Dinheiro", "A pagar nos próximos 30 dias"))
 confere("Dinheiro: 'em caixa e nas contas agora' e 'Saldo previsto em 30 dias'", rotulo_do_grande("Dinheiro") == "em caixa e nas contas agora" and bool(linha_do_cartao("Dinheiro", "Saldo previsto em 30 dias")), texto_do_cartao("Dinheiro")[:200])
 confere("Dinheiro: diz que olha de hoje para a frente", "Olha de hoje para a frente e não usa o período escolhido." in texto_do_cartao("Dinheiro"), texto_do_cartao("Dinheiro")[-120:])
-confere("'Ver dinheiro ›' leva à aba Dinheiro com a loja", bool(js("(() => { const s = " + _cartao("Dinheiro") + "; const a = s && s.querySelector('a'); return !!a && a.getAttribute('href').includes('aba=dinheiro') && a.getAttribute('href').includes('loja=' + " + repr(loja_b or "") + "); })()")))
+confere("'Ver dinheiro ›' leva à aba Dinheiro (a loja vai pelo topo, não mais pelo link: onda 6 da UX)", bool(js("(() => { const s = " + _cartao("Dinheiro") + "; const a = s && s.querySelector('a'); return !!a && a.getAttribute('href').includes('aba=dinheiro') && !a.getAttribute('href').includes('loja='); })()")))
 
 passo("2c. Dono, Todas: o total do cartão Vendas é o da aba Vendas (lido na mesma tela)")
 ir("/emporio/estatisticas")
@@ -319,8 +329,8 @@ confere("o cartão e a soma de 'Vendas por loja' da aba Vendas batem", total_car
 confere("'Todas' inclui as duas lojas do cenário", LOJA_A in nomes and LOJA_B in nomes, nomes)
 
 # --- 3. O filtro ------------------------------------------------------------------------------
-passo("3. Filtro: Mês passado, 7 dias, a loja preserva a aba e o período inválido")
-ir("/emporio/estatisticas?loja=" + (loja_a or ""))
+passo("3. Filtro: Mês passado, 7 dias, a loja (do topo) preserva a aba e o período inválido")
+ir_com_loja("/emporio/estatisticas", loja_a)
 esperar_cartoes()
 confere("'Este mês' é o chip ativo", bool(js("!!Array.from(document.querySelectorAll('main a[aria-current=true]')).find(a => a.innerText.trim() === 'Este mês')")))
 confere("clica em 'Mês passado'", clicar_link("Mês passado"))
@@ -339,9 +349,10 @@ confere("'7 dias' grava de = hoje menos 6 e ate = hoje", param("de") == SETE_DIA
 
 ir(url_da_aba("vendas", "&de=" + PRIMEIRO.isoformat() + "&ate=" + ULTIMO.isoformat()))
 confere("escolhe a " + LOJA_B + " no seletor de loja", escolher_loja(LOJA_B) is True)
-esperar(lambda: param("loja") == loja_b, 40)
-print("   endereço depois da loja:", endereco())
-confere("a loja preserva a aba (vendas)", param("aba") == "vendas" and param("loja") == loja_b, endereco())
+esperar(lambda: botao_do_topo() == "Loja: " + LOJA_B, 40)
+time.sleep(2)
+print("   endereço depois da loja:", endereco(), "| topo:", botao_do_topo())
+confere("a loja do topo vale (botão 'Loja: " + LOJA_B + "') e preserva a aba (vendas)", param("aba") == "vendas" and botao_do_topo() == "Loja: " + LOJA_B and param("loja") is None, [endereco(), botao_do_topo()])
 confere("a loja preserva o período", param("de") == PRIMEIRO.isoformat() and param("ate") == ULTIMO.isoformat(), endereco())
 confere("a aba Vendas é a atual depois de trocar a loja", aba_atual("Abas das Estatísticas") == ["Vendas"], abas("Abas das Estatísticas"))
 
@@ -409,7 +420,7 @@ ir("/emporio/estatisticas")
 esperar_cartoes()
 confere("o cartão Resultado do Gestor Duas, em Todas: 1 venda com margem negativa (a da " + LOJA_A + ") e o aviso do ponto de equilíbrio", linha_do_cartao("Resultado", "Vendas com margem negativa") == "1" and "Escolha uma loja para ver o ponto de equilíbrio." in texto_do_cartao("Resultado"), texto_do_cartao("Resultado")[:300])
 confere("a Visão geral do Gestor Duas, em Todas: cartão Resultado com as duas lojas e sem o Dinheiro", cartao_existe("Resultado") and not cartao_existe("Dinheiro") and LOJA_A in texto_do_cartao("Resultado") and LOJA_B in texto_do_cartao("Resultado"), texto_do_cartao("Resultado")[:300])
-confere("e com seletor de loja (tem mais de uma)", bool(js("!!document.querySelector('main button[aria-label=\"Loja\"]')")))
+confere("e com seletor de loja no topo (tem mais de uma)", botao_do_topo() is not None, botao_do_topo())
 
 # --- 5. Os quatro endereços antigos -------------------------------------------------------------
 passo("5. Os quatro endereços antigos caem na aba e no período certos (Dono)")

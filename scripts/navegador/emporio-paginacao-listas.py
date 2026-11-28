@@ -131,7 +131,12 @@ confere("acha as lojas do cenario pela API", all([L_VENDAS, L_COMPRAS, L_DESTINO
 
 
 def ir_lista(rota, loja, extra="", titulo=""):
-    ir(rota + "?loja=" + loja + extra)
+    # Onda 6 da UX: a loja vem do seletor do topo (cookie `tibe_emporio_loja`), e os links de
+    # paginacao, abas e filtros deixaram de levar `?loja=`. Com `?loja=` na URL a primeira pagina
+    # saia certa, mas "Proxima" caia em "Todas as lojas". Escolher a loja pela rota do topo e o
+    # caminho que o usuario faz.
+    api("POST", "/api/v1/emporio/loja-do-topo", {"establishment_id": loja or None})
+    ir(rota + ("?" + extra.lstrip("&") if extra else ""))
     esperar(lambda: len(linhas(titulo)) > 0, 60)
     time.sleep(1)
 

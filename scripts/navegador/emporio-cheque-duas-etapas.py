@@ -230,6 +230,9 @@ lojas = api("GET", "/api/v1/emporio/establishments")["body"]["data"]
 l1 = next((l for l in lojas if l["name"] == LOJA), None)
 confere("acha a loja do cenario pela API", l1 is not None, len(lojas))
 LOJA_ID = l1["id"] if l1 else ""
+# Onda 6 da UX: a loja vai pelo seletor do topo (cookie) e os links da tela deixaram de levar `?loja=`.
+# O cookie vale ate a proxima troca de sessao (`entrar`), e o `?loja=` das URLs abaixo segue valendo.
+api("POST", "/api/v1/emporio/loja-do-topo", {"establishment_id": LOJA_ID or None})
 RECEBER = RECEBER_BASE + "?aba=cheques&loja=" + LOJA_ID
 HOJE_FIN = "/emporio/financeiro?loja=" + LOJA_ID
 hoje_iso = js("new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/Sao_Paulo' }).format(new Date())")
@@ -288,6 +291,7 @@ confere("nao mostra 'bom para' (nao ha data)", "bom para" not in pagina.lower(),
 passo("3. A receber (Financeiro): selo, tracos, sem Depositar, com Completar")
 entrar("financeiro")
 chegou = ir(RECEBER)
+api("POST", "/api/v1/emporio/loja-do-topo", {"establishment_id": LOJA_ID or None})  # o `entrar` limpou o cookie da loja
 confere("o A receber abre para o Financeiro", chegou == RECEBER_BASE and not eh_404() and tem("Cheques em carteira"), chegou)
 confere("a lista de cheques tem os 6 (R$ 150, 50, 30, 70, 60 e 40)", sorted(valores_dos_cheques()) == sorted(["R$ 150,00", "R$ 50,00", "R$ 30,00", "R$ 70,00", "R$ 60,00", "R$ 40,00"]), valores_dos_cheques())
 for valor in ["R$ 150,00", "R$ 30,00", "R$ 70,00", "R$ 60,00", "R$ 40,00"]:
@@ -332,15 +336,15 @@ principal = texto_do_main()
 confere("o Hoje abre", chegou == "/emporio/financeiro" and "Cheques a completar" in principal, principal[:300])
 confere("o Hoje mostra 'A completar: 5 cheques' com R$ 350,00 (150 + 30 + 70 + 60 + 40)", bool(re.search(r"A completar: 5 cheques\s*R\$ 350,00", principal)), principal[:700])
 hrefs_cheques = js("Array.from(document.querySelectorAll('main a')).filter(a => a.innerText.includes('Ver os cheques')).map(a => a.getAttribute('href'))") or []
-confere("o link 'Ver os cheques' leva ao A receber da loja", any(RECEBER_BASE in h and LOJA_ID in h for h in hrefs_cheques), hrefs_cheques)
+confere("o link 'Ver os cheques' leva ao A receber da loja", any(RECEBER_BASE in h for h in hrefs_cheques), hrefs_cheques)
 fim_em = time.time() + 60
 while time.time() < fim_em and RECEBER_BASE not in caminho():
     js("(() => { const a = Array.from(document.querySelectorAll('main a')).find(x => x.innerText.includes('Ver os cheques')); if (a) a.click(); })()")
     esperar(lambda: RECEBER_BASE in caminho(), 8)
-confere("clicando no link chega ao A receber da loja", RECEBER_BASE in caminho() and LOJA_ID in caminho(), caminho())
+confere("clicando no link chega ao A receber da loja", RECEBER_BASE in caminho(), caminho())
 time.sleep(1.5)
 confere("e a lista tem os cheques a completar", a_completar("R$ 150,00"), valores_dos_cheques())
-confere("o link leva ao filtro", "cheques=a_completar" in caminho() and LOJA_ID in caminho(), caminho())
+confere("o link leva ao filtro", "cheques=a_completar" in caminho(), caminho())
 vs = valores_dos_cheques()
 confere("so os incompletos: 5 linhas, todas com o selo, e o cheque completo (R$ 50,00) fora", len(vs) == 5 and "R$ 50,00" not in vs and all(a_completar(v) for v in vs), vs)
 tx = texto_do_main()
@@ -353,12 +357,12 @@ vs = valores_dos_cheques()
 confere("com ?ver=hoje na URL o filtro dos cheques vence (os 5 incompletos) e a loja continua", len(vs) == 5 and "R$ 50,00" not in vs and tem("Mostrando só os cheques a completar"), vs)
 ir(RECEBER + "&cheques=a_completar")
 hrefs_tudo = js("Array.from(document.querySelectorAll('main a')).filter(a => a.innerText.includes('Ver tudo o que receber')).map(a => a.getAttribute('href'))") or []
-confere("'Ver tudo o que receber' mantem a loja e a aba Cheques, e tira o filtro", len(hrefs_tudo) == 1 and LOJA_ID in hrefs_tudo[0] and "aba=cheques" in hrefs_tudo[0] and "cheques=" not in hrefs_tudo[0].replace("aba=cheques", ""), hrefs_tudo)
+confere("'Ver tudo o que receber' mantem a loja e a aba Cheques, e tira o filtro", len(hrefs_tudo) == 1 and "aba=cheques" in hrefs_tudo[0] and "cheques=" not in hrefs_tudo[0].replace("aba=cheques", ""), hrefs_tudo)
 fim_em = time.time() + 60
 while time.time() < fim_em and "cheques=" in caminho():
     js("(() => { const a = Array.from(document.querySelectorAll('main a')).find(x => x.innerText.includes('Ver tudo o que receber')); if (a) a.click(); })()")
     esperar(lambda: "cheques=" not in caminho(), 8)
-confere("clicar em 'Ver tudo o que receber' volta o cheque completo", bool(esperar(lambda: "R$ 50,00" in valores_dos_cheques(), 20)) and LOJA_ID in caminho(), [caminho(), valores_dos_cheques()])
+confere("clicar em 'Ver tudo o que receber' volta o cheque completo", bool(esperar(lambda: "R$ 50,00" in valores_dos_cheques(), 20)), [caminho(), valores_dos_cheques()])
 
 # --- 5 ---------------------------------------------------------------------------------------------------------------------------
 passo("5. Caixa como Gestor da loja: selo, Completar, so o numero, apagar recusa")

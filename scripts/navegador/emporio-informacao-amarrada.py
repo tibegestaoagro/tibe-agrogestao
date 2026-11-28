@@ -130,6 +130,9 @@ l1 = next((l for l in lojas if l["name"] == LOJA1), None)
 l2 = next((l for l in lojas if l["name"] == LOJA2), None)
 confere("acha as duas lojas do cenario pela API", l1 is not None and l2 is not None, len(lojas))
 ID1 = l1["id"] if l1 else ""
+# Onda 6 da UX: a loja vai pelo seletor do topo (cookie); chips e abas deixaram de levar `?loja=`, e com
+# `?loja=` na URL o primeiro clique voltava a "Todas as lojas".
+api("POST", "/api/v1/emporio/loja-do-topo", {"establishment_id": ID1 or None})
 RECEBER = "/emporio/financeiro/receber?loja=" + ID1
 PAGAR = "/emporio/financeiro/pagar?loja=" + ID1
 achados = (api("GET", "/api/v1/emporio/customers?q=Ia%20Cliente%20Ficha")["body"] or {}).get("data") or []
@@ -151,7 +154,7 @@ fiado_todo = texto_do_main()
 confere("sem filtro o fiado lista os cinco clientes abertos da loja (o quitado fica de fora)", all(n in fiado_todo for n in ["Ia Cliente Vencido", "Ia Cliente Parcial", "Ia Cliente Hoje", "Ia Cliente Amanha", FICHA]) and "Ia Cliente Mes Passado" not in fiado_todo and "Ia Cliente Loja 2" not in fiado_todo, fiado_todo[:300])
 
 confere("clica em Vencido", clicar_cartao("Vencido"))
-confere("a URL ganha ?ver=vencido e preserva a loja", "ver=vencido" in caminho() and "loja=" + ID1 in caminho(), caminho())
+confere("a URL ganha ?ver=vencido (a loja segue pelo topo)", "ver=vencido" in caminho(), caminho())
 fiado = texto_do_main()
 linha_parcial = linha("Ia Cliente Parcial")  # antes de sair da aba Fiado
 cheques = da_aba("cheques", "vencido", "Cheques em carteira")
