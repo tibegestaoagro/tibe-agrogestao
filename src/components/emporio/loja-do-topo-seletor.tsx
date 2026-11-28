@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Store, ChevronDown, Check } from "lucide-react";
 import { apiPost } from "@/lib/client-api";
@@ -26,12 +26,36 @@ function Seletor({ lojas, lojaDoCookie }: { lojas: LojaOpcao[]; lojaDoCookie: st
   const params = useSearchParams();
   const aviso = useAviso();
 
+  // O cookie que acabou de ser gravado vale antes de o layout voltar com ele.
+  const [cookieLocal, setCookieLocal] = useState<string | null>(null);
+  const adotada = useRef<string | null>(null);
+
   const nomeDoParam = pathname.replace(/\/+$/, "") === "/emporio/historico" ? "establishment_id" : "loja";
-  const loja = escolherLojaDoTopo({
-    daUrl: params.get(nomeDoParam) ?? undefined,
-    doCookie: lojaDoCookie,
-    lojas,
-  });
+  const daUrl = params.get(nomeDoParam) ?? undefined;
+  const doCookie = cookieLocal ?? lojaDoCookie;
+  const loja = escolherLojaDoTopo({ daUrl, doCookie, lojas });
+
+  /**
+   * Quem chega por um link com a loja (manual, folha, link antigo) fica nela: a
+   * loja da URL vira a escolha do topo e sai da URL. Sem isso o primeiro clique
+   * de paginação, chip ou aba (que não leva a loja) voltava a "Todas" sem aviso.
+   */
+  useEffect(() => {
+    if (!daUrl || loja !== daUrl || adotada.current === daUrl) return;
+    adotada.current = daUrl;
+    void (async () => {
+      if (daUrl !== doCookie) {
+        const res = await apiPost("/api/v1/emporio/loja-do-topo", { establishment_id: daUrl });
+        if (!res.ok) return;
+        setCookieLocal(daUrl);
+      }
+      const resto = new URLSearchParams(params.toString());
+      resto.delete(nomeDoParam);
+      const qs = resto.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname);
+      router.refresh();
+    })();
+  }, [daUrl, loja, doCookie, params, nomeDoParam, pathname, router]);
   const nome = lojas.find((l) => l.id === loja)?.name;
   const rotulo = nome ? `Loja: ${nome}` : "Loja: Todas";
   const ordenadas = [...lojas].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
@@ -46,6 +70,7 @@ function Seletor({ lojas, lojaDoCookie }: { lojas: LojaOpcao[]; lojaDoCookie: st
       aviso.erro(res.message);
       return;
     }
+    setCookieLocal(id ?? "");
     if (PARAMS_DA_LOJA.some((p) => params.has(p))) {
       const resto = new URLSearchParams(params.toString());
       for (const p of PARAMS_DA_LOJA) resto.delete(p);

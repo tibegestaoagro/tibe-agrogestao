@@ -316,6 +316,21 @@ por_cookie(l2)
 ir("/emporio/vendas?loja=cmloja-que-nao-existe-000000")
 confere("?loja=<invalida> cai no cookie (Loja 2)", botao_topo() == "Loja: " + LOJA_2 and lojas_da_coluna_vendas() == [LOJA_2], [botao_topo(), lojas_da_coluna_vendas()])
 
+# --- 4b. Link com ?loja= (manual, folha, link antigo): a loja fica depois do primeiro clique -----------
+passo("4b. Link com ?loja=: a loja vira a do topo e continua depois de 'Próxima'")
+por_cookie(None)
+ir("/emporio/vendas?loja=" + str(l1))
+esperar(lambda: param("loja") is None and botao_topo() == "Loja: " + LOJA_1, 40)
+time.sleep(2)
+print("   depois do link:", endereco(), "| botao:", botao_topo(), "| cookie:", cookie_da_loja())
+confere("o link com a Loja 1 tira 'loja' da URL e o botao diz a Loja 1", param("loja") is None and botao_topo() == "Loja: " + LOJA_1, [endereco(), botao_topo()])
+confere("o cookie passou a ser a Loja 1", cookie_da_loja() == l1, cookie_da_loja())
+confere("clica em 'Próxima'", bool(js("(() => { const a = Array.from(document.querySelectorAll('main a')).find(x => x.innerText.trim().startsWith('Próxima')); if (!a) return false; a.click(); return true; })()")))
+esperar(lambda: param("pagina") == "2", 30)
+time.sleep(2)
+print("   depois de Próxima:", endereco(), "| botao:", botao_topo(), lojas_da_coluna_vendas(), len(linhas_da_tabela()))
+confere("depois de 'Próxima' segue a Loja 1: o botao e as 3 vendas da pagina 2", botao_topo() == "Loja: " + LOJA_1 and lojas_da_coluna_vendas() == [LOJA_1] and len(linhas_da_tabela()) == 3, [endereco(), botao_topo(), lojas_da_coluna_vendas(), len(linhas_da_tabela())])
+
 # --- 5. Pagina 2 ---------------------------------------------------------------------------------------
 passo("5. Pagina 2 de Vendas: trocar a loja volta a pagina 1")
 por_cookie(l1)
