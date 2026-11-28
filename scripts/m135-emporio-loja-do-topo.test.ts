@@ -14,6 +14,7 @@ exigirBancoLocal();
  * Seção 3: escolherLojaDoTopoAction (alcance, outro tenant, null).
  * Seção 4: a rota POST /api/v1/emporio/loja-do-topo (cookie gravado e apagado, recusa, 401).
  * Seção 5: o Início por loja (lerInicioAction com establishment_id, e a rota GET).
+ * Seção 6: as despesas fixas por loja (listarDespesasFixasAction com establishment_id).
  */
 
 let falhas = 0;
@@ -291,6 +292,25 @@ async function comBanco() {
       check("GET com loja de outro tenant: 404", rg2.status === 404, `${rg2.status} ${j(rg2.corpo)}`);
       const rg3 = await chamar(W.tok.owner, R.inicio, "GET", "emporio/inicio");
       check("GET sem o parâmetro segue como hoje (130)", rg3.status === 200 && Number(rg3.corpo?.data?.numeros?.vendas_hoje?.total) === 130, `${rg3.status} ${j(rg3.corpo?.data?.numeros?.vendas_hoje)}`);
+    });
+
+    // ------------------------------------------------------------------------------------------ 6
+    await rodar("6. A pagar, aba Despesas fixas: a loja do topo filtra os modelos (achado do juiz da onda 6)", async () => {
+      const D = await import("@/lib/actions/emporio-despesas");
+      const soA = await D.criarDespesaFixaAction(W.db, W.owner, { name: `M135 Fixa A ${stamp}`, amount: 100, due_day: 10, split_kind: "valor", splits: [{ establishment_id: W.lojas.A, value: 100 }] });
+      const soB = await D.criarDespesaFixaAction(W.db, W.owner, { name: `M135 Fixa B ${stamp}`, amount: 200, due_day: 10, split_kind: "valor", splits: [{ establishment_id: W.lojas.B, value: 200 }] });
+      const ambas = await D.criarDespesaFixaAction(W.db, W.owner, { name: `M135 Fixa AB ${stamp}`, amount: 300, due_day: 10, split_kind: "valor", splits: [{ establishment_id: W.lojas.A, value: 150 }, { establishment_id: W.lojas.B, value: 150 }] });
+      check("(fixture) três despesas fixas criadas", soA.ok && soB.ok && ambas.ok, j([soA, soB, ambas].map((r) => (r.ok ? "ok" : r))));
+      const nomes = (r: Dado) => (r.ok ? (r.data as { name: string }[]).map((f) => f.name).filter((n) => n.startsWith("M135 Fixa")).sort() : r);
+
+      const todas = await D.listarDespesasFixasAction(W.db, W.owner);
+      check("sem loja: as três", j(nomes(todas)) === j([`M135 Fixa A ${stamp}`, `M135 Fixa AB ${stamp}`, `M135 Fixa B ${stamp}`]), j(nomes(todas)));
+      const naB = await D.listarDespesasFixasAction(W.db, W.owner, { establishment_id: W.lojas.B });
+      check("com a loja B: a da B e a dividida, não a da A", j(nomes(naB)) === j([`M135 Fixa AB ${stamp}`, `M135 Fixa B ${stamp}`]), j(nomes(naB)));
+      const gNo = await D.listarDespesasFixasAction(W.db, W.users.gestor, { establishment_id: W.lojas.B });
+      check("gestor só da A pedindo a B: NOT_FOUND em establishment_id", gNo.ok === false && gNo.code === "NOT_FOUND" && gNo.field === "establishment_id", j(gNo));
+      const fora = await D.listarDespesasFixasAction(W.db, W.owner, { establishment_id: W2.lojas.C });
+      check("dono pedindo loja de outro tenant: nada vaza (lista vazia ou NOT_FOUND)", fora.ok ? j(nomes(fora)) === "[]" : fora.code === "NOT_FOUND", j(fora.ok ? nomes(fora) : fora));
     });
   } finally {
     for (const id of tenantIds.reverse()) {

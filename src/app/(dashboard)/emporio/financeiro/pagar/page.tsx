@@ -84,7 +84,7 @@ export default async function FinanceiroPagarPage({
   );
 
   if (aba === "fixas") {
-    const fixasRes = await listarDespesasFixasAction(db, user);
+    const fixasRes = await listarDespesasFixasAction(db, user, { establishment_id: loja || undefined });
     const atual = mesAtualEmBrasilia();
     return (
       <div className="space-y-6">
@@ -103,7 +103,7 @@ export default async function FinanceiroPagarPage({
 
   if (aba === "vendeu_pagou") {
     const [regrasRes, produtosDb] = await Promise.all([
-      listarRegrasVariaveisAction(db, user),
+      listarRegrasVariaveisAction(db, user, { establishment_id: loja || undefined }),
       db.emporioProduct.findMany({
         select: {
           id: true,

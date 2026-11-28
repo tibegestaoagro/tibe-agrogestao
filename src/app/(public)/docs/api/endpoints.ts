@@ -1259,7 +1259,7 @@ export const GROUPS: Group[] = [
         method: "GET",
         path: "/api/v1/emporio/fixed-expenses",
         auth: "Sessão · emporio:read · Gestor da loja, Financeiro, Gerente geral e Dono (os outros papéis: 403); com vínculo, só as despesas que têm loja dele",
-        description: "Despesas fixas mensais (F4a, Q100) com o rateio, `generated_until` (último mês com conta gerada), `months_ahead` e `needs_renewal` (verdadeiro quando faltam menos de 3 meses gerados). `incluir_encerradas=1` traz as encerradas.",
+        description: "Despesas fixas mensais (F4a, Q100) com o rateio, `generated_until` (último mês com conta gerada), `months_ahead` e `needs_renewal` (verdadeiro quando faltam menos de 3 meses gerados). `incluir_encerradas=1` traz as encerradas. `establishment_id=` traz só os modelos com parte nessa loja (loja fora do alcance: 404 `establishment_id`).",
         response: `200
 { "data": [{ "id": "cl...", "name": "Aluguel", "category": "Aluguel", "amount": 3000, "due_day": 10, "split_kind": "percentual", "starts_on": "2026-11-01", "ended_at": null, "splits": [{ "establishment_id": "cl...", "establishment_name": "Loja Centro", "value": 60 }, { "establishment_id": "cl...", "establishment_name": "Loja Norte", "value": 40 }], "generated_until": "2027-10", "months_ahead": 12, "needs_renewal": false }], "meta": {} }`,
       },

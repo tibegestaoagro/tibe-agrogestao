@@ -630,23 +630,28 @@ async function fixaVisivelParaEscrita(db: TenantPrismaClient, ator: Ator, id: st
 export async function listarDespesasFixasAction(
   db: TenantPrismaClient,
   ator: Ator,
-  opts: { incluir_encerradas?: boolean } = {},
+  opts: { incluir_encerradas?: boolean; establishment_id?: string } = {},
 ): Promise<ActionResult<DespesaFixaView[]>> {
   const neg = await exigirUma(db, ator, ["gestor_da_loja", "dinheiro"], "mexer nas despesas da loja");
   if (neg) return neg;
   await garantirOcorrenciasDoMes(db, ator);
   const visiveis = await lojasDoAtor(db, ator);
+  if (opts.establishment_id && visiveis && !visiveis.has(opts.establishment_id)) {
+    return NAO_ACHADO("Estabelecimento", "establishment_id");
+  }
   // O modelo automático divide entre todas as lojas: quem não vê todas não o enxerga.
   const vePartes = visiveis ? veTodas(visiveis, await lojasDoRateio(db)) : true;
+  // Com uma loja (a do topo, onda 6 da UX): os modelos que têm parte nela.
+  const partes = opts.establishment_id
+    ? { splits: { some: { establishment_id: opts.establishment_id } } }
+    : visiveis
+      ? { splits: { some: { establishment_id: { in: [...visiveis] } } } }
+      : {};
   const linhas = await db.fixedExpenseTemplate.findMany({
     where: {
       ...(opts.incluir_encerradas ? {} : { ended_at: null }),
-      ...(visiveis
-        ? {
-            ...(vePartes ? {} : { split_kind: { in: ["percentual", "valor"] as ("percentual" | "valor")[] } }),
-            splits: { some: { establishment_id: { in: [...visiveis] } } },
-          }
-        : {}),
+      ...(visiveis && !vePartes ? { split_kind: { in: ["percentual", "valor"] as ("percentual" | "valor")[] } } : {}),
+      ...partes,
     },
     include: INCLUDE_FIXA,
     orderBy: [{ created_at: "desc" }, { id: "desc" }],

@@ -10,7 +10,8 @@ import { escolherLojaDoTopo } from "@/lib/emporio/loja-do-topo";
 
 export type LojaOpcao = { id: string; name: string };
 
-const PARAMS_DA_LOJA = ["loja", "establishment_id", "pagina"];
+// A paginação de uma loja não faz sentido na outra: `cursor` é a do Histórico, `pagina_*` as das abas.
+const PARAMS_DA_LOJA = ["loja", "establishment_id", "pagina", "pagina_ant", "pagina_ent", "pagina_mov", "pagina_prod", "cursor"];
 
 /**
  * O "Loja: Todas" do topo do Empório. A escolha vai para um cookie (rota
@@ -41,21 +42,31 @@ function Seletor({ lojas, lojaDoCookie }: { lojas: LojaOpcao[]; lojaDoCookie: st
    * de paginação, chip ou aba (que não leva a loja) voltava a "Todas" sem aviso.
    */
   useEffect(() => {
-    if (!daUrl || loja !== daUrl || adotada.current === daUrl) return;
+    // URL já sem a loja: a próxima chegada por link (mesmo com a mesma loja) adota de novo.
+    if (!daUrl) {
+      adotada.current = null;
+      return;
+    }
+    if (loja !== daUrl || adotada.current === daUrl) return;
     adotada.current = daUrl;
     void (async () => {
       if (daUrl !== doCookie) {
         const res = await apiPost("/api/v1/emporio/loja-do-topo", { establishment_id: daUrl });
-        if (!res.ok) return;
+        if (!res.ok) {
+          aviso.erro(res.message);
+          return;
+        }
         setCookieLocal(daUrl);
       }
+      // A pessoa saiu da tela enquanto a resposta vinha: a loja fica gravada, mas não a puxamos de volta.
+      if (window.location.pathname !== pathname) return;
       const resto = new URLSearchParams(params.toString());
       resto.delete(nomeDoParam);
       const qs = resto.toString();
       router.replace(qs ? `${pathname}?${qs}` : pathname);
       router.refresh();
     })();
-  }, [daUrl, loja, doCookie, params, nomeDoParam, pathname, router]);
+  }, [daUrl, loja, doCookie, params, nomeDoParam, pathname, router, aviso]);
   const nome = lojas.find((l) => l.id === loja)?.name;
   const rotulo = nome ? `Loja: ${nome}` : "Loja: Todas";
   const ordenadas = [...lojas].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));

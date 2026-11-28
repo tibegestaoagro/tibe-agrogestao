@@ -115,7 +115,7 @@ export default async function ComprasPage({
         ajuda="O que as lojas compraram dos fornecedores. A conta a pagar nasce junto."
         acoes={
           lojasDoLancamento.length > 0 && (
-            <CompraForm lojas={lojasDoLancamento} produtos={produtosForm} lojaInicial={loja} abrirAoEntrar={params.nova === "1"} />
+            <CompraForm key={loja} lojas={lojasDoLancamento} produtos={produtosForm} lojaInicial={loja} abrirAoEntrar={params.nova === "1"} />
           )
         }
       />

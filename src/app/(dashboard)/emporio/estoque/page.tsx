@@ -53,7 +53,8 @@ export default async function EstoquePage({
   // não tem a Lista de Compra, então não encaminha para ela.
   const papel = await papelDoEmporio(db, user);
   const podeEncaminhar = pode(papel, "gestor_da_loja") && !papel.soDaLoja;
-  // `?loja=__todas__` (e `todas`) vêm de link antigo e valem como "Todas": o helper cai no cookie sem eles.
+  // `?loja=__todas__` (e `todas`) vêm de link antigo e contam como link sem loja: vale a do topo
+  // (o cookie). Mostrar "Todas" aqui deixaria a lista em desacordo com o botão do topo.
   const daUrl = lojaParam === "__todas__" || lojaParam === "todas" ? undefined : lojaParam;
   const { lojas, loja } = await lerLojaDoTopo(db, user, daUrl);
 

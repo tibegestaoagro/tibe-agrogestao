@@ -7,7 +7,7 @@ import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
 import { dataIso } from "@/lib/emporio/venda-schema";
 
 /**
- * GET  /api/v1/emporio/fixed-expenses  ?incluir_encerradas=1  as despesas fixas mensais: só OWNER e ADMIN.
+ * GET  /api/v1/emporio/fixed-expenses  ?incluir_encerradas=1 &establishment_id=  as despesas fixas mensais: só OWNER e ADMIN.
  * POST /api/v1/emporio/fixed-expenses  cria o modelo e gera os 12 meses de contas, uma por loja e mês.
  */
 
@@ -32,9 +32,13 @@ const schema = z.object({
 async function GETHandler(request: Request) {
   const g = await guardEmporio("read");
   if ("error" in g) return g.error;
-  const v = new URL(request.url).searchParams.get("incluir_encerradas");
+  const sp = new URL(request.url).searchParams;
+  const v = sp.get("incluir_encerradas");
   return respostaDaAction(
-    await listarDespesasFixasAction(g.db, g.user, { incluir_encerradas: v === "1" || v === "true" }),
+    await listarDespesasFixasAction(g.db, g.user, {
+      incluir_encerradas: v === "1" || v === "true",
+      establishment_id: sp.get("establishment_id") || undefined,
+    }),
   );
 }
 

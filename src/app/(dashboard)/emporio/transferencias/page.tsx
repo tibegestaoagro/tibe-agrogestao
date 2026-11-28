@@ -139,7 +139,7 @@ export default async function TransferenciasPage({
         acoes={
           origensDoEnvio.length > 0 &&
           todasLojas.length > 1 && (
-            <TransferenciaForm origens={origensDoEnvio} destinos={todasLojas} produtos={produtosForm} lojaInicial={loja} />
+            <TransferenciaForm key={loja} origens={origensDoEnvio} destinos={todasLojas} produtos={produtosForm} lojaInicial={loja} />
           )
         }
       />
