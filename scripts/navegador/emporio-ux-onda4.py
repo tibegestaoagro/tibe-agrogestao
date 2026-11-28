@@ -53,6 +53,16 @@ def endereco():
     return (js("location.pathname + location.search") or "")
 
 
+def loja_no_topo(loja_id):
+    """Onda 6 da UX: o link com ?loja= vira a loja do topo (cookie) e sai da URL. Vale a URL ou o cookie."""
+    if param("loja") == loja_id:
+        return True
+    for c in cdp("Network.getCookies", urls=[BASE]).get("cookies", []):
+        if c["name"] == "tibe_emporio_loja":
+            return c["value"] == loja_id
+    return False
+
+
 def param(nome):
     return js("new URLSearchParams(location.search).get(" + repr(nome) + ")")
 
@@ -292,10 +302,10 @@ confere("o parâmetro antigo conta= não sobrou na URL", param("conta") is None,
 ir("/emporio/financeiro/cobranca?loja=" + (loja_id or "") + "&faixa=1-15")
 print("   endereço final da cobrança:", endereco())
 confere("/financeiro/cobranca vira A receber, aba Vencidos", endereco().startswith("/emporio/financeiro/receber") and param("aba") == "vencidos", endereco())
-confere("a loja e a faixa seguem na URL", param("loja") == loja_id and param("faixa") == "1-15", endereco())
+confere("a loja (na URL ou no topo) e a faixa seguem", loja_no_topo(loja_id) and param("faixa") == "1-15", endereco())
 confere("a aba Vencidos está aberta, com o " + JOAO, (aba_atual("Abas de A receber") or [""])[0].startswith("Vencidos") and bool(esperar(lambda: tem(JOAO), 30)), abas("Abas de A receber"))
 ir("/emporio/financeiro/cobranca?loja=" + (loja_id or "") + "&faixa=60")
-confere("com faixa=60 (a do plano) a URL também chega a Vencidos com loja e faixa", endereco().startswith("/emporio/financeiro/receber") and param("aba") == "vencidos" and param("faixa") == "60" and param("loja") == loja_id, endereco())
+confere("com faixa=60 (a do plano) a URL também chega a Vencidos com loja e faixa", endereco().startswith("/emporio/financeiro/receber") and param("aba") == "vencidos" and param("faixa") == "60" and loja_no_topo(loja_id), endereco())
 ir("/emporio/despesas?x=1")
 confere("/despesas vira A pagar na aba fixas, e o ?x=1 some", endereco().startswith("/emporio/financeiro/pagar") and param("aba") == "fixas" and param("x") is None, endereco())
 confere("e a aba Despesas fixas está aberta", aba_atual("Abas do A pagar") == ["Despesas fixas"] and h2("Despesas fixas"), endereco())

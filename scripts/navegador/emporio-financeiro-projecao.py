@@ -253,6 +253,7 @@ confere("em 60 dias a estimativa da despesa fixa vem marcada", tem("Despesas fix
 
 # --- 4 ---------------------------------------------------------------------------------
 passo("4. Os Relatorios: a receber por idade, a pagar por vencimento e a posicao por lugar")
+api("POST", "/api/v1/emporio/loja-do-topo", {"establishment_id": None})  # onda 6: o link com ?loja= da projecao virou a loja do topo
 ir("/emporio/financeiro/relatorios")
 confere("a aba Relatorios abre com os tres blocos", esperar(lambda: tem("A receber por idade") and tem("A pagar por vencimento") and tem("Posição de caixa por lugar"), 90), texto_principal(400))
 confere("o Pro Devedor aparece no a receber por idade", esperar(lambda: len(celulas_da_linha(DEVEDOR)) == 6, 40), celulas_da_linha(DEVEDOR))
@@ -285,6 +286,7 @@ cdp("Emulation.setDeviceMetricsOverride", width=390, height=844, deviceScaleFact
 ir("/emporio/financeiro/projecao?loja=" + loja1_id + "&dias=60")
 esperar(lambda: tem("Semana 6"), 60)
 sem_rolagem("A Projecao")
+api("POST", "/api/v1/emporio/loja-do-topo", {"establishment_id": None})  # onda 6: o link com ?loja= da projecao virou a loja do topo
 ir("/emporio/financeiro/relatorios")
 esperar(lambda: tem("Posição de caixa por lugar"), 60)
 sem_rolagem("Os Relatorios")

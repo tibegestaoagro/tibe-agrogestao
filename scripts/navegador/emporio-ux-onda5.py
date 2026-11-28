@@ -88,6 +88,16 @@ def endereco():
     return (js("location.pathname + location.search") or "")
 
 
+def loja_no_topo(loja_id):
+    """Onda 6 da UX: o link com ?loja= vira a loja do topo (cookie) e sai da URL. Vale a URL ou o cookie."""
+    if param("loja") == loja_id:
+        return True
+    for c in cdp("Network.getCookies", urls=[BASE]).get("cookies", []):
+        if c["name"] == "tibe_emporio_loja":
+            return c["value"] == loja_id
+    return False
+
+
 def param(nome):
     return js("new URLSearchParams(location.search).get(" + repr(nome) + ")")
 
@@ -319,7 +329,7 @@ confere("Dinheiro: diz que olha de hoje para a frente", "Olha de hoje para a fre
 confere("'Ver dinheiro ›' leva à aba Dinheiro (a loja vai pelo topo, não mais pelo link: onda 6 da UX)", bool(js("(() => { const s = " + _cartao("Dinheiro") + "; const a = s && s.querySelector('a'); return !!a && a.getAttribute('href').includes('aba=dinheiro') && !a.getAttribute('href').includes('loja='); })()")))
 
 passo("2c. Dono, Todas: o total do cartão Vendas é o da aba Vendas (lido na mesma tela)")
-ir("/emporio/estatisticas")
+ir_com_loja("/emporio/estatisticas", None)
 esperar_cartoes()
 total_cartao = centavos(grande("Vendas"))
 ir(url_da_aba("vendas"))
@@ -427,7 +437,7 @@ passo("5. Os quatro endereços antigos caem na aba e no período certos (Dono)")
 entrar("dono")
 ir("/emporio/relatorios?de=" + PRIMEIRO.isoformat() + "&ate=" + HOJE.isoformat() + "&loja=" + (loja_a or "") + "&abc=clientes&medida=lucro")
 print("   /relatorios ->", endereco())
-confere("/emporio/relatorios vira a aba Vendas, com de, ate, loja, abc e medida", endereco().startswith("/emporio/estatisticas") and param("aba") == "vendas" and param("de") == PRIMEIRO.isoformat() and param("ate") == HOJE.isoformat() and param("loja") == loja_a and param("abc") == "clientes" and param("medida") == "lucro", endereco())
+confere("/emporio/relatorios vira a aba Vendas, com de, ate, loja, abc e medida", endereco().startswith("/emporio/estatisticas") and param("aba") == "vendas" and param("de") == PRIMEIRO.isoformat() and param("ate") == HOJE.isoformat() and loja_no_topo(loja_a) and param("abc") == "clientes" and param("medida") == "lucro", endereco())
 confere("a aba Vendas está aberta", aba_atual("Abas das Estatísticas") == ["Vendas"], abas("Abas das Estatísticas"))
 
 ir("/emporio/resultado?mes=" + AAAA_MM_PASSADO + "&loja=all")
@@ -438,12 +448,12 @@ confere("o filtro marca 'Mês passado' como o período ativo", bool(js("!!Array.
 
 ir("/emporio/financeiro/relatorios?loja=" + (loja_a or "") + "&de=" + PRIMEIRO.isoformat() + "&ate=" + HOJE.isoformat())
 print("   /financeiro/relatorios ->", endereco())
-confere("/emporio/financeiro/relatorios vira a aba Dinheiro, com loja e período", endereco().startswith("/emporio/estatisticas") and param("aba") == "dinheiro" and param("loja") == loja_a and param("de") == PRIMEIRO.isoformat() and param("ate") == HOJE.isoformat(), endereco())
+confere("/emporio/financeiro/relatorios vira a aba Dinheiro, com loja e período", endereco().startswith("/emporio/estatisticas") and param("aba") == "dinheiro" and loja_no_topo(loja_a) and param("de") == PRIMEIRO.isoformat() and param("ate") == HOJE.isoformat(), endereco())
 confere("a aba Dinheiro está aberta", aba_atual("Abas das Estatísticas") == ["Dinheiro"], abas("Abas das Estatísticas"))
 
 ir("/emporio/financeiro/projecao?loja=" + (loja_a or "") + "&dias=60")
 print("   /financeiro/projecao ->", endereco())
-confere("/emporio/financeiro/projecao vira a aba Dinheiro, com loja e dias=60", endereco().startswith("/emporio/estatisticas") and param("aba") == "dinheiro" and param("loja") == loja_a and param("dias") == "60", endereco())
+confere("/emporio/financeiro/projecao vira a aba Dinheiro, com loja e dias=60", endereco().startswith("/emporio/estatisticas") and param("aba") == "dinheiro" and loja_no_topo(loja_a) and param("dias") == "60", endereco())
 
 # --- 6. Relatórios para imprimir ---------------------------------------------------------------
 passo("6. Relatórios para imprimir: os oito do Dono (folhas e planilhas) e os quatro do Gestor")
