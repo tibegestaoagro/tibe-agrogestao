@@ -13,7 +13,7 @@ import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
 const pct = z.number().min(0, "Use um valor entre 0 e 1000.").max(1000, "Use um valor entre 0 e 1000.");
 
 const editarSchema = z.object({
-  name: z.string({ error: "Informe o nome do estabelecimento." }).trim().min(1, "Informe o nome do estabelecimento.").optional(),
+  name: z.string({ error: "Informe o nome da loja." }).trim().min(1, "Informe o nome da loja.").optional(),
   address: z.string().trim().max(200).nullish(),
   city: z.string().trim().max(120).nullish(),
   document: z.string().trim().max(40).nullish(),

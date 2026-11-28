@@ -221,7 +221,7 @@ async function validarLoja(
   let nome: string | undefined;
   if (input.name !== undefined) {
     nome = String(input.name ?? "").trim();
-    if (!nome) return fail("VALIDATION_ERROR", "Informe o nome do estabelecimento.", 422, "name");
+    if (!nome) return fail("VALIDATION_ERROR", "Informe o nome da loja.", 422, "name");
     const igual = await db.establishment.findFirst({
       where: { name: { equals: nome, mode: "insensitive" }, ...(selfId ? { NOT: { id: selfId } } : {}) },
     });
@@ -346,7 +346,7 @@ export async function criarEstabelecimentoAction(
 ): Promise<ActionResult<EstablishmentView>> {
   const neg = await exigir(db, ator, "conta", "criar um estabelecimento");
   if (neg) return neg;
-  if (input.name === undefined) return fail("VALIDATION_ERROR", "Informe o nome do estabelecimento.", 422, "name");
+  if (input.name === undefined) return fail("VALIDATION_ERROR", "Informe o nome da loja.", 422, "name");
   const v = await validarLoja(db, input, null);
   if (!v.ok) return v;
 

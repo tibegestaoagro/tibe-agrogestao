@@ -241,7 +241,8 @@ export const FIGURAS: Figura[] = [
       { numero: 1, alvo: "o filtro de período", texto: "Vale para o saldo por lugar. O a receber e o a pagar olham de hoje para a frente. Toque em Hoje, 7 dias, Este mês ou Mês passado, ou em Escolher datas para digitar De e Até." },
       { numero: 2, alvo: "o bloco A receber por idade", texto: "Cada cliente com o que deve em dia e o que está vencido, por faixa de dias de atraso." },
       { numero: 3, alvo: "o bloco A pagar por vencimento", texto: "As contas pendentes por semana e por nome. O vencido fica na primeira semana, em destaque." },
-      { numero: 4, alvo: "o bloco Posição de caixa por lugar", texto: "O saldo de hoje de cada gaveta, gerência e conta, e o que entrou e saiu no período." },    ],
+      { numero: 4, alvo: "o bloco Posição de caixa por lugar", texto: "O saldo de hoje de cada gaveta, gerência e conta, e o que entrou e saiu no período." },
+    ],
   },
   {
     id: "estoque-por-loja",
@@ -491,7 +492,7 @@ export const FIGURAS: Figura[] = [
     marcas: [
       { numero: 1, alvo: "o filtro de período", texto: "Hoje, 7 dias, Este mês, Mês passado ou Escolher datas. Vale para todas as abas, menos para o que olha para a frente." },
       { numero: 2, alvo: "a barra de abas", texto: "Visão geral, Vendas, Dinheiro, Resultado e Relatórios para imprimir. A aba Dinheiro só aparece para quem cuida do dinheiro." },
-      { numero: 3, alvo: "a frase que compara com o mês passado", texto: "Compara o período com o mesmo trecho do mês anterior." },
+      { numero: 3, alvo: "a frase que compara com o mês passado", texto: "Compara o período com o mesmo trecho do mês anterior. Sem vendas no mês anterior, a frase diz isso, como na foto." },
       { numero: 4, alvo: "o cartão Dinheiro", texto: "Olha de hoje para a frente e não usa o período escolhido." },
       { numero: 5, alvo: "o cartão Resultado", texto: "O resultado do mês da data final, e o ponto de equilíbrio quando há uma loja escolhida no topo." },
     ],

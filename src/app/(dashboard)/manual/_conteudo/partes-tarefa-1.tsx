@@ -87,8 +87,8 @@ export function ParteDePrimeirosPassos() {
     <Figura id="loja-do-topo" />
     <p className="text-texto">
       <strong>O (i) ao lado do título.</strong> Em cada tela há um (i) junto do título. Passe o mouse ou toque nele: abre
-      uma explicação curta. Nas telas que têm parte própria aqui, o balão traz o link <strong>Ver no manual</strong>, que
-      leva direto à parte (e à seção) certa.
+      uma explicação curta. Alguns balões, como o da conferência com o banco (em Dinheiro › Hoje e no extrato da
+      conta), trazem também o link <strong>Ver no manual</strong>, que leva direto à seção certa deste manual.
     </p>
     </div>
   );
