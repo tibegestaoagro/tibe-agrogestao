@@ -142,7 +142,7 @@ confere("a Pro Loja 2 nasce sem area e com 1 funcionario", lojas.get(LOJA2, {}).
 confere("a Pro Loja 1 nasce com 80 m2 e 3 funcionarios", float(lojas.get(LOJA1, {}).get("area_m2") or 0) == 80 and lojas.get(LOJA1, {}).get("employees_count") == 3, lojas.get(LOJA1))
 confere("a lista de lojas mostra a Pro Loja 2", esperar(lambda: tem(LOJA2), 60), texto_principal(400))
 abre = abrir_painel_com(lambda: botao_da_linha(LOJA2, "Editar"))
-confere("o painel Editar estabelecimento abre", abre)
+confere("o painel Editar loja abre", abre)
 painel = js("(document.querySelector('[role=dialog]') || { innerText: '' }).innerText.replace(/\\u00a0/g, ' ')") or ""
 confere("o painel tem os campos Area (m2) e Funcionarios", "Área (m²)" in painel and "Funcionários" in painel, painel[:300])
 confere("preenche a area com 40", preencher("Área (m²)", "40") not in ("SEM ROTULO", "SEM CAMPO"))

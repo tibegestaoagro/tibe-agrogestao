@@ -136,7 +136,7 @@ confere("o filtro Cão não traz a ração de gato", esperar(lambda: "species=ca
 passo("7. Estabelecimento sem Tipo")
 ir("/emporio/estabelecimentos")
 confere("a lista não tem a coluna Tipo", not js("Array.from(document.querySelectorAll('th')).some(x => x.innerText.trim() === 'Tipo')"))
-confere("botão Novo estabelecimento", clicar("Novo estabelecimento"))
+confere("botão Nova loja", clicar("Nova loja"))
 time.sleep(1.5)
 confere("o painel abriu com o Nome", "Nome" in rotulos_do_painel(), rotulos_do_painel())
 confere("o painel não tem o campo Tipo", "Tipo" not in rotulos_do_painel(), rotulos_do_painel())

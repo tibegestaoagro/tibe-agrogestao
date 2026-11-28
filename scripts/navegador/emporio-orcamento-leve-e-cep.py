@@ -357,7 +357,7 @@ confere("o cliente existe na API", any(c.get("name") == NOME_CEP for c in achado
 # --- 10 --------------------------------------------------------------------------------
 passo("10. Formulario da loja: o CEP preenche cidade e UF")
 ir("/emporio/estabelecimentos")
-confere("abre Novo estabelecimento", abrir_painel("Novo estabelecimento"))
+confere("abre Nova loja", abrir_painel("Nova loja"))
 focar("CEP")
 confere("digita o CEP", preencher("CEP", CEP) not in ("SEM ROTULO", "SEM CAMPO"))
 confere("a Cidade e preenchida", bool(esperar(lambda: valor_do_campo("Cidade") == "Patos de Minas", 20)), valor_do_campo("Cidade"))

@@ -131,7 +131,7 @@ export function EstabelecimentoForm({
 
   async function submit() {
     const novos: Partial<Record<Campo, string>> = {};
-    if (!name.trim()) novos.name = "Informe o nome do estabelecimento.";
+    if (!name.trim()) novos.name = "Informe o nome da loja.";
     const d = lerOpcional(despesa);
     const l = lerOpcional(lucro);
     const m = lerOpcional(desconto);
@@ -190,10 +190,10 @@ export function EstabelecimentoForm({
             Editar
           </Button>
         ) : (
-          <Button>Novo estabelecimento</Button>
+          <Button>Nova loja</Button>
         )
       }
-      title={editando ? "Editar estabelecimento" : "Novo estabelecimento"}
+      title={editando ? "Editar loja" : "Nova loja"}
       open={open}
       onOpenChange={(o) => {
         setOpen(o);
