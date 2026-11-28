@@ -86,7 +86,7 @@ export function FinanceiroHoje({ resumo, loja }: { resumo: HojeView; loja: strin
           href={enderecoSemCarimbo}
           verTudo="Ver as linhas a conferir"
           ajuda={
-            <AjudaDaTela manual="/manual/emporio/financeiro-das-lojas#conferir-com-o-banco" rotulo="Sobre a conferência com o banco">
+            <AjudaDaTela manual="/manual/emporio/dinheiro#conferir-com-o-banco" rotulo="Sobre a conferência com o banco">
               Compare cada linha com o extrato do banco e clique em Conferir com o banco. O que não bate é PIX que não caiu ou valor lançado com erro.
             </AjudaDaTela>
           }

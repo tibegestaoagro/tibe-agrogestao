@@ -1,7 +1,7 @@
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { AnteriorEProximo } from "../../_components/anterior-e-proximo";
 import { CONTEUDOS } from "../../_conteudo/conteudos";
-import { PARTES_DO_EMPORIO } from "../../_conteudo/indice";
+import { BASE_DO_EMPORIO, PARTES_ANTIGAS, PARTES_DO_EMPORIO } from "../../_conteudo/indice";
 
 export function generateStaticParams() {
   return PARTES_DO_EMPORIO.map((p) => ({ parte: p.slug }));
@@ -17,6 +17,8 @@ export default async function ParteDoManualPage({ params }: { params: Promise<{ 
   const { parte } = await params;
   const meta = PARTES_DO_EMPORIO.find((p) => p.slug === parte);
   const Conteudo = CONTEUDOS[parte];
+  const destino = PARTES_ANTIGAS[parte];
+  if (destino) permanentRedirect(`${BASE_DO_EMPORIO}/${destino}`);
   if (!meta || !Conteudo) notFound();
 
   return (

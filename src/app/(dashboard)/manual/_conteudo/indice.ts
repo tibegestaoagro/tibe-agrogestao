@@ -13,7 +13,7 @@ export const BASE_DO_EMPORIO = "/manual/emporio";
 
 export const PARTES_DO_EMPORIO: Parte[] = [
   { slug: "dono", titulo: "Sou o Dono", grupo: "Por função", resumo: "Montar as lojas, a Equipe e acompanhar o resultado." },
-  { slug: "gestor", titulo: "Sou Gestor", grupo: "Por função", resumo: "Comandar a sua loja: preço, estoque, caixa, despesas e relatórios." },
+  { slug: "gestor", titulo: "Sou Gestor", grupo: "Por função", resumo: "Comandar a sua loja: preço, estoque, caixa, despesas e estatísticas." },
   { slug: "vendedor", titulo: "Sou Vendedor", grupo: "Por função", resumo: "Vender e orçar no balcão, receber fiado e cuidar do caixa." },
   { slug: "caixa-papel", titulo: "Sou Caixa", grupo: "Por função", resumo: "Abrir o caixa, receber do cliente, fazer sangria e encerrar o turno." },
   { slug: "primeiros-passos", titulo: "Primeiros passos", grupo: "Por tarefa", resumo: "O que fazer antes da primeira venda." },
@@ -33,14 +33,24 @@ export const PARTES_DO_EMPORIO: Parte[] = [
   { slug: "devolver", titulo: "Devolver, trocar e cancelar", grupo: "Por tarefa", resumo: "Quando o cliente volta atrás." },
   { slug: "fiado", titulo: "Fiado e receber fiado", grupo: "Por tarefa", resumo: "Vender para pagar depois, com limite e bloqueio por atraso, cobrar pelo WhatsApp e fazer acordo em parcelas." },
   { slug: "caixa", titulo: "Caixa", grupo: "Por tarefa", resumo: "Abrir e encerrar o turno, sangria, malote, banco, cartão e cheques." },
-  { slug: "financeiro-das-lojas", titulo: "Financeiro das lojas", grupo: "Por tarefa", resumo: "A casa do Financeiro: pagar a conta da compra, aprovar pagamento acima do teto, receber fiado por Pix e conferir o extrato com o banco." },
-  { slug: "despesas", titulo: "Despesas", grupo: "Por tarefa", resumo: "Despesas fixas e Vendeu, Pagou." },
-  { slug: "resultado", titulo: "Resultado e ponto de equilíbrio", grupo: "Por tarefa", resumo: "Saber se a loja está dando lucro." },
-  { slug: "relatorios", titulo: "Relatórios", grupo: "Por tarefa", resumo: "Vendas por vendedor, por produto e por loja, e produtos parados." },
+  { slug: "dinheiro", titulo: "Dinheiro", grupo: "Por tarefa", resumo: "Hoje, A receber, Aprovações e conferir com o banco." },
+  { slug: "a-pagar", titulo: "A pagar e despesas", grupo: "Por tarefa", resumo: "Pagar a conta da compra, despesas fixas e Vendeu, Pagou." },
+  { slug: "estatisticas", titulo: "Estatísticas", grupo: "Por tarefa", resumo: "Visão geral, vendas, dinheiro, resultado e relatórios para imprimir." },
   { slug: "historico", titulo: "Histórico", grupo: "Por tarefa", resumo: "Quem fez cada coisa e quando." },
   { slug: "glossario", titulo: "Glossário", grupo: "Consulta", resumo: "As palavras do sistema, explicadas." },
   { slug: "perguntas", titulo: "Perguntas frequentes", grupo: "Consulta", resumo: "Por que o sistema recusou, e o que fazer." },
 ];
+
+/**
+ * Endereços de partes que fundiram: o slug antigo redireciona para o novo, com a âncora quando há.
+ * Link guardado em favorito ou impresso continua achando a seção.
+ */
+export const PARTES_ANTIGAS: Record<string, string> = {
+  "financeiro-das-lojas": "dinheiro",
+  despesas: "a-pagar",
+  resultado: "estatisticas#resultado",
+  relatorios: "estatisticas#vendas",
+};
 
 export const GRUPOS: GrupoDoCapitulo[] = ["Por função", "Por tarefa", "Consulta"];
 

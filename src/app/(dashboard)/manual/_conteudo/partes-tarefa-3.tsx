@@ -78,7 +78,7 @@ export function ParteDeConfiguracoes() {
         </Chamada>
       </Tarefa>
 
-      <Subtitulo>Cartões: adquirentes e taxas</Subtitulo>
+      <Subtitulo id="cartoes">Cartões: adquirentes e taxas</Subtitulo>
       <Tarefa
         paraQueServe="Dizer quanto cada máquina de cartão cobra e em quantos dias o dinheiro cai, por loja, adquirente, bandeira e forma de pagamento."
         passos={[
@@ -170,7 +170,7 @@ export function ParteDeConfiguracoes() {
         paraQueServe="Escolher as teclas dos atalhos do balcão e ajustar a etiqueta à folha ou à impressora de rolo da loja. É de quem cuida da conta."
         passos={[
           <>Em <strong>Configurações</strong>, na seção <strong>Balcão e etiquetas</strong>, clique em <strong>Mudar</strong>.</>,
-          <>Em cada ação (Produto, Cliente, Vendedor, Pagamento, Fechar), escolha a tecla. Desmarque a <strong>Legenda</strong> se não quiser a faixa no rodapé.</>,
+          <>Em cada ação (<strong>Buscar produto</strong>, <strong>Escolher cliente</strong>, <strong>Vendedor</strong>, <strong>Forma de pagamento</strong>, <strong>Fechar a venda</strong>), escolha a tecla. Desmarque a <strong>Legenda</strong> se não quiser ver a tecla ao lado de cada campo do balcão. As teclas padrão são F2, F4, F8, F9 e Ctrl+Enter.</>,
           <>Escolha o <strong>Formato padrão</strong> das etiquetas: folha A4 ou rolo.</>,
           <>Ajuste as medidas em milímetros, como estão na caixa da folha de etiquetas ou no manual da impressora: colunas, linhas, largura, altura, margens e espaços.</>,
           <>Clique em <strong>Salvar</strong>. <strong>Voltar ao padrão</strong> preenche a folha de 21 etiquetas (3 x 7, 63,5 x 38,1 mm) e o rolo de 40 x 25 mm.</>,
@@ -198,9 +198,9 @@ export function ParteDeOrcamento() {
         passos={[
           <>Abra <strong>Vender</strong> e toque em <strong>Orçamento</strong>, no alto da tela.</>,
           <>Busque os produtos e ajuste a quantidade, como numa venda. O preço vem do cadastro da loja e não se digita; produto sem preço na loja não entra. O desconto é o mesmo da venda: <strong>Desconto (%)</strong> em cada linha e <strong>Desconto no total (R$)</strong> para o orçamento inteiro, até o limite da loja. Acima dele, <strong>Pedir autorização do gestor</strong>: o gestor digita o PIN, e a autorização vale 15 minutos, naquela loja, até aquele percentual. Um item cadastrado com preço R$ 0,00 sai como <strong>Brinde</strong>.</>,
-          <>No campo <strong>Cliente</strong>, clique em <strong>Escolher cliente</strong> e busque pelo nome, pelo CPF ou CNPJ, ou por um pedaço do telefone. Quem não quer se identificar entra como <strong>Consumidor final</strong>, que vale para o orçamento. Para o orçamento bastam o nome e o telefone do cliente, de pessoa física ou jurídica: o CPF, o CNPJ e o endereço só são cobrados ao fechar a venda. Para um cliente novo, clique em <strong>Cadastrar novo cliente</strong>.</>,
-          <>Se o orçamento é de um franqueado, escolha o <strong>Franqueado</strong> e digite o <strong>Crédito do franqueado (R$)</strong>. O papel do orçamento já sai com o crédito repartido nos itens, e a venda, ao faturar, nasce com os dois.</>,
-          <>Se vai ter entrega cobrada, digite o <strong>Frete cobrado do cliente</strong>. O papel do orçamento mostra o frete numa linha própria e o total com ele, e a venda, ao faturar, já nasce com o frete. O frete não entra no faturamento da loja.</>,
+          <>O campo <strong>Cliente</strong> já começa em <strong>Consumidor final</strong>, que vale para o orçamento. Para outro cliente, clique em <strong>Trocar</strong> e busque pelo nome, pelo CPF ou CNPJ, ou por um pedaço do telefone. Para o orçamento bastam o nome e o telefone do cliente, de pessoa física ou jurídica: o CPF, o CNPJ e o endereço só são cobrados ao fechar a venda. Para um cliente novo, clique em <strong>Não achou? Cadastrar novo</strong>, na janela.</>,
+          <>Se o orçamento é de um franqueado, abra <strong>Mais opções</strong>, escolha o <strong>Franqueado (opcional)</strong> e digite o <strong>Crédito do franqueado (R$)</strong>. O papel do orçamento já sai com o crédito repartido nos itens, e a venda, ao faturar, nasce com os dois.</>,
+          <>Se vai ter entrega cobrada, em <strong>Mais opções</strong>, digite o <strong>Frete cobrado do cliente (opcional)</strong>. O papel do orçamento mostra o frete numa linha própria e o total com ele, e a venda, ao faturar, já nasce com o frete. O frete não entra no faturamento da loja.</>,
           <>Se quiser, escreva uma <strong>Observação</strong>.</>,
           <>Confira o <strong>Vendedor</strong>. Ele já vem com o seu nome. Se você é Caixa, escolha quem atendeu.</>,
           <>Clique em <strong>Salvar orçamento</strong>. O quadro verde mostra o número e a data até quando ele vale (<strong>válido até</strong>); vale até o fim desse dia. Se o cadastro do cliente ainda não tem o que a venda pede, um aviso amarelo (<strong>Antes de fechar a venda, complete o cadastro</strong>, ou <strong>Finalize os dados de entrega</strong>) lista o que falta, como o CPF e o endereço de entrega: o orçamento já está salvo, e o cadastro se completa na hora de vender.</>,
@@ -209,7 +209,7 @@ export function ParteDeOrcamento() {
         problemas={[
           {
             quando: "“Escolha o cliente do orçamento. Quem não quer se identificar entra como Consumidor final.”",
-            fazer: "Faltou o cliente. Escolha o cliente, ou o Consumidor final, ou cadastre pelo botão Cadastrar novo cliente.",
+            fazer: "Faltou o cliente. Clique em Trocar e escolha o cliente, ou deixe o Consumidor final, ou cadastre em Não achou? Cadastrar novo.",
           },
           {
             quando: "“Complete o cadastro do cliente antes de salvar o orçamento.”, seguido do que falta (por exemplo, “Informe o telefone.”)",
@@ -245,7 +245,7 @@ export function ParteDeOrcamento() {
       <Tarefa
         paraQueServe="Transformar o orçamento em venda quando o cliente volta."
         passos={[
-          <>Em <strong>Vender</strong>, fique em <strong>Venda</strong> e confira a loja. Digite o número do papel em <strong>Orçamento nº</strong> e clique em <strong>Carregar</strong>. Quem vê a lista também pode abrir o orçamento em <strong>Orçamentos</strong> e clicar em <strong>Faturar</strong>.</>,
+          <>Em <strong>Vender</strong>, fique em <strong>Venda</strong> e confira a loja. Abra <strong>Mais opções</strong>, digite o número do papel em <strong>Orçamento nº</strong> e clique em <strong>Carregar</strong>. Quem vê a lista também pode abrir o orçamento em <strong>Orçamentos</strong> e clicar em <strong>Faturar</strong>.</>,
           <>A faixa <strong>Faturando o orçamento nº</strong> mostra o cliente, o vendedor e a validade. Os itens e o cliente entram na venda.</>,
           "Leia os avisos da faixa, se houver: o preço que mudou, o orçamento vencido e o estoque que falta.",
           <>O <strong>Vendedor</strong> é o do orçamento. Ninguém precisa escolher.</>,
@@ -319,8 +319,8 @@ export function ParteDeEntrega() {
       <Tarefa
         paraQueServe="Dizer, na venda ou no orçamento, que a mercadoria vai sair da loja até o cliente, e para onde. Sem a marca, o pedido é retirada no balcão."
         passos={[
-          <>Em <strong>Vender</strong>, monte a venda (ou toque em <strong>Orçamento</strong>) e escolha o cliente. Para entrega o cliente precisa ser de verdade: o <strong>Consumidor final</strong> não vale.</>,
-          <>Marque <strong>Pedido para entrega</strong>. Aparece o campo <strong>Endereço de entrega</strong>.</>,
+          <>Em <strong>Vender</strong>, monte a venda (ou toque em <strong>Orçamento</strong>) e clique em <strong>Trocar</strong> para escolher o cliente. Para entrega o cliente precisa ser de verdade: o <strong>Consumidor final</strong>, que já vem no campo, não vale.</>,
+          <>Abra <strong>Mais opções</strong> e marque <strong>Pedido para entrega</strong>. Aparece o campo <strong>Endereço de entrega</strong>.</>,
           <>Escolha um dos três endereços: <strong>Endereço principal</strong> (o do cadastro), <strong>Endereço de entrega do cadastro</strong> (só aparece se o cliente tem um) ou <strong>Outro endereço (só para este pedido)</strong>.</>,
           <>No <strong>Outro endereço</strong>, preencha <strong>CEP</strong>, <strong>Rua</strong>, <strong>Número</strong>, <strong>Bairro</strong>, <strong>Cidade</strong> e <strong>UF</strong>. O <strong>Complemento</strong> é opcional. Esse endereço vale só para este pedido: o cadastro do cliente não muda.</>,
           <>Se o cliente não tem o CPF ou o endereço no cadastro, a tela diz o que falta e mostra <strong>Completar cadastro</strong>. Clique, preencha e salve ali mesmo: o que você já montou na venda fica.</>,
@@ -329,7 +329,7 @@ export function ParteDeEntrega() {
         problemas={[
           {
             quando: "“Pedido para entrega precisa do cliente de verdade, não do Consumidor final.”",
-            fazer: "Escolha o cliente da compra, ou cadastre-o em Cadastrar novo cliente.",
+            fazer: "Clique em Trocar e escolha o cliente da compra, ou cadastre-o em Não achou? Cadastrar novo.",
           },
           {
             quando: "“Para entrega, informe o CPF do cliente.” ou “Para entrega, complete o cadastro do cliente: ...”",
@@ -447,116 +447,13 @@ export function ParteDeEntrega() {
   );
 }
 
-export function ParteDeRelatorios() {
-  return (
-    <div className="space-y-2">
-      <Tarefa
-        paraQueServe="Ver quem vendeu, o que vendeu e o que ficou parado, num período à sua escolha. Serve para acertar a comissão."
-        passos={[
-          <>Abra <strong>Relatórios</strong> no menu. O Dono, o Gerente geral e o Gestor veem essa tela. O Vendedor e o Caixa não.</>,
-          "A tela abre no mês atual, do dia 1 até hoje.",
-          <>Para outro período, mude <strong>De</strong> e <strong>Até</strong> e clique em <strong>Ver relatório</strong>. Os dois dias entram na conta. O botão <strong>Mês atual</strong> volta ao começo.</>,
-          <>Se você cuida de mais de uma loja, escolha a <strong>Loja</strong> ou deixe <strong>Todas as minhas lojas</strong>. O Gestor vê só as lojas dele.</>,
-          "Leia os blocos, de cima para baixo.",
-        ]}
-        problemas={[
-          {
-            quando: "Aparece um aviso e a tela mostra o mês atual",
-            fazer: "O período estava errado: “A data final não pode ser antes da inicial.” ou “O período vai até 366 dias.” Corrija De e Até.",
-          },
-          {
-            quando: "Um produto não aparece em Produtos parados",
-            fazer: "Só entra o produto com preço na loja e que não está arquivado. Produto sem preço na loja fica de fora.",
-          },
-        ]}
-      >
-        <Figura id="relatorios-periodo" />
-      </Tarefa>
-
-      <Subtitulo>Os blocos do relatório</Subtitulo>
-      <ul className="list-disc space-y-2 pl-5 text-texto marker:text-texto-discreto">
-        <li>
-          <strong>Por origem</strong>: quanto vendeu o balcão e quanto vendeu o e-commerce, com o número de vendas, o
-          faturamento, o frete cobrado, o crédito de franqueado e a parte de cada um no faturamento. O faturamento não
-          inclui o frete nem o crédito de franqueado, que aparecem em colunas próprias. Com mais de uma loja, a mesma quebra vem para cada loja.
-        </li>
-        <li>
-          <strong>Vendas por vendedor</strong>: quantas vendas, o total e o ticket médio de cada um. O vendedor é quem
-          atendeu, não quem registrou no caixa. O sistema não calcula o percentual da comissão: você aplica o seu sobre o
-          total.
-        </li>
-        <li>
-          <strong>Vendas por produto</strong>: a quantidade, na unidade-base, e o total de cada produto, do maior total para
-          o menor.
-        </li>
-        <li>
-          <strong>Produtos parados</strong>: têm preço na loja e não venderam nada no período. Com mais de uma loja, cada
-          linha diz a loja.
-        </li>
-        <li>
-          <strong>Vendas por loja</strong>: quantas vendas, o total e o ticket médio de cada loja.
-        </li>
-        <li>
-          <strong>PIX por conta</strong>: para cada conta bancária, quantos pagamentos em PIX e quanto valeram, das vendas
-          que o relatório conta no período, no total e por loja. Serve para conferir o que entrou em cada conta.
-        </li>
-      </ul>
-
-      <Chamada tipo="saiba">
-        <p>
-          Venda cancelada não conta. A devolução feita no período desconta do vendedor e da loja da venda original, mesmo
-          que a venda seja de antes do período. Por isso um total pode ficar negativo. A venda nova de uma troca soma no
-          total, mas não conta como mais uma venda.
-        </p>
-      </Chamada>
-      <Chamada tipo="dica">
-        <p>
-          Os blocos acima contam vendas, não lucro. Para saber se a loja deu lucro, abra o{" "}
-          <Link className="underline" href={`${B}/resultado`}>Resultado</Link>. A Curva ABC, abaixo, mostra também o lucro
-          de cada produto e cliente (a venda menos o custo).
-        </p>
-      </Chamada>
-
-      <Subtitulo>Curva ABC</Subtitulo>
-      <Tarefa
-        paraQueServe="Ver os poucos produtos e clientes que fazem a maior parte das vendas, para cuidar do estoque, da promoção e do relacionamento."
-        passos={[
-          <>Em <strong>Relatórios</strong>, escolha o período e a loja e desça até <strong>Curva ABC</strong>.</>,
-          <>Escolha <strong>Produtos</strong> ou <strong>Clientes</strong>, e a medida: <strong>Faturamento</strong> ou <strong>Lucro (venda menos custo)</strong>.</>,
-          <>A lista vem do maior para o menor. <strong>A</strong> são os que, somados, chegam a 80% do total; <strong>B</strong>, os que levam de 80% a 95%; <strong>C</strong>, o resto.</>,
-          <>No alto, o resumo diz quantos itens tem cada classe e quanto eles somam. A coluna <strong>Acumulado</strong> mostra até onde a soma chegou em cada linha.</>,
-        ]}
-        problemas={[
-          {
-            quando: "Aparece “Sem vendas positivas no período”",
-            fazer: "No período e na loja escolhidos não houve venda, ou tudo foi devolvido. Mude o período ou a loja.",
-          },
-          {
-            quando: "Um produto aparece com “sem custo” ou “custo estimado”",
-            fazer: "No Lucro, a venda saiu sem a compra lançada ou com o custo provisório. Lance a compra para o custo ficar certo.",
-          },
-        ]}
-      >
-        <Chamada tipo="saiba">
-          <p>
-            Nos Clientes, o Consumidor final e as vendas sem cliente ficam fora da curva, numa linha à parte: eles juntam
-            todo mundo que não se identificou. O Lucro da curva é a venda menos o custo da mercadoria. O{" "}
-            <Link className="underline" href={`${B}/resultado`}>Resultado</Link> também desconta as despesas variáveis e a
-            taxa do cartão, então os dois números não são iguais.
-          </p>
-        </Chamada>
-      </Tarefa>
-    </div>
-  );
-}
-
 export function ParteDeClientes() {
   return (
     <Tarefa
       paraQueServe="Guardar quem compra nas suas lojas e ver o que cada cliente já comprou."
       passos={[
         <>Abra <strong>Meu Empório</strong>, <strong>Vendas</strong> e <strong>Clientes</strong>. O Dono, o Gerente geral, o Gestor, o Vendedor e o Caixa veem essa tela.</>,
-        <>Clique em <strong>Cadastrar novo cliente</strong> e escolha <strong>Pessoa física</strong> ou <strong>Pessoa jurídica</strong>.</>,
+        <>Na lista de clientes, use o botão <strong>Cadastrar novo cliente</strong> e escolha <strong>Pessoa física</strong> ou <strong>Pessoa jurídica</strong>.</>,
         "Na pessoa física, bastam o nome e o telefone. O CPF, o nascimento e o endereço são opcionais.",
         "Na pessoa jurídica, também o CNPJ e o endereço principal completo: CEP, rua, número, bairro, município e UF.",
         <>Clique em <strong>Cadastrar cliente</strong>. O cliente já aparece no campo <strong>Cliente</strong> do balcão.</>,
@@ -663,7 +560,7 @@ export function ParteDeFranqueados() {
       <Tarefa
         paraQueServe="Registrar quanto o franqueado ganha numa venda, sem sujar o faturamento da loja."
         passos={[
-          <>No balcão, monte a venda e escolha o <strong>Franqueado</strong>. Só um por venda.</>,
+          <>No balcão, monte a venda, abra <strong>Mais opções</strong> e escolha o <strong>Franqueado (opcional)</strong>. Só um por venda.</>,
           <>Digite o <strong>Crédito do franqueado (R$)</strong>. Ele soma ao total: o cliente paga os itens, mais o frete, se houver, mais o crédito.</>,
           <>Feche a venda. O crédito fica fora do faturamento, do custo e da margem, e entra no saldo do franqueado.</>,
           <>O <strong>Orçamento</strong> também aceita franqueado e crédito. Ao faturar, a venda já nasce com os dois.</>,
@@ -705,221 +602,12 @@ export function ParteDeFranqueados() {
         <Chamada tipo="saiba">
           <p>
             O pagamento ao franqueado não vira despesa da loja. No{" "}
-            <Link className="underline" href={`${B}/resultado`}>Resultado</Link> e em{" "}
-            <Link className="underline" href={`${B}/relatorios`}>Relatórios</Link>, o crédito aparece como repasse, separado, com o
+            <Link className="underline" href={`${B}/estatisticas#resultado`}>Resultado</Link> e nos relatórios de{" "}
+            <Link className="underline" href={`${B}/estatisticas#vendas`}>Vendas</Link>, o crédito aparece como repasse, separado, com o
             que entrou nas vendas e o que foi pago.
           </p>
         </Chamada>
       </Tarefa>
-    </div>
-  );
-}
-
-export function ParteDeFinanceiroDasLojas() {
-  return (
-    <div className="space-y-2">
-      <p>
-        O <strong>Financeiro</strong> é uma função da Equipe para quem cuida do dinheiro de todas as lojas, sem vender no
-        balcão e sem mexer na Equipe. Ele não fica preso a uma loja e vê só o Meu Empório: a fazenda é do Dono. O Dono e o
-        Gerente geral também abrem a mesma casa.
-      </p>
-
-      <Subtitulo>A casa do Financeiro, em quatro abas</Subtitulo>
-      <Tarefa
-        paraQueServe="Saber onde está o dinheiro das lojas hoje, o que pagar e o que receber, sem abrir loja por loja."
-        passos={[
-          <>Abra <strong>Meu Empório</strong>, <strong>Dinheiro</strong> e <strong>Hoje</strong>. Quem tem só essa função já cai aqui ao entrar.</>,
-          <>Em <strong>Hoje</strong>, veja a posição de caixa (cada gaveta, a gerência de cada loja e cada conta bancária), o que vence hoje a pagar e a receber, e o fiado vencido.</>,
-          <>Em <strong>A pagar</strong>, marque as contas e clique em <strong>Pagar selecionadas</strong>. Veja a seção abaixo.</>,
-          <>Em <strong>A receber</strong>, veja o fiado por cliente, os cheques em carteira e os cartões por data de recebimento. Quem gere a loja ou cuida do dinheiro marca parcelas de cartão ali mesmo e clica em <strong>Antecipar</strong> para registrar o que a adquirente pagou antes do prazo, e em <strong>Desfazer</strong> para voltar atrás. O custo da antecipação aparece no Resultado, na linha <strong>Antecipação de recebíveis</strong>.</>,
-          <>Em <strong>Posição de caixa</strong>, clique em <strong>Ver extrato</strong> numa gaveta, na gerência ou numa conta bancária para ver as entradas e saídas do período, com o saldo de abertura e o de fechamento.</>,
-          <>Para olhar uma loja só, use o filtro de loja no alto. Ele acompanha você de uma aba para outra.</>,
-          <>Em <strong>Configurações</strong>, na seção <strong>Fiado</strong>, defina o prazo, os dias de atraso que bloqueiam o cliente, o limite padrão e a mensagem de cobrança. Na aba <strong>Cobrança</strong>, cobre quem está atrasado pelo WhatsApp.</>,
-        ]}
-        problemas={[
-          {
-            quando: "O extrato recusa o período",
-            fazer: "O extrato vai até 92 dias. Escolha datas mais próximas.",
-          },
-          {
-            quando: "O cheque aparece com o selo A completar",
-            fazer: "Ele foi registrado na venda sem número, banco ou bom para. Clique em Completar e preencha o que tiver. Enquanto falta algum dado, o cheque não se deposita.",
-          },
-        ]}
-      >
-        <Figura id="financeiro-hoje" />
-        <Figura id="financeiro-pagar" />
-      </Tarefa>
-
-      <Subtitulo>Pagar a conta de uma compra</Subtitulo>
-      <Tarefa
-        paraQueServe="Pagar o fornecedor de uma compra a prazo e tirar o dinheiro do lugar certo."
-        passos={[
-          <>Em <strong>A pagar</strong>, a compra aparece como uma conta com o nome do fornecedor e a loja. Marque a conta.</>,
-          <>Clique em <strong>Pagar selecionadas</strong>.</>,
-          <>Em <strong>De onde sai o dinheiro</strong>, escolha a conta bancária. O Gestor da loja escolhe também a gaveta; o Financeiro não, porque a gaveta é da loja.</>,
-          <>Confira a data e clique no botão com o total. O saldo da conta cai e a saída entra no extrato como <strong>Conta paga</strong>.</>,
-          <>Para dar mais prazo, clique em <strong>Adiar</strong> na conta e escolha a nova data. Para desistir da conta, clique em <strong>Cancelar</strong> e diga o motivo; a compra em si continua valendo.</>,
-        ]}
-        problemas={[
-          {
-            quando: "“Não é possível cancelar: a conta já tem pagamento.”",
-            fazer: "Conta com pagamento não se cancela. Desfaça o pagamento antes, se foi engano.",
-          },
-          {
-            quando: "O Financeiro do Tibé (da fazenda) não mostra essa conta",
-            fazer: "É de propósito. As contas do Empório se pagam só aqui, porque aqui o pagamento tira dinheiro de uma gaveta ou conta. O Tibé recusa pagar uma conta do Empório.",
-          },
-        ]}
-      />
-
-      <Subtitulo>Receber fiado</Subtitulo>
-      <Tarefa
-        paraQueServe="Dar baixa no fiado de um cliente que pagou, direto da casa do Financeiro."
-        passos={[
-          <>Em <strong>A receber</strong>, na linha do cliente, clique em <strong>Receber</strong>.</>,
-          <>Digite o valor (pode ser parcial) e escolha a loja que recebe. A forma de pagamento já vem em <strong>Pix</strong>.</>,
-          <>Clique em receber. A entrada aparece no extrato da conta do Pix escolhida (a da loja já vem marcada) como <strong>Fiado recebido</strong>.</>,
-        ]}
-        problemas={[
-          {
-            quando: "“Receber em dinheiro” não aparece, ou é recusado",
-            fazer: "O Financeiro recebe fiado só por Pix. Dinheiro é na gaveta da loja, com o Vendedor ou o Caixa e o turno aberto.",
-          },
-        ]}
-      />
-
-      <Subtitulo>Aprovar um pagamento</Subtitulo>
-      <Tarefa
-        paraQueServe="Deixar o Dono ou o Gerente geral decidir os pagamentos grandes, antes de o dinheiro sair."
-        passos={[
-          <>O Dono ou o Gerente geral define o <strong>Teto sem aprovação (R$)</strong> em <strong>Configurações</strong>, na seção <strong>Alçada de pagamento</strong>. Sem teto, todo pagamento sai direto.</>,
-          <>Quem não é Dono nem Gerente geral e paga acima do teto não paga: o aviso diz que o pagamento <strong>ficou esperando aprovação</strong>, e as contas continuam em A pagar.</>,
-          <>O Dono ou o Gerente geral abre <strong>Dinheiro</strong> e <strong>Aprovações</strong> (o cartão <strong>Esperando aprovação</strong> em Hoje leva para lá). Cada pedido mostra as contas, quem pediu e de onde sai o dinheiro.</>,
-          <>Clique em <strong>Aprovar</strong> e confirme em <strong>Aprovar e pagar</strong>: o pagamento sai naquele momento, com o saldo conferido de novo. Ou clique em <strong>Recusar</strong> e escreva o <strong>Motivo</strong>.</>,
-          <>Em <strong>Decididos</strong> ficam os pedidos aprovados e recusados, com quem decidiu e o motivo.</>,
-        ]}
-        problemas={[
-          {
-            quando: "“Aprovar” falha com saldo insuficiente",
-            fazer: "A falha fica escrita no pedido, que continua esperando. Ponha dinheiro na conta ou na gaveta e aprove de novo, ou recuse.",
-          },
-          {
-            quando: "O Financeiro não vê os botões Aprovar e Recusar",
-            fazer: "É de propósito. Quem pede não decide: só o Dono e o Gerente geral aprovam ou recusam.",
-          },
-        ]}
-      >
-        <Figura id="financeiro-aprovacoes" />
-      </Tarefa>
-
-      <Subtitulo id="conferir-com-o-banco">Conferir o extrato com o banco</Subtitulo>
-      <Tarefa
-        paraQueServe="Marcar, linha por linha, o que já foi conferido com o extrato do banco, e ver o que ainda falta."
-        passos={[
-          <>Em <strong>Posição de caixa</strong>, clique em <strong>Ver extrato</strong> numa conta bancária. As contas têm a coluna <strong>Conferência</strong>.</>,
-          <>Confira a linha com o extrato do banco e clique em <strong>Conferir com o banco</strong>. A linha passa a mostrar <strong>Conferido em</strong> com o dia.</>,
-          <>Se conferiu por engano, clique em <strong>Desfazer a conferência</strong>.</>,
-          <>O total <strong>A conferir no período</strong> mostra quanto e em quantas linhas ainda falta conferir. Marque <strong>Só a conferir</strong> para esconder as conferidas.</>,
-          <>Em <strong>Hoje</strong>, o cartão <strong>A conferir com o banco</strong> avisa quando há linha da conta sem conferir nos últimos 30 dias e leva direto para elas.</>,
-        ]}
-        problemas={[
-          {
-            quando: "Gaveta e gerência não têm a coluna Conferência",
-            fazer: "É de propósito. A conferência é feita com o extrato do banco, e gaveta não tem extrato de banco.",
-          },
-        ]}
-      >
-        <Figura id="financeiro-extrato" />
-      </Tarefa>
-
-      <Subtitulo>Conferir o cartão</Subtitulo>
-      <Tarefa
-        paraQueServe="Dizer quanto do cartão caiu de fato na conta, para o saldo, o custo do cartão e o resultado baterem com o extrato da adquirente."
-        passos={[
-          <>Em <strong>A receber</strong>, cada parcela de cartão tem um estado: <strong>Prevista</strong> (ainda não caiu), <strong>A conferir</strong> (caiu ou cai hoje), <strong>Atrasada</strong> (passou um dia útil depois da data e ninguém conferiu) e <strong>Conferida</strong>. O saldo já conta a parcela na data; a conferência só corrige a diferença.</>,
-          <>Para conferir tudo o que caiu num dia, clique em <strong>Conferir o dia</strong> na data, adquirente e conta. O painel soma o previsto e já vem preenchido com ele: digite o total que o extrato mostra e clique em <strong>Conferir</strong>. Com a tela filtrada por loja, confere só as parcelas daquela loja.</>,
-          <>Para conferir uma parcela só, clique em <strong>Conferir</strong> na linha e digite o valor que caiu.</>,
-          <>Se a diferença passar de 10% do previsto, o painel pergunta antes: confira o valor e clique em <strong>Confirmar e conferir</strong>.</>,
-          <>A diferença vira a linha <strong>Ajuste da conferência do cartão</strong> no extrato da conta, logo abaixo do cartão e já conferida com o banco. O saldo da conta muda por ela, e no Resultado ela entra em <strong>Ajustes da conferência</strong>, no custo do cartão.</>,
-          <>Conferir com o banco a linha de cartão no extrato também confere a parcela, pelo valor previsto.</>,
-          <>Se conferiu errado, clique em <strong>Desfazer</strong> na parcela e diga o motivo: o ajuste some e a parcela volta ao estado de antes. A conferida fica à vista em A receber por 7 dias depois da data.</>,
-          <>Em <strong>Hoje</strong>, o cartão <strong>Cartão a conferir</strong> mostra as parcelas a conferir e as atrasadas, com os links para elas.</>,
-        ]}
-        problemas={[
-          {
-            quando: "O Gestor da loja não vê o botão Conferir",
-            fazer: "É de propósito. Conferem o Dono, o Gerente geral e o Financeiro. O Gestor vê o estado das parcelas no Caixa.",
-          },
-          {
-            quando: "“Esta parcela foi conferida pela antecipação”, ao tentar desfazer",
-            fazer: "A parcela antecipada nasce conferida. Para voltar atrás, desfaça a antecipação em A receber.",
-          },
-          {
-            quando: "Parcelas antigas já aparecem como conferidas",
-            fazer: "Quando a conferência chegou, as parcelas com data de mais de 7 dias antes foram conferidas pelo valor previsto, sem ajuste. As dos últimos 7 dias ficaram para conferir.",
-          },
-        ]}
-      />
-
-      <Subtitulo>Ver o fluxo projetado</Subtitulo>
-      <Tarefa
-        paraQueServe="Saber, semana a semana, se o dinheiro vai dar para pagar o que vem pela frente."
-        passos={[
-          <>Abra <strong>Estatísticas</strong> e <strong>Projeção</strong>. Escolha <strong>30 dias</strong>, <strong>60 dias</strong> ou <strong>90 dias</strong>.</>,
-          <>No alto está o <strong>Saldo de hoje</strong>: a soma do dinheiro de todas as gavetas, gerências e contas bancárias.</>,
-          <>Acima da tabela, o gráfico traz uma linha com o saldo ao fim de cada semana. A semana em que o saldo fica abaixo de zero ganha um ponto vermelho e a frase diz quantas semanas ficam negativas: é o aviso de que o dinheiro aperta.</>,
-          <>Cada semana mostra o que deve entrar (fiado, parcela de cartão e cheque) e o que deve sair (contas a pagar e despesas fixas). A última coluna é o saldo ao fim da semana.</>,
-          <>A conta pendente que não tem data de vencimento não cabe em nenhuma semana. Ela aparece à parte, no quadro <strong>Sem vencimento</strong>, com a quantidade e o total. Ponha uma data nela para entrar nas semanas.</>,
-          <>Clique em <strong>Baixar planilha</strong> para abrir a projeção no Excel, ou em <strong>Imprimir ou salvar em PDF</strong> para ter a folha pronta.</>,
-          <>O fiado e a conta que já venceram entram na <strong>Semana 1</strong>, porque ainda precisam ser recebidos e pagos.</>,
-          <>Para ver uma loja só, escolha a loja no filtro. A conta bancária é da rede inteira e só aparece em <strong>Todas as lojas</strong>.</>,
-        ]}
-        problemas={[
-          {
-            quando: "A despesa fixa dos meses seguintes vem com a marca “estimativa”",
-            fazer: "É uma despesa com rateio automático que ainda não nasceu. O valor usa a divisão de hoje e pode mudar quando o mês chegar.",
-          },
-        ]}
-      >
-        <Figura id="financeiro-projecao" />
-      </Tarefa>
-
-      <Subtitulo>Relatórios do dinheiro</Subtitulo>
-      <Tarefa
-        paraQueServe="Ver quem deve há quanto tempo, o que vence a pagar e onde está o dinheiro."
-        passos={[
-          <>Abra <strong>Estatísticas</strong> e <strong>Relatórios</strong>. Se quiser, escolha a loja e o período pelos atalhos (<strong>Este mês</strong>, <strong>Mês passado</strong>) ou em <strong>Escolher</strong>.</>,
-          <><strong>A receber por idade</strong> mostra cada cliente com o que deve em dia e o que está vencido há 1 a 15 dias, 16 a 30 dias ou mais de 30.</>,
-          <><strong>A pagar por vencimento</strong> junta as contas por semana e por nome. O que já venceu fica na primeira semana, com a marca <strong>Vencido</strong>.</>,
-          <><strong>Posição de caixa por lugar</strong> mostra o saldo de hoje de cada gaveta, gerência e conta, e o que entrou e saiu no período.</>,
-          <>No <strong>A pagar por vencimento</strong>, as contas sem data de vencimento ficam no quadro <strong>Sem vencimento</strong>, fora das semanas.</>,
-          <>Cada relatório tem dois botões. <strong>Baixar planilha</strong> entrega um arquivo que o Excel abre sem ajuste (colunas separadas por ponto e vírgula, números com vírgula e datas no formato dia/mês/ano). <strong>Imprimir ou salvar em PDF</strong> abre uma folha A4 em outra aba, com o nome da loja e a data de emissão: clique em <strong>Imprimir</strong> e escolha a impressora ou “Salvar como PDF”. Os dois usam a loja e o período que estão na tela.</>,
-        ]}
-        problemas={[
-          {
-            quando: "Sem período, o a pagar e a posição mostram datas diferentes",
-            fazer: "É de propósito. O a pagar olha os próximos 30 dias, e a posição de caixa olha os últimos 30.",
-          },
-        ]}
-      >
-        <Figura id="financeiro-relatorios" />
-      </Tarefa>
-
-      <Chamada tipo="atencao">
-        <p>
-          As compras à vista lançadas antes de 07/11/2026 não tiraram dinheiro de lugar nenhum: o saldo das gavetas e das
-          contas ficou maior do que o real. A partir dessa data, toda compra à vista diz de onde saiu o dinheiro. A
-          diferença antiga não se corrige conta por conta: a primeira <strong>conferência de caixa</strong> (ou o{" "}
-          <strong>saldo inicial</strong> da conta bancária) absorve o que sobrou. Faça-a logo que puder.
-        </p>
-      </Chamada>
-      <Chamada tipo="saiba">
-        <p>
-          Quem lança a compra e quem paga podem ser pessoas diferentes. Veja <Link className="underline" href={`${B}/compras`}>Comprar e receber</Link>{" "}
-          para lançar, e <Link className="underline" href={`${B}/caixa`}>Caixa</Link> para as gavetas e as contas.
-        </p>
-      </Chamada>
     </div>
   );
 }

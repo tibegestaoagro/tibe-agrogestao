@@ -11,23 +11,20 @@ import {
 } from "./partes-tarefa-1";
 import {
   ParteDeCaixa,
-  ParteDeDespesas,
   ParteDeDevolver,
   ParteDeFiado,
   ParteDeHistorico,
-  ParteDeResultado,
   ParteDeVender,
 } from "./partes-tarefa-2";
 import {
   ParteDeClientes,
   ParteDeConfiguracoes,
   ParteDeEntrega,
-  ParteDeFinanceiroDasLojas,
   ParteDeFornecedores,
   ParteDeFranqueados,
   ParteDeOrcamento,
-  ParteDeRelatorios,
 } from "./partes-tarefa-3";
+import { ParteDeAPagar, ParteDeDinheiro, ParteDeEstatisticas } from "./partes-tarefa-4";
 import { ParteDeGlossario, ParteDePerguntas } from "./partes-consulta";
 
 /** O texto de cada parte, pelo `slug` de `indice.ts`. */
@@ -53,10 +50,9 @@ export const CONTEUDOS: Record<string, () => ReactNode> = {
   devolver: ParteDeDevolver,
   fiado: ParteDeFiado,
   caixa: ParteDeCaixa,
-  "financeiro-das-lojas": ParteDeFinanceiroDasLojas,
-  despesas: ParteDeDespesas,
-  resultado: ParteDeResultado,
-  relatorios: ParteDeRelatorios,
+  dinheiro: ParteDeDinheiro,
+  "a-pagar": ParteDeAPagar,
+  estatisticas: ParteDeEstatisticas,
   historico: ParteDeHistorico,
   glossario: ParteDeGlossario,
   perguntas: ParteDePerguntas,
