@@ -1293,12 +1293,28 @@ figura("financeiro-extrato", "dono", lambda: "/emporio/caixa?lugar=conta:" + id_
 
 # O bloco Fluxo projetado e o ultimo da aba Dinheiro: a janela recorta a partir do titulo dele.
 FLUXO = "M.S('Fluxo projetado')"
+
+
+def esperar_o_grafico_do_fluxo():
+    """O grafico nasce com altura zero e cresce depois: medir antes disso poe
+    as marcas 3 e 4 em cima do grafico e a foto sai cortada (28/11). Espera o
+    grafico ter altura e a tabela parar de descer."""
+    esperar(lambda: js("(() => { const s = document.querySelector('.recharts-surface'); return !!s && s.getBoundingClientRect().height > 50; })()"), 30)
+    topo = "(() => { const t = " + FLUXO.replace("M.", "window.__m.") + "; const th = t && t.querySelector('th'); return th ? Math.round(th.getBoundingClientRect().top + scrollY) : -1; })()"
+    anterior = None
+    for _ in range(20):
+        atual = js(topo)
+        if atual == anterior and atual != -1:
+            break
+        anterior = atual
+        time.sleep(0.5)
+    time.sleep(1)
 figura("financeiro-projecao", "dono", "/emporio/estatisticas?aba=dinheiro", [
     (1, "document.querySelector('nav[aria-label=\"Janela da projeção\"]')", "os botoes 30, 60 e 90 dias"),
     (2, "M.todos('p').find(p => M.norm(p.innerText).startsWith('saldo de hoje:'))", "o saldo de hoje"),
     (3, "Array.from(" + FLUXO + ".querySelectorAll('th')).find(th => M.norm(th.innerText).startsWith('a receber'))", "a coluna A receber"),
     (4, "Array.from(" + FLUXO + ".querySelectorAll('th')).find(th => M.norm(th.innerText).startsWith('saldo ao fim'))", "a coluna Saldo ao fim"),
-], rolar="M.H('Fluxo projetado')", hd=900, hc=1300)
+], rolar="M.H('Fluxo projetado')", antes=esperar_o_grafico_do_fluxo, hd=900, hc=1300)
 
 figura("financeiro-relatorios", "dono", "/emporio/estatisticas?aba=dinheiro", [
     (1, "document.querySelector('[role=\"group\"][aria-label=\"Período\"]')", "o filtro de periodo"),
@@ -1406,6 +1422,14 @@ def executar_modo(fig, modo, largura, altura, escala, sufixo):
         ro = achar(fig["rolar"])
         if ro:
             y0 = max(0, int(ro["y"]) - 40)
+        # Secao abaixo da janela de 3200 px (a aba Dinheiro no celular): o
+        # recorte cairia fora do que foi desenhado e a foto sairia em branco.
+        if y0 + janela > 3200:
+            viewport(largura, y0 + janela + 200, escala)
+            time.sleep(1)
+            ro = achar(fig["rolar"])
+            if ro:
+                y0 = max(0, int(ro["y"]) - 40)
         # O recorte nao passa do fim da pagina: abaixo dele a captura sai
         # em branco (era o vazio do celular de 'produto-preco-por-loja').
         fim_da_pagina = js("Math.max(...Array.from(document.body.children).filter(e => e.id !== '__marcas').map(e => e.getBoundingClientRect().bottom))") or (y0 + janela)

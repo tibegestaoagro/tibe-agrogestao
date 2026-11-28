@@ -309,6 +309,18 @@ check(
   faltaPng.length === 0,
   `faltam ${faltaPng.length}: ${faltaPng.slice(0, 8).join(", ")}${faltaPng.length > 8 ? ", ..." : ""} (esperado até a Task 6)`,
 );
+// Uma folha branca de celular tem uns 5 KB, e a menor foto de verdade passa de
+// 30 KB: em 28/11 a financeiro-projecao-celular saiu em branco e só o juiz viu.
+const PISO_DO_PNG = 15_000;
+const vazios = FIGURAS.flatMap((f) => [`${f.id}.png`, `${f.id}-celular.png`]).filter((arq) => {
+  const cheio = path.join(PASTA_IMAGENS, arq);
+  return existsSync(cheio) && statSync(cheio).size < PISO_DO_PNG;
+});
+check(
+  `nenhum PNG das figuras é uma folha quase vazia (menos de ${PISO_DO_PNG / 1000} KB)`,
+  vazios.length === 0,
+  `quase vazios: ${vazios.join(", ")}`,
+);
 const faltaGif = ANIMACOES.filter((a) => !existsSync(path.join(PASTA_IMAGENS, `${a.id}.gif`))).map((a) => `${a.id}.gif`);
 check(
   `o GIF existe para as ${ANIMACOES.length} animações`,
