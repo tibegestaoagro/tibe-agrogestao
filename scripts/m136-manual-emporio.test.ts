@@ -47,7 +47,7 @@ const PASTA_MANUAL = path.join(RAIZ, "src", "app", "(dashboard)", "manual");
 const PASTA_EMPORIO = path.join(RAIZ, "src", "app", "(dashboard)", "emporio");
 const PASTA_IMAGENS = path.join(RAIZ, "public", "manual", "emporio");
 
-const { PARTES_DO_EMPORIO, BASE_DO_EMPORIO } = Indice;
+const { PARTES_DO_EMPORIO } = Indice;
 const PARTES_ANTIGAS = (Indice as { PARTES_ANTIGAS?: Record<string, string> }).PARTES_ANTIGAS;
 
 const VIVAS = new Set(PARTES_DO_EMPORIO.map((p) => p.slug));
