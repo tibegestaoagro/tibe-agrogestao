@@ -71,7 +71,7 @@ Empório, das fases F0 a F5 até os três planos de 06/11, está no de 11).
   Banco local: produtos e fornecedores de fixture arquivados e o
   `fiado_default_limit` do seed zerado; sem isso, fixtures voltam às fotos.
 
-  **Na branch, sem merge:** `6fce6fdd`, o Histórico diz "Criou uma loja" (pedido do usuário). **Próximo:** levar `6fce6fdd` à main quando o usuário autorizar.
+  **Em produção desde 28/11** (merge autorizado, até `1c77089f`): o Histórico diz "Criou uma loja" (pedido do usuário). Nada da frente ficou sem merge.
 - Em produção até 24/11 (detalhe em `historico/2026-11.md`): lint zerado;
   decisões pendentes D1 a D7 (Q374 a Q386, `m129`); data da baixa (Q370 a
   Q373, `m127`); sobras sem a Agromax (`m128`); plano do GestãoClick A, B, C,
