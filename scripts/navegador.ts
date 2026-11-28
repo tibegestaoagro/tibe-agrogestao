@@ -31,8 +31,9 @@ exigirBancoLocal();
 
 const PORTA = 9333;
 const CDP = `http://127.0.0.1:${PORTA}`;
-// TIBE_BASE existe para quando a 3000 esta ocupada por um next dev de outro
-// clone (o desktop tem dois): o Next sobe na 3001 e o roteiro precisa seguir.
+// TIBE_BASE existe para quando a 3000 esta ocupada e o next dev sobe em outra
+// porta: o roteiro precisa seguir, e o next dev precisa do NEXTAUTH_URL da
+// mesma porta (ver exigirRedirecionamentoNaMesmaPorta).
 const BASE = process.env.TIBE_BASE ?? "http://localhost:3000";
 const PASTA = join(__dirname, "navegador");
 const PERFIL = join(process.env.LOCALAPPDATA ?? join(process.env.HOME ?? ".", ".cache"), "tibe-chrome-testes");
@@ -49,6 +50,27 @@ async function responde(url: string, ms: number): Promise<boolean> {
     return r.status < 500;
   } catch {
     return false;
+  }
+}
+
+/**
+ * O NextAuth troca a origem do pedido pela do `NEXTAUTH_URL` antes do proxy, e
+ * o `.env.local` diz a 3000. Com o next dev em outra porta, todo redirecionamento
+ * do proxy (login, trava do só da loja) ia para a 3000, onde não havia servidor:
+ * o `emporio-f6b` passou semanas vermelho por isso. A página sem sessão
+ * redireciona ao login com o `callbackUrl`, que leva a origem trocada (o host
+ * do próprio Location não: ele sai do `nextUrl`, que guarda o pedido real).
+ */
+async function exigirRedirecionamentoNaMesmaPorta(): Promise<void> {
+  const r = await fetch(`${BASE}/dashboard`, { redirect: "manual", signal: AbortSignal.timeout(60000) });
+  const destino = r.headers.get("location");
+  const volta = destino ? new URL(destino, BASE).searchParams.get("callbackUrl") : null;
+  if (!volta) return;
+  const origem = new URL(volta, BASE).origin;
+  if (origem !== new URL(BASE).origin) {
+    throw new Error(
+      `O app redireciona para ${origem}, e o roteiro roda em ${BASE}. Suba o next dev com NEXTAUTH_URL=${BASE} AUTH_URL=${BASE} na frente.`,
+    );
   }
 }
 
@@ -149,6 +171,7 @@ async function main() {
   const arquivo = join(PASTA, `${arg}.py`);
   if (!existsSync(arquivo)) throw new Error(`Roteiro ${arg} nao existe. Rode sem argumento para listar.`);
   if (!(await responde(`${BASE}/robots.txt`, 60000))) throw new Error(`O app nao responde em ${BASE}: suba o npm run dev.`);
+  await exigirRedirecionamentoNaMesmaPorta();
 
   const roteiro = readFileSync(arquivo, "utf8");
   const cab = lerCabecalho(roteiro);
