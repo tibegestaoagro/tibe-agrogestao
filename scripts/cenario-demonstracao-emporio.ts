@@ -799,7 +799,7 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
       // pela mesma action da Equipe que a tela usa. Já Caixa, nada muda. O mesmo
       // vale para o vínculo com as lojas: depois de um `--apagar` as lojas nascem
       // com id novo e a pessoa, que ficou, perde o vínculo (a Gestora sem loja
-      // recebia "Estabelecimento não encontrado" na primeira escrita).
+      // recebia "Loja não encontrada" na primeira escrita).
       const lojasDesejadas = m.lojas.map((c) => lojas[c]).sort();
       const lojasAtuais = (await db.userEstablishment.findMany({ where: { user_id: ja.id }, select: { establishment_id: true } })).map((x) => x.establishment_id).sort();
       if (ja.emporio_role !== m.funcao || lojasAtuais.join(",") !== lojasDesejadas.join(",")) {
