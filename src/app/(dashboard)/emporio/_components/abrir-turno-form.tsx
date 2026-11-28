@@ -128,7 +128,7 @@ export function AbrirTurnoForm({
         label="Reforço da gerência (R$)"
         id={err.idDe("reinforcement")}
         error={err.erros.reinforcement}
-        hint="Opcional. Sai de Com a gerência e entra no caixa."
+        hint="Opcional. Sai do saldo “Com a gerência” e entra no caixa."
       >
         {({ id, ...aria }) => (
           <MoneyInput

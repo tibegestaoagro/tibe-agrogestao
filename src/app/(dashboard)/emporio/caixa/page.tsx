@@ -651,7 +651,8 @@ export default async function CaixaPage({
                     </TableCell>
                     <TableCell>{onde}</TableCell>
                     <TableCell>
-                      {ORIGEM_CAIXA_ROTULO[m.origin] ?? m.origin}
+                      {/* Bloco porque a célula força inline-flex no link filho direto: sem ele, o link cola no rótulo. */}
+                      <span className="block">{ORIGEM_CAIXA_ROTULO[m.origin] ?? m.origin}</span>
                       {m.sale_id && m.sale_number != null ? (
                         <VendaLink id={m.sale_id} numero={m.sale_number} className="block text-xs" />
                       ) : m.sale_id ? (

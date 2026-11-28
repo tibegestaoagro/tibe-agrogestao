@@ -96,8 +96,8 @@ function Grande({ valor, rotulo, classe = "text-texto" }: { valor: string; rotul
 function Linha({ rotulo, valor, classe = "text-texto" }: { rotulo: string; valor: string; classe?: string }) {
   return (
     <div className="flex items-baseline justify-between gap-3 border-t border-borda pt-2 text-sm">
-      <span className="text-texto-secundario">{rotulo}</span>
-      <span className={`min-w-0 break-words text-right font-medium ${classe}`}>{valor}</span>
+      <span className="min-w-0 text-texto-secundario">{rotulo}</span>
+      <span className={`max-w-[60%] shrink-0 break-words text-right font-medium ${classe}`}>{valor}</span>
     </div>
   );
 }
