@@ -1,4 +1,4 @@
-# Os prints do manual do Meu Empório (Q138): 44 figuras, em computador (1280 px)
+# Os prints do manual do Meu Empório (Q138): 59 figuras, em computador (1280 px)
 # e em celular (390 px, escala 2), com as marcações numeradas desenhadas sobre a
 # própria tela. Sai em public/manual/emporio/<id>.png e <id>-celular.png.
 # docs/specs/module-39-meu-emporio.md, "Cenário de demonstração e manual (Q137, Q138)".
@@ -133,27 +133,28 @@ def manter_so_o_primeiro_bloco():
     })()""")
 
 
-def cartoes_sem_fixtures():
-    """Os cartoes Estabelecimentos e Produtos do inicio contam as lojas e os
-    produtos de roteiros de teste antigos; o print mostra a contagem do cenario."""
-    import re
-    fx = r"F\d|Orc Loja|Turno Loja|Vend Loja"
-    lojas = [l for l in api("GET", "/api/v1/emporio/establishments")["body"]["data"] if not re.match(fx, l["name"])]
-    produtos = [p for p in api("GET", "/api/v1/emporio/products")["body"]["data"] if not re.match(fx, p["name"])]
-    compras = [c for c in api("GET", "/api/v1/emporio/purchases")["body"]["data"] if c.get("status") == "pendente" and not re.match(fx, c.get("establishment_name") or "")]
-    repor = [x for x in api("GET", "/api/v1/emporio/stock/restock")["body"]["data"] if not re.match(fx, x["establishment_name"]) and not re.match(fx, x["product_name"])]
-    for href, n, um, varios in (
-        ("/emporio/estabelecimentos", len(lojas), "loja", "lojas"),
-        ("/emporio/produtos", len(produtos), "produto", "produtos"),
-        ("/emporio/compras", len(compras), "compra a receber", "compras a receber"),
-        ("/emporio/estoque", len(repor), "produto precisa repor", "produtos precisam repor"),
-    ):
-        js("(() => { const p = document.querySelector('main a[href=\"" + href + "\"] p'); if (p) p.textContent = " + json.dumps(str(n) + " " + (um if n == 1 else varios)) + "; })()")
+def esconder_primeiros_passos():
+    """O Inicio completo (figura 'inicio') nao leva o cartao Primeiros passos,
+    que tem figura propria e cresce com o numero de lojas pendentes."""
+    js("(() => { const M = window.__m; const s = M.S('Primeiros passos'); if (s) s.style.display = 'none'; })()")
 
 
-def ajustar_inicio():
+def recortar_primeiros_passos():
+    """So o cartao Primeiros passos, da primeira loja: o recorte comeca 40 px acima
+    dele, e a borda dos Atalhos aparecia ali."""
     manter_so_o_primeiro_bloco()
-    cartoes_sem_fixtures()
+    js("(() => { const M = window.__m; const s = M.S('Atalhos'); if (s) s.style.display = 'none'; })()")
+
+
+def esperar_a_loja_do_topo():
+    """Um endereco com ?loja= vira a loja do topo: o seletor grava o cookie, faz
+    router.replace (a URL perde o loja) e router.refresh (a pagina volta com os
+    dados da loja). O ir() nao espera isso, e o refresh desfaz o que a pagina
+    ja tinha recebido (ocultar_fixtures, limitar_linhas). Local deste roteiro de
+    proposito: o _lib.py serve a todos os roteiros."""
+    perdeu = esperar(lambda: "loja=" not in (js("location.search") or ""), 60)
+    time.sleep(3)
+    return bool(perdeu)
 
 
 def tabelas_sem_rolagem():
@@ -381,6 +382,24 @@ def preparar():
             "payment": {"kind": "a_prazo", "due_date": "2026-11-15"},
         })
         print("   compra pendente: " + str(r["status"]) + " " + json.dumps(r["body"], ensure_ascii=False)[:300])
+    # Fiado vencido: as figuras da Cobranca (A receber, aba Vencidos), do Fiado e da ficha do
+    # cliente precisam dele, e outros roteiros da mesma conta (receber, acordo) o quitam. So grava
+    # se o cliente nao esta na cobranca; chave fixa, entao rodar de novo nao duplica.
+    cobranca = api("GET", "/api/v1/emporio/finance/collections")
+    em_atraso = [c.get("customer_name") for c in ((cobranca["body"] or {}).get("data") or {}).get("customers", [])]
+    print("   fiado vencido hoje: " + str(em_atraso))
+    if "Chácara Três Irmãos" not in em_atraso:
+        milho = api("GET", "/api/v1/emporio/products/" + id_do_produto("Milho em Grão"))["body"]["data"]
+        apr = next(a for a in milho["presentations"] if a["name"] == "Saca 50 kg" and not a.get("archived_at"))
+        # 4 sacas a R$ 84,90 (o preco do cadastro): a soma dos pagamentos tem de fechar o total.
+        r = api("POST", "/api/v1/emporio/sales", {
+            "operation_key": "manual-emporio-fiado-vencido",
+            "establishment_id": centro["id"],
+            "customer_id": id_do_cliente("Chácara Três Irmãos"),
+            "items": [{"emporio_product_id": milho["id"], "presentation_id": apr["id"], "quantity": 4}],
+            "payments": [{"kind": "fiado", "amount": 339.6, "due_date": "2026-10-19"}],
+        })
+        print("   fiado vencido da Chacara: " + str(r["status"]) + " " + json.dumps(r["body"], ensure_ascii=False)[:300])
     # Dois produtos abaixo do minimo na Loja Centro, para a lista Precisa repor.
     # So grava se ainda nao esta assim: cada gravacao vira uma linha no Historico.
     repor = api("GET", "/api/v1/emporio/stock/restock?establishment_id=" + centro["id"])["body"]["data"]
@@ -500,11 +519,35 @@ def figura(id, papel, pagina, marcas, estado=None, rolar=None, hd=800, hc=900, l
     F[id] = dict(id=id, papel=papel, pagina=pagina, marcas=marcas, estado=estado, rolar=rolar, hd=hd, hc=hc, limite=limite, antes=antes, depois=depois, lc=lc)
 
 
+SELETOR_DA_LOJA = "Array.from(document.querySelectorAll('button[aria-haspopup=menu]')).find(b => /^Loja:/.test(b.innerText.trim()))"
+LISTA_DO_SELETOR = "document.querySelector('button[aria-haspopup=menu][aria-expanded=true]').nextElementSibling"
+
+
+def estado_loja_do_topo():
+    # O seletor mora no cabecalho, fora do <main>: o clique e direto, sem o ajudante.
+    ok = esperar(lambda: js("(() => { const b = " + SELETOR_DA_LOJA + "; if (!b) return false; b.click(); return true; })()"), 60)
+    confere("loja-do-topo: abriu o seletor Loja", bool(ok))
+    esperar(lambda: js("!!document.querySelector('button[aria-haspopup=menu][aria-expanded=true]')"), 10)
+    time.sleep(0.6)
+
+
+figura("loja-do-topo", "dono", "/emporio", [
+    (1, SELETOR_DA_LOJA, "o seletor Loja, no topo"),
+    (2, "Array.from(" + LISTA_DO_SELETOR + ".querySelectorAll('button')).find(b => b.innerText.trim().startsWith('Todas as lojas'))", "a opcao Todas as lojas"),
+    (3, "Array.from(" + LISTA_DO_SELETOR + ".querySelectorAll('button')).find(b => b.innerText.trim().startsWith('Loja Centro'))", "uma loja da lista"),
+], estado=estado_loja_do_topo, hd=600, hc=720)
+
+figura("inicio", "dono", "/emporio", [
+    (1, "M.S('Precisa de você')", "a lista Precisa de você"),
+    (2, "document.querySelector('section[aria-label=\"Números do dia\"]')", "os numeros do dia"),
+    (3, "M.S('Atalhos')", "os Atalhos"),
+], antes=esconder_primeiros_passos, hd=800, hc=1500)
+
 figura("inicio-primeiros-passos", "dono", "/emporio", [
     (1, "M.S('Primeiros passos')", "o cartao Primeiros passos"),
     (2, "M.X('Pendente')", "a marca Pendente de um item"),
-    (3, "Array.from(M.T('Lojas').closest('a').parentElement.children).slice(0, 4)", "os cartoes das areas (Lojas, Produtos, Estoque e outros)"),
-], antes=ajustar_inicio, hd=1050, hc=1500)
+    (3, "M.X('Essenciais').parentElement", "a lista Essenciais"),
+], antes=recortar_primeiros_passos, rolar="M.S('Primeiros passos')", hd=800, hc=1100)
 
 figura("equipe-lista", "dono", "/emporio/equipe", [
     (1, "M.B('Cadastrar pessoa')", "o botao Cadastrar pessoa"),
@@ -550,7 +593,7 @@ figura("equipe-caixa", "dono", "/emporio/equipe", [
 ], estado=estado_equipe_caixa, hd=900, hc=1200)
 
 figura("estabelecimentos-lista", "dono", "/emporio/estabelecimentos", [
-    (1, "M.B('Novo estabelecimento')", "o botao Novo estabelecimento"),
+    (1, "M.B('Nova loja')", "o botao Nova loja"),
     (2, "M.TR('Loja Centro').querySelector('td')", "o nome de uma loja"),
     (3, "Array.from(M.TR('Loja Centro').querySelectorAll('button')).find(b => b.innerText.trim() === 'Quem trabalha aqui')", "o botao Quem trabalha aqui"),
 ], hd=700, hc=900)
@@ -638,9 +681,9 @@ figura("compra-receber", "vendedor_centro", "/emporio/compras", [
 ], hd=600, hc=800)
 
 figura("financeiro-hoje", "dono", lambda: "/emporio/financeiro?loja=" + id_da_loja("Loja Centro"), [
-    (1, "document.querySelector('nav[aria-label=\"Telas do Financeiro\"]')", "as quatro abas"),
-    (2, "M.S('Posição de caixa')", "o cartao Posição de caixa"),
-    (3, "M.S('Vence hoje a pagar')", "o cartao Vence hoje a pagar"),
+    (1, "M.S('Posição de caixa')", "o cartao Posição de caixa"),
+    (2, "M.S('Vence hoje a pagar')", "o cartao Vence hoje a pagar"),
+    (3, "M.S('Vence hoje a receber')", "o cartao Vence hoje a receber"),
 ], hd=1200, hc=2100)
 
 figura("financeiro-pagar", "dono", "/emporio/financeiro/pagar", [
@@ -672,7 +715,7 @@ figura("estoque-por-loja", "gestor", lambda: "/emporio/produtos/" + id_do_produt
 ], rolar=BLOCO_LOJA, hd=340, hc=520)
 
 figura("estoque-precisa-repor", "dono", lambda: "/emporio/estoque?loja=" + id_da_loja("Loja Centro"), [
-    (1, "M.S('Precisa repor')", "a secao Precisa repor"),
+    (1, "M.S('Precisa repor')", "a lista Precisa repor"),
     (2, "M.TH('Sugestão')", "a coluna Sugestão"),
     (3, "M.B('Encaminhar à Lista')", "o botao Encaminhar à Lista"),
 ], limite=5, hd=700, hc=900)
@@ -773,7 +816,24 @@ figura("balcao-pagamento", "vendedor_centro", "/emporio/vender", [
     (2, "M.todos('button').filter(b => /^\\+ /.test(b.innerText.trim()))", "os botoes de forma de pagamento"),
     (3, "[M.todos('[aria-label^=\"Valor em\"]'), M.C('Falta') || M.C('Troco') || M.C('Pagamento fechado')]", "o valor em cada forma e a linha Falta, Troco ou Pagamento fechado"),
     (4, "M.B('Fechar a venda')", "o botao Fechar a venda"),
-], estado=estado_pagamento, hd=2000, hc=2350)
+], estado=estado_pagamento, hd=1250, hc=2350)
+
+
+def estado_mais_opcoes():
+    adicionar_ao_balcao("Milho", "Milho em Grão", "2")
+    escolher_aria("Apresentação do item 1", "Saca 50 kg")
+    confere("balcao-mais-opcoes: abriu Mais opções", abrir_mais_opcoes() is True)
+    time.sleep(0.8)
+
+
+figura("balcao-mais-opcoes", "vendedor_centro", "/emporio/vender", [
+    (1, "M.todos('summary').find(s => M.norm(s.innerText).startsWith('mais opções'))", "o titulo Mais opcoes"),
+    (2, "M.L('Desconto no total (R$, opcional)')", "o campo Desconto no total (R$, opcional)"),
+    (3, "M.L('Frete cobrado do cliente (opcional)')", "o campo Frete cobrado do cliente (opcional)"),
+    (4, "M.L('Entrega')", "o campo Entrega, com a caixa Pedido para entrega"),
+    (5, "M.L('Franqueado (opcional)')", "o campo Franqueado (opcional)"),
+    (6, "M.L('Orçamento nº')", "o campo Orçamento nº, com o botao Carregar"),
+], estado=estado_mais_opcoes, hd=1600, hc=2200)
 
 
 def estado_balcao_caixa():
@@ -783,15 +843,27 @@ def estado_balcao_caixa():
 
 figura("balcao-cliente-vendedor", "caixa", "/emporio/vender", [
     (1, "M.L('Cliente')", "o campo Cliente"),
-    (2, "M.B('Cadastrar novo cliente')", "o botao Cadastrar novo cliente"),
-    (3, "M.L('Vendedor')", "o campo Vendedor"),
+    (2, "M.A('Trocar cliente')", "o botao Trocar"),
+    (3, "M.L('Vendedor')", "os botoes de vendedor"),
     (4, "M.B('Fechar a venda')", "o botao Fechar a venda"),
-], estado=estado_balcao_caixa, hd=1650, hc=1900)
+], estado=estado_balcao_caixa, hd=1000, hc=1500)
+
+
+def abrir_janela_do_cliente():
+    """Abre a janela de busca do cliente. O cliente ja comeca como Consumidor
+    final, e o botao e o Trocar (aria-label 'Trocar cliente'); sem cliente, e o
+    Escolher cliente. Antes da hidratacao o clique nao abre nada: repete."""
+    clique = "(() => { const b = Array.from((document.querySelector('main') || document).querySelectorAll('button')).find(x => x.getAttribute('aria-label') === 'Trocar cliente' || x.innerText.trim() === 'Escolher cliente'); if (!b) return false; b.click(); return true; })()"
+    fim_em = time.time() + 60
+    while time.time() < fim_em:
+        js(clique)
+        if esperar(lambda: js("!!document.querySelector('[data-escolha=cliente]')"), 5):
+            return True
+    return False
 
 
 def estado_escolher_cliente():
-    clicar("Escolher cliente")
-    esperar(lambda: js("!!document.querySelector('[data-escolha=cliente]')"), 30)
+    confere("balcao-escolher-cliente: abriu a janela pelo Trocar", abrir_janela_do_cliente())
     preencher_aria("Buscar cliente", "maria")
     # O Buscando... some e a lista do termo digitado aparece.
     esperar(lambda: js("document.querySelectorAll('[data-escolha=cliente] [data-opcao]:not([data-fixo])').length > 0"), 30)
@@ -813,6 +885,8 @@ def estado_orcamento(cliente="Haras Santa Clara"):
     adicionar_ao_balcao("Ferradura", "Ferradura nº 4", "10")
     escolher_cliente(cliente)
     preencher("Observação", "Entrega na fazenda, na sexta de manhã.")
+    # O desconto no total, o frete e a entrega moram em "Mais opções", recolhido.
+    confere("orcamento: abriu Mais opções", abrir_mais_opcoes() is True)
     time.sleep(0.6)
 
 
@@ -820,10 +894,11 @@ figura("orcamento-balcao", "vendedor_centro", "/emporio/vender", [
     (1, "M.B('Orçamento')", "o botao Orcamento, no alto da tela"),
     (2, "M.L('Cliente')", "o campo Cliente"),
     (3, "M.L('Observação')", "o campo Observacao"),
-    (4, "[M.todos('[aria-label^=\"Desconto do item\"]'), M.L('Desconto no total (R$, opcional)')]", "os campos Desconto (%) de cada item e Desconto no total (R$)"),
-    (5, "M.todos('p').find(p => M.norm(p.innerText) === 'total do orçamento').parentElement", "o Total do orcamento, no rodape"),
-    (6, "[M.B('Faturar'), M.B('Salvar orçamento')]", "os botoes Faturar e Salvar orcamento"),
-], estado=estado_orcamento, hd=1750, hc=1900)
+    (4, "M.A('Desconto do item 1 (%)')", "o campo Desconto (%) de um item"),
+    (5, "M.L('Desconto no total (R$, opcional)')", "o campo Desconto no total (R$), dentro de Mais opcoes"),
+    (6, "M.todos('p').find(p => M.norm(p.innerText) === 'total do orçamento').parentElement", "o Total do orcamento"),
+    (7, "[M.B('Faturar'), M.B('Salvar orçamento')]", "os botoes Faturar e Salvar orcamento"),
+], estado=estado_orcamento, hd=1450, hc=1900)
 
 
 def estado_orcamento_salvo():
@@ -841,6 +916,8 @@ def estado_orcamento_salvo():
     clicar("Salvar orçamento")
     esperar(lambda: tem_na_tela("salvo, válido até"), 60)
     time.sleep(1)
+    # O balcao limpo embaixo do quadro verde nao e o assunto da figura (e a barra do total grudava nele).
+    js("(() => { const f = document.querySelector('main form'); if (f) f.style.display = 'none'; })()")
 
 
 figura("orcamento-salvo", "vendedor_centro", "/emporio/vender", [
@@ -849,7 +926,7 @@ figura("orcamento-salvo", "vendedor_centro", "/emporio/vender", [
     (3, "[M.B('Imprimir A4'), M.B('Imprimir cupom')]", "Imprimir A4 e Imprimir cupom"),
     (4, "M.B('Faturar agora')", "o botao Faturar agora"),
     (5, "M.B('Novo atendimento')", "o botao Novo atendimento"),
-], estado=estado_orcamento_salvo, hd=700, hc=900)
+], estado=estado_orcamento_salvo, hd=560, hc=900)
 
 figura("orcamentos-lista", "gestor", "/emporio/orcamentos", [
     (1, "M.A('Filtrar por situação')", "o filtro de situacao"),
@@ -860,6 +937,9 @@ figura("orcamentos-lista", "gestor", "/emporio/orcamentos", [
 
 
 def estado_orcamento_faturar():
+    # O campo do numero fica em "Mais opções", recolhido: sem abrir, o rotulo nao e achado.
+    confere("orcamento-faturar: abriu Mais opções", abrir_mais_opcoes() is True)
+    time.sleep(0.6)
     preencher("Orçamento nº", str(NUMERO_ORCAMENTO_FATURAR))
     clicar("Carregar")
     esperar(lambda: tem_na_tela("Faturando o orçamento nº"), 60)
@@ -872,11 +952,14 @@ figura("orcamento-faturar", "caixa", "/emporio/vender", [
     (2, "Array.from(" + FAIXA + ".querySelectorAll('p.rounded-md, ul.rounded-md'))", "os avisos da faixa"),
     (3, "M.L('Vendedor')", "o campo Vendedor, com O vendedor do orcamento."),
     (4, "M.B('Tirar orçamento')", "o botao Tirar orcamento"),
-], estado=estado_orcamento_faturar, hd=1850, hc=2100)
+], estado=estado_orcamento_faturar, hd=1750, hc=2100)
 
 def estado_balcao_entrega():
     adicionar_ao_balcao("Arame", "Arame Liso Galvanizado 1000 m", "2")
     escolher_cliente("Fazenda Pedra Branca")
+    # A entrega mora em "Mais opções", recolhido.
+    confere("balcao-entrega: abriu Mais opções", abrir_mais_opcoes() is True)
+    time.sleep(0.6)
     confere("balcao-entrega: marcou Pedido para entrega", marcar("Pedido para entrega") is True)
     # As opcoes do cadastro vem de uma leitura: espera o grupo aparecer.
     confere("balcao-entrega: o grupo Endereco de entrega apareceu", bool(esperar(lambda: M_ACHOU("M.L('Endereço de entrega')"), 30)))
@@ -893,7 +976,7 @@ figura("balcao-entrega", "vendedor_centro", "/emporio/vender", [
     (2, "M.CK('Pedido para entrega')", "a caixa Pedido para entrega"),
     (3, "M.L('Endereço de entrega')", "as escolhas do Endereço de entrega"),
     (4, "M.B('Fechar a venda')", "o botao Fechar a venda"),
-], estado=estado_balcao_entrega, hd=1500, hc=2100)
+], estado=estado_balcao_entrega, hd=1650, hc=2100)
 
 
 def id_da_venda_para_entrega():
@@ -931,7 +1014,8 @@ figura("venda-impressa", "vendedor_centro", lambda: "/emporio/imprimir/venda/" +
 figura("fiado-lista", "vendedor_centro", "/emporio/fiado", [
     (1, "M.LIN('Chácara Três Irmãos')", "a linha de um cliente"),
     # A marca Vencido depende do dia: a coluna Vencimento esta sempre la.
-    (2, "M.TH('Vencimento')", "a coluna Vencimento"),
+    # Abaixo do breakpoint md a coluna se chama "Vence": o prefixo serve nos dois tamanhos.
+    (2, "M.TH('Vence')", "a coluna Vencimento (Vence, no celular)"),
     (3, "M.B('Receber')", "o botao Receber"),
 ], hd=600, hc=800)
 
@@ -955,7 +1039,7 @@ figura("fiado-credito", "dono", lambda: "/emporio/clientes/" + id_do_cliente("Ch
     (3, "M.B('Liberar fiado hoje')", "o botao Liberar fiado hoje"),
 ], hd=900, hc=1400)
 
-figura("financeiro-cobranca", "dono", "/emporio/financeiro/cobranca", [
+figura("financeiro-cobranca", "dono", "/emporio/financeiro/receber?aba=vencidos", [
     (1, "M.T('Vencido:')", "o total vencido"),
     (2, "M.C('Chácara Três Irmãos').closest('li').firstElementChild", "o cliente, o valor e os dias"),
     (3, "M.Bs('Cobrar no WhatsApp')[0]", "o botao Cobrar no WhatsApp"),
@@ -1082,21 +1166,34 @@ figura("caixa-cartao-cheques", "gestor", "/emporio/caixa", [
     (3, "M.B('Transferir dinheiro')", "o botao Transferir dinheiro"),
 ], rolar="M.H('A receber do cartão')", limite=3, hd=1100, hc=1500)
 
-figura("despesas-fixas", "gestor", "/emporio/despesas", [
+figura("despesas-fixas", "gestor", "/emporio/financeiro/pagar?aba=fixas", [
     (1, "M.B('Nova despesa fixa')", "o botao Nova despesa fixa"),
     (2, "M.TH('Rateio')", "a coluna Rateio"),
-    (3, "M.S('Vendeu, Pagou')", "a secao Vendeu, Pagou"),
-    (4, "M.S('Contas a pagar')", "a secao Contas a pagar"),
-], limite=4, hd=1400, hc=1900)
+    (3, "document.querySelector('nav[aria-label=\"Abas do A pagar\"]')", "a barra de abas (Contas, Despesas fixas e Vendeu, Pagou)"),
+], limite=4, hd=1100, hc=1700)
 
-figura("resultado-loja", "gestor", "/emporio/resultado", [
-    (1, "M.todos('select, [role=combobox]').slice(0, 2)", "o seletor de loja e de mes"),
+
+def id_da_loja_centro():
+    return id_da_loja("Loja Centro")
+
+
+figura("estatisticas-visao-geral", "dono", "/emporio/estatisticas", [
+    (1, "document.querySelector('[role=group][aria-label=\"Período\"]')", "o filtro de periodo"),
+    (2, "document.querySelector('nav[aria-label=\"Abas das Estatísticas\"]')", "a barra de abas"),
+    (3, "M.C('no mesmo período')", "a frase que compara com o mes passado"),
+    (4, "M.S('Dinheiro')", "o cartao Dinheiro"),
+    (5, "M.S('Resultado')", "o cartao Resultado"),
+], hd=1000, hc=2300)
+
+# O dono, com a loja escolhida no topo (?loja=, que o seletor adota): o gestor do
+# cenario so ve a soma em "Todas", sem o detalhe do mes.
+figura("resultado-loja", "dono", lambda: "/emporio/estatisticas?aba=resultado&loja=" + id_da_loja_centro(), [
+    (1, "document.querySelector('[role=group][aria-label=\"Período\"]')", "o filtro de periodo"),
     (2, "[M.LN('Vendas'), M.LN('(-) Custo das mercadorias'), M.LN('= Margem')]", "as linhas de vendas, custo e margem"),
     (3, "M.LN('(-) Perdas e quebras')", "a linha de perdas e quebras"),
-    # O aviso vem, entre outros motivos, das contas fixas do mes ainda nao pagas.
-    # O cenario cria as despesas fixas com 12 meses de contas e paga so as do mes
-    # anterior: no mes corrente o aviso aparece por 11 meses depois de montado.
-    (4, "M.T('Este resultado é uma estimativa').parentElement", "o aviso Este resultado e uma estimativa"),
+    # O aviso "Este resultado e uma estimativa" so aparece quando falta custo ou ha conta fixa
+    # sem pagar, e isso muda com o estado da conta: o alvo estavel e a linha das despesas fixas.
+    (4, "M.LN('(-) Despesas fixas')", "a linha Despesas fixas"),
 ], hd=900, hc=1200)
 
 
@@ -1104,7 +1201,7 @@ def esconder_acompanhamento():
     js("(() => { const M = window.__m; const s = M.S('Acompanhamento do mês'); if (s) s.style.display = 'none'; })()")
 
 
-figura("resultado-equilibrio", "gestor", "/emporio/resultado", [
+figura("resultado-equilibrio", "dono", lambda: "/emporio/estatisticas?aba=resultado&loja=" + id_da_loja_centro(), [
     (1, "M.S('Ponto de equilíbrio')", "o ponto de equilibrio"),
     # Batido ou nao depende do mes: serve uma das duas frases de resultado-mes.tsx,
     # e so dentro da secao (um "Faltam" de outra parte da tela nao conta).
@@ -1119,15 +1216,15 @@ def periodo_do_relatorio():
     dia do mes (o padrao da tela comeca no dia 1)."""
     import datetime
     hoje = datetime.date.today()
-    return "/emporio/relatorios?de=" + (hoje - datetime.timedelta(days=30)).isoformat() + "&ate=" + hoje.isoformat()
+    return "/emporio/estatisticas?aba=vendas&de=" + (hoje - datetime.timedelta(days=30)).isoformat() + "&ate=" + hoje.isoformat()
 
 
 figura("relatorios-periodo", "gestor", periodo_do_relatorio, [
-    (1, "[M.L('De'), M.L('Até')]", "os campos De e Ate"),
-    (2, "M.L('Loja')", "o campo Loja"),
-    (3, "[M.B('Ver relatório'), M.B('Mês atual')]", "os botoes Ver relatorio e Mes atual"),
+    (1, "document.querySelector('[role=group][aria-label=\"Período\"]')", "o filtro de periodo, com os campos De e Ate"),
+    (2, "document.querySelector('nav[aria-label=\"Abas das Estatísticas\"]')", "a barra de abas, com Vendas escolhida"),
+    (3, "M.S('Por origem')", "o bloco Por origem"),
     (4, "M.S('Vendas por vendedor')", "o bloco Vendas por vendedor"),
-], limite=5, hd=2250, hc=2700)
+], limite=5, hd=2400, hc=3000)
 
 
 def estado_historico():
@@ -1187,22 +1284,24 @@ def id_da_conta_bancaria():
     return next(p["id"] for p in pos if p["kind"] == "conta")
 
 
-figura("financeiro-extrato", "dono", lambda: "/emporio/financeiro/caixa?lugar=conta:" + id_da_conta_bancaria(), [
+figura("financeiro-extrato", "dono", lambda: "/emporio/caixa?lugar=conta:" + id_da_conta_bancaria(), [
     (1, "M.C('Só a conferir')", "o filtro Só a conferir"),
     (2, "M.C('A conferir no período')", "o total a conferir"),
     (3, "M.TH('Conferência')", "a coluna Conferência"),
     (4, "M.Bs('Conferir com o banco')[0]", "o botao Conferir com o banco"),
 ], rolar="M.H('Extrato')", limite=8, hd=900, hc=1300)
 
-figura("financeiro-projecao", "dono", "/emporio/financeiro/projecao", [
+# O bloco Fluxo projetado e o ultimo da aba Dinheiro: a janela recorta a partir do titulo dele.
+FLUXO = "M.S('Fluxo projetado')"
+figura("financeiro-projecao", "dono", "/emporio/estatisticas?aba=dinheiro", [
     (1, "document.querySelector('nav[aria-label=\"Janela da projeção\"]')", "os botoes 30, 60 e 90 dias"),
-    (2, "M.C('Saldo de hoje')", "o saldo de hoje"),
-    (3, "M.TH('A receber')", "a coluna A receber"),
-    (4, "M.TH('Saldo ao fim')", "a coluna Saldo ao fim"),
-], hd=900, hc=1300)
+    (2, "M.todos('p').find(p => M.norm(p.innerText).startsWith('saldo de hoje:'))", "o saldo de hoje"),
+    (3, "Array.from(" + FLUXO + ".querySelectorAll('th')).find(th => M.norm(th.innerText).startsWith('a receber'))", "a coluna A receber"),
+    (4, "Array.from(" + FLUXO + ".querySelectorAll('th')).find(th => M.norm(th.innerText).startsWith('saldo ao fim'))", "a coluna Saldo ao fim"),
+], rolar="M.H('Fluxo projetado')", hd=900, hc=1300)
 
-figura("financeiro-relatorios", "dono", "/emporio/financeiro/relatorios", [
-    (1, "document.querySelector('[role=\"group\"][aria-label=\"Período\"]')", "o seletor de periodo"),
+figura("financeiro-relatorios", "dono", "/emporio/estatisticas?aba=dinheiro", [
+    (1, "document.querySelector('[role=\"group\"][aria-label=\"Período\"]')", "o filtro de periodo"),
     (2, "M.H('A receber por idade')", "o bloco A receber por idade"),
     (3, "M.H('A pagar por vencimento')", "o bloco A pagar por vencimento"),
     (4, "M.H('Posição de caixa por lugar')", "o bloco Posicao de caixa por lugar"),
@@ -1223,7 +1322,7 @@ def estado_rateio_automatico():
     time.sleep(0.8)
 
 
-figura("despesa-rateio-automatico", "dono", "/emporio/despesas", [
+figura("despesa-rateio-automatico", "dono", "/emporio/financeiro/pagar?aba=fixas", [
     (1, "M.L('Dividir entre as lojas')", "o campo Dividir entre as lojas, com Por area escolhido"),
     (2, "M.C('Dividida entre todas as lojas ativas')", "a frase que diz a base do rateio"),
     (3, "document.querySelector('[role=dialog] button[type=submit]')", "o botao Cadastrar despesa"),
@@ -1275,6 +1374,8 @@ def executar_modo(fig, modo, largura, altura, escala, sufixo):
     if r == "TIMEOUT":
         confere(fig["id"] + " (" + modo + "): a pagina abriu", False, pagina)
         return
+    if "loja=" in pagina:
+        confere(fig["id"] + " (" + modo + "): a URL perdeu o loja (o seletor do topo adotou a loja)", esperar_a_loja_do_topo(), pagina)
     inicializar_pagina()
     if modo == "celular":
         tabelas_sem_rolagem()

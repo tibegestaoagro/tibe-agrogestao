@@ -1670,13 +1670,13 @@ async function resumo(ctx: Ctx, senhas: { email: string; name: string; senha: st
   log(`Fiado em aberto: ${brl(fiadoAberto)} (vencido: ${brl(fiadoVencido)})`);
   log(`Transferências:  ${transfs.map((t) => `${t._count._all} ${t.status}`).join(", ")}`);
   log("\nPara conferir no painel (logado como o Dono ou como cada pessoa):");
-  log("  /emporio                 (visão geral e Primeiros Passos)");
+  log("  /emporio                 (o Início: Precisa de você, os números e Primeiros passos)");
   log("  /emporio/vendas          (vendas, devoluções e a troca)");
-  log("  /emporio/estoque         (saldo por loja, lacrado e avulso)");
+  log("  /emporio/estoque         (saldo por loja, lacrado e avulso; aba Tudo)");
   log("  /emporio/transferencias  (em trânsito, aguardando o Gestor, recebidas)");
-  log("  /emporio/caixa           (gaveta, conta, cartão a receber, cheque, fiado)");
-  log("  /emporio/despesas        (contas a pagar e despesas fixas)");
-  log("  /emporio/resultado       (resultado do mês por loja)");
+  log("  /emporio/caixa           (caixas, saldo de cada lugar, cartão a receber, cheque)");
+  log("  /emporio/financeiro/pagar (contas a pagar; abas Despesas fixas e Vendeu, Pagou)");
+  log("  /emporio/estatisticas    (visão geral, vendas, dinheiro e resultado do mês por loja)");
   log("  /emporio/equipe          (a Equipe)");
   log("  /emporio/historico       (quem fez o quê)");
   void lojas;

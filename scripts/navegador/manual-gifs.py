@@ -266,9 +266,30 @@ def comecar(aid, papel, pagina, altura=800):
     pg = pagina() if callable(pagina) else pagina
     r = ir(pg)
     confere(aid + ": a pagina " + pg + " abriu", r != "TIMEOUT" and r == pg.split("?")[0], r)
+    if "loja=" in pg:
+        confere(aid + ": a URL perdeu o loja (o seletor do topo adotou a loja)", esperar_a_loja_do_topo(), pg)
     js("localStorage.setItem('tibe.pwa.convite-dispensado', '1'); localStorage.setItem('tibe.push.convite-dispensado', '1')")
     # O menu lateral monta depois da hidratacao: o quadro sem ele parece pagina quebrada.
     confere(aid + ": o menu lateral montou", bool(esperar(lambda: js("document.querySelectorAll('nav a').length > 3"), 40)))
+    return r
+
+
+def esperar_a_loja_do_topo():
+    """Um endereco com ?loja= vira a loja do topo: o seletor grava o cookie, faz
+    router.replace (a URL perde o loja) e router.refresh (a pagina volta com os
+    dados da loja). O ir() nao espera isso, e o refresh desfaz o que a pagina
+    ja tinha recebido. Local deste roteiro de proposito: o _lib.py serve a todos
+    os roteiros."""
+    perdeu = esperar(lambda: "loja=" not in (js("location.search") or ""), 60)
+    time.sleep(3)
+    return bool(perdeu)
+
+
+def ir_com_loja(caminho):
+    """Vai a um endereco com ?loja= e so devolve depois de a loja ser adotada."""
+    r = ir(caminho)
+    if "loja=" in caminho:
+        confere("a URL " + caminho.split("?")[0] + " perdeu o loja (o seletor do topo adotou a loja)", esperar_a_loja_do_topo(), caminho)
     return r
 
 
@@ -544,7 +565,9 @@ def balcao_credito_franqueado():
     escolher_loja_do_balcao(LOJA)
     adicionar_ao_balcao("Sal Mineral Pr", PROD_C, "5")
     confere(aid + ": escolhe Consumidor final", escolher_cliente("Consumidor final") is True)
-    # passo 1: o campo Franqueado escolhido
+    # passo 1: o campo Franqueado escolhido (fica em "Mais opções", recolhido)
+    confere(aid + ": abre Mais opções", abrir_mais_opcoes() is True)
+    time.sleep(0.6)
     confere(aid + ": escolhe o franqueado " + FRANQUEADO, escolher("Franqueado (opcional)", FRANQUEADO) is True)
     time.sleep(0.6)
     quadro(aid, 1, "M.L('Franqueado (opcional)')", "o campo Franqueado escolhido", CFG_FRANQUEADOS)
@@ -645,8 +668,9 @@ def clicar_editar_preco(loja, apresentacao):
     return bool(js("(() => { const r = Array.from(document.querySelectorAll('main tbody tr')).find(r => r.children.length > 1 && r.children[0].innerText.trim() === " + repr(loja) + " && r.children[1].innerText.trim() === " + repr(apresentacao) + "); const b = r && Array.from(r.querySelectorAll('button')).find(x => x.innerText.trim() === 'Editar'); if (!b) return false; b.click(); return true; })()"))
 
 
-CFG_ESTOQUE = {"linhas": [r"^(" + NOSSOS + ")"], "ocultar": [r"^Precisa repor"], "pilulas": r"^(Todas as lojas|Loja Centro|Loja da Rodovia)$"}
-CFG_ESTOQUE_B = {"linhas": [r"^" + PROD_B], "ocultar": [r"^Precisa repor"], "pilulas": r"^(Todas as lojas|Loja Centro|Loja da Rodovia)$"}
+# O Estoque abre em Precisa repor: os GIFs vao a ?aba=tudo. A loja vem do seletor do topo (as pilulas de loja da tela sairam).
+CFG_ESTOQUE = {"linhas": [r"^(" + NOSSOS + ")"], "ocultar": [r"^Precisa repor"]}
+CFG_ESTOQUE_B = {"linhas": [r"^" + PROD_B], "ocultar": [r"^Precisa repor"]}
 
 
 def produto_fracao_gramas():
@@ -707,7 +731,7 @@ def produto_fracao_gramas():
     confere(aid + ": fecha a venda", enviar_botao("Fechar a venda"))
     confere(aid + ": a venda sai", bool(esperar(venda_fechada, 60)), texto_do_main()[:300])
     # passo 4: o estoque, com as sacas fechadas e o resto em kg
-    ir("/emporio/estoque?loja=" + str(id_da_loja(LOJA)))
+    ir_com_loja("/emporio/estoque?aba=tudo&por_pagina=100&loja=" + str(id_da_loja(LOJA)))
     inicializar_pagina(CFG_ESTOQUE)
     linha = esperar(lambda: linha_da_tabela(PROD_A), 30)
     print("   estoque A: " + str(linha))
@@ -720,7 +744,7 @@ def estoque_atacado_mesma_saca():
     aid = "estoque-atacado-mesma-saca"
     passo("Animacao " + aid)
     loja = id_da_loja(LOJA)
-    comecar(aid, "gestor", "/emporio/estoque?loja=" + str(loja), 560)
+    comecar(aid, "gestor", "/emporio/estoque?aba=tudo&por_pagina=100&loja=" + str(loja), 560)
     inicializar_pagina(CFG_ESTOQUE_B)
     linha = esperar(lambda: linha_da_tabela(PROD_B), 30)
     cel = linha.split(" | ")
@@ -740,7 +764,7 @@ def estoque_atacado_mesma_saca():
         "payments": [{"kind": "dinheiro", "amount": 110}],
     })
     confere(aid + ": a venda de 1 ATACADO saiu", res["status"] in (200, 201), str(res["status"]) + " " + json.dumps(res["body"], ensure_ascii=False)[:200])
-    ir("/emporio/estoque?loja=" + str(loja))
+    ir_com_loja("/emporio/estoque?aba=tudo&por_pagina=100&loja=" + str(loja))
     inicializar_pagina(CFG_ESTOQUE_B)
     linha = esperar(lambda: linha_da_tabela(PROD_B), 30)
     cel = linha.split(" | ")
