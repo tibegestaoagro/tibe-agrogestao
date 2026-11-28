@@ -117,6 +117,7 @@
     "test:m133": "tsx scripts/m133-emporio-dinheiro.test.ts",
     "test:m134": "tsx scripts/m134-emporio-estatisticas.test.ts",
     "test:m135": "tsx scripts/m135-emporio-loja-do-topo.test.ts",
+    "test:m136": "tsx scripts/m136-manual-emporio.test.ts",
     "test:isolation": "tsx scripts/tenant-isolation.test.ts",
     "test:docs-api": "tsx scripts/docs-api-completeness.test.ts",
     "test:nav": "tsx scripts/nav-build.test.ts",
