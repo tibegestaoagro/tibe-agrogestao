@@ -380,7 +380,7 @@ export async function criarEstabelecimentoAction(
         establishment_id: criada.id,
         target_type: "estabelecimento",
         target_id: criada.id,
-        summary: `Criou o estabelecimento ${criada.name}`,
+        summary: `Criou a loja ${criada.name}`,
       });
       return criada;
     });
@@ -491,7 +491,7 @@ export async function arquivarEstabelecimentoAction(
       establishment_id: id,
       target_type: "estabelecimento",
       target_id: id,
-      summary: `${archived ? "Arquivou" : "Reativou"} o estabelecimento ${atual.name}`,
+      summary: `${archived ? "Arquivou" : "Reativou"} a loja ${atual.name}`,
     });
     return atualizada;
   });

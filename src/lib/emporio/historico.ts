@@ -10,9 +10,9 @@ import { scoped } from "@/lib/prisma";
 
 /** O catálogo FIXO: chave gravada no banco, rótulo que a tela mostra. */
 export const ACOES_DO_HISTORICO = {
-  "estabelecimento.criar": "Criou um estabelecimento",
-  "estabelecimento.editar": "Editou um estabelecimento",
-  "estabelecimento.arquivar": "Arquivou um estabelecimento",
+  "estabelecimento.criar": "Criou uma loja",
+  "estabelecimento.editar": "Editou uma loja",
+  "estabelecimento.arquivar": "Arquivou uma loja",
   "vinculos.definir": "Definiu quem trabalha numa loja",
   "produto.criar": "Cadastrou um produto",
   "produto.editar": "Editou um produto",
